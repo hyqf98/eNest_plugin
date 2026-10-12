@@ -4,12 +4,12 @@
 // CI（release.yml）与本地均使用；build-registry.mjs 聚合前复用同一逻辑（失败直接抛错）。
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join, dirname, relative } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import Ajv2020 from 'ajv/dist/2020.js'
+import { resolveMarketAssets } from './market-assets.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
-const pluginsDir = join(root, 'plugins')
 const schemaPath = join(root, 'docs', 'plugin-manifest.schema.json')
 
 /** 加载 schema 并编译校验器（供 build-registry 复用） */
@@ -34,7 +34,8 @@ export function validateManifest(validator, manifest, label) {
 }
 
 /** 校验全部 plugins 下各插件的 plugin.json；返回全部错误行（空 = 全部通过） */
-export function validateAllManifests() {
+export function validateAllManifests(repositoryRoot = root) {
+  const pluginsDir = join(repositoryRoot, 'plugins')
   if (!existsSync(pluginsDir)) return []
   const validator = loadManifestValidator()
   const errors = []
@@ -46,19 +47,23 @@ export function validateAllManifests() {
     try {
       m = JSON.parse(readFileSync(manifestPath, 'utf-8'))
     } catch (e) {
-      errors.push(`${relative(root, manifestPath)}: invalid JSON — ${e.message}`)
+      errors.push(`${relative(repositoryRoot, manifestPath)}: invalid JSON — ${e.message}`)
       continue
     }
     if (m.id !== dir) {
       errors.push(`${dir}: folder name must equal id (${m.id})`)
     }
-    errors.push(...validateManifest(validator, m, relative(root, manifestPath)))
+    const schemaErrors = validateManifest(validator, m, relative(repositoryRoot, manifestPath))
+    errors.push(...schemaErrors)
+    if (!schemaErrors.length) {
+      try { resolveMarketAssets(m, join(pluginsDir, dir)) } catch (error) { errors.push(error.message) }
+    }
   }
   return errors
 }
 
 // 直接执行（非 import）时作为 CLI
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const errors = validateAllManifests()
   if (errors.length) {
     console.error(`[validate-manifests] ${errors.length} error(s):`)

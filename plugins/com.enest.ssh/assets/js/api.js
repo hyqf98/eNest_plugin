@@ -131,7 +131,12 @@
   async function metricsStart(sessionId, intervalMs) {
     const m = api?.ssh?.metrics
     if (!has(m?.start)) throw missing('ssh.metrics.start')
-    return m.start({ sessionId, intervalMs: intervalMs || 5000 })
+    // 间隔统一来自 store.ui.monitorIntervalMs；入参缺失时兜底读取
+    const ms =
+      Number(intervalMs) ||
+      Number(global.SshStore?.state?.ui?.monitorIntervalMs) ||
+      5000
+    return m.start({ sessionId, intervalMs: ms })
   }
 
   async function metricsStop(sessionId) {
@@ -207,7 +212,7 @@
       return '认证失败：系统 SSH Agent 不可用'
     }
     if (low.includes('econnrefused') || low.includes('connection refused')) {
-      return '网络不可达：请检查主机、端口或防火墙'
+      return '连接被拒绝：目标端口无服务监听，请检查主机、端口或防火墙'
     }
     if (low.includes('etimedout') || low.includes('timeout') || low.includes('timed out')) {
       return '连接超时：请检查网络或目标主机'
@@ -261,6 +266,45 @@
     return s.download({ sessionId, remotePath, localPath })
   }
 
+  /* —— sftp 增强（preload 为位置参数签名：(sessionId, path, ...)）—— */
+  /** ssh.sftp.mkdir(sessionId, path) */
+  async function sftpMkdir(sessionKey, path) {
+    const s = api?.ssh?.sftp
+    if (!has(s?.mkdir)) throw missing('ssh.sftp.mkdir')
+    return s.mkdir(sessionKey, path)
+  }
+
+  /** ssh.sftp.rename(sessionId, path, newPath) */
+  async function sftpRename(sessionKey, path, newPath) {
+    const s = api?.ssh?.sftp
+    if (!has(s?.rename)) throw missing('ssh.sftp.rename')
+    return s.rename(sessionKey, path, newPath)
+  }
+
+  /** ssh.sftp.delete(sessionId, path, recursive) */
+  async function sftpDelete(sessionKey, path, recursive) {
+    const s = api?.ssh?.sftp
+    if (!has(s?.delete)) throw missing('ssh.sftp.delete')
+    return s.delete(sessionKey, path, !!recursive)
+  }
+
+  /** ssh.sftp.chmod(sessionId, path, mode) —— mode 为 '0644' 这类八进制字符串 */
+  async function sftpChmod(sessionKey, path, mode) {
+    const s = api?.ssh?.sftp
+    if (!has(s?.chmod)) throw missing('ssh.sftp.chmod')
+    return s.chmod(sessionKey, path, String(mode))
+  }
+
+  /**
+   * 订阅宿主传输进度事件 ssh.transfer
+   * payload: { sessionId, direction, path, transferred, total, done?, error? }
+   * 返回取消订阅函数。
+   */
+  function onSshTransfer(cb) {
+    if (typeof cb !== 'function') return () => {}
+    return on('ssh.transfer', cb)
+  }
+
   /**
    * 宿主文件选择器（Spec SSH-A4/G3）。
    * opts: { mode: 'file'|'dir' } 或 { properties: [...] }；宿主要求 properties。
@@ -301,11 +345,24 @@
     return api.clipboard.writeText(String(text))
   }
 
-  function applyThemeTokens(tokens) {
+  function applyThemeTokens(tokens, mapBrand) {
     if (!tokens) return
     const root = document.documentElement
     for (const [k, v] of Object.entries(tokens)) {
       if (typeof v === 'string' && k.startsWith('--')) root.style.setProperty(k, v)
+    }
+    // 宿主未提供 --brand 系列：仅壳子注入时映射到 accent，
+    // 使主按钮/激活态跟随壳子强调色；本地兜底色板保持自带品牌蓝
+    if (mapBrand) {
+      const accent = tokens['--accent']
+      if (typeof accent === 'string' && accent) {
+        root.style.setProperty('--brand', accent)
+        root.style.setProperty('--brand-strong', accent)
+      }
+      const accentSoft = tokens['--accent-soft']
+      if (typeof accentSoft === 'string' && accentSoft) {
+        root.style.setProperty('--brand-soft', accentSoft)
+      }
     }
     document.documentElement.dataset.themeApplied = '1'
   }
@@ -316,7 +373,8 @@
       '--bg','--surface','--surface-2','--surface-3','--border','--border-strong',
       '--text','--text-2','--text-3','--accent','--accent-soft','--ok','--ok-soft',
       '--danger','--danger-soft','--warn','--warn-soft',
-      '--radius-md','--radius-sm','--shadow-soft','--shadow-float','--font','--mono','--term-bg'
+      '--radius-md','--radius-sm','--shadow-soft','--shadow-float','--font','--mono','--term-bg',
+      '--brand','--brand-strong','--brand-soft','--accent-contrast','--link'
     ]
     for (const k of keys) root.style.removeProperty(k)
   }
@@ -441,7 +499,7 @@
       const get = api?.theme?.getTokens || api?.ui?.getThemeTokens
       if (has(get)) {
         const res = await (api.theme?.getTokens ? api.theme.getTokens() : api.ui.getThemeTokens())
-        if (res && res.tokens) applyThemeTokens(res.tokens)
+        if (res && res.tokens) applyThemeTokens(res.tokens, true)
         if (res && res.mode) document.documentElement.dataset.theme = res.mode
       }
     } catch (_) { /* fallback palette in CSS */ }
@@ -449,7 +507,7 @@
       const off = api?.ui?.onThemeChange
       if (has(off)) {
         off.call(api.ui, (ev) => {
-          applyThemeTokens(ev && ev.tokens)
+          applyThemeTokens(ev && ev.tokens, true)
           if (ev && ev.mode) document.documentElement.dataset.theme = ev.mode
           if (typeof onChange === 'function') onChange(ev)
         })
@@ -494,6 +552,11 @@
     sftpList,
     sftpUpload,
     sftpDownload,
+    sftpMkdir,
+    sftpRename,
+    sftpDelete,
+    sftpChmod,
+    onSshTransfer,
     pickLocalFile,
     setTitle,
     copyText,

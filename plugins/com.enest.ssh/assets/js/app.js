@@ -73,6 +73,14 @@
       .replace(/"/g, '&quot;')
   }
 
+  /**
+   * 动态组件样式已收编进 assets/css/main.css 的 Design v2 层
+   * （.term-search / .sftp-transfers 系列），此处保留空实现以兼容既有调用点。
+   */
+  function injectDynamicStyles() {
+    /* styles live in main.css */
+  }
+
   /* ========== context menu ========== */
   function closeContextMenu() {
     const menu = $('ctx-menu')
@@ -173,6 +181,14 @@
     const isCollapsed = !!collapsed
     if (app) app.classList.toggle('side-collapsed', isCollapsed)
     if (side) side.dataset.collapsed = isCollapsed ? '1' : '0'
+    const toggleBtn = $('btn-toggle-side')
+    if (toggleBtn) {
+      toggleBtn.textContent = isCollapsed ? '☰' : '»'
+      const label = isCollapsed ? '展开侧栏' : '收起侧栏'
+      toggleBtn.title = label
+      toggleBtn.setAttribute('aria-label', label)
+      toggleBtn.dataset.tip = label
+    }
     if (persist !== false) store.setUi({ sidebarCollapsed: isCollapsed })
   }
 
@@ -191,6 +207,9 @@
       drawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true')
     }
     if (scrim) scrim.hidden = !isOpen
+    // 抽屉盖在终端区之上（z-index:40 > term-search 所在层）；
+    // 打开时收起终端搜索浮层，关闭时恢复，避免搜索 UI 半截被埋在抽屉下
+    if (isOpen && termSearch.visible) closeTermSearch()
     document.querySelectorAll('#btn-top-drawer, #rail-drawer').forEach((b) => {
       if (b) b.classList.toggle('active', isOpen)
     })
@@ -330,18 +349,11 @@
         id: store.uid('prof'),
         name: (profile.name || '连接') + ' 副本',
         secretRef: undefined,
-        favorite: false,
         lastConnectedAt: undefined,
       }
       store.upsertProfile(copy)
       renderLeft()
       toast('已复制', 'success')
-    },
-    toggleFavorite(id) {
-      const profile = store.findProfile(id)
-      if (!profile) return
-      store.upsertProfile({ ...profile, favorite: !profile.favorite })
-      renderLeft()
     },
     async deleteProfile(id) {
       const profile = store.findProfile(id)
@@ -460,7 +472,7 @@
         await stopMetrics(s)
         store.setUi({ monitorOn: false })
       } else if (s.sessionId) {
-        store.setUi({ monitorIntervalMs: Number($('metrics-interval')?.value) || 5000 })
+        syncMetricsInterval()
         await startMetrics(s)
       } else {
         toast('请先连接', 'warn')
@@ -487,10 +499,6 @@
       { label: '删除', danger: true, onAct: () => void actions.deleteProfile(profileId) },
       { sep: true },
       { label: '历史', onAct: () => actions.viewHistoryFor(profileId) },
-      {
-        label: p.favorite ? '取消收藏' : '收藏',
-        onAct: () => actions.toggleFavorite(profileId),
-      },
       { label: '移动分组', onAct: () => void actions.moveProfileToGroup(profileId) },
       { label: '复制命令', onAct: () => void actions.copySshCommand(profileId) },
       { label: '监控', onAct: () => void actions.toggleMetricsFor(profileId) },
@@ -703,13 +711,6 @@
       { label: '新建分组', onAct: () => void newGroup() },
       { sep: true },
       {
-        label: store.state.ui.filterFavorite ? '取消收藏筛选' : '仅收藏',
-        onAct: () => {
-          store.setUi({ filterFavorite: !store.state.ui.filterFavorite })
-          renderLeft()
-        },
-      },
-      {
         label: store.state.ui.filterRecent ? '取消最近筛选' : '最近连接',
         onAct: () => {
           store.setUi({ filterRecent: !store.state.ui.filterRecent })
@@ -842,10 +843,21 @@
   }
 
   function sftpMoreItems() {
+    const raw = api.raw
+    const hasMkdir = typeof raw?.ssh?.sftp?.mkdir === 'function'
+    const hasRename = typeof raw?.ssh?.sftp?.rename === 'function'
+    const hasDelete = typeof raw?.ssh?.sftp?.delete === 'function'
+    const hasChmod = typeof raw?.ssh?.sftp?.chmod === 'function'
+    const hasSel = !!activeSession()?.sftp?.selected
     return [
       { primary: true, label: '刷新', onAct: () => void sftpRefresh() },
       { label: '上传', onAct: () => void sftpUpload() },
-      { label: '下载', onAct: () => void sftpDownload() },
+      { label: '下载', disabled: !hasSel, onAct: () => void sftpDownload() },
+      { sep: true },
+      { label: '新建文件夹', disabled: !hasMkdir, onAct: () => void sftpMkdir() },
+      { label: '重命名', disabled: !hasRename || !hasSel, onAct: () => void sftpRename() },
+      { label: '删除', danger: true, disabled: !hasDelete || !hasSel, onAct: () => void sftpDelete() },
+      { label: '权限…', disabled: !hasChmod || !hasSel, onAct: () => void sftpChmod() },
     ]
   }
 
@@ -931,13 +943,22 @@
     })
   }
 
-  function promptDialog(title, placeholder, initial) {
+  function promptDialog(title, placeholder, initial, opts) {
     return new Promise((resolve) => {
       const root = $('prompt-root')
-      $('prompt-title').textContent = title
+      const titleEl = $('prompt-title')
+      titleEl.textContent = title
       const input = $('prompt-input')
       input.placeholder = placeholder || ''
       input.value = initial || ''
+      // 可访问性：输入框语义跟随弹窗标题；密码场景掩码显示
+      input.setAttribute('aria-label', title)
+      const secret = !!(opts && opts.secret)
+      input.type = secret ? 'password' : 'text'
+      if (secret) input.setAttribute('autocomplete', 'off')
+      else input.removeAttribute('autocomplete')
+      const note = $('prompt-note')
+      if (note) note.textContent = (opts && opts.note) || ''
       const done = (v) => {
         root.classList.remove('show')
         $('prompt-ok').onclick = null
@@ -1060,6 +1081,29 @@
     updateFab()
   }
 
+  /**
+   * term-wrap 重建（wrap.innerHTML=''）后补全浮层元素会被一并销毁。
+   * 这里在每次挂载后确保 #completion-list / #hint-meta 存在：
+   * 已连接且父节点就是 wrap 则不动；缺失则按 index.html 的静态结构补建。
+   * （原 #hint-input 隐藏输入为死代码，已随本轮清理移除）
+   */
+  function ensureCompletionLayer(wrap) {
+    let box = document.getElementById('completion-list')
+    if (!box) {
+      box = document.createElement('div')
+      box.id = 'completion-list'
+      box.className = 'completion-list'
+    }
+    if (box.parentElement !== wrap) wrap.appendChild(box)
+    let meta = document.getElementById('hint-meta')
+    if (!meta) {
+      meta = document.createElement('div')
+      meta.id = 'hint-meta'
+      meta.className = 'hint-meta'
+    }
+    if (meta.parentElement !== wrap) wrap.appendChild(meta)
+  }
+
   function mountActiveTerminal() {
     const s = activeSession()
     const wrap = $('term-wrap')
@@ -1071,12 +1115,40 @@
       const emp = document.createElement('div')
       emp.className = 'term-empty'
       emp.id = 'term-empty'
+      const recent = store.state.profiles
+        .filter((p) => p.lastConnectedAt)
+        .sort((a, b) => (b.lastConnectedAt || 0) - (a.lastConnectedAt || 0))
+        .slice(0, 3)
+      let quick = ''
+      if (recent.length) {
+        quick =
+          '<div class="quick-links">' +
+          recent
+            .map(
+              (p) =>
+                '<button class="chip" data-act="empty-quick" data-pid="' +
+                escapeHtml(p.id) +
+                '">' +
+                escapeHtml(profileTitle(p)) +
+                '</button>'
+            )
+            .join('') +
+          '</div>'
+      }
       emp.innerHTML =
-        '<div>未连接<div class="empty-act"><button class="btn sm primary" data-act="empty-new">新建连接</button></div></div>'
+        '<div class="empty-copy">选择左侧连接，或从最近开始</div>' +
+        quick +
+        '<div class="empty-act"><button class="btn sm primary" data-act="empty-new">新建连接</button></div>'
       emp.onclick = (ev) => {
-        if (ev.target?.dataset?.act === 'empty-new') openProfileForm(null)
+        const act = ev.target?.closest('[data-act]')?.dataset?.act
+        if (act === 'empty-new') openProfileForm(null)
+        else if (act === 'empty-quick') {
+          const pid = ev.target.closest('[data-pid]')?.dataset?.pid
+          if (pid) void actions.openTerminalFor(pid)
+        }
       }
       wrap.appendChild(emp)
+      ensureCompletionLayer(wrap)
       wrap.__term = null
       wrap.__termOwner = null
       return
@@ -1099,6 +1171,7 @@
       wrap.appendChild(ban)
       wrap.appendChild(emp)
       wrap.appendChild(host)
+      ensureCompletionLayer(wrap)
       if (!s.term) {
         s.term = Term.createTerminal(host, {
           onData(data) {
@@ -1287,7 +1360,10 @@
     if (authType === 'password' && !profile.secretRef) {
       if (opts && opts.ephemeralPassword != null) ephemeralPassword = opts.ephemeralPassword
       else {
-        const pw = await promptDialog('密码', '仅本次使用，不保存', '')
+        const pw = await promptDialog('密码', '登录密码', '', {
+          secret: true,
+          note: '仅本次使用，不保存',
+        })
         if (pw == null || pw === '') {
           toast('已取消', 'warn')
           return s
@@ -1307,7 +1383,10 @@
       !jump.secretRef &&
       !(opts && opts.jumpPassword != null)
     ) {
-      const jpw = await promptDialog('跳板主机密码', jump.username + '@' + jump.host + ' · 仅本次使用', '')
+      const jpw = await promptDialog('跳板主机密码', jump.username + '@' + jump.host, '', {
+        secret: true,
+        note: '仅本次使用，不保存',
+      })
       if (jpw != null && jpw !== '') jumpPassword = jpw
     } else if (opts && opts.jumpPassword != null) {
       jumpPassword = opts.jumpPassword
@@ -1500,6 +1579,9 @@
         }
       }
     })
+
+    // 传输进度：宿主推送 { sessionId, direction, path, transferred, total, done?, error? }
+    api.onSshTransfer((payload) => onTransferEvent(payload))
   }
 
   function utf8(data) {
@@ -1555,13 +1637,26 @@
   }
 
   /* ========== metrics ========== */
+  /** 采集间隔唯一读取源：store.state.ui.monitorIntervalMs */
+  function monitorIntervalMs() {
+    return Number(store.state.ui.monitorIntervalMs) || 5000
+  }
+
+  /** 把输入框当前值同步进 store（用户改值未触发 change 时兜底） */
+  function syncMetricsInterval() {
+    const input = $('metrics-interval')
+    if (!input) return
+    const v = Number(input.value)
+    if (v && v !== store.state.ui.monitorIntervalMs) store.setUi({ monitorIntervalMs: v })
+  }
+
   async function startMetrics(s) {
     if (!s || !s.sessionId) {
       toast('请先连接', 'warn')
       return
     }
     try {
-      await api.metricsStart(s.sessionId, Number(store.state.ui.monitorIntervalMs) || 5000)
+      await api.metricsStart(s.sessionId, monitorIntervalMs())
       s.metricsOn = true
       store.setUi({ monitorOn: true })
     } catch (e) {
@@ -1782,6 +1877,133 @@
     return String(num)
   }
 
+  /* ========== term search（Cmd/Ctrl+F 动态浮层） ========== */
+  const termSearch = { el: null, input: null, info: null, visible: false }
+
+  /** 惰性创建搜索浮层 DOM（class 沿用 term-search 命名风格） */
+  function ensureTermSearchEl() {
+    if (termSearch.el && document.body.contains(termSearch.el)) return termSearch.el
+    const wrap = $('term-wrap')
+    if (!wrap) return null
+    const el = document.createElement('div')
+    el.className = 'term-search'
+    el.hidden = true
+    el.innerHTML =
+      '<input type="search" placeholder="搜索终端…" aria-label="搜索终端" />' +
+      '<span class="term-search-info" aria-live="polite"></span>' +
+      '<button class="icon-btn" data-act="prev" title="上一个" aria-label="上一个">↑</button>' +
+      '<button class="icon-btn" data-act="next" title="下一个" aria-label="下一个">↓</button>' +
+      '<button class="icon-btn" data-act="close" title="关闭" aria-label="关闭">×</button>'
+    wrap.appendChild(el)
+    termSearch.el = el
+    termSearch.input = el.querySelector('input')
+    termSearch.info = el.querySelector('.term-search-info')
+    el.onclick = (ev) => {
+      const act = ev.target?.closest('[data-act]')?.dataset?.act
+      if (act === 'prev') runTermSearch('prev')
+      else if (act === 'next') runTermSearch('next')
+      else if (act === 'close') closeTermSearch()
+    }
+    termSearch.input.addEventListener('input', () => runTermSearch('next'))
+    termSearch.input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault()
+        runTermSearch(ev.shiftKey ? 'prev' : 'next')
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault()
+        ev.stopPropagation()
+        closeTermSearch()
+      }
+    })
+    // 「当前/总数」计数：addon 加载后每次 find 都会回调 { resultIndex, resultCount }
+    applySearchCountHook()
+    return el
+  }
+
+  /** 给当前激活终端挂搜索计数回调（addon 可能尚未注入，每次浮层创建时重挂） */
+  function applySearchCountHook() {
+    const s = activeSession()
+    if (!s?.term?.setOnSearchResults) return
+    s.term.setOnSearchResults((r) => {
+      if (!termSearch.visible || !termSearch.info) return
+      clearTimeout(searchCountTimer)
+      const count = r && r.resultCount
+      if (!count) {
+        termSearch.info.textContent = '无匹配'
+        return
+      }
+      const idx = (r.resultIndex >= 0 ? r.resultIndex : 0) + 1
+      termSearch.info.textContent = idx + '/' + count
+    })
+  }
+
+  function openTermSearch() {
+    const s = activeSession()
+    if (!s?.term) {
+      toast('请先连接终端', 'warn')
+      return
+    }
+    const el = ensureTermSearchEl()
+    if (!el) return
+    applySearchCountHook()
+    el.hidden = false
+    termSearch.visible = true
+    const q = termSearch.input.value
+    if (q) runTermSearch('next')
+    else termSearch.info.textContent = s.term.hasSearch?.() ? '' : '基础模式'
+    setTimeout(() => termSearch.input?.focus(), 20)
+  }
+
+  function closeTermSearch() {
+    const s = activeSession()
+    if (s?.term?.clearSearch) s.term.clearSearch()
+    if (termSearch.el) termSearch.el.hidden = true
+    termSearch.visible = false
+    clearTimeout(searchCountTimer)
+    termFocus()
+  }
+
+  /** 「当前/总数」计数看门狗：回调未在窗口内到达则降级为方向箭头，避免停在「…」 */
+  let searchCountTimer = null
+  function armSearchCountWatchdog(dir) {
+    clearTimeout(searchCountTimer)
+    searchCountTimer = setTimeout(() => {
+      if (termSearch.visible && termSearch.info && termSearch.info.textContent === '…') {
+        termSearch.info.textContent = dir === 'prev' ? '↑' : '↓'
+      }
+    }, 350)
+  }
+
+  function runTermSearch(dir) {
+    const s = activeSession()
+    const q = (termSearch.input?.value || '').trim()
+    if (!s?.term || !q) {
+      if (termSearch.info) termSearch.info.textContent = ''
+      return
+    }
+    const res =
+      dir === 'prev'
+        ? s.term.searchPrev(q, { caseSensitive: false })
+        : s.term.search(q, { caseSensitive: false })
+    if (termSearch.info) {
+      // 命中时优先显示「当前/总数」：addon 模式由 onDidChangeResults 异步刷新（350ms 看门狗降级）；
+      // 降级模式（无 addon）由 term.js 的 fallbackReport 在 search() 内同步上报计数
+      if (res && res.ok) {
+        if (s.term.hasSearch?.()) {
+          termSearch.info.textContent = '…'
+          armSearchCountWatchdog(dir)
+        } else if (typeof s.term.setOnSearchResults === 'function') {
+          applySearchCountHook() // 确保 fallback 计数回调已挂到当前会话
+          termSearch.info.textContent = dir === 'prev' ? '↑' : '↓'
+        } else {
+          termSearch.info.textContent = dir === 'prev' ? '↑' : '↓'
+        }
+      } else {
+        termSearch.info.textContent = '无匹配'
+      }
+    }
+  }
+
   /* ========== sftp ========== */
   async function sftpRefresh() {
     const s = activeSession()
@@ -1831,12 +2053,34 @@
     let localPath
     const picked = await api.pickLocalFile({ mode: 'dir' })
     if (picked && picked.path) localPath = joinPath(picked.path, name)
+    trackTransfer(s.sessionId, 'down', remote)
     try {
       const res = await api.sftpDownload(s.sessionId, remote, localPath)
       if (res && res.ok === false) throw new Error(res.error || res.message || '下载失败')
+      // 宿主若无 ssh.transfer 推送，成功返回时兜底标记完成
+      const key = s.sessionId + '|down|' + remote
+      if (transfers.has(key)) {
+        const t = transfers.get(key)
+        if (!t.done && !t.error) {
+          t.done = true
+          if (!t.total) t.total = t.transferred
+          renderTransfers()
+          setTimeout(() => {
+            transfers.delete(key)
+            renderTransfers()
+          }, 8000)
+        }
+      }
       const out = res && (res.localPath || res.path) ? ' → ' + (res.localPath || res.path) : ''
       toast('已下载 ' + name + out, 'success')
     } catch (e) {
+      const key = s.sessionId + '|down|' + remote
+      if (transfers.has(key)) {
+        const t = transfers.get(key)
+        t.error = err(e)
+        t.done = true
+        renderTransfers()
+      }
       toast(err(e), 'error')
     }
   }
@@ -1859,20 +2103,336 @@
     const remoteDir = s.sftp.path || '.'
     // 宿主 createWriteStream 需要完整远程文件路径，不能只传目录
     const remotePath = joinPath(remoteDir, base)
+    trackTransfer(s.sessionId, 'up', remotePath)
     try {
       const res = await api.sftpUpload(s.sessionId, localPath, remotePath)
       if (res && res.ok === false) throw new Error(res.error || res.message || '上传失败')
+      // 宿主若无 ssh.transfer 推送，成功返回时兜底标记完成
+      const key = s.sessionId + '|up|' + remotePath
+      if (transfers.has(key)) {
+        const t = transfers.get(key)
+        if (!t.done && !t.error) {
+          t.done = true
+          if (!t.total) t.total = t.transferred
+          renderTransfers()
+          setTimeout(() => {
+            transfers.delete(key)
+            renderTransfers()
+          }, 8000)
+        }
+      }
       toast('已上传 ' + base, 'success')
       await sftpRefresh()
     } catch (e) {
+      const key = s.sessionId + '|up|' + remotePath
+      if (transfers.has(key)) {
+        const t = transfers.get(key)
+        t.error = err(e)
+        t.done = true
+        renderTransfers()
+      }
       toast(err(e), 'error')
     }
+  }
+
+  /* —— sftp 增强：新建文件夹 / 重命名 / 删除 / 权限（HOST_LAG 降级） —— */
+  /** 统一降级文案：宿主方法缺失时提示更新壳子 */
+  function sftpHostLag(e) {
+    const msg = err(e)
+    if (msg.includes('功能未就绪') || !api.hasHostSsh()) {
+      return '功能未就绪（更新壳子后可用）'
+    }
+    return msg
+  }
+
+  async function sftpMkdir() {
+    const s = activeSession()
+    if (!s || !s.sessionId) {
+      toast('请先连接', 'warn')
+      return
+    }
+    const name = await promptDialog('新建文件夹', '名称', '')
+    if (name == null || !String(name).trim()) return
+    const dirName = String(name).trim()
+    try {
+      const res = await api.sftpMkdir(s.sessionId, joinPath(s.sftp.path || '.', dirName))
+      if (res && res.ok === false) throw new Error(res.error || res.message || '创建失败')
+      toast('已创建 ' + dirName, 'success')
+      await sftpRefresh()
+    } catch (e) {
+      toast(sftpHostLag(e), 'error')
+    }
+  }
+
+  async function sftpRename() {
+    const s = activeSession()
+    if (!s || !s.sessionId) {
+      toast('请先连接', 'warn')
+      return
+    }
+    const name = s.sftp.selected
+    if (!name) {
+      toast('请先选择条目', 'warn')
+      return
+    }
+    const next = await promptDialog('重命名', '', name)
+    if (next == null || !String(next).trim() || String(next).trim() === name) return
+    const newName = String(next).trim()
+    try {
+      const res = await api.sftpRename(
+        s.sessionId,
+        joinPath(s.sftp.path || '.', name),
+        joinPath(s.sftp.path || '.', newName)
+      )
+      if (res && res.ok === false) throw new Error(res.error || res.message || '重命名失败')
+      s.sftp.selected = newName
+      toast('已重命名', 'success')
+      await sftpRefresh()
+    } catch (e) {
+      toast(sftpHostLag(e), 'error')
+    }
+  }
+
+  async function sftpDelete() {
+    const s = activeSession()
+    if (!s || !s.sessionId) {
+      toast('请先连接', 'warn')
+      return
+    }
+    const name = s.sftp.selected
+    if (!name) {
+      toast('请先选择条目', 'warn')
+      return
+    }
+    const entry = (s.sftp.entries || []).find((e) => e.name === name)
+    const isDir = !!(
+      entry &&
+      (entry.isDir || entry.isDirectory || entry.type === 'dir' || entry.type === 'd')
+    )
+    // 目录递归删除需二次确认
+    let recursive = false
+    if (isDir) {
+      const ok = await confirmDialog(
+        '「' + name + '」是目录，将递归删除其全部内容。继续？',
+        { title: '删除目录', okText: '递归删除', danger: true }
+      )
+      if (!ok) return
+      recursive = true
+    } else {
+      const ok = await confirmDialog('删除「' + name + '」？', {
+        title: '删除',
+        okText: '删除',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    try {
+      const res = await api.sftpDelete(s.sessionId, joinPath(s.sftp.path || '.', name), recursive)
+      if (res && res.ok === false) throw new Error(res.error || res.message || '删除失败')
+      if (s.sftp.selected === name) s.sftp.selected = ''
+      toast('已删除 ' + name, 'success')
+      await sftpRefresh()
+    } catch (e) {
+      toast(sftpHostLag(e), 'error')
+    }
+  }
+
+  async function sftpChmod() {
+    const s = activeSession()
+    if (!s || !s.sessionId) {
+      toast('请先连接', 'warn')
+      return
+    }
+    const name = s.sftp.selected
+    if (!name) {
+      toast('请先选择条目', 'warn')
+      return
+    }
+    const input = await promptDialog('权限（八进制，如 0644 / 0755）', '0644', '0644')
+    if (input == null || !String(input).trim()) return
+    const mode = String(input).trim()
+    if (!/^0?[0-7]{3,4}$/.test(mode)) {
+      toast('权限格式无效：请输入 0644 这类八进制', 'warn')
+      return
+    }
+    try {
+      const res = await api.sftpChmod(s.sessionId, joinPath(s.sftp.path || '.', name), mode)
+      if (res && res.ok === false) throw new Error(res.error || res.message || 'chmod 失败')
+      toast('已设置 ' + name + ' → ' + mode, 'success')
+      await sftpRefresh()
+    } catch (e) {
+      toast(sftpHostLag(e), 'error')
+    }
+  }
+
+  /** SFTP 条目右键菜单（含增强操作；宿主方法未就绪时置灰） */
+  function sftpEntryMenuItems(entry) {
+    if (!entry) return null
+    const s = activeSession()
+    const raw = api.raw
+    const hasMkdir = typeof raw?.ssh?.sftp?.mkdir === 'function'
+    const hasRename = typeof raw?.ssh?.sftp?.rename === 'function'
+    const hasDelete = typeof raw?.ssh?.sftp?.delete === 'function'
+    const hasChmod = typeof raw?.ssh?.sftp?.chmod === 'function'
+    const isDir = !!(entry.isDir || entry.isDirectory || entry.type === 'dir' || entry.type === 'd')
+    return [
+      {
+        primary: true,
+        label: '下载' + (isDir ? '（文件 only）' : ''),
+        disabled: isDir,
+        onAct: () => void sftpDownload(),
+      },
+      { label: '上传到此目录', onAct: () => void sftpUpload() },
+      { sep: true },
+      { label: '新建文件夹', disabled: !hasMkdir, onAct: () => void sftpMkdir() },
+      { label: '重命名', disabled: !hasRename, onAct: () => void sftpRename() },
+      {
+        label: '删除' + (isDir ? '（递归）' : ''),
+        danger: true,
+        disabled: !hasDelete,
+        onAct: () => void sftpDelete(),
+      },
+      { label: '权限…', disabled: !hasChmod, onAct: () => void sftpChmod() },
+      { sep: true },
+      {
+        label: '复制路径',
+        onAct: async () => {
+          try {
+            await api.copyText(joinPath(s?.sftp?.path || '.', entry.name))
+            toast('已复制', 'success')
+          } catch (e) {
+            toast(err(e), 'error')
+          }
+        },
+      },
+    ]
   }
 
   function joinPath(dir, name) {
     if (!dir || dir === '.') return name
     if (dir.endsWith('/')) return dir + name
     return dir + '/' + name
+  }
+
+  /* —— 传输进度（宿主 ssh.transfer 事件驱动：文件名 + 百分比 + 字节，done 后淡出） —— */
+  const transfers = new Map() // key → { id, name, direction, transferred, total, done, error, ts }
+
+  /** direction 归一化：upload/up → 'up'；download/down → 'down' */
+  function normDirection(d) {
+    const s = String(d || '').toLowerCase()
+    if (s === 'up' || s === 'upload' || s === 'put' || s === 'write') return 'up'
+    return 'down'
+  }
+
+  function transferKey(payload) {
+    const path = String(payload?.path || '')
+    return String(payload?.sessionId || '') + '|' + normDirection(payload?.direction) + '|' + path
+  }
+
+  function transferBaseName(p) {
+    return String(p || '').split('/').filter(Boolean).pop() || String(p || '')
+  }
+
+  /** 上传/下载发起时先落一条「排队中」记录，事件到达后无缝衔接 */
+  function trackTransfer(sessionId, direction, path) {
+    transfers.set(sessionId + '|' + direction + '|' + path, {
+      id: store.uid('xfer'),
+      name: transferBaseName(path),
+      direction,
+      transferred: 0,
+      total: 0,
+      done: false,
+      error: '',
+      ts: Date.now(),
+    })
+    renderTransfers()
+  }
+
+  /** 处理宿主 ssh.transfer 事件：{ sessionId, direction, path, transferred, total, done?, error? } */
+  function onTransferEvent(payload) {
+    const d = payload || {}
+    if (!d.path) return
+    const key = transferKey(d)
+    const dir = normDirection(d.direction)
+    const cur =
+      transfers.get(key) ||
+      {
+        id: store.uid('xfer'),
+        name: transferBaseName(d.path),
+        direction: dir,
+        total: 0,
+        ts: Date.now(),
+      }
+    cur.direction = dir
+    cur.transferred = Number(d.transferred) || 0
+    if (d.total) cur.total = Number(d.total)
+    cur.done = d.done === true
+    cur.error = d.error ? String(d.error) : ''
+    cur.ts = Date.now()
+    transfers.set(key, cur)
+    renderTransfers()
+    // done/error 8s 后清理淡出的条目
+    if (cur.done || cur.error) {
+      setTimeout(() => {
+        transfers.delete(key)
+        renderTransfers()
+      }, 8000)
+    }
+  }
+
+  /** SFTP 面板内底部浮层（动态 DOM，class 沿用 sftp-* 命名风格） */
+  function renderTransfers() {
+    const panel = $('panel-sftp')
+    if (!panel) return
+    let box = document.getElementById('sftp-transfers')
+    if (!transfers.size) {
+      if (box) box.remove()
+      return
+    }
+    if (!box) {
+      box = document.createElement('div')
+      box.className = 'sftp-transfers'
+      box.id = 'sftp-transfers'
+      panel.appendChild(box)
+    }
+    const items = Array.from(transfers.values()).sort((a, b) => b.ts - a.ts).slice(0, 6)
+    box.innerHTML = items
+      .map((t) => {
+        const pct = t.total > 0 ? Math.min(100, Math.round((t.transferred / t.total) * 100)) : 0
+        const arrow = t.direction === 'up' ? '↑' : '↓'
+        const state = t.error
+          ? '<span class="xfer-state error">失败</span>'
+          : t.done
+            ? '<span class="xfer-state ok">完成</span>'
+            : '<span class="xfer-state">' + pct + '%</span>'
+        return (
+          '<div class="xfer-item' +
+          (t.done || t.error ? ' done' : '') +
+          '" data-xfer="' +
+          escapeHtml(t.id) +
+          '">' +
+          '<div class="xfer-row"><span class="xfer-dir">' +
+          arrow +
+          '</span><span class="xfer-name" title="' +
+          escapeHtml(t.name) +
+          '">' +
+          escapeHtml(t.name) +
+          '</span>' +
+          state +
+          '<span class="xfer-bytes">' +
+          fmtBytes(t.transferred) +
+          (t.total > 0 ? ' / ' + fmtBytes(t.total) : '') +
+          '</span></div>' +
+          '<div class="xfer-bar' +
+          (t.error ? ' error' : '') +
+          '"><i style="width:' +
+          (t.error ? 100 : pct) +
+          '%"></i></div>' +
+          (t.error ? '<div class="xfer-error">' + escapeHtml(t.error) + '</div>' : '') +
+          '</div>'
+        )
+      })
+      .join('')
   }
 
   function fmtMtime(m) {
@@ -1927,11 +2487,13 @@
             (selected ? ' class="selected"' : '') +
             '><td class="name ' +
             (isDir ? 'dir' : '') +
-            '">' +
+            '"><span class="f-icon">' +
+            (isDir ? '▸' : '·') +
+            '</span><span>' +
             escapeHtml(e.name) +
-            '</td><td>' +
+            '</span></td><td class="size">' +
             (isDir ? '—' : fmtBytes(e.size)) +
-            '</td><td>' +
+            '</td><td class="mtime">' +
             escapeHtml(fmtMtime(e.mtime ?? e.modifiedAt)) +
             '</td></tr>'
           )
@@ -1953,16 +2515,25 @@
         renderSftp()
       }
     }
+    // 条目右键：新建文件夹 / 重命名 / 删除 / 权限等增强操作
+    bindCtx(body, (ev) => {
+      const tr = ev.target.closest('tr[data-idx]')
+      if (tr) {
+        const e = entries[Number(tr.dataset.idx)]
+        if (e) {
+          // 右键即选中该条目，后续动作直接作用于它
+          s.sftp.selected = e.name
+          return sftpEntryMenuItems(e)
+        }
+      }
+      return null
+    })
   }
 
   /* ========== completion（跟随终端输入，不单独命令框） ========== */
   function terminalCommand() {
     const s = activeSession()
     return (s && s.lastCommand) || ''
-  }
-
-  function activeHintInput() {
-    return $('hint-input')
   }
 
   function scheduleCompletion() {
@@ -2049,6 +2620,9 @@
   function renderCompletion() {
     const box = $('completion-list')
     if (!box) return
+    // 浮层打开时隐藏右下 FAB（fixed z-index:40 会压在浮层末条目/滚动条上，且点击冲突）
+    const fabEl = $('fab')
+    if (fabEl) fabEl.classList.toggle('completion-over', !!(completionState.open && completionState.items.length))
     if (!completionState.open || !completionState.items.length) {
       box.classList.remove('show')
       box.innerHTML = ''
@@ -2187,16 +2761,16 @@
     const tree = $('tree')
     if (!tree) return
     const ui = store.state.ui
-    const tags = store.allTags()
 
     const filterRow = $('filter-row')
     if (filterRow) {
       const showFilters =
         document.activeElement === $('search-input') ||
-        !!(ui.filterEnv || ui.filterTag || ui.filterFavorite || ui.filterRecent || (ui.search || '').trim())
+        !!(ui.filterEnv || ui.filterRecent || (ui.search || '').trim())
       if (!showFilters) {
         filterRow.innerHTML = ''
       } else {
+        const envNames = { prod: '生产', staging: '预发', dev: '开发' }
         const envs = ['', 'prod', 'staging', 'dev']
         filterRow.innerHTML =
           envs
@@ -2207,39 +2781,20 @@
                 '" data-filter="env" data-value="' +
                 e +
                 '">' +
-                (e || '全部') +
+                (envNames[e] || '全部') +
                 '</button>'
             )
             .join('') +
           '<button class="chip ' +
-          (ui.filterFavorite ? 'active' : '') +
-          '" data-filter="fav">★</button>' +
-          '<button class="chip ' +
           (ui.filterRecent ? 'active' : '') +
-          '" data-filter="recent">最近</button>' +
-          tags
-            .slice(0, 6)
-            .map(
-              (t) =>
-                '<button class="chip ' +
-                (ui.filterTag === t ? 'active' : '') +
-                '" data-filter="tag" data-value="' +
-                escapeHtml(t) +
-                '">#' +
-                escapeHtml(t) +
-                '</button>'
-            )
-            .join('')
+          '" data-filter="recent">最近</button>'
       }
       filterRow.onclick = (ev) => {
         const btn = ev.target.closest('.chip')
         if (!btn) return
         const kind = btn.dataset.filter
         if (kind === 'env') store.setUi({ filterEnv: btn.dataset.value || '' })
-        else if (kind === 'fav') store.setUi({ filterFavorite: !ui.filterFavorite })
         else if (kind === 'recent') store.setUi({ filterRecent: !ui.filterRecent })
-        else if (kind === 'tag')
-          store.setUi({ filterTag: ui.filterTag === btn.dataset.value ? '' : btn.dataset.value })
         renderLeft()
       }
     }
@@ -2279,13 +2834,7 @@
     const selected = ui.selectedGroupId === id
     const color = group?.color || ''
     const childGroups = group ? store.childrenOf(group.id) : store.childrenOf('')
-    const searching = !!(
-      (ui.search || '').trim() ||
-      ui.filterTag ||
-      ui.filterEnv ||
-      ui.filterFavorite ||
-      ui.filterRecent
-    )
+    const searching = !!((ui.search || '').trim() || ui.filterEnv || ui.filterRecent)
     const isOpen = searching || !collapsed
     const profiles =
       directProfiles ||
@@ -2333,6 +2882,9 @@
   function profileCardHtml(p, depth) {
     const s = Array.from(sessions.values()).find((x) => x.profileId === p.id)
     const selected = store.state.ui.selectedProfileId === p.id
+    const colorDot = p.color
+      ? '<span class="group-dot" style="background:' + escapeHtml(p.color) + '"></span>'
+      : ''
     return (
       '<div class="profile-card ' +
       (selected ? 'selected' : '') +
@@ -2341,7 +2893,7 @@
       '" style="margin-left:' +
       (6 + depth * 6) +
       'px"><div class="row1">' +
-      (p.favorite ? '<span class="fav">★</span>' : '') +
+      colorDot +
       '<span class="name">' +
       escapeHtml(profileTitle(p)) +
       '</span>' +
@@ -2350,10 +2902,7 @@
       escapeHtml((p.username || '') + '@' + (p.host || '') + (p.port && p.port !== 22 ? ':' + p.port : '')) +
       '</div><div class="meta">' +
       (p.env ? '<span class="' + envClass(p.env) + '">' + escapeHtml(p.env) + '</span>' : '') +
-      (p.tags || [])
-        .slice(0, 3)
-        .map((t) => '<span class="badge">#' + escapeHtml(t) + '</span>')
-        .join('') +
+      (p.jump?.host ? '<span class="badge">跳板</span>' : '') +
       '</div></div>'
     )
   }
@@ -2418,11 +2967,9 @@
       cols: 120,
       rows: 32,
       env: 'dev',
-      tags: [],
       color: '',
       groupId: store.state.ui.selectedGroupId || '',
       note: '',
-      favorite: false,
       fingerprintPolicy: 'tofu',
     }
 
@@ -2436,20 +2983,14 @@
     $('f-password').value = ''
     $('f-passphrase').value = ''
     $('f-env').value = p.env || 'dev'
-    $('f-tags').value = (p.tags || []).join(', ')
-    $('f-color').value = p.color || ''
-    $('f-group').value = p.groupId || ''
+    setColorValue(p.color || '')
     $('f-note').value = p.note || ''
-    $('f-fav').checked = !!p.favorite
     $('f-keepalive').value = p.keepAliveSec || 30
     $('f-timeout').value = p.timeoutMs || 20000
     $('f-term').value = p.term || 'xterm-256color'
     $('f-cols').value = p.cols || 120
     $('f-rows').value = p.rows || 32
     $('f-fp').value = p.fingerprintPolicy || 'tofu'
-    $('f-jump-host').value = p.jump?.host || ''
-    $('f-jump-port').value = p.jump?.port || 22
-    $('f-jump-user').value = p.jump?.username || ''
     $('f-form-error').classList.remove('show')
     $('form-test-status').textContent = ''
     const adv = $('adv-block')
@@ -2457,7 +2998,10 @@
 
     updateSecretState(p)
     updateAuthFields()
-    renderGroupSelect()
+    const gid = p.groupId || ''
+    $('f-group').dataset.former = gid
+    setGroupSelectValue(gid)
+    initJumpFormFields(p.jump || null)
     $('form-root').classList.add('show')
   }
 
@@ -2491,21 +3035,418 @@
     $('f-keypath-wrap').style.display = auth === 'key' ? '' : 'none'
     $('f-password-wrap').style.display = auth === 'password' ? '' : 'none'
     $('f-passphrase-wrap').style.display = auth === 'key' ? '' : 'none'
+    updateJumpAuthFields()
   }
 
-  function renderGroupSelect() {
-    const sel = $('f-group')
-    const flat = []
+  function updateJumpAuthFields() {
+    const auth = $('f-jump-auth')?.value || 'password'
+    const wrap = $('f-jump-keypath-wrap')
+    if (wrap) wrap.style.display = auth === 'key' ? '' : 'none'
+  }
+
+  /* ========== 颜色色卡 ========== */
+  const COLOR_SWATCHES = [
+    '#5b8cff', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7',
+    '#ec4899', '#f43f5e', '#ef4444', '#f97316', '#f59e0b',
+    '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4',
+    '#64748b',
+  ]
+
+  function normalizeHexColor(hex) {
+    const v = String(hex || '').trim()
+    if (!v) return ''
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase()
+    if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+      return ('#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3]).toLowerCase()
+    }
+    return ''
+  }
+
+  function setColorValue(hex) {
+    const input = $('f-color')
+    if (!input) return
+    const norm = normalizeHexColor(hex)
+    input.value = hex || norm || ''
+    const native = $('f-color-native')
+    if (native && norm) native.value = norm
+    renderColorSwatches()
+  }
+
+  function renderColorSwatches() {
+    const wrap = $('f-color-swatches')
+    if (!wrap) return
+    const cur = normalizeHexColor($('f-color')?.value)
+    wrap.innerHTML = COLOR_SWATCHES.map((c) => {
+      const active = c === cur ? ' active' : ''
+      return (
+        '<button type="button" class="swatch' +
+        active +
+        '" data-color="' +
+        c +
+        '" style="background:' +
+        c +
+        '" title="' +
+        c +
+        '" aria-label="' +
+        c +
+        '"></button>'
+      )
+    }).join('')
+    wrap.onclick = (ev) => {
+      const btn = ev.target.closest('.swatch')
+      if (!btn) return
+      const next = btn.dataset.color
+      const curNow = normalizeHexColor($('f-color')?.value)
+      setColorValue(curNow === next ? '' : next)
+    }
+  }
+
+  /* ========== 自定义下拉（挂 body，避免 modal overflow 裁切原生 select） ========== */
+  const GROUP_NEW_SENTINEL = '__new_group__'
+  const JUMP_MANUAL_SENTINEL = '__manual_jump__'
+  let activeDropdown = null
+
+  function closeDropdown() {
+    if (!activeDropdown) return
+    try {
+      activeDropdown.el.remove()
+    } catch {
+      /* ignore */
+    }
+    activeDropdown.trigger?.classList.remove('open')
+    activeDropdown.trigger?.setAttribute('aria-expanded', 'false')
+    activeDropdown = null
+  }
+
+  function openDropdown(trigger, items, onSelect, currentValue) {
+    if (!trigger) return
+    if (activeDropdown && activeDropdown.trigger === trigger) {
+      closeDropdown()
+      return
+    }
+    closeDropdown()
+    const el = document.createElement('div')
+    el.className = 'cs-dropdown'
+    el.setAttribute('role', 'listbox')
+    if (!items.length) {
+      el.innerHTML = '<div class="cs-option cs-empty">暂无选项</div>'
+    } else {
+      el.innerHTML = items
+        .map((it) => {
+          const selected = String(it.id) === String(currentValue ?? '') ? ' selected' : ''
+          const color = it.color
+            ? '<span class="cs-dot" style="background:' + escapeHtml(it.color) + '"></span>'
+            : ''
+          const hint = it.hint
+            ? '<span class="cs-opt-hint">' + escapeHtml(it.hint) + '</span>'
+            : ''
+          return (
+            '<div class="cs-option' +
+            selected +
+            '" role="option" data-id="' +
+            escapeHtml(String(it.id)) +
+            '" data-action="' +
+            escapeHtml(it.action || '') +
+            '">' +
+            color +
+            '<span class="cs-opt-label">' +
+            escapeHtml(it.label) +
+            '</span>' +
+            hint +
+            '</div>'
+          )
+        })
+        .join('')
+    }
+    document.body.appendChild(el)
+    const rect = trigger.getBoundingClientRect()
+    const panelW = Math.max(rect.width, 160)
+    const maxW = Math.min(Math.max(panelW, 200), Math.max(180, window.innerWidth - 16))
+    el.style.minWidth = Math.min(panelW, maxW) + 'px'
+    el.style.maxWidth = maxW + 'px'
+    const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - maxW - 8))
+    el.style.left = left + 'px'
+    const estH = Math.min(280, items.length * 34 + 8)
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+    if (spaceBelow >= Math.min(estH, 160) || spaceBelow >= spaceAbove) {
+      el.style.top = Math.min(rect.bottom + 4, window.innerHeight - 40) + 'px'
+      el.style.maxHeight = Math.max(96, spaceBelow) + 'px'
+    } else {
+      el.style.bottom = Math.max(8, window.innerHeight - rect.top + 4) + 'px'
+      el.style.maxHeight = Math.max(96, spaceAbove) + 'px'
+    }
+    trigger.classList.add('open')
+    trigger.setAttribute('aria-expanded', 'true')
+    activeDropdown = { el, trigger }
+
+    el.addEventListener('click', (ev) => {
+      const opt = ev.target.closest('.cs-option')
+      if (!opt || opt.classList.contains('cs-empty')) return
+      const id = opt.dataset.id || ''
+      const action = opt.dataset.action || ''
+      closeDropdown()
+      if (typeof onSelect === 'function') onSelect(id, action)
+    })
+  }
+
+  document.addEventListener('pointerdown', (ev) => {
+    if (!activeDropdown) return
+    if (activeDropdown.el.contains(ev.target)) return
+    if (activeDropdown.trigger?.contains(ev.target)) return
+    closeDropdown()
+  })
+  window.addEventListener('blur', () => closeDropdown())
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') closeDropdown()
+  })
+
+  /**
+   * 原生 select 增强：隐藏原生控件、代之以 .cs-trigger 自定义下拉，
+   * 消除 Chromium 原生弹层遮挡选项/深色下白底白字的问题。
+   * 通过覆盖实例 value 属性 + 派发 change，保持既有 .value 读写与监听完全兼容。
+   */
+  function enhanceSelect(select) {
+    if (!select || select.dataset.enhanced === '1') return
+    select.dataset.enhanced = '1'
+    const protoValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')
+    const readOptions = () =>
+      Array.from(select.options).map((o) => ({ id: o.value, label: o.textContent || o.value }))
+
+    const trigger = document.createElement('button')
+    trigger.type = 'button'
+    trigger.className = 'cs-trigger cs-select'
+    trigger.setAttribute('aria-haspopup', 'listbox')
+    trigger.setAttribute('aria-expanded', 'false')
+    trigger.innerHTML = '<span class="cs-label"></span><span class="cs-caret">▾</span>'
+    select.insertAdjacentElement('afterend', trigger)
+    select.style.display = 'none'
+
+    const syncLabel = () => {
+      const cur = protoValue.get.call(select)
+      const hit = readOptions().find((it) => String(it.id) === String(cur))
+      trigger.querySelector('.cs-label').textContent = hit ? hit.label : cur
+    }
+    Object.defineProperty(select, 'value', {
+      configurable: true,
+      get() {
+        return protoValue.get.call(select)
+      },
+      set(v) {
+        protoValue.set.call(select, v)
+        syncLabel()
+      },
+    })
+
+    trigger.addEventListener('click', () => {
+      openDropdown(
+        trigger,
+        readOptions(),
+        (id) => {
+          select.value = id
+          select.dispatchEvent(new Event('change', { bubbles: true }))
+        },
+        select.value
+      )
+    })
+    syncLabel()
+  }
+
+  function groupLabelFor(id) {
+    if (!id) return '未分组'
+    if (id === GROUP_NEW_SENTINEL) return '＋ 新建分组…'
+    const g = store.findGroup(id)
+    return g ? g.name : '未分组'
+  }
+
+  function setGroupSelectValue(id) {
+    const btn = $('f-group')
+    if (!btn) return
+    const val = id || ''
+    btn.dataset.value = val
+    btn.dataset.former = val
+    const lab = btn.querySelector('.cs-label')
+    if (lab) lab.textContent = groupLabelFor(val)
+  }
+
+  function groupSelectItems() {
+    const flat = [{ id: '', label: '未分组', hint: '' }]
     const walk = (parentId, depth) => {
       for (const g of store.childrenOf(parentId)) {
-        flat.push({ id: g.id, name: '　'.repeat(depth) + g.name })
+        flat.push({
+          id: g.id,
+          label: '　'.repeat(depth) + g.name,
+          hint: '',
+          color: g.color || '',
+        })
         walk(g.id, depth + 1)
       }
     }
     walk('', 0)
-    sel.innerHTML =
-      '<option value="">未分组</option>' +
-      flat.map((g) => '<option value="' + escapeHtml(g.id) + '">' + escapeHtml(g.name) + '</option>').join('')
+    flat.push({ id: GROUP_NEW_SENTINEL, label: '＋ 新建分组…', hint: '', action: 'new-group' })
+    return flat
+  }
+
+  function renderGroupSelect() {
+    const btn = $('f-group')
+    if (!btn) return
+    setGroupSelectValue(btn.dataset.former || btn.dataset.value || '')
+  }
+
+  async function handleGroupSelect(id) {
+    if (id === GROUP_NEW_SENTINEL) {
+      const former = $('f-group')?.dataset.former || ''
+      const name = await promptDialog('新建分组', '名称', '')
+      if (!name || !name.trim()) {
+        setGroupSelectValue(former)
+        return
+      }
+      const trimmed = name.trim()
+      const dup = store.state.groups.find((g) => g.name === trimmed)
+      if (dup) {
+        toast('分组已存在，已选中', 'warn')
+        setGroupSelectValue(dup.id)
+        return
+      }
+      const group = {
+        id: store.uid('grp'),
+        name: trimmed,
+        parentId: '',
+        color: '',
+        sort: store.state.groups.length,
+        collapsed: false,
+      }
+      store.upsertGroup(group)
+      renderLeft()
+      setGroupSelectValue(group.id)
+      toast('已新建分组「' + trimmed + '」', 'success')
+      return
+    }
+    setGroupSelectValue(id)
+  }
+
+  /* ========== 跳板机：从已有连接选择 + 手动微调 ========== */
+  function setJumpSelectValue(id, label) {
+    const btn = $('f-jump-profile')
+    if (!btn) return
+    btn.dataset.value = id || ''
+    const lab = btn.querySelector('.cs-label')
+    if (lab) lab.textContent = label || '不使用跳板'
+  }
+
+  function clearJumpFields() {
+    if ($('f-jump-host')) $('f-jump-host').value = ''
+    if ($('f-jump-port')) $('f-jump-port').value = 22
+    if ($('f-jump-user')) $('f-jump-user').value = ''
+    if ($('f-jump-auth')) $('f-jump-auth').value = 'password'
+    if ($('f-jump-keypath')) $('f-jump-keypath').value = ''
+    updateJumpAuthFields()
+  }
+
+  function fillJumpFromProfile(jp) {
+    if (!jp) return
+    $('f-jump-host').value = jp.host || ''
+    $('f-jump-port').value = jp.port || 22
+    $('f-jump-user').value = jp.username || ''
+    const auth = jp.authType || (jp.privateKeyPath ? 'key' : 'password')
+    $('f-jump-auth').value = auth
+    $('f-jump-keypath').value = jp.privateKeyPath || ''
+    updateJumpAuthFields()
+  }
+
+  function matchJumpProfile(jump) {
+    if (!jump || !jump.host) return null
+    if (jump.profileId) {
+      const byId = store.findProfile(jump.profileId)
+      if (byId && byId.id !== formProfileId) return byId
+    }
+    return (
+      store.state.profiles.find(
+        (p) =>
+          p.id !== formProfileId &&
+          p.host === jump.host &&
+          (Number(p.port) || 22) === (Number(jump.port) || 22) &&
+          (!jump.username || p.username === jump.username)
+      ) || null
+    )
+  }
+
+  function initJumpFormFields(jump) {
+    const matched = matchJumpProfile(jump)
+    if (!jump || !jump.host) {
+      setJumpSelectValue('', '不使用跳板')
+      clearJumpFields()
+      return
+    }
+    $('f-jump-host').value = jump.host || ''
+    $('f-jump-port').value = jump.port || 22
+    $('f-jump-user').value = jump.username || ''
+    $('f-jump-auth').value = jump.authType || (jump.privateKeyPath ? 'key' : 'password')
+    $('f-jump-keypath').value = jump.privateKeyPath || ''
+    updateJumpAuthFields()
+    if (matched) setJumpSelectValue(matched.id, matched.name || '跳板连接')
+    else setJumpSelectValue(JUMP_MANUAL_SENTINEL, '手动填写')
+  }
+
+  function jumpSelectItems() {
+    const items = [
+      { id: '', label: '不使用跳板', hint: '' },
+      { id: JUMP_MANUAL_SENTINEL, label: '手动填写…', hint: '' },
+    ]
+    for (const p of store.state.profiles) {
+      if (p.id === formProfileId) continue
+      const hint = (p.username || '') + '@' + (p.host || '')
+      items.push({ id: p.id, label: p.name || p.host || p.id, hint, color: p.color || '' })
+    }
+    return items
+  }
+
+  function handleJumpSelect(id) {
+    if (id === '') {
+      setJumpSelectValue('', '不使用跳板')
+      clearJumpFields()
+      return
+    }
+    if (id === JUMP_MANUAL_SENTINEL) {
+      setJumpSelectValue(JUMP_MANUAL_SENTINEL, '手动填写')
+      return
+    }
+    const jp = store.findProfile(id)
+    if (!jp) {
+      setJumpSelectValue('', '不使用跳板')
+      clearJumpFields()
+      return
+    }
+    setJumpSelectValue(jp.id, jp.name || jp.host)
+    fillJumpFromProfile(jp)
+  }
+
+  function currentJumpDraft(usernameFallback, fallbackSecretRef) {
+    const host = $('f-jump-host')?.value.trim() || ''
+    if (!host) return null
+    const selected = $('f-jump-profile')?.dataset.value || ''
+    const jp = selected && selected !== JUMP_MANUAL_SENTINEL ? store.findProfile(selected) : null
+    return {
+      profileId: jp?.id || undefined,
+      host,
+      port: Number($('f-jump-port')?.value) || jp?.port || 22,
+      username: $('f-jump-user')?.value.trim() || jp?.username || usernameFallback || '',
+      authType: $('f-jump-auth')?.value || jp?.authType || (jp?.privateKeyPath ? 'key' : 'password'),
+      privateKeyPath: $('f-jump-keypath')?.value.trim() || jp?.privateKeyPath || undefined,
+      secretRef: jp?.secretRef || fallbackSecretRef || undefined,
+    }
+  }
+
+  async function browseLocalFile(inputEl) {
+    const picked = await api.pickLocalFile({ mode: 'file' })
+    if (picked && picked.path && inputEl) {
+      inputEl.value = picked.path
+      return picked.path
+    }
+    if (!api.raw?.ssh?.pickLocalFile && !api.raw?.ssh?.pickFile) {
+      toast('功能未就绪：宿主文件选择不可用', 'warn')
+    }
+    return null
   }
 
   async function saveProfileForm() {
@@ -2535,10 +3476,12 @@
     const existing = formProfileId ? store.findProfile(formProfileId) : null
     const id = formProfileId || store.uid('prof')
     const authType = $('f-auth').value
-    const tags = $('f-tags')
-      .value.split(/[,，\s]+/)
-      .map((t) => t.replace(/^#/, '').trim())
-      .filter(Boolean)
+    const groupId = $('f-group').dataset.value || ''
+    if (groupId === GROUP_NEW_SENTINEL) {
+      errEl.textContent = '请先完成分组选择'
+      errEl.classList.add('show')
+      return
+    }
 
     const profile = {
       ...(existing || {}),
@@ -2556,25 +3499,17 @@
       cols: Number($('f-cols').value) || 120,
       rows: Number($('f-rows').value) || 32,
       env,
-      tags,
-      color: $('f-color').value || undefined,
-      groupId: $('f-group').value || '',
+      // 标签/收藏字段已从表单移除；保留存量数据，不再由 UI 维护
+      tags: existing?.tags,
+      favorite: existing?.favorite,
+      color: normalizeHexColor($('f-color').value) || undefined,
+      groupId,
       note: $('f-note').value.trim() || '',
-      favorite: $('f-fav').checked,
       fingerprintPolicy: $('f-fp').value || 'tofu',
       lastConnectedAt: existing?.lastConnectedAt,
     }
-    const jh = $('f-jump-host').value.trim()
-    if (jh) {
-      profile.jump = {
-        host: jh,
-        port: Number($('f-jump-port').value) || 22,
-        username: $('f-jump-user').value.trim() || username,
-        secretRef: existing?.jump?.secretRef,
-      }
-    } else {
-      profile.jump = undefined
-    }
+    const jump = currentJumpDraft(username, existing?.jump?.secretRef)
+    profile.jump = jump || undefined
 
     try {
       if (authType === 'password') {
@@ -2616,6 +3551,7 @@
     delete profile.passphrase
 
     store.upsertProfile(profile)
+    closeDropdown()
     $('form-root').classList.remove('show')
     store.setUi({ selectedProfileId: id })
     renderLeft()
@@ -2633,7 +3569,15 @@
       b.classList.toggle('active', b.dataset.tab === tab)
     })
     const scopeEl = $('right-scope')
-    if (scopeEl) scopeEl.style.display = tab === 'history' ? '' : 'none'
+    if (scopeEl) {
+      // enhanceSelect 已接管显示：原生 select 常驻隐藏，显隐切换作用在 trigger 上
+      const scopeTrig =
+        scopeEl.dataset.enhanced === '1' && scopeEl.nextElementSibling?.classList?.contains('cs-trigger')
+          ? scopeEl.nextElementSibling
+          : null
+      if (scopeTrig) scopeTrig.style.display = tab === 'history' ? '' : 'none'
+      else scopeEl.style.display = tab === 'history' ? '' : 'none'
+    }
 
     if (tab === 'snippets') {
       const q = ($('right-search')?.value || '').trim().toLowerCase()
@@ -2872,8 +3816,8 @@
 
   /* ========== bind UI ========== */
   function bindUi() {
-    $('btn-expand-side').onclick = () => setSidebarCollapsed(false)
-    $('btn-collapse-side').onclick = () => setSidebarCollapsed(true)
+    ;['right-scope', 'f-env', 'f-auth', 'f-fp', 'f-jump-auth'].forEach((id) => enhanceSelect($(id)))
+    $('btn-toggle-side').onclick = () => toggleSidebar()
     $('rail-new').onclick = () => openProfileForm(null)
     $('rail-search').onclick = () => {
       setSidebarCollapsed(false)
@@ -2904,22 +3848,80 @@
     $('search-input').addEventListener('blur', () => setTimeout(() => renderLeft(), 120))
 
     $('f-auth').addEventListener('change', updateAuthFields)
-    $('btn-form-cancel').onclick = () => $('form-root').classList.remove('show')
-    $('btn-form-cancel-foot').onclick = () => $('form-root').classList.remove('show')
+    const jumpAuthEl = $('f-jump-auth')
+    if (jumpAuthEl) jumpAuthEl.addEventListener('change', updateJumpAuthFields)
+
+    const groupBtn = $('f-group')
+    if (groupBtn) {
+      groupBtn.addEventListener('click', (ev) => {
+        ev.preventDefault()
+        openDropdown(groupBtn, groupSelectItems(), handleGroupSelect, groupBtn.dataset.value || '')
+      })
+    }
+    const jumpBtn = $('f-jump-profile')
+    if (jumpBtn) {
+      jumpBtn.addEventListener('click', (ev) => {
+        ev.preventDefault()
+        openDropdown(jumpBtn, jumpSelectItems(), handleJumpSelect, jumpBtn.dataset.value || '')
+      })
+    }
+
+    const keyBrowse = $('btn-keypath-browse')
+    if (keyBrowse) {
+      keyBrowse.addEventListener('click', async (ev) => {
+        ev.preventDefault()
+        await browseLocalFile($('f-keypath'))
+      })
+    }
+    const jumpKeyBrowse = $('btn-jump-key-browse')
+    if (jumpKeyBrowse) {
+      jumpKeyBrowse.addEventListener('click', async (ev) => {
+        ev.preventDefault()
+        await browseLocalFile($('f-jump-keypath'))
+      })
+    }
+
+    const colorHex = $('f-color')
+    const colorNative = $('f-color-native')
+    const colorClear = $('btn-color-clear')
+    if (colorHex) {
+      colorHex.addEventListener('change', () => setColorValue(colorHex.value))
+      colorHex.addEventListener('input', () => renderColorSwatches())
+    }
+    if (colorNative) {
+      colorNative.addEventListener('input', () => setColorValue(colorNative.value))
+    }
+    if (colorClear) {
+      colorClear.addEventListener('click', (ev) => {
+        ev.preventDefault()
+        setColorValue('')
+      })
+    }
+
+    $('btn-form-cancel').onclick = () => {
+      closeDropdown()
+      $('form-root').classList.remove('show')
+    }
+    $('btn-form-cancel-foot').onclick = () => {
+      closeDropdown()
+      $('form-root').classList.remove('show')
+    }
     $('btn-form-save').onclick = () => void saveProfileForm()
     $('btn-form-test').onclick = async () => {
       const status = $('form-test-status')
+      const draftUsername = $('f-username').value.trim()
       const draft = {
         id: formProfileId || 'draft',
         name: $('f-name').value.trim() || 'draft',
         host: $('f-host').value.trim(),
         port: Number($('f-port').value) || 22,
-        username: $('f-username').value.trim(),
+        username: draftUsername,
         authType: $('f-auth').value,
         secretRef: formProfileId ? store.findProfile(formProfileId)?.secretRef : undefined,
         privateKeyPath: $('f-keypath').value.trim() || undefined,
         keepAliveSec: 30,
         timeoutMs: Number($('f-timeout').value) || 10000,
+        jump: currentJumpDraft(draftUsername, formProfileId ? store.findProfile(formProfileId)?.jump?.secretRef : undefined),
       }
       if (!draft.host || !draft.username) {
         status.textContent = '请填写主机与用户名'
@@ -2936,7 +3938,10 @@
           const formPw = $('f-password').value
           const pw =
             formPw ||
-            (await promptDialog('测试密码', '仅本次测试，不保存', ''))
+            (await promptDialog('测试密码', '登录密码', '', {
+              secret: true,
+              note: '仅本次测试，不保存',
+            }))
           if (!pw) {
             status.textContent = '已取消：需要密码'
             return
@@ -2947,7 +3952,7 @@
           const res = await api.sshTest(payload)
           status.textContent =
             (res?.latencyMs ?? res?.latency ?? '?') +
-            'ms · ' +
+            ' 毫秒 · ' +
             (res?.fingerprint || '') +
             ' · ' +
             (res?.server || res?.banner || '')
@@ -2967,8 +3972,8 @@
         }
         status.textContent =
           latency +
-          'ms · ' +
-          (res?.fingerprint || 'ok') +
+          ' 毫秒 · ' +
+          (res?.fingerprint || '连接成功') +
           (res?.serverIdent ? ' · ' + res.serverIdent : '')
       } catch (e) {
         status.textContent = api.friendlyConnectError(e)
@@ -2984,14 +3989,7 @@
       renderCenterTabs()
     }
 
-    const hint = $('hint-input')
-    if (hint) {
-      hint.addEventListener('input', () => {
-        scheduleCompletion()
-        renderHintMeta()
-      })
-    }
-    // 焦点在终端；历史/常用走 fill → 写入终端
+    // 全局快捷键只绑定一次（Cmd/Ctrl+T/W/Space/B/E）；重复绑定会导致动作触发两遍
     window.addEventListener('keydown', (ev) => {
       const meta = ev.metaKey || ev.ctrlKey
       if (!meta) return
@@ -3013,6 +4011,13 @@
       } else if (k === 'e' && !ev.shiftKey) {
         ev.preventDefault()
         toggleSidebar()
+      } else if (k === 'f') {
+        // 终端内搜索：Cmd/Ctrl+F 打开搜索浮层
+        const termHost = $('term-host')
+        if (termHost && termHost.getBoundingClientRect().height > 0) {
+          ev.preventDefault()
+          openTermSearch()
+        }
       }
     })
 
@@ -3025,18 +4030,28 @@
           await stopMetrics(s)
           store.setUi({ monitorOn: false })
         } else {
-          store.setUi({ monitorIntervalMs: Number($('metrics-interval').value) || 5000 })
+          syncMetricsInterval()
           await startMetrics(s)
         }
         renderMetrics()
       }
     }
-    $('metrics-interval').value = store.state.ui.monitorIntervalMs || 5000
+    $('metrics-interval').value = monitorIntervalMs()
     $('metrics-interval').addEventListener('change', (e) => {
-      store.setUi({ monitorIntervalMs: Number(e.target.value) || 5000 })
+      const v = Number(e.target.value) || monitorIntervalMs()
+      store.setUi({ monitorIntervalMs: v })
+      e.target.value = v
     })
 
     $('btn-sftp-refresh').onclick = () => void sftpRefresh()
+    // F5：SFTP 面板可见时刷新目录（保留既有行为）
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'F5') return
+      const panel = $('panel-sftp')
+      if (!panel || !panel.classList.contains('active')) return
+      ev.preventDefault()
+      void sftpRefresh()
+    })
     $('btn-sftp-up').onclick = async () => {
       const s = activeSession()
       if (!s) return
@@ -3098,30 +4113,6 @@
       ]
     })
 
-    window.addEventListener('keydown', (ev) => {
-      const meta = ev.metaKey || ev.ctrlKey
-      if (!meta) return
-      const k = ev.key.toLowerCase()
-      if (k === 't' && !ev.shiftKey) {
-        ev.preventDefault()
-        void fabAction()
-      } else if (k === 'w') {
-        if (document.activeElement === $('hint-input') || document.activeElement?.tagName === 'INPUT') return
-        ev.preventDefault()
-        if (activeSessionId) void closeTab(activeSessionId)
-      } else if (k === ' ' || ev.code === 'Space') {
-        ev.preventDefault()
-        $('hint-input').focus()
-        void runCompletion(true)
-      } else if (k === 'b' && !ev.shiftKey) {
-        ev.preventDefault()
-        toggleDrawer()
-      } else if (k === 'e' && !ev.shiftKey) {
-        ev.preventDefault()
-        toggleSidebar()
-      }
-    })
-
     try {
       api.raw?.onBeforeClose?.(() => store.flushAll())
     } catch {
@@ -3132,6 +4123,7 @@
   /* ========== boot ========== */
   async function boot() {
     if (window.EnestTips) window.EnestTips.bindIconTips()
+    injectDynamicStyles()
     bindUi()
     bindSshEvents()
     await initPluginTheme()

@@ -1,0 +1,44 @@
+{
+  "id": "com.enest.json-tools",
+  "name": "JSON 工具",
+  "version": "1.0.0",
+  "description": "JSON 格式化、压缩、校验定位与转义反转义。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "开发",
+  "icon": "icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.read",
+    "clipboard.write",
+    "ui.setTitle",
+    "ui.toast"
+  ],
+  "features": [
+    {
+      "code": "main",
+      "explain": "JSON 格式化、压缩、校验定位与转义反转义",
+      "cmds": [
+        "json",
+        "JSON",
+        "格式化"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "featured": false,
+    "tags": [
+      "json",
+      "开发",
+      "格式化"
+    ]
+  }
+}

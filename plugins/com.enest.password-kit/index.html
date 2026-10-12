@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>密码工具箱</title>
+    <!-- 壳子主题 token（--bg/--surface/--text/--accent…）；独立打开时落到下方 html 级兜底 -->
+    <link rel="stylesheet" href="enest://plugin/com.enest.password-kit/__enest_theme.css" />
+    <style>
+      /* ============ token 层 ============
+       * 兜底写在 html（specificity 低于注入 css 的 :root，主题包可正常覆盖）；
+       * :root 内为插件私有变量（节奏 / 排印 / 派生色），不与注入 token 重名。 */
+      html {
+        color-scheme: dark;
+        --bg: #17191b;
+        --surface: #202326;
+        --surface-2: #292d31;
+        --surface-3: #33383d;
+        --border: rgba(242, 243, 243, 0.09);
+        --border-strong: rgba(242, 243, 243, 0.16);
+        --text: #f2f3f3;
+        --text-2: #adb3b8;
+        --text-3: #7e878f;
+        --accent: #e98654;
+        --ok: #77bfa4;
+        --danger: #e79589;
+      }
+      :root {
+        --lv2: #e0a54f;                /* 强度中段（介于 danger 与 ok 之间） */
+        --lv3: #e6c06b;
+        --well: color-mix(in srgb, var(--bg) 84%, #000);           /* 结果井深底 */
+        --panel: color-mix(in srgb, var(--surface) 50%, var(--bg));
+        --ring: color-mix(in srgb, var(--accent) 65%, transparent);
+        --ui: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+        --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono",
+          "Roboto Mono", monospace;
+        --ease: cubic-bezier(0.2, 0.7, 0.25, 1);
+        --t: 140ms;                 /* 统一过渡节奏 */
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: var(--ui);
+        background: var(--bg);
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+      }
+      ::selection { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+      :where(button, input, .hist-item, .uuid-item):focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+      }
+
+      .app { height: 100%; display: flex; flex-direction: column; }
+
+      /* ============ 页眉 ============ */
+      header {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .brand svg { color: var(--accent); flex: none; }
+      h1 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        color: var(--text);
+        white-space: nowrap;
+      }
+      .tabs {
+        margin-left: auto;
+        display: inline-flex;
+        gap: 2px;
+        padding: 2px;
+        border-radius: 9px;
+        background: var(--panel);
+        box-shadow: inset 0 0 0 1px var(--border);
+      }
+      .tabs button {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: var(--text-2);
+        padding: 4px 14px;
+        border-radius: 7px;
+        font-family: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        transition: color var(--t) var(--ease), background-color var(--t) var(--ease),
+          box-shadow var(--t) var(--ease);
+      }
+      .tabs button:hover { color: var(--text); }
+      .tabs button.active {
+        background: var(--surface-3);
+        color: var(--text);
+        font-weight: 600;
+        box-shadow: inset 0 0 0 1px var(--border-strong), 0 1px 2px rgba(10, 14, 18, 0.25);
+      }
+
+      /* ============ 主体（窄形态：内容 ~420px 居中） ============ */
+      main {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--surface-3) transparent;
+      }
+      .page { display: none; }
+      .page.active { display: block; animation: page-in 160ms var(--ease); }
+      @keyframes page-in {
+        from { opacity: 0; transform: translateY(3px); }
+        to { opacity: 1; transform: none; }
+      }
+      .inner {
+        max-width: 420px;
+        margin: 0 auto;
+        padding: 12px 16px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 11px;
+      }
+
+      /* ============ 结果井（Double-Bezel：深一档底 + 内描边 + 顶部内阴影） ============ */
+      .well {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 76px;
+        padding: 13px 13px 13px 15px;
+        border-radius: 14px;
+        background: var(--well);
+        box-shadow: inset 0 0 0 1px var(--border), inset 0 1px 2px rgba(8, 10, 12, 0.4),
+          inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+        transition: box-shadow var(--t) var(--ease);
+      }
+      .well:has(.pw:not(.placeholder)) {
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+          inset 0 1px 2px rgba(8, 10, 12, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+      }
+      .pw {
+        flex: 1;
+        min-width: 0;
+        font-family: var(--mono);
+        font-size: 18px;
+        line-height: 1.45;
+        letter-spacing: 0.02em;
+        word-break: break-all;
+      }
+      .pw.placeholder {
+        font-family: var(--ui);
+        font-size: 12.5px;
+        color: var(--text-3);
+      }
+      .copy-btn {
+        flex: none;
+        appearance: none;
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border-radius: 9px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text-2);
+        cursor: pointer;
+        opacity: 0.35;
+        transition: opacity var(--t) var(--ease), color var(--t) var(--ease),
+          background-color var(--t) var(--ease);
+      }
+      .copy-btn:not(:disabled) { opacity: 0.8; }
+      .copy-btn:not(:disabled):hover {
+        opacity: 1;
+        color: var(--text);
+        background: var(--surface-2);
+      }
+      .copy-btn:disabled { cursor: not-allowed; }
+      .copy-btn.copied {
+        opacity: 1;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+      .copy-btn .ic-check { display: none; }
+      .copy-btn.copied .ic-copy { display: none; }
+      .copy-btn.copied .ic-check { display: block; }
+
+      /* ============ 强度条（四段圆角段块，当前段加亮） ============ */
+      .strength { display: flex; flex-direction: column; gap: 6px; }
+      .segs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+      .segs i {
+        height: 5px;
+        border-radius: 3px;
+        background: var(--surface-3);
+        opacity: 1;
+        transition: background-color var(--t) var(--ease), opacity var(--t) var(--ease);
+      }
+      .segs i.on { opacity: 0.45; }
+      .segs i.on.last { opacity: 1; }
+      .segs i.on.s1 { background: var(--danger); }
+      .segs i.on.s2 { background: var(--lv2); }
+      .segs i.on.s3 { background: var(--lv3); }
+      .segs i.on.s4 { background: var(--ok); }
+      .strength .cap {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 11.5px;
+        color: var(--text-2);
+      }
+      .strength .cap #entropy {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-3);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.03em;
+      }
+
+      /* ============ 控件行 ============ */
+      .ctrl { display: flex; flex-direction: column; gap: 6px; }
+      .row-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 11.5px;
+        color: var(--text-2);
+      }
+      .row-label b {
+        font-family: var(--mono);
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--text);
+        font-variant-numeric: tabular-nums;
+      }
+      .row-label .warn { color: var(--danger); font-size: 11px; }
+
+      /* —— 自绘 accent 滑杆：4px 轨道 + 16px 圆钮，hover 提亮 —— */
+      input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 20px;
+        margin: 0;
+        background: transparent;
+        cursor: pointer;
+      }
+      input[type="range"]::-webkit-slider-runnable-track {
+        height: 4px;
+        border-radius: 2px;
+        background: linear-gradient(
+          to right,
+          var(--accent) var(--fill, 17.2%),
+          var(--surface-3) var(--fill, 17.2%)
+        );
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        margin-top: -6px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 2px solid var(--bg);
+        box-shadow: 0 1px 3px rgba(10, 14, 18, 0.35);
+        transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+      }
+      input[type="range"]:hover::-webkit-slider-thumb {
+        transform: scale(1.12);
+        box-shadow: 0 1px 5px rgba(10, 14, 18, 0.4),
+          0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+      }
+      input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.04); }
+      input[type="range"]:focus-visible { outline: none; }
+      input[type="range"]:focus-visible::-webkit-slider-thumb {
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 32%, transparent);
+      }
+
+      /* —— 字符集勾选卡：名称 + 示例字符等宽，选中描边亮起 —— */
+      .sets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .set-card {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 7px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: border-color var(--t) var(--ease), background-color var(--t) var(--ease),
+          box-shadow var(--t) var(--ease);
+      }
+      .set-card:hover { border-color: var(--border-strong); background: var(--surface); }
+      .set-card:has(input:checked) {
+        border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+        background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+      .set-card input {
+        position: absolute;
+        opacity: 0;
+        width: 15px;
+        height: 15px;
+        margin: 0;
+        cursor: inherit;
+      }
+      .cbx {
+        flex: none;
+        width: 15px;
+        height: 15px;
+        border-radius: 4.5px;
+        border: 1px solid var(--border-strong);
+        background: var(--surface-2);
+        display: grid;
+        place-items: center;
+        color: transparent;
+        transition: background-color var(--t) var(--ease), border-color var(--t) var(--ease),
+          color var(--t) var(--ease);
+      }
+      .set-card:has(input:checked) .cbx {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-contrast, #20130a);
+      }
+      .set-card input:focus-visible + .cbx {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+      }
+      .names { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+      .nm { font-size: 12px; color: var(--text); line-height: 1.2; }
+      .ex {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        font-style: normal;
+        color: var(--text-3);
+        letter-spacing: 0.03em;
+        transition: color var(--t) var(--ease);
+      }
+      .set-card:has(input:checked) .ex {
+        color: color-mix(in srgb, var(--accent) 60%, var(--text-3));
+      }
+
+      /* ============ 按钮 ============ */
+      .btn-primary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        appearance: none;
+        border: 0;
+        height: 38px;
+        padding: 0 16px;
+        border-radius: 11px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        background: var(--accent);
+        color: var(--accent-contrast, #20130a);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+          0 2px 10px color-mix(in srgb, var(--accent) 26%, transparent);
+        transition: filter var(--t) var(--ease), transform var(--t) var(--ease),
+          box-shadow var(--t) var(--ease), opacity var(--t) var(--ease);
+      }
+      .btn-primary:hover { filter: brightness(1.06); }
+      .btn-primary:active {
+        transform: translateY(1px);
+        box-shadow: inset 0 1px 2px rgba(8, 10, 12, 0.25);
+      }
+      .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+      .btn-primary:disabled:hover { filter: none; }
+      .btn-primary.copied { filter: none; }
+      .btn-primary .ic-check { display: none; }
+      .btn-primary.copied .ic-copy { display: none; }
+      .btn-primary.copied .ic-check { display: block; }
+
+      .btn-soft {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        appearance: none;
+        border: 0;
+        height: 34px;
+        padding: 0 14px;
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 12.5px;
+        font-weight: 500;
+        cursor: pointer;
+        background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+        color: color-mix(in srgb, var(--accent) 78%, var(--text));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+        transition: filter var(--t) var(--ease), transform var(--t) var(--ease),
+          background-color var(--t) var(--ease);
+      }
+      .btn-soft:hover { filter: brightness(1.12); }
+      .btn-soft:active { transform: translateY(1px); }
+
+      .quiet {
+        appearance: none;
+        border: 0;
+        background: none;
+        color: var(--text-3);
+        font-family: inherit;
+        font-size: 11px;
+        padding: 2px 5px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: color var(--t) var(--ease), background-color var(--t) var(--ease);
+      }
+      .quiet:hover { color: var(--text-2); background: var(--surface-2); }
+
+      /* ============ 历史 / UUID 列表行 ============ */
+      .sec-label {
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        color: var(--text-3);
+      }
+      .sec-label .count {
+        margin-left: 6px;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.02em;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-3);
+        opacity: 0.85;
+      }
+      .hist-hd {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 0 1px;
+      }
+      .hist-list, .uuid-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        max-height: 220px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--surface-3) transparent;
+      }
+      .hist-item, .uuid-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 9px 7px 8px;
+        border-radius: 9px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background-color var(--t) var(--ease), border-color var(--t) var(--ease);
+      }
+      .hist-item:hover, .uuid-item:hover {
+        background: color-mix(in srgb, var(--surface) 78%, var(--bg));
+        border-color: var(--border);
+      }
+      .hist-item.copied, .uuid-item.copied {
+        border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+        background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+      }
+      .hist-item .k, .uuid-item .k {
+        flex: none;
+        min-width: 22px;
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--text-3);
+        font-variant-numeric: tabular-nums;
+      }
+      .hist-item .v, .uuid-item .v {
+        flex: 1;
+        min-width: 0;
+        font-family: var(--mono);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        transition: color var(--t) var(--ease);
+      }
+      .hist-item .v { font-size: 12px; color: var(--text-2); }
+      .uuid-item .v { font-size: 13px; color: var(--text); letter-spacing: 0.01em; }
+      .hist-item:hover .v, .uuid-item:hover .v { color: var(--text); }
+      .row-ic {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        display: grid;
+        place-items: center;
+        border-radius: 6px;
+        color: var(--text-3);
+        opacity: 0;
+        transition: opacity var(--t) var(--ease), color var(--t) var(--ease);
+      }
+      .hist-item:hover .row-ic, .uuid-item:hover .row-ic,
+      .hist-item:focus-visible .row-ic, .uuid-item:focus-visible .row-ic,
+      .hist-item.copied .row-ic, .uuid-item.copied .row-ic { opacity: 1; }
+      .hist-item.copied .row-ic, .uuid-item.copied .row-ic { color: var(--accent); }
+      .row-ic .ic-check { display: none; }
+      .copied .row-ic .ic-copy { display: none; }
+      .copied .row-ic .ic-check { display: block; }
+      .empty {
+        padding: 14px 8px;
+        text-align: center;
+        font-size: 11.5px;
+        color: var(--text-3);
+      }
+
+      /* ============ UUID 页 ============ */
+      .uuid-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .uuid-bar .lbl { font-size: 11.5px; color: var(--text-2); flex-shrink: 0; }
+      .uuid-bar input[type="number"] {
+        width: 64px;
+        height: 34px;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+        border-radius: 10px;
+        padding: 0 8px;
+        font-family: var(--mono);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+        outline: none;
+        transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
+      }
+      .uuid-bar input[type="number"]:hover { border-color: var(--border-strong); }
+      .uuid-bar input[type="number"]:focus {
+        border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+      }
+      .uuid-bar input[type="number"]::-webkit-outer-spin-button,
+      .uuid-bar input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      .uuid-bar .btn-soft { flex: 1; }
+      .uuid-list { max-height: 320px; }
+
+      /* ============ 页脚 ============ */
+      footer {
+        flex: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-top: 1px solid var(--border);
+        font-size: 10.5px;
+        color: var(--text-3);
+      }
+      footer .mono-note {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.03em;
+      }
+
+      /* ============ 双形态响应式（容器查询优先，viewport 兜底） ============
+       * 窄容器（≤740px，Quick 内嵌 ~706px）：紧凑居中，内容 ~420px；
+       * 宽容器（>740px，固定主窗）：字号/留白适度放大（结果 18→20px），两侧呼吸。 */
+      @supports (container-type: inline-size) {
+        .app { container-type: inline-size; container-name: app; }
+        @container app (min-width: 741px) {
+          header { padding: 12px 20px; }
+          h1 { font-size: 14px; }
+          .inner { max-width: 480px; padding: 16px 20px 20px; gap: 14px; }
+          .well { min-height: 84px; padding: 15px 15px 15px 17px; border-radius: 16px; }
+          .pw { font-size: 20px; }
+          .set-card { padding: 8px 11px; }
+          .uuid-list { max-height: 380px; }
+          footer { padding: 9px 20px; }
+        }
+      }
+      @media (min-width: 741px) {
+        header { padding: 12px 20px; }
+        h1 { font-size: 14px; }
+        .inner { max-width: 480px; padding: 16px 20px 20px; gap: 14px; }
+        .well { min-height: 84px; padding: 15px 15px 15px 17px; border-radius: 16px; }
+        .pw { font-size: 20px; }
+        .set-card { padding: 8px 11px; }
+        .uuid-list { max-height: 380px; }
+        footer { padding: 9px 20px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 内联 SVG 图标（stroke 1.5）：copy / check / refresh / key -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <g id="ic-copy-def">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="11" height="11" rx="2.5" />
+            <path d="M5.5 15H5a1.8 1.8 0 0 1-1.8-1.8V5A1.8 1.8 0 0 1 5 3.2h8.2A1.8 1.8 0 0 1 15 5v.5" />
+          </svg>
+        </g>
+        <g id="ic-check-def">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 12.5l5 5 10-11" />
+          </svg>
+        </g>
+        <g id="ic-refresh-def">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 5.6A7 7 0 0 1 18.6 9" />
+            <path d="M19.4 4.2v5h-5" />
+            <path d="M16 18.4A7 7 0 0 1 5.4 15" />
+            <path d="M4.6 19.8v-5h5" />
+          </svg>
+        </g>
+        <g id="ic-key-def">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="12" r="3.5" />
+            <path d="M11.5 12h9M17.5 12v3M20.5 12v2.2" />
+          </svg>
+        </g>
+      </defs>
+    </svg>
+
+    <div class="app">
+      <header>
+        <div class="brand">
+          <svg width="17" height="17" aria-hidden="true"><use href="#ic-key-def" /></svg>
+          <h1>密码工具箱</h1>
+        </div>
+        <div class="tabs" role="tablist" aria-label="工具切换">
+          <button id="tab-pw" role="tab" aria-selected="true" class="active">密码</button>
+          <button id="tab-uuid" role="tab" aria-selected="false">UUID</button>
+        </div>
+      </header>
+
+      <main>
+        <!-- 密码页 -->
+        <section id="page-pw" class="page active" role="tabpanel" aria-label="密码生成">
+          <div class="inner">
+            <div class="well">
+              <div class="pw placeholder" id="pw-out">点击「生成」产生密码</div>
+              <button class="copy-btn" id="btn-copy-pw" disabled aria-label="复制密码" title="复制密码">
+                <svg class="ic-copy" width="15" height="15"><use href="#ic-copy-def" /></svg>
+                <svg class="ic-check" width="15" height="15"><use href="#ic-check-def" /></svg>
+              </button>
+            </div>
+
+            <div class="strength">
+              <div class="segs"><i id="seg-0"></i><i id="seg-1"></i><i id="seg-2"></i><i id="seg-3"></i></div>
+              <div class="cap"><span id="strength-label">强度：—</span><span id="entropy"></span></div>
+            </div>
+
+            <div class="ctrl">
+              <div class="row-label"><span>长度</span><b id="len-val">16</b></div>
+              <input type="range" id="len" min="6" max="64" value="16" step="1" aria-label="密码长度" />
+            </div>
+
+            <div class="ctrl">
+              <div class="row-label"><span>字符集</span><span class="warn" id="set-warn"></span></div>
+              <div class="sets">
+                <label class="set-card">
+                  <input type="checkbox" id="set-lower" checked />
+                  <span class="cbx"><svg width="10" height="10"><use href="#ic-check-def" /></svg></span>
+                  <span class="names"><span class="nm">小写</span><code class="ex">a–z</code></span>
+                </label>
+                <label class="set-card">
+                  <input type="checkbox" id="set-upper" checked />
+                  <span class="cbx"><svg width="10" height="10"><use href="#ic-check-def" /></svg></span>
+                  <span class="names"><span class="nm">大写</span><code class="ex">A–Z</code></span>
+                </label>
+                <label class="set-card">
+                  <input type="checkbox" id="set-digit" checked />
+                  <span class="cbx"><svg width="10" height="10"><use href="#ic-check-def" /></svg></span>
+                  <span class="names"><span class="nm">数字</span><code class="ex">0–9</code></span>
+                </label>
+                <label class="set-card">
+                  <input type="checkbox" id="set-symbol" checked />
+                  <span class="cbx"><svg width="10" height="10"><use href="#ic-check-def" /></svg></span>
+                  <span class="names"><span class="nm">符号</span><code class="ex">!@#$%^&amp;*</code></span>
+                </label>
+              </div>
+            </div>
+
+            <button class="btn-primary" id="btn-gen">
+              <svg width="14" height="14" aria-hidden="true"><use href="#ic-refresh-def" /></svg>
+              <span>生成密码</span>
+            </button>
+
+            <div class="history">
+              <div class="hist-hd">
+                <span class="sec-label">最近生成<span class="count" id="hist-count"></span></span>
+                <button class="quiet" id="btn-clear-hist">清空</button>
+              </div>
+              <div class="hist-list" id="hist-list">
+                <div class="empty">暂无记录</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- UUID 页 -->
+        <section id="page-uuid" class="page" role="tabpanel" aria-label="UUID 生成">
+          <div class="inner">
+            <div class="uuid-bar">
+              <label class="lbl" for="uuid-count">数量</label>
+              <input type="number" id="uuid-count" min="1" max="100" value="1" aria-label="生成数量" />
+              <button class="btn-soft" id="btn-uuid-gen">
+                <svg width="13" height="13" aria-hidden="true"><use href="#ic-refresh-def" /></svg>
+                <span>生成</span>
+              </button>
+            </div>
+            <div class="uuid-list" id="uuid-list">
+              <div class="empty">点击「生成」产生 UUID v4</div>
+            </div>
+            <button class="btn-primary" id="btn-uuid-copy-all" disabled>
+              <svg class="ic-copy" width="14" height="14" aria-hidden="true"><use href="#ic-copy-def" /></svg>
+              <svg class="ic-check" width="14" height="14" aria-hidden="true"><use href="#ic-check-def" /></svg>
+              <span>全部复制</span>
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>本地生成，不上传</span>
+        <span class="mono-note">crypto.getRandomValues</span>
+      </footer>
+    </div>
+
+    <script src="./assets/js/main.js"></script>
+  </body>
+</html>

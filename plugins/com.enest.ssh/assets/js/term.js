@@ -63,6 +63,42 @@
     }
   }
 
+  /* —— search addon 动态加载（index.html 不可改，运行时注入 script）—— */
+  const searchAddonState = { promise: null, Ctor: null, failed: false }
+
+  /** 加载 assets/vendor/xterm/addon-search.js（UMD → window.SearchAddon）；幂等 */
+  function loadSearchAddon() {
+    if (searchAddonState.Ctor) return Promise.resolve(searchAddonState.Ctor)
+    if (searchAddonState.promise) return searchAddonState.promise
+    const fallbackCtor =
+      (global.SearchAddon && (global.SearchAddon.SearchAddon || global.SearchAddon)) || null
+    if (fallbackCtor) {
+      searchAddonState.Ctor = fallbackCtor
+      return Promise.resolve(fallbackCtor)
+    }
+    searchAddonState.promise = new Promise((resolve) => {
+      try {
+        const s = document.createElement('script')
+        s.src = 'assets/vendor/xterm/addon-search.js'
+        s.async = false
+        s.onload = () => {
+          const Ctor = (global.SearchAddon && (global.SearchAddon.SearchAddon || global.SearchAddon)) || null
+          searchAddonState.Ctor = Ctor
+          resolve(Ctor)
+        }
+        s.onerror = () => {
+          searchAddonState.failed = true
+          resolve(null)
+        }
+        document.head.appendChild(s)
+      } catch {
+        searchAddonState.failed = true
+        resolve(null)
+      }
+    })
+    return searchAddonState.promise
+  }
+
   /**
    * createTerminal(container, handlers)
    * handlers: { onData(data), onResize(cols, rows), onSelection() }
@@ -102,6 +138,52 @@
         }
       }
       term.open(container)
+
+      /* —— search addon：注入成功后挂载；失败则 search() 返回 { ok:false } 由 UI 降级 —— */
+      const searchBox = { addon: null, disposed: false, onResults: null }
+      void loadSearchAddon().then((Ctor) => {
+        if (!Ctor || searchBox.disposed) return
+        try {
+          const addon = new Ctor()
+          term.loadAddon(addon)
+          searchBox.addon = addon
+          // 透传 { resultIndex, resultCount }（decorations 生效时 addon 会 fire）。
+          // addon.onDidChangeResults 是 event getter 返回的订阅函数（非对象），直接调用订阅
+          if (typeof addon.onDidChangeResults === 'function') {
+            addon.onDidChangeResults((r) => {
+              if (!searchBox.disposed && typeof searchBox.onResults === 'function') searchBox.onResults(r)
+            })
+          }
+        } catch {
+          searchBox.addon = null
+        }
+      })
+
+      /** 统一搜索入口：addon 优先，其次 __enestSearch 钩子，最后 { ok:false } 降级 */
+      const doSearch = (term, q, opts) => {
+        const o = opts || {}
+        try {
+          if (searchBox.addon && typeof searchBox.addon.findNext === 'function') {
+            return Boolean(searchBox.addon.findNext(q, {
+              caseSensitive: !!o.caseSensitive,
+              wholeWord: !!o.wholeWord,
+              regex: !!o.regex,
+              decorations: o.highlight === false
+                ? undefined
+                : {
+                    matchOverviewRuler: '#5b8cff',
+                    activeMatchColorOverviewRuler: '#f5b942',
+                  },
+            }))
+          }
+          if (term.__enestSearch && typeof term.__enestSearch.findNext === 'function') {
+            return Boolean(term.__enestSearch.findNext(q))
+          }
+        } catch {
+          /* ignore */
+        }
+        return false
+      }
 
       const resizeNow = () => {
         try {
@@ -170,17 +252,55 @@
         getSelection() {
           try { return term.getSelection() } catch { return '' }
         },
-        searchNext(q) {
-          // 无 search addon 时降级为页面查找不可用提示
-          if (!q) return false
+        /* —— 搜索：addon-search 优先；__enestSearch 钩子次之；均无则 ok:false 降级 —— */
+        search(q, opts) {
+          if (!q) return { ok: false }
+          const hit = doSearch(term, String(q), opts)
+          return { ok: hit }
+        },
+        searchPrev(q, opts) {
+          if (!q) return { ok: false }
+          let hit = false
           try {
-            if (term.__enestSearch && term.__enestSearch.findNext) {
-              return Boolean(term.__enestSearch.findNext(q))
+            if (searchBox.addon && typeof searchBox.addon.findPrevious === 'function') {
+              hit = Boolean(searchBox.addon.findPrevious(String(q), {
+                caseSensitive: !!(opts && opts.caseSensitive),
+                decorations: {
+                  matchOverviewRuler: '#5b8cff',
+                  activeMatchColorOverviewRuler: '#f5b942',
+                },
+              }))
+            } else if (term.__enestSearch && typeof term.__enestSearch.findNext === 'function') {
+              hit = Boolean(term.__enestSearch.findNext(String(q)))
+            }
+          } catch {
+            hit = false
+          }
+          return { ok: hit }
+        },
+        clearSearch() {
+          try {
+            if (searchBox.addon && typeof searchBox.addon.clearDecorations === 'function') {
+              searchBox.addon.clearDecorations()
+            } else if (term.__enestSearch && term.__enestSearch.clear) {
+              term.__enestSearch.clear()
             }
           } catch { /* ignore */ }
-          return false
+        },
+        hasSearch() {
+          return !!searchBox.addon
+        },
+        /** 搜索结果计数回调：onResults({ resultIndex, resultCount }) */
+        setOnSearchResults(fn) {
+          searchBox.onResults = typeof fn === 'function' ? fn : null
+        },
+        /** 旧兼容入口（true=找到） */
+        searchNext(q) {
+          if (!q) return false
+          return doSearch(term, String(q), {}) || false
         },
         dispose() {
+          searchBox.disposed = true
           try { ro && ro.disconnect() } catch { /* ignore */ }
           try { term.dispose() } catch { /* ignore */ }
           container.innerHTML = ''
@@ -203,6 +323,41 @@
 
     let buffer = ''
     const MAX = 200000
+
+    /* —— 降级模式本地搜索计数：文本包含式命中 + 序号推进 —— */
+    const fallbackSearch = { onResults: null, idx: 0, count: 0, lastQ: '' }
+    function fallbackCount(q) {
+      const text = stripAnsi(buffer).toLowerCase()
+      const needle = String(q).toLowerCase()
+      if (!needle) return 0
+      let n = 0
+      let pos = text.indexOf(needle)
+      while (pos !== -1) {
+        n++
+        pos = text.indexOf(needle, pos + needle.length)
+      }
+      return n
+    }
+    function fallbackReport(q, dir) {
+      if (q !== fallbackSearch.lastQ) {
+        fallbackSearch.lastQ = q
+        fallbackSearch.idx = 0
+        fallbackSearch.count = fallbackCount(q)
+      }
+      if (!fallbackSearch.count) {
+        fallbackSearch.idx = 0
+      } else if (dir === 'prev') {
+        fallbackSearch.idx = (fallbackSearch.idx - 1 + fallbackSearch.count) % fallbackSearch.count
+      } else {
+        fallbackSearch.idx = (fallbackSearch.idx + 1) % fallbackSearch.count
+      }
+      if (typeof fallbackSearch.onResults === 'function') {
+        fallbackSearch.onResults({
+          resultIndex: fallbackSearch.count ? fallbackSearch.idx : -1,
+          resultCount: fallbackSearch.count,
+        })
+      }
+    }
 
     function render() {
       let text = stripAnsi(buffer)
@@ -297,6 +452,29 @@
       getSelection() {
         try { return String(window.getSelection() || '') } catch { return '' }
       },
+      search(q, opts) {
+        if (!q) return { ok: false }
+        const ok = stripAnsi(buffer).toLowerCase().includes(String(q).toLowerCase())
+        fallbackReport(q, (opts && opts.dir) || 'next')
+        return { ok }
+      },
+      searchPrev(q) {
+        if (!q) return { ok: false }
+        const ok = stripAnsi(buffer).toLowerCase().includes(String(q).toLowerCase())
+        fallbackReport(q, 'prev')
+        return { ok }
+      },
+      clearSearch() {
+        /* 降级模式无高亮；仅重置计数游标 */
+        fallbackSearch.idx = 0
+        fallbackSearch.count = 0
+        fallbackSearch.lastQ = ''
+      },
+      hasSearch() { return false },
+      /** 降级模式的计数回调（与 addon 模式 setOnSearchResults 同构） */
+      setOnSearchResults(fn) {
+        fallbackSearch.onResults = typeof fn === 'function' ? fn : null
+      },
       searchNext(q) {
         if (!q) return false
         return stripAnsi(buffer).toLowerCase().includes(String(q).toLowerCase())
@@ -314,5 +492,6 @@
     createTerminal,
     termThemeFromCss,
     stripAnsi,
+    loadSearchAddon,
   }
 })(window)

@@ -1,6 +1,6 @@
 # eNest_plugin
 
-eNest 官方插件 monorepo。源码在 `plugins/<pluginId>/`，CI 自动生成 `registry.json` 并按变更打出 GitHub Release 资产。
+eNest 官方插件 monorepo。源码在 `plugins/<pluginId>/`，CI 自动生成 `registry.json` 并打包全部插件为 GitHub Release 资产。
 
 壳子（eNest 桌面端）从本仓库 **Release** 读取插件列表与安装包：
 
@@ -27,6 +27,7 @@ eNest_plugin/
 ├── registry.json                # CI 生成，勿手改（本地可提交快照便于预览）
 ├── scripts/build-registry.mjs   # 扫 plugins/ 生成 registry
 ├── scripts/pack-plugin.mjs      # 打 .enestplugin（zip）
+├── scripts/prepare-release.mjs  # 截图/图标附件与最终下载 URL
 └── .github/workflows/release.yml
 ```
 
@@ -75,7 +76,7 @@ eNest_plugin/
 | `permissions` | | 与壳子权限表一致（白名单见 `docs/plugin-manifest.schema.json`，权威源为壳子 `src/shared/types/plugin.ts` → `PLUGIN_PERMISSIONS`，当前 21 项） |
 | `engines` | | `enest` 版本范围：`*` / `^x.y.z` / `>=x.y.z` / 精确 |
 | `features` | | Quick 指令 `{ code, explain?, cmds }` |
-| `window` | | 最小尺寸 minWidth / minHeight |
+| `window` | | Quick 内容尺寸建议 width / height 和下限 minWidth / minHeight；插件应响应实际视口，可用 enest.ui.resize 更新（需 ui.resize 权限），主窗大小由用户控制 |
 | `form` | | `mini` 命令面板小窗 / `panel` 主窗 Tab（缺省） |
 | `development` | | 开发态入口 URL `{ main }` |
 | `ui` | | chrome（缺省 none，default 已废弃）/ themeAware / background / preferredColorScheme |
@@ -83,6 +84,39 @@ eNest_plugin/
 
 > Manifest JSON Schema：`docs/plugin-manifest.schema.json`（CI 用 ajv 校验，脚本 `scripts/validate-manifests.mjs`）。
 > 单文件快速校验也可用壳子仓库 SDK：`node ../eNest/packages/plugin-sdk/bin/enest-validate.mjs plugins/<id>/plugin.json`（详见 [packages/plugin-sdk](../eNest/packages/plugin-sdk/README.md)）。
+
+## 首页推荐与截图元数据
+
+维护入口始终是**本独立插件仓库**的 `plugins/<id>/plugin.json`，壳子不维护插件截图表：
+
+```jsonc
+"market": {
+  "featured": true,
+  "tags": ["截图", "录屏"],
+  "screenshots": [
+    "assets/screenshots/main.png",
+    "https://cdn.example.com/my-plugin/recording.webp"
+  ]
+}
+```
+
+示例路径需换成实际文件或可用 URL。规则如下：
+
+- `featured` 指定首页推荐候选，缺省 `false`；沿用已有字段，无需额外的 banner 元数据。
+- `screenshots` 是有序 `string[]`，最多 8 张、不可重复；**第一张用于首页推荐封面**。应提交真实产品截图，建议横向 16:10 或 16:9；首页完整显示图片，不裁掉界面内容。
+- 本地路径相对当前 `plugin.json` 所在的插件根，例如 `assets/screenshots/main.png`。支持 PNG / JPG / JPEG / WebP / GIF，不接受绝对路径、`..`、反斜杠或逃出插件根的符号链接。校验/构建会拒绝缺失的文件、目录和不支持的扩展名。
+- 外链必须是无账号密码的 HTTPS URL（允许 CDN 查询参数）；生成器保留它，不下载、不校验外部服务在线状态。
+- 缺省或 `[]` 表示暂无截图，壳子显示插件名称/描述/图标，不把首页概念图或通用插画伪装成插件截图。旧索引缺少该字段仍可读取。
+
+`build-registry.mjs` 将字段展开为 `registry.plugins[].screenshots`：本地文件转换为相对 `registry.json` 的 `plugins/<id>/assets/screenshots/main.png`，路径按段做 URL 编码，外链保持绝对 URL。`prepare-release.mjs` 再把实际本地图片复制为 `dist/{id}@{version}-screenshot-1.png` 等附件，输出 Release 绝对下载地址。图标按 `logo` 优先、`icon` 兜底读取声明的真实文件（支持 SVG），同样复制为扁平附件；不再假设图标必须叫 `icon.png`。
+
+发布索引位于 `dist/registry.json`；`asset.url/size/sha256` 与所有本地截图/图标 URL 均对应本次 Release 的真实附件，缺包或缺图会阻断生成。壳子通过市场服务获取索引，将 `screenshots` 与 `featured` 一起传给首页；相对媒体地址按索引所在 URL 解析，图片加载失败则回退文字内容。
+
+```bash
+node --test scripts/market-assets.test.mjs
+# 打包全部插件后生成待上传文件，不会创建或发布 GitHub Release
+REPO=hyqf98/eNest_plugin TAG=plugins-local node scripts/prepare-release.mjs
+```
 
 ## registry.json（壳子列表索引）
 
@@ -102,7 +136,8 @@ CI 由所有 `plugin.json` 聚合，**一次下载即可渲染完整列表与分
       "description": "…",
       "author": "…",
       "category": "效率",
-      "icon": "https://github.com/<org>/eNest_plugin/releases/download/plugins-2026.09.16/icons/com.example.hello.png",
+      "icon": "https://github.com/<org>/eNest_plugin/releases/download/plugins-123/com.example.hello%401.0.0-icon.png",
+      "screenshots": [],
       "tags": ["示例"],
       "permissions": ["storage.local"],
       "engines": { "enest": ">=0.1.0" },
@@ -110,7 +145,7 @@ CI 由所有 `plugin.json` 聚合，**一次下载即可渲染完整列表与分
       "installs": 0,
       "asset": {
         "name": "com.example.hello@1.0.0.enestplugin",
-        "url": "https://github.com/<org>/eNest_plugin/releases/download/plugins-2026.09.16/com.example.hello@1.0.0.enestplugin",
+        "url": "https://github.com/<org>/eNest_plugin/releases/download/plugins-123/com.example.hello%401.0.0.enestplugin",
         "size": 10240,
         "sha256": "…"
       }
@@ -128,9 +163,10 @@ CI 由所有 `plugin.json` 聚合，**一次下载即可渲染完整列表与分
 
 ## 发布命名约定
 
-- Release tag：`plugins-YYYY.MM.DD` 或 `plugins-YYYY.MM.DD.N`（同日多次）
+- Release tag：CI 使用 `plugins-${github.run_number}`
 - 资产：`{id}@{version}.enestplugin`
-- 附属：`registry.json`、`icons/{id}.png`
+- 附属：`registry.json`、`{id}@{version}-icon.{ext}`、`{id}@{version}-screenshot-{序号}.{ext}`
+- GitHub Release 的附件没有目录层级；媒体与安装包都使用扁平且唯一的文件名。
 
 ## 开发流程
 
@@ -148,7 +184,7 @@ node scripts/build-registry.mjs
 node scripts/pack-plugin.mjs com.example.hello
 ```
 
-合并到 `main` 后由 GitHub Actions 扫描变更插件并创建 Release。
+合并到 `main` 后由 GitHub Actions 校验、测试、打包全部插件并创建 **草稿 Release**。当前 `draft: true` 保持不变；正式发布该 Release 后，壳子下次刷新市场才会从 `releases/latest/download/registry.json` 获取新元数据。此流程不会自动提交本地生成的索引快照。
 
 ## 分类枚举
 

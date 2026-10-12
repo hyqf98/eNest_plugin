@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>备忘录</title>
+    <style>
+      :root {
+        color-scheme: dark;
+
+        /* 深色 token（themeAware 挂钩 + 本地回退） */
+        --bg: #0b0f16;
+        --surface: #121824;
+        --surface-2: #18202f;
+        --surface-hover: #1c2536;
+        --border: rgba(255, 255, 255, 0.07);
+        --border-strong: rgba(255, 255, 255, 0.13);
+        --text: #e8edf6;
+        --text-2: #9aa7bc;
+        --text-3: #6c7890;
+        --danger: #f87171;
+        --danger-strong: #ef4444;
+
+        /* 便签 5 色 */
+        --c-amber: #f5a524;
+        --c-teal: #3ddc97;
+        --c-rose: #f87171;
+        --c-sky: #38bdf8;
+        --c-violet: #a78bfa;
+
+        --radius-card: 14px;
+        --t: 140ms;
+        --ease: cubic-bezier(0.32, 0.72, 0, 1);
+        --font: "Inter", "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      }
+
+      /* themeAware：壳子注入 html[data-theme] / html[data-scheme] 时接管 token */
+      html[data-theme="dark"],
+      html[data-scheme="dark"] {
+        --bg: #0b0f16;
+        --surface: #121824;
+        --surface-2: #18202f;
+        --surface-hover: #1c2536;
+        --border: rgba(255, 255, 255, 0.07);
+        --border-strong: rgba(255, 255, 255, 0.13);
+        --text: #e8edf6;
+        --text-2: #9aa7bc;
+        --text-3: #6c7890;
+      }
+      html[data-theme="light"],
+      html[data-scheme="light"] {
+        color-scheme: light;
+        --bg: #f4f5f8;
+        --surface: #ffffff;
+        --surface-2: #eef0f4;
+        --surface-hover: #e6e9ef;
+        --border: rgba(15, 23, 42, 0.08);
+        --border-strong: rgba(15, 23, 42, 0.14);
+        --text: #171c26;
+        --text-2: #5b6478;
+        --text-3: #8b93a5;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      .app {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+
+      /* —— header —— */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 20px 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      .head-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .head-glyph {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        background: color-mix(in srgb, var(--c-amber) 16%, transparent);
+        border: 1px solid color-mix(in srgb, var(--c-amber) 30%, transparent);
+        color: var(--c-amber);
+        flex: none;
+      }
+      h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+      }
+      .count-pill {
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-3);
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        padding: 2px 9px;
+        border-radius: 999px;
+        white-space: nowrap;
+        user-select: none;
+      }
+      .head-spacer { flex: 1; }
+
+      .btn-primary {
+        appearance: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid transparent;
+        background: var(--c-amber);
+        color: #241800;
+        font-family: inherit;
+        font-size: 12.5px;
+        font-weight: 600;
+        padding: 7px 14px 7px 11px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: filter var(--t) var(--ease), transform var(--t) var(--ease),
+          box-shadow var(--t) var(--ease);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      }
+      .btn-primary:hover { filter: brightness(1.09); }
+      .btn-primary:active { filter: brightness(0.92); transform: translateY(1px); }
+      .btn-primary:focus-visible { outline: 2px solid color-mix(in srgb, var(--c-amber) 55%, transparent); outline-offset: 2px; }
+      .btn-primary svg { flex: none; }
+
+      /* —— 主区 —— */
+      main {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 18px 20px 24px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-strong) transparent;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+
+      /* —— 便签卡：实体便签质感 —— */
+      .card {
+        position: relative;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-card);
+        padding: 0 14px 10px 19px;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(4, 8, 16, 0.22), 0 6px 18px rgba(4, 8, 16, 0.18);
+        transition: border-color var(--t) var(--ease),
+          box-shadow var(--t) var(--ease), transform var(--t) var(--ease);
+      }
+      .card:hover {
+        border-color: var(--border-strong);
+        box-shadow: 0 1px 2px rgba(4, 8, 16, 0.25), 0 10px 26px rgba(4, 8, 16, 0.26);
+      }
+      .card:focus-within {
+        border-color: color-mix(in srgb, var(--note-color, var(--c-amber)) 45%, transparent);
+        box-shadow: 0 1px 2px rgba(4, 8, 16, 0.25),
+          0 0 0 3px color-mix(in srgb, var(--note-color, var(--c-amber)) 14%, transparent),
+          0 10px 26px rgba(4, 8, 16, 0.26);
+      }
+
+      /* 左侧色条：贴纸侧边 */
+      .card::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: var(--note-color, var(--c-amber));
+        opacity: 0.82;
+      }
+      .card.pinned::before {
+        opacity: 1;
+        box-shadow: 0 0 10px color-mix(in srgb, var(--note-color, var(--c-amber)) 55%, transparent);
+      }
+
+      .card-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-top: 12px;
+      }
+      .dot {
+        position: relative;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--note-color, var(--c-amber));
+        box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.22),
+          0 0 0 3px color-mix(in srgb, var(--note-color, var(--c-amber)) 16%, transparent);
+        cursor: pointer;
+        flex: none;
+        transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+      }
+      .dot:hover {
+        transform: scale(1.15);
+        box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.22),
+          0 0 0 4.5px color-mix(in srgb, var(--note-color, var(--c-amber)) 22%, transparent);
+      }
+      .dot:active { transform: scale(1.05); }
+
+      .pin-flag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        color: var(--note-color, var(--text-3));
+        border: 1px solid color-mix(in srgb, var(--note-color, var(--text-3)) 38%, transparent);
+        background: color-mix(in srgb, var(--note-color, var(--text-3)) 9%, transparent);
+        border-radius: 6px;
+        padding: 1.5px 7px;
+        user-select: none;
+      }
+      .pin-flag svg { flex: none; opacity: 0.9; }
+
+      .card-top .top-spacer { flex: 1; }
+
+      /* —— 编辑区 —— */
+      .note-area { margin-top: 6px; }
+      textarea {
+        display: block;
+        width: 100%;
+        border: 0;
+        resize: none;
+        outline: none;
+        background: transparent;
+        color: var(--text);
+        font-size: 14.5px;
+        line-height: 1.6;
+        letter-spacing: 0.005em;
+        font-family: inherit;
+        padding: 0;
+        overflow: hidden;
+        min-height: 56px;
+        caret-color: var(--note-color, var(--c-amber));
+      }
+      textarea::placeholder { color: var(--text-3); }
+      textarea::selection { background: color-mix(in srgb, var(--note-color, var(--c-amber)) 28%, transparent); }
+
+      /* —— 底部操作行 —— */
+      .card-foot {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px solid var(--border);
+      }
+      .act {
+        appearance: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        border: 0;
+        background: transparent;
+        color: var(--text-3);
+        font-family: inherit;
+        font-size: 11px;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 7px;
+        transition: background var(--t) var(--ease), color var(--t) var(--ease),
+          transform var(--t) var(--ease);
+      }
+      .act svg { flex: none; }
+      .act:hover { background: var(--surface-hover); color: var(--text); }
+      .act:active { transform: translateY(1px); }
+      .act.pin-on {
+        color: var(--note-color, var(--text));
+        font-weight: 600;
+        background: color-mix(in srgb, var(--note-color, var(--c-amber)) 10%, transparent);
+      }
+      .act.pin-on:hover { background: color-mix(in srgb, var(--note-color, var(--c-amber)) 16%, transparent); }
+      .act.del:hover {
+        background: color-mix(in srgb, var(--danger) 14%, transparent);
+        color: var(--danger);
+      }
+      .act.del-confirm {
+        color: #fff;
+        background: var(--danger-strong);
+        font-weight: 600;
+      }
+      .act.del-confirm:hover { background: var(--danger); color: #fff; }
+      .act:focus-visible { outline: 2px solid var(--border-strong); outline-offset: 1px; }
+
+      .time {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--text-3);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        white-space: nowrap;
+        user-select: none;
+      }
+
+      /* —— 空状态 —— */
+      .empty {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 72px 16px 64px;
+        text-align: center;
+      }
+      .empty .glyph {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text-3);
+        box-shadow: 0 1px 2px rgba(4, 8, 16, 0.2), 0 8px 20px rgba(4, 8, 16, 0.16);
+        margin-bottom: 8px;
+      }
+      .empty .main-line { font-size: 13px; color: var(--text-2); }
+      .empty .sub-line { font-size: 12px; color: var(--text-3); }
+      .app.has-empty .grid { display: none; }
+      .app.has-empty .empty { display: flex; }
+
+      /* —— 换色提示浮层（JS 渲染，body 级） —— */
+      .color-tip {
+        position: fixed;
+        z-index: 60;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        border-radius: 8px;
+        background: var(--surface-2);
+        border: 1px solid var(--border-strong);
+        box-shadow: 0 6px 18px rgba(4, 8, 16, 0.35);
+        font-size: 11px;
+        color: var(--text-2);
+        white-space: nowrap;
+        opacity: 0;
+        transform: translateY(2px);
+        transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
+      }
+      .color-tip.show { opacity: 1; transform: translateY(0); }
+      .color-tip .swatch {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+      }
+
+      /* —— 窄容器降级（Quick 呼出内嵌） —— */
+      @media (max-width: 740px) {
+        header { padding: 12px 14px 10px; }
+        main { padding: 12px 14px 18px; }
+        .grid {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+        .card { padding: 0 12px 8px 17px; }
+        .card-top { padding-top: 10px; }
+        .btn-primary { padding: 6px 12px 6px 10px; font-size: 12px; }
+        .empty { padding: 48px 14px 40px; }
+        .empty .glyph { width: 48px; height: 48px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition-duration: 0.01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header>
+        <div class="head-title">
+          <span class="head-glyph" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 1.5v13M4 2h7.5a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H4" />
+            </svg>
+          </span>
+          <h1>备忘录</h1>
+          <span class="count-pill" id="count">0 条</span>
+        </div>
+        <div class="head-spacer"></div>
+        <button class="btn-primary" id="btn-new">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 2v8M2 6h8" />
+          </svg>
+          新便签
+        </button>
+      </header>
+      <main>
+        <div class="grid" id="grid"></div>
+        <div class="empty">
+          <div class="glyph" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85">
+              <path d="M15.5 3H5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-4.5" />
+              <path d="M17 3h2a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-4l1-1v1" />
+            </svg>
+          </div>
+          <div class="main-line">还没有便签</div>
+          <div class="sub-line">点右上「新便签」，随手记点什么</div>
+        </div>
+      </main>
+    </div>
+    <script src="./assets/js/main.js"></script>
+  </body>
+</html>

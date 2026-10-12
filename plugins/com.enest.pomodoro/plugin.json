@@ -1,0 +1,17 @@
+{
+  "id": "com.enest.pomodoro",
+  "name": "番茄钟",
+  "version": "1.0.0",
+  "description": "专注 25 分钟休息 5 分钟（可调），到点系统通知，今日完成统计。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "icon.svg",
+  "permissions": ["notify", "storage.local", "ui.setTitle", "ui.toast"],
+  "engines": { "enest": ">=0.1.0" },
+  "form": "mini",
+  "features": [
+    { "code": "main", "cmds": ["番茄钟", "pomodoro", "专注"] }
+  ],
+  "market": { "tags": ["番茄钟", "专注", "效率"] }
+}

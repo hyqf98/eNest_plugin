@@ -1,8 +1,8 @@
 {
   "id": "com.enest.screen-assistant",
   "name": "屏幕助手",
-  "version": "1.0.0",
-  "description": "矩形截图、矩形录屏（可选声音）与截图贴到屏幕",
+  "version": "1.1.0",
+  "description": "矩形截图、矩形录屏（可选声音）与贴图三入口：截图并贴、贴剪贴板图片、贴本地图片，附贴图管理与截图历史",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "媒体",
@@ -14,6 +14,7 @@
     "screen.capture",
     "screen.record",
     "pin.create",
+    "clipboard.readImage",
     "clipboard.writeImage",
     "storage.local",
     "ui.setTitle",

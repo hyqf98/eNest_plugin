@@ -21,6 +21,7 @@ import {
   saveTextFile,
   clipboardWrite
 } from './api.js'
+import { enhanceSelect } from './dropdown.js'
 import {
   state,
   loadAll,
@@ -42,6 +43,7 @@ import {
   closeEditorTab,
   updateSessionEditorSql,
   saveSessionsImmediate,
+  schedulePersistSessions,
   pushHistory,
   getResultState,
   setUiPref,
@@ -81,12 +83,12 @@ const dom = {
   toolbar: $('#toolbar'),
   editorHost: $('#editor-host'),
   results: $('#results'),
+  resizerBottom: $('#resizer-bottom'),
   statusbar: $('#statusbar'),
   rightPanel: $('#right-panel'),
   modalRoot: $('#modal-root'),
   toastLocal: $('#local-toast'),
-  fabRun: $('#fab-run'),
-  fabMore: $('#fab-more')
+  fabRun: $('#fab-run')
 }
 
 let editor = null
@@ -198,7 +200,14 @@ async function boot() {
       syncDockFromGrid()
       renderRightPanel()
     },
-    onRefresh: () => void execute({ mode: 'current' })
+    onRefresh: () => void execute({ mode: 'current' }),
+    onPageSizeChange: (size) => {
+      // 每页行数持久化到当前编辑器 gridState（store 已预留字段）
+      const ed = currentEditor()
+      if (!ed) return
+      ed.gridState = { ...(ed.gridState || {}), page: 0, pageSize: size }
+      schedulePersistSessions()
+    }
   })
 
   side = new SidePanel(dom.side, {
@@ -437,34 +446,20 @@ function renderToolbar() {
   }
 }
 
-/** FAB ⋯：执行相关 */
-function openFabMenu(ev) {
-  const busy = !!state.runtime.executing
-  const items = menuItems([
-    ['run-all', '全部执行'],
-    ['run-sel', '执行选中'],
-    ['explain', '执行计划'],
-    busy ? ['cancel', '取消查询'] : null
-  ])
-  openCtxMenu(ev, items, (k) => {
-    if (k === 'run-all') void execute({ mode: 'all' })
-    else if (k === 'run-sel') void execute({ mode: 'selection' })
-    else if (k === 'explain') void execute({ mode: 'current', explain: true })
-    else if (k === 'cancel') void cancelQuery()
-  })
-}
-
-/** 顶栏 ⋯：次要操作 */
+/** 顶栏 ⋯：执行 + 次要操作 */
 function openChromeMenu(ev) {
   const conn = currentConnection()
   const open = !!(conn && state.runtime.sessionKeys.has(conn.id))
   const busy = !!state.runtime.executing
   const dirty = !!(grid && grid.pendingChanges().length)
   const items = menuItems([
+    ['run-all', '全部执行'],
+    ['run-sel', '执行选中'],
+    ['explain', '执行计划'],
+    busy ? ['cancel', '取消查询'] : null,
+    'sep',
     ['connect', open ? '断开连接' : '连接'],
     ['save', '保存会话'],
-    ['explain', '执行计划'],
-    'sep',
     ['format', '注释'],
     ['complete', '代码提示'],
     ['right', state.ui.rightOpen ? '收起侧栏' : '变更面板'],
@@ -473,11 +468,12 @@ function openChromeMenu(ev) {
     'sep',
     ['import', '导入表格'],
     ['export', '导出结果'],
-    !currentSession() ? ['new-session', '新建会话'] : null,
-    busy ? ['cancel', '取消查询'] : null
+    !currentSession() ? ['new-session', '新建会话'] : null
   ])
   openCtxMenu(ev, items, (k) => {
-    if (k === 'new-session') void newSession()
+    if (k === 'run-all') void execute({ mode: 'all' })
+    else if (k === 'run-sel') void execute({ mode: 'selection' })
+    else if (k === 'new-session') void newSession()
     else if (k === 'connect') void toggleConnect(false)
     else if (k === 'save') void saveSessionNow()
     else if (k === 'explain') void execute({ mode: 'current', explain: true })
@@ -506,9 +502,31 @@ function syncDockFromGrid() {
   }
 }
 
+function setResultsVisible(visible) {
+  if (dom.results) dom.results.hidden = !visible
+  if (dom.resizerBottom) dom.resizerBottom.hidden = !visible
+}
+
 function renderResultTabs() {
   const ed = currentEditor()
   const rs = ed ? getResultState(ed.id) : null
+  const tabs = rs?.tabs || []
+  const hasData = tabs.length > 0
+  // 结果列表：执行并拿到数据后才显示
+  setResultsVisible(hasData)
+  if (!hasData) {
+    const tabsEl = dom.results?.querySelector('.result-tabs')
+    if (tabsEl) tabsEl.hidden = true
+    const conn = currentConnection()
+    grid?.setResult({
+      result: null,
+      tableRef: null,
+      readOnly: !!conn?.readOnly,
+      driverUpdatable: !['influxdb'].includes(conn?.driver),
+      pageSize: ed?.gridState?.pageSize
+    })
+    return
+  }
   let tabsEl = dom.results.querySelector('.result-tabs')
   if (!tabsEl) {
     tabsEl = document.createElement('div')
@@ -517,26 +535,22 @@ function renderResultTabs() {
     if (bar && bar.nextSibling) dom.results.insertBefore(tabsEl, bar.nextSibling)
     else dom.results.insertBefore(tabsEl, dom.results.firstChild)
   }
-  const tabs = rs?.tabs || []
-  if (!tabs.length) tabsEl.hidden = true
-  else {
-    tabsEl.hidden = false
-    tabsEl.innerHTML = tabs
-      .map(
-        (t, i) =>
-          `<button type="button" class="tab${i === rs.activeTab ? ' active' : ''}" data-rt="${i}">${esc(
-            t.label || `结果 ${i + 1}`
-          )}</button>`
-      )
-      .join('')
-    tabsEl.querySelectorAll('[data-rt]').forEach((b) => {
-      b.addEventListener('click', () => {
-        rs.activeTab = Number(b.dataset.rt)
-        loadResultIntoGrid()
-        renderResultTabs()
-      })
+  tabsEl.hidden = false
+  tabsEl.innerHTML = tabs
+    .map(
+      (t, i) =>
+        `<button type="button" class="tab${i === rs.activeTab ? ' active' : ''}" data-rt="${i}">${esc(
+          t.label || `结果 ${i + 1}`
+        )}</button>`
+    )
+    .join('')
+  tabsEl.querySelectorAll('[data-rt]').forEach((b) => {
+    b.addEventListener('click', () => {
+      rs.activeTab = Number(b.dataset.rt)
+      loadResultIntoGrid()
+      renderResultTabs()
     })
-  }
+  })
   loadResultIntoGrid()
 }
 
@@ -551,7 +565,8 @@ function loadResultIntoGrid() {
       result: null,
       tableRef: null,
       readOnly: !!conn?.readOnly,
-      driverUpdatable
+      driverUpdatable,
+      pageSize: ed?.gridState?.pageSize
     })
     return
   }
@@ -559,11 +574,13 @@ function loadResultIntoGrid() {
     result: tab.result,
     tableRef: tab.tableRef || rs.tableRefOverride,
     readOnly: !!conn?.readOnly || !!tab.result?.readOnly,
-    driverUpdatable
+    driverUpdatable,
+    pageSize: ed?.gridState?.pageSize
   })
 }
 
 function renderStatus() {
+  if (!dom.statusbar) return
   const conn = currentConnection()
   const s = currentSession()
   const ed = currentEditor()
@@ -1197,23 +1214,31 @@ function showSqlPreview(kind) {
 
 function openExportMenu() {
   const { cols, rows } = grid.getExportData('all')
-  const formats = [
-    ['csv', 'CSV 文件'],
-    ['json', 'JSON 文件'],
-    ['sql', 'SQL INSERT 文件'],
-    ['md', 'Markdown 文件'],
-    ['tsv', '复制 TSV（Excel）'],
-    ['json-copy', '复制 JSON'],
-    ['sql-copy', '复制 SQL'],
-    ['md-copy', '复制 Markdown']
+  const groups = [
+    { title: '导出为文件', formats: [
+      ['csv', 'CSV 文件'],
+      ['json', 'JSON 文件'],
+      ['sql', 'SQL INSERT 文件'],
+      ['md', 'Markdown 文件']
+    ] },
+    { title: '复制到剪贴板', formats: [
+      ['tsv', '复制 TSV（Excel）'],
+      ['json-copy', '复制 JSON'],
+      ['sql-copy', '复制 SQL'],
+      ['md-copy', '复制 Markdown']
+    ] }
   ]
   dom.modalRoot.innerHTML = `
     <div class="modal-mask">
       <div class="modal small">
         <div class="modal-head"><strong>导出结果</strong><button type="button" class="btn ghost" data-act="close">关闭</button></div>
         <div class="modal-body export-menu">
-          ${formats
-            .map(([k, label]) => `<button type="button" class="btn block" data-f="${k}">${label}</button>`)
+          ${groups
+            .map(
+              (g) => `<div class="field-group-title">${g.title}</div>${g.formats
+                .map(([k, label]) => `<button type="button" class="btn block" data-f="${k}">${label}</button>`)
+                .join('')}`
+            )
             .join('')}
         </div>
       </div>
@@ -1381,7 +1406,7 @@ async function openConnectionForm(existing) {
     id: uid('conn'),
     name: '',
     driver: 'mysql',
-    host: 'localhost',
+    host: '',
     port: 3306,
     database: '',
     username: '',
@@ -1497,6 +1522,8 @@ async function openConnectionForm(existing) {
     const driver = dom.modalRoot.querySelector('[data-k=driver]').value
     const isSqlite = driver === 'sqlite'
     const isFile = isSqlite
+    // 驱动切换后上一驱动的校验提示已不适用（如 SQLite 下「请填写主机地址」），重置
+    hint.textContent = ''
     dom.modalRoot.querySelectorAll('[data-f=net]').forEach((el) => {
       el.style.display = isSqlite ? 'none' : ''
     })
@@ -1504,9 +1531,13 @@ async function openConnectionForm(existing) {
       el.style.display = isFile ? '' : 'none'
     })
     // SQLite 通常无用户密码；时序库仍有 token/用户
-    const showUser = !isSqlite || true
+    const showUser = !isSqlite
     dom.modalRoot.querySelectorAll('[data-f=user]').forEach((el) => {
       el.style.display = showUser ? '' : 'none'
+    })
+    // SQLite 以文件为库，通用「数据库」字段无意义
+    dom.modalRoot.querySelectorAll('[data-f=db]').forEach((el) => {
+      el.style.display = isSqlite ? 'none' : ''
     })
     const portEl = dom.modalRoot.querySelector('[data-k=port]')
     if (!isEdit && portEl && !portEl.dataset.touched) {
@@ -1542,13 +1573,13 @@ async function openConnectionForm(existing) {
     const options = kvToOptions(kvRows)
     return {
       id: c.id,
-      name: get('name').value.trim() || '未命名连接',
+      name: get('name').value.trim(),
       driver,
       dialect: driver,
       host: driver === 'sqlite' ? '' : get('host').value.trim(),
       port: driver === 'sqlite' ? undefined : get('port').value ? Number(get('port').value) : undefined,
-      database: get('database').value.trim(),
-      username: get('username').value.trim(),
+      database: driver === 'sqlite' ? '' : get('database').value.trim(),
+      username: driver === 'sqlite' ? '' : get('username').value.trim(),
       env: get('env').value,
       color: get('color').value,
       note: get('note').value,
@@ -1564,6 +1595,9 @@ async function openConnectionForm(existing) {
   const close = () => (dom.modalRoot.innerHTML = '')
   dom.modalRoot.querySelectorAll('[data-act=close]').forEach((b) => b.addEventListener('click', close))
   bindKv()
+  dom.modalRoot
+    .querySelectorAll('select[data-k=driver], select[data-k=env]')
+    .forEach((sel) => enhanceSelect(sel))
   syncDriverFields()
   dom.modalRoot.querySelector('[data-k=driver]')?.addEventListener('change', syncDriverFields)
   dom.modalRoot.querySelector('[data-k=port]')?.addEventListener('input', (e) => {
@@ -1626,18 +1660,16 @@ async function openConnectionForm(existing) {
 
   dom.modalRoot.querySelector('[data-act=save]')?.addEventListener('click', async () => {
     const form = readForm()
-    if (!form.name) {
-      hint.textContent = '请填写名称'
-      return
+    const fail = (msg) => {
+      hint.textContent = msg
+      hint.classList.add('hint-error')
+      return true
     }
-    if (form.driver !== 'sqlite' && !form.host) {
-      hint.textContent = '请填写主机地址'
-      return
-    }
-    if (form.driver === 'sqlite' && !form.sqlitePath) {
-      hint.textContent = '请选择 SQLite 文件'
-      return
-    }
+    if (!form.name && fail('请填写名称')) return
+    if (form.driver !== 'sqlite' && !form.host && fail('请填写主机地址')) return
+    if (form.driver === 'sqlite' && !form.sqlitePath && fail('请选择 SQLite 文件')) return
+    hint.textContent = ''
+    hint.classList.remove('hint-error')
     if (form.env === 'prod') {
       const dup = state.connections.find(
         (x) => x.id !== form.id && x.name === form.name && x.env === 'prod'
@@ -1672,7 +1704,6 @@ function bindChrome() {
   })
   dom.topMore?.addEventListener('click', (e) => openChromeMenu(e))
   dom.fabRun?.addEventListener('click', () => void execute({ mode: 'current' }))
-  dom.fabMore?.addEventListener('click', (e) => openFabMenu(e))
 }
 
 function bindResizers() {
@@ -1742,9 +1773,5 @@ function showLocalToast(message, type = 'info') {
     el.hidden = true
   }, 3200)
 }
-
-void saveTextFile
-void closeCtxMenu
-void dialectOf
 
 void boot()

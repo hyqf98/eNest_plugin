@@ -3,6 +3,7 @@
  */
 import { saveTextFile, clipboardWrite, toast, DbHost } from './api.js'
 import { escape, sqlLiteral, quoteIdent } from './resultGrid.js'
+import { enhanceSelect } from './dropdown.js'
 
 export function toCsv(cols, rows, { bom = true, delimiter = ',' } = {}) {
   const esc = (v) => {
@@ -173,7 +174,7 @@ export function createImportWizard(root, ctx = {}) {
         <div class="modal-body">
           <div class="form-row">
             <label>目标表</label>
-            <input data-el="table" placeholder="schema.table" value="${escape(prefillTable)}" />
+            <input data-el="table" placeholder="库名.表名" value="${escape(prefillTable)}" />
           </div>
           <div class="form-row">
             <label>分隔符</label>
@@ -183,7 +184,7 @@ export function createImportWizard(root, ctx = {}) {
               <option value="\\t">制表符 Tab</option>
             </select>
             <label class="check"><input type="checkbox" data-el="hasHeader" checked /> 首行是表头</label>
-            <label class="check"><input type="checkbox" data-el="upsert" /> Upsert</label>
+            <label class="check"><input type="checkbox" data-el="upsert" /> 存在即更新</label>
           </div>
           <div class="form-row">
             <label>CSV 文本 / 预览</label>
@@ -206,6 +207,7 @@ export function createImportWizard(root, ctx = {}) {
   `
   const $ = (n) => root.querySelector(`[data-el=${n}]`)
   const hint = $('hint')
+  enhanceSelect($('delim'))
   const close = () => {
     root.innerHTML = ''
   }

@@ -1,8 +1,8 @@
 {
   "id": "com.enest.database",
   "name": "数据库",
-  "version": "1.0.0",
-  "description": "桌面级 SQL 客户端：连接管理、IDEA 式补全、结果集增删改批、控制台会话持久化",
+  "version": "1.1.0",
+  "description": "桌面级 SQL 客户端：连接管理、IDEA 式补全（CTE/INSERT/JOIN ON/模糊匹配）、结果排序分页筛选、控制台会话持久化",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",

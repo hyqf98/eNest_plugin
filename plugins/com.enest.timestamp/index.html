@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>时间戳</title>
+    <!-- 壳子主题 token（--bg/--surface/--text…）；独立打开时落到下方 html 级兜底 -->
+    <link rel="stylesheet" href="enest://plugin/com.enest.timestamp/__enest_theme.css" />
+    <style>
+      /* ============ token 层 ============
+       * 兜底写在 html（specificity 低于注入 css 的 :root，主题包可正常覆盖）；
+       * --ac 为本插件私有强调色（开发类绿），不与注入 token 重名，防被覆盖。 */
+      html {
+        color-scheme: dark;
+        --bg: #17191b;
+        --surface: #202326;
+        --surface-2: #292d31;
+        --surface-3: #33383d;
+        --border: rgba(242, 243, 243, 0.09);
+        --border-strong: rgba(242, 243, 243, 0.16);
+        --text: #f2f3f3;
+        --text-2: #adb3b8;
+        --text-3: #7e878f;
+        --ok: #77bfa4;
+        --danger: #e79589;
+      }
+      :root {
+        --accent-rgb: 61, 220, 151; /* #3ddc97，仅用于关键反馈 */
+        --ac: rgb(var(--accent-rgb));
+        --radius: 14px;
+        --radius-s: 10px;
+        --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono",
+          "Roboto Mono", monospace;
+        --ease: cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+      }
+      ::selection { background: rgba(var(--accent-rgb), 0.28); }
+
+      /* ============ 双形态容器 ============
+       * 窄（≤740px，Quick 小窗内嵌 ~706px）：now 通栏 + 工具卡 2×2 紧凑栅格，整页 ~440px；
+       * 宽（>740px，固定主窗 Tab）：左当前时间大卡（含速览），右工具列，信息舒展。 */
+      .app {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        min-height: 100%;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+          "now now"
+          "ts dt"
+          "rel fmt";
+        gap: 8px;
+        min-width: 0;
+        align-items: stretch;
+      }
+      .a-now { grid-area: now; min-width: 0; }
+      .a-ts { grid-area: ts; min-width: 0; }
+      .a-dt { grid-area: dt; min-width: 0; }
+      .a-rel { grid-area: rel; min-width: 0; }
+      .a-fmt { grid-area: fmt; min-width: 0; }
+      @media (min-width: 741px) {
+        .app {
+          gap: 12px;
+          padding: 18px 20px 20px;
+          max-width: 980px;
+        }
+        .layout {
+          grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+          grid-template-areas:
+            "now ts"
+            "now dt"
+            "fmt rel";
+          gap: 12px;
+        }
+      }
+
+      /* ============ 页眉 ============ */
+      header {
+        flex: none;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 2px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+      .sub {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--text-3);
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
+      }
+      @media (min-width: 741px) {
+        h1 { font-size: 14px; }
+        header { padding: 0 2px 2px; }
+      }
+
+      /* ============ 通用卡片 ============ */
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 11px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+      }
+      .sec-title {
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        color: var(--text-3);
+        text-transform: uppercase;
+        padding: 0 1px;
+      }
+
+      /* ============ 时间戳主行（大号数字 + 小标签） ============ */
+      .stamp-row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: var(--radius-s);
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: border-color 0.24s var(--ease), background-color 0.24s var(--ease),
+          box-shadow 0.24s var(--ease);
+      }
+      .stamp-row:hover {
+        border-color: rgba(var(--accent-rgb), 0.55);
+        background: var(--surface-3);
+        box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
+      }
+      .stamp-row:active { transform: translateY(0.5px); }
+      .stamp-row.copied {
+        border-color: rgba(var(--accent-rgb), 0.75);
+        box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.16);
+      }
+      .stamp-row.copied .stamp-val { color: var(--ac); }
+      .stamp-label {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        color: var(--text-3);
+        letter-spacing: 0.02em;
+      }
+      .stamp-label::before {
+        content: "";
+        width: 5px;
+        height: 5px;
+        border-radius: 2px;
+        background: var(--text-3);
+        opacity: 0.6;
+        transition: background-color 0.24s var(--ease), opacity 0.24s var(--ease);
+      }
+      .stamp-row:hover .stamp-label::before,
+      .stamp-row.copied .stamp-label::before {
+        background: var(--ac);
+        opacity: 1;
+      }
+      .stamp-val {
+        flex: 1;
+        min-width: 0;
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 22px;
+        font-weight: 500;
+        line-height: 1.15;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: color 0.24s var(--ease);
+      }
+      /* 复制图标：hover 浮现，复制成功切换为 ✓ 并点亮 accent */
+      .copy-ic {
+        flex: none;
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        color: var(--text-3);
+        opacity: 0;
+        transform: translateX(3px);
+        transition: opacity 0.2s var(--ease), transform 0.2s var(--ease),
+          color 0.2s var(--ease), background-color 0.2s var(--ease);
+      }
+      .stamp-row:hover .copy-ic,
+      .stamp-row:focus-visible .copy-ic,
+      .stamp-row.copied .copy-ic {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      .stamp-row:hover .copy-ic { color: var(--text-2); }
+      .stamp-row.copied .copy-ic {
+        color: var(--ac);
+        background: rgba(var(--accent-rgb), 0.12);
+      }
+      .copy-ic svg { display: block; }
+      .copy-ic .ic-check { display: none; }
+      .copied .copy-ic .ic-copy { display: none; }
+      .copied .copy-ic .ic-check { display: block; }
+      /* 小号变体（转换结果里的次级时间戳） */
+      .stamp-row.sm { padding: 6px 10px; }
+      .stamp-row.sm .stamp-val { font-size: 15px; }
+      .stamp-row.sm .copy-ic { width: 22px; height: 22px; border-radius: 6px; }
+      .stamp-row.sm .copy-ic svg { width: 12px; height: 12px; }
+
+      /* ============ 当前时间卡 ============ */
+      .now-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
+      }
+      .now-local {
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 28px;
+        font-weight: 600;
+        line-height: 1.1;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+      }
+      .now-utc {
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 10px;
+        color: var(--text-3);
+        letter-spacing: 0.03em;
+        text-align: right;
+        white-space: nowrap;
+      }
+      /* 宽形态：now 大卡占左两行，数字行纵向铺满并垂直居中 */
+      .stamp-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+        justify-content: center;
+      }
+      @media (min-width: 741px) {
+        .now-card { padding: 16px 16px 14px; gap: 10px; }
+        .now-local { font-size: 34px; }
+        .stamp-row { padding: 10px 12px; }
+        .stamp-val { font-size: 24px; }
+        .stamp-rows { gap: 8px; }
+      }
+      /* 窄形态（Quick）：now 卡横排塞下两大数字行 */
+      @media (max-width: 740px) {
+        .now-card { padding: 10px 12px; gap: 8px; }
+        .now-card .stamp-rows {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+        }
+        .stamp-row { padding: 7px 9px; gap: 8px; }
+        .stamp-val { font-size: 17px; }
+        .stamp-row .copy-ic { width: 22px; height: 22px; }
+        .now-local { font-size: 24px; }
+      }
+
+      /* ============ 输入 ============ */
+      input {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+        border-radius: var(--radius-s);
+        padding: 8px 11px;
+        font-size: 12px;
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+        outline: none;
+        transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease),
+          background-color 0.2s var(--ease);
+      }
+      input:hover { border-color: var(--border-strong); }
+      input:focus {
+        border-color: rgba(var(--accent-rgb), 0.65);
+        box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14);
+        background: var(--surface-3);
+      }
+      input::placeholder { color: var(--text-3); }
+      .err {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        color: var(--danger);
+        font-size: 11px;
+        line-height: 1.45;
+        padding: 0 2px;
+      }
+      .err::before {
+        content: "!";
+        flex: none;
+        width: 13px;
+        height: 13px;
+        display: inline-grid;
+        place-items: center;
+        border: 1px solid currentColor;
+        border-radius: 999px;
+        font-size: 9px;
+        font-weight: 700;
+        line-height: 1;
+        transform: translateY(1px);
+      }
+
+      /* ============ 转换结果（内联高亮块） ============ */
+      .result-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: var(--radius-s);
+        background: rgba(var(--accent-rgb), 0.07);
+        border: 1px solid rgba(var(--accent-rgb), 0.22);
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease),
+          box-shadow 0.2s var(--ease);
+      }
+      .result-line:hover {
+        background: rgba(var(--accent-rgb), 0.1);
+        border-color: rgba(var(--accent-rgb), 0.45);
+        box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.08);
+      }
+      .result-line.copied {
+        border-color: rgba(var(--accent-rgb), 0.75);
+        box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.16);
+      }
+      .result-line.copied .result-main { color: var(--ac); }
+      .result-main {
+        flex: 1;
+        min-width: 0;
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 15px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        transition: color 0.2s var(--ease);
+      }
+      .result-rel {
+        flex: none;
+        font-size: 10px;
+        color: var(--text-3);
+        font-variant-numeric: tabular-nums;
+      }
+      /* 结果行右侧小型复制按钮（图标式，与主行区分层级） */
+      .copy-btn {
+        flex: none;
+        appearance: none;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text-3);
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        cursor: pointer;
+        padding: 0;
+        transition: color 0.2s var(--ease), border-color 0.2s var(--ease),
+          background-color 0.2s var(--ease), opacity 0.2s var(--ease),
+          transform 0.2s var(--ease);
+      }
+      .copy-btn:hover {
+        color: var(--ac);
+        border-color: rgba(var(--accent-rgb), 0.45);
+        background: rgba(var(--accent-rgb), 0.08);
+      }
+      .copy-btn:active { transform: scale(0.94); }
+      .copy-btn .ic-check { display: none; }
+      .copy-btn.copied { color: var(--ac); }
+      .copy-btn.copied .ic-copy { display: none; }
+      .copy-btn.copied .ic-check { display: block; }
+
+      /* ============ 格式速览 ============ */
+      .fmt-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 6px 3px 8px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: background-color 0.18s var(--ease), border-color 0.18s var(--ease);
+      }
+      .fmt-row:hover {
+        background: var(--surface-2);
+        border-color: var(--border);
+      }
+      .fmt-row.copied .fmt-v { color: var(--ac); }
+      .fmt-k {
+        flex: none;
+        width: 60px;
+        font-size: 10px;
+        color: var(--text-3);
+        letter-spacing: 0.05em;
+      }
+      .fmt-v {
+        flex: 1;
+        min-width: 0;
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+        font-size: 12px;
+        letter-spacing: 0.01em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        transition: color 0.18s var(--ease);
+      }
+      .fmt-row:hover .fmt-v { color: var(--text); }
+      .fmt-row .copy-btn {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        opacity: 0;
+      }
+      .fmt-row .copy-btn svg { width: 12px; height: 12px; }
+      .fmt-row:hover .copy-btn,
+      .fmt-row .copy-btn:focus-visible,
+      .fmt-row .copy-btn.copied { opacity: 1; }
+
+      :where(.fmt-row, .stamp-row, .result-line):focus-visible {
+        outline: 2px solid rgba(var(--accent-rgb), 0.6);
+        outline-offset: 1px;
+      }
+
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <!-- 内联 SVG 图标（stroke 1.5）：copy / check -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <g id="ic-copy-def">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="11" height="11" rx="2.5" />
+            <path d="M5.5 15H5a1.8 1.8 0 0 1-1.8-1.8V5A1.8 1.8 0 0 1 5 3.2h8.2A1.8 1.8 0 0 1 15 5v.5" />
+          </svg>
+        </g>
+        <g id="ic-check-def">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 12.5l5 5 10-11" />
+          </svg>
+        </g>
+      </defs>
+    </svg>
+
+    <div class="app">
+      <header>
+        <h1>时间戳</h1>
+        <span class="sub">UTC+08:00</span>
+      </header>
+
+      <div class="layout">
+        <!-- 当前时间（窄形态通栏大卡；宽形态左侧大卡含速览） -->
+        <section class="card now-card a-now">
+          <div class="now-head">
+            <span id="now-local" class="now-local">—</span>
+            <span id="now-utc" class="now-utc">—</span>
+          </div>
+          <div class="stamp-rows">
+            <div class="stamp-row" data-copy="now-s" tabindex="0" role="button"
+              aria-label="复制秒级时间戳" title="点击复制秒级时间戳">
+              <span class="stamp-label">秒</span>
+              <span class="stamp-val" id="now-s">—</span>
+              <span class="copy-ic">
+                <svg class="ic-copy" width="14" height="14"><use href="#ic-copy-def" /></svg>
+                <svg class="ic-check" width="14" height="14"><use href="#ic-check-def" /></svg>
+              </span>
+            </div>
+            <div class="stamp-row" data-copy="now-ms" tabindex="0" role="button"
+              aria-label="复制毫秒级时间戳" title="点击复制毫秒级时间戳">
+              <span class="stamp-label">毫秒</span>
+              <span class="stamp-val" id="now-ms">—</span>
+              <span class="copy-ic">
+                <svg class="ic-copy" width="14" height="14"><use href="#ic-copy-def" /></svg>
+                <svg class="ic-check" width="14" height="14"><use href="#ic-check-def" /></svg>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 时间戳 → 时间 -->
+        <section class="card a-ts">
+          <div class="sec-title">时间戳 → 时间</div>
+          <input id="ts-input" placeholder="10 位秒级 / 13 位毫秒级时间戳" autocomplete="off" spellcheck="false" />
+          <div id="ts-error" class="err hidden"></div>
+          <div id="ts-result" class="result-line hidden" data-copy="ts-out" title="点击复制">
+            <span id="ts-out" class="result-main">—</span>
+            <span id="ts-rel" class="result-rel">—</span>
+            <button type="button" class="copy-btn" aria-label="复制结果">
+              <svg class="ic-copy" width="13" height="13"><use href="#ic-copy-def" /></svg>
+              <svg class="ic-check" width="13" height="13"><use href="#ic-check-def" /></svg>
+            </button>
+          </div>
+        </section>
+
+        <!-- 时间 → 时间戳 -->
+        <section class="card a-dt">
+          <div class="sec-title">时间 → 时间戳</div>
+          <input type="datetime-local" id="dt-input" />
+          <div class="stamp-row sm" data-copy="dt-s" tabindex="0" role="button"
+            aria-label="复制秒级时间戳" title="点击复制秒级时间戳">
+            <span class="stamp-label">秒</span>
+            <span class="stamp-val" id="dt-s">—</span>
+            <span class="copy-ic">
+              <svg class="ic-copy" width="12" height="12"><use href="#ic-copy-def" /></svg>
+              <svg class="ic-check" width="12" height="12"><use href="#ic-check-def" /></svg>
+            </span>
+          </div>
+          <div class="stamp-row sm" data-copy="dt-ms" tabindex="0" role="button"
+            aria-label="复制毫秒级时间戳" title="点击复制毫秒级时间戳">
+            <span class="stamp-label">毫秒</span>
+            <span class="stamp-val" id="dt-ms">—</span>
+            <span class="copy-ic">
+              <svg class="ic-copy" width="12" height="12"><use href="#ic-copy-def" /></svg>
+              <svg class="ic-check" width="12" height="12"><use href="#ic-check-def" /></svg>
+            </span>
+          </div>
+        </section>
+
+        <!-- 相对时间解析 -->
+        <section class="card a-rel">
+          <div class="sec-title">相对时间</div>
+          <input id="rel-input" placeholder="如 -1h / +30m / 3d / 2w" autocomplete="off" spellcheck="false" />
+          <div id="rel-error" class="err hidden"></div>
+          <div id="rel-result" class="hidden" style="display: flex; flex-direction: column; gap: 6px">
+            <div class="result-line" data-copy="rel-out" title="点击复制">
+              <span id="rel-out" class="result-main">—</span>
+              <button type="button" class="copy-btn" aria-label="复制结果">
+                <svg class="ic-copy" width="13" height="13"><use href="#ic-copy-def" /></svg>
+                <svg class="ic-check" width="13" height="13"><use href="#ic-check-def" /></svg>
+              </button>
+            </div>
+            <div class="stamp-row sm" data-copy="rel-ts" tabindex="0" role="button"
+              aria-label="复制秒级时间戳" title="点击复制秒级时间戳">
+              <span class="stamp-label">秒</span>
+              <span class="stamp-val" id="rel-ts">—</span>
+              <span class="copy-ic">
+                <svg class="ic-copy" width="12" height="12"><use href="#ic-copy-def" /></svg>
+                <svg class="ic-check" width="12" height="12"><use href="#ic-check-def" /></svg>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 格式速览 -->
+        <section class="card a-fmt">
+          <div class="sec-title">格式速览</div>
+          <div class="fmt-row" data-copy="fmt-iso" title="点击复制 ISO 8601">
+            <span class="fmt-k">ISO 8601</span>
+            <span class="fmt-v" id="fmt-iso">—</span>
+            <button type="button" class="copy-btn" aria-label="复制 ISO 8601">
+              <svg class="ic-copy" width="12" height="12"><use href="#ic-copy-def" /></svg>
+              <svg class="ic-check" width="12" height="12"><use href="#ic-check-def" /></svg>
+            </button>
+          </div>
+          <div class="fmt-row" data-copy="fmt-date" title="点击复制 YYYY/MM/DD">
+            <span class="fmt-k">日期</span>
+            <span class="fmt-v" id="fmt-date">—</span>
+            <button type="button" class="copy-btn" aria-label="复制日期">
+              <svg class="ic-copy" width="12" height="12"><use href="#ic-copy-def" /></svg>
+              <svg class="ic-check" width="12" height="12"><use href="#ic-check-def" /></svg>
+            </button>
+          </div>
+          <div class="fmt-row" data-copy="fmt-time" title="点击复制 HH:mm:ss">
+            <span class="fmt-k">时间</span>
+            <span class="fmt-v" id="fmt-time">—</span>
+            <button type="button" class="copy-btn" aria-label="复制时间">
+              <svg class="ic-copy" width="12" height="12"><use href="#ic-copy-def" /></svg>
+              <svg class="ic-check" width="12" height="12"><use href="#ic-check-def" /></svg>
+            </button>
+          </div>
+          <div class="fmt-row" data-copy="fmt-unix" title="点击复制 Unix 秒级时间戳">
+            <span class="fmt-k">Unix 秒</span>
+            <span class="fmt-v" id="fmt-unix">—</span>
+            <button type="button" class="copy-btn" aria-label="复制 Unix 秒">
+              <svg class="ic-copy" width="12" height="12"><use href="#ic-copy-def" /></svg>
+              <svg class="ic-check" width="12" height="12"><use href="#ic-check-def" /></svg>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script src="./assets/js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "id": "com.enest.codec",
+  "name": "编解码",
+  "version": "1.0.0",
+  "description": "Base64 / URL / Hex / Unicode 编码解码，中文安全，双栏互换。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "开发",
+  "icon": "icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.read",
+    "clipboard.write",
+    "ui.setTitle",
+    "ui.toast"
+  ],
+  "features": [
+    {
+      "code": "main",
+      "explain": "Base64 / URL / Hex / Unicode 编码解码",
+      "cmds": [
+        "base64",
+        "编解码",
+        "codec"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "featured": false,
+    "tags": [
+      "base64",
+      "url",
+      "hex",
+      "开发"
+    ]
+  }
+}

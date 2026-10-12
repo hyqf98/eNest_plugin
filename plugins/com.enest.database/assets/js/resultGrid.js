@@ -6,6 +6,7 @@
 import { toast } from './api.js'
 import { uid } from './store.js'
 import { openCtxMenu } from './ctxMenu.js'
+import { enhanceSelect } from './dropdown.js'
 
 const ROW_H = 28
 
@@ -21,6 +22,8 @@ export class ResultGrid {
     this.onRefresh = opts.onRefresh || (() => {})
     this.onExportCsv = opts.onExportCsv || null
     this.onContextMenu = opts.onContextMenu || null
+    this.onPageChange = opts.onPageChange || (() => {})
+    this.onPageSizeChange = opts.onPageSizeChange || (() => {})
     this.data = null
     this.tableRef = null
     this.editable = false
@@ -32,6 +35,15 @@ export class ResultGrid {
     this.insertedRows = []
     this.selectedRows = new Set()
     this.cellSel = null
+    // —— 视图层（排序 / 筛选 / 分页）：仅决定展示顺序，模型行索引（rows/rowState/selectedRows 键）不变 ——
+    this.sortCol = null // 列索引 | null
+    this.sortDir = null // 'asc' | 'desc' | null（三态：none → asc → desc → none）
+    this.filterOpen = false
+    this.filters = {} // 列索引 -> 关键词（contains，客户端过滤）
+    this.page = 0
+    this.pageSize = Number(opts.pageSize) > 0 ? Number(opts.pageSize) : 200
+    this.viewAllIdxs = [] // 筛选+排序后的全部模型行索引（不含新增行）
+    this.viewIdxs = [] // 当前页切片 + 新增行，_renderRows 按此渲染
     this._build()
     this._bind()
   }
@@ -42,6 +54,7 @@ export class ResultGrid {
         <span class="badge" data-el="badge">—</span>
         <div class="grid-selbar" data-el="selbar" hidden></div>
         <div class="spacer"></div>
+        <button type="button" class="btn sm rg-filter-toggle" data-el="filterToggle" hidden title="列筛选">筛选</button>
         <span class="grid-meta" data-el="status"></span>
       </div>
       <div class="grid-body" data-el="body">
@@ -51,16 +64,19 @@ export class ResultGrid {
         </div>
         <input class="cell-editor" data-el="cellEditor" hidden />
       </div>
+      <div class="rg-pager" data-el="pager" hidden></div>
       <div class="grid-cellview" data-el="cellview" hidden></div>
     `
     this.el = {
       badge: this.root.querySelector('[data-el=badge]'),
       selbar: this.root.querySelector('[data-el=selbar]'),
+      filterToggle: this.root.querySelector('[data-el=filterToggle]'),
       head: this.root.querySelector('[data-el=head]'),
       viewport: this.root.querySelector('[data-el=viewport]'),
       canvas: this.root.querySelector('[data-el=canvas]'),
       status: this.root.querySelector('[data-el=status]'),
       cellEditor: this.root.querySelector('[data-el=cellEditor]'),
+      pager: this.root.querySelector('[data-el=pager]'),
       cellview: this.root.querySelector('[data-el=cellview]')
     }
   }
@@ -94,6 +110,12 @@ export class ResultGrid {
     })
 
     this.el.viewport.addEventListener('scroll', () => this._renderRows())
+    // 视口宽度变化 → 列模板（minmax 下限）重算，避免小视口横向滚动/大视口列过窄
+    window.addEventListener('resize', () => {
+      if (!this.columns.length) return
+      this._renderHead()
+      this._renderRows()
+    })
     this.el.viewport.addEventListener('dblclick', (e) => {
       const cell = e.target.closest('[data-r][data-c]')
       if (!cell) return
@@ -125,6 +147,47 @@ export class ResultGrid {
     })
     this.el.cellEditor.addEventListener('blur', () => this._commitEdit())
 
+    this.el.head.addEventListener('click', (e) => {
+      const th = e.target.closest('.th[data-c]')
+      if (!th || e.target.closest('input')) return
+      this._cycleSort(Number(th.dataset.c))
+    })
+    this.el.head.addEventListener('input', (e) => {
+      const inp = e.target.closest('[data-filter-c]')
+      if (!inp) return
+      this.filters[Number(inp.dataset.filterC)] = inp.value
+      this._applyView({ resetScroll: true })
+    })
+
+    this.el.filterToggle.addEventListener('click', () => {
+      this.filterOpen = !this.filterOpen
+      if (!this.filterOpen) this.filters = {}
+      this._renderHead()
+      this._applyView({ resetScroll: true })
+    })
+
+    this.el.pager.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pager]')
+      if (!btn) return
+      const k = btn.dataset.pager
+      if (k === 'prev') this.page = Math.max(0, this.page - 1)
+      else if (k === 'next') this.page = Math.min(this._pageCount() - 1, this.page + 1)
+      else if (k === 'go') {
+        const v = Number(btn.dataset.page)
+        if (Number.isFinite(v)) this.page = Math.min(Math.max(0, v), this._pageCount() - 1)
+      }
+      this._applyView({ resetScroll: true })
+    })
+    this.el.pager.addEventListener('change', (e) => {
+      if (e.target.dataset?.pagerSelect !== 'size') return
+      const v = Number(e.target.value)
+      if (!Number.isFinite(v) || v <= 0) return
+      this.pageSize = v
+      this.page = 0
+      this.onPageSizeChange(v)
+      this._applyView({ resetScroll: true })
+    })
+
     this.root.addEventListener('keydown', (e) => {
       if (e.key === 'F2' && this.cellSel) {
         e.preventDefault()
@@ -132,6 +195,91 @@ export class ResultGrid {
       }
     })
     this.root.tabIndex = 0
+  }
+
+  /* ── 视图层：排序 / 筛选 / 分页（均为客户端，模型索引不变）── */
+
+  /** 排序比较：NULL 最小，数字/日期可比则数值比较，否则字符串本地化比较 */
+  _cmpRows(ci) {
+    const dir = this.sortDir === 'desc' ? -1 : 1
+    const col = this.columns[ci]
+    const numeric = col?.dataType ? /int|number|decimal|double|float|real|bit/i.test(col.dataType) : false
+    return (a, b) => {
+      const va = a[ci]
+      const vb = b[ci]
+      if (va === null || va === undefined) return vb === null || vb === undefined ? 0 : -dir
+      if (vb === null || vb === undefined) return dir
+      if (numeric || (typeof va === 'number' && typeof vb === 'number')) {
+        const na = Number(va)
+        const nb = Number(vb)
+        if (Number.isFinite(na) && Number.isFinite(nb)) return (na - nb) * dir
+      }
+      return String(va).localeCompare(String(vb), 'zh-Hans-CN', { numeric: true }) * dir
+    }
+  }
+
+  /** 列头三态排序：none → asc → desc → none */
+  _cycleSort(ci) {
+    if (this.sortCol !== ci) {
+      this.sortCol = ci
+      this.sortDir = 'asc'
+    } else if (this.sortDir === 'asc') this.sortDir = 'desc'
+    else {
+      this.sortCol = null
+      this.sortDir = null
+    }
+    this._renderHead()
+    this._applyView({ resetScroll: true })
+  }
+
+  /** 单元格匹配文本（过滤用，不截断长文本） */
+  _cellText(idx, ci) {
+    const st = this.rowState.get(idx)
+    const row = this.rows[idx]
+    const raw =
+      st && (st.status === 'inserted' || st.status === 'dirty') ? st.current?.[ci] : row?.[ci]
+    if (raw === null || raw === undefined) return 'NULL'
+    if (typeof raw === 'object') return JSON.stringify(raw)
+    return String(raw)
+  }
+
+  _pageCount() {
+    return Math.max(1, Math.ceil(this.viewAllIdxs.length / this.pageSize))
+  }
+
+  /** 过滤 + 排序 + 分页 → viewIdxs；sort/filter/page 变化后调用 */
+  _applyView({ resetScroll = false } = {}) {
+    const hasFilter = Object.values(this.filters).some((v) => String(v ?? '').trim() !== '')
+    let idxs = [...this.rows.keys()]
+    if (hasFilter) {
+      idxs = idxs.filter((i) =>
+        Object.entries(this.filters).every(([ci, kw]) => {
+          const q = String(kw ?? '').trim().toLowerCase()
+          if (!q) return true
+          return this._cellText(i, Number(ci)).toLowerCase().includes(q)
+        })
+      )
+    }
+    if (this.sortCol != null && this.sortDir) {
+      const cmp = this._cmpRows(this.sortCol)
+      // 排序时优先用脏值/新增值比较，保证编辑后顺序即时反映
+      idxs.sort((a, b) => cmp(this._sortRow(a), this._sortRow(b)))
+    }
+    this.viewAllIdxs = idxs
+    // 页码越界（过滤后行数变少）回退到最后一页
+    if (this.page >= this._pageCount()) this.page = this._pageCount() - 1
+    if (this.page < 0) this.page = 0
+    const start = this.page * this.pageSize
+    this.viewIdxs = idxs.slice(start, start + this.pageSize).concat(this.insertedRows.map((r) => r._idx))
+    if (resetScroll) this.el.viewport.scrollTop = 0
+    this._renderRows()
+  }
+
+  /** 排序比较用行数据：脏行取 current，干净行取原行 */
+  _sortRow(idx) {
+    const st = this.rowState.get(idx)
+    if (st && (st.status === 'dirty' || st.status === 'inserted') && st.current) return st.current
+    return this.rows[idx]
   }
 
   _renderSelbar() {
@@ -165,7 +313,7 @@ export class ResultGrid {
     const canWrite = this.editable && !this.readOnly
     const items = []
     if (canWrite) {
-      items.push(['dup', '复制行'], ['delete', '标记删除'], ['revert', '回滚本地'], 'sep')
+      items.push(['dup', '复制行'], ['delete', '标记删除', { danger: true }], ['revert', '回滚本地'], 'sep')
     }
     items.push(
       ['copy-cell', '复制单元格'],
@@ -203,7 +351,7 @@ export class ResultGrid {
       ['refresh', '刷新']
     ]
     if (canWrite) {
-      items.push('sep', ['edit', '编辑单元格'], ['dup', '复制行'], ['delete', '标记删除'])
+      items.push('sep', ['edit', '编辑单元格'], ['dup', '复制行'], ['delete', '标记删除', { danger: true }])
       if (dirty) {
         items.push('sep', ['commit', '提交变更'], ['revert', '放弃变更'], ['dml', '生成 DML'])
       } else {
@@ -285,11 +433,11 @@ export class ResultGrid {
       st.status = 'clean'
       st.error = ''
     }
-    this._renderRows()
+    this._applyView()
     this.onRevert()
   }
 
-  setResult({ result, tableRef, readOnly, driverUpdatable }) {
+  setResult({ result, tableRef, readOnly, driverUpdatable, pageSize }) {
     this.data = result || null
     this.columns = result?.columns || []
     this.rows = Array.isArray(result?.rows) ? result.rows : []
@@ -323,8 +471,17 @@ export class ResultGrid {
     this.selectedRows.clear()
     this.cellSel = null
     this._lastChangeIdxs = null
+    // 新结果集：视图状态归零（pageSize 取传入持久化值）
+    const ps = Number(pageSize)
+    if (ps > 0) this.pageSize = ps
+    this.sortCol = null
+    this.sortDir = null
+    this.filters = {}
+    this.page = 0
+    this.filterOpen = false
+    this.el.viewport.scrollTop = 0
     this._renderHead()
-    this._renderRows()
+    this._applyView()
   }
 
   setTableRef(tableRef) {
@@ -362,7 +519,19 @@ export class ResultGrid {
 
   _gridTemplate() {
     const n = this.columns.length
-    return `36px 44px repeat(${Math.max(n, 1)}, minmax(100px, 1fr)) 72px`
+    // 数据列下限 100px 仅在容器放得下时生效；小视口改为可压缩（minmax(0,1fr)），
+    // 由 .th/.td 的 ellipsis 接管截断，避免画布超宽出现横向滚动硬裁切
+    const w = this.el.viewport?.clientWidth || 0
+    const fixed = 36 + 44 + 72
+    const fits = w > 0 && w >= fixed + Math.max(n, 1) * 100 + 24
+    this._colsFit = fits
+    return `36px 44px repeat(${Math.max(n, 1)}, minmax(${fits ? 100 : 0}px, 1fr)) 72px`
+  }
+
+  /** 行宽模式：列放得下时用 0（消除 .tr min-width:max-content 造成的画布超宽/横向滚动）；
+      列多放不下时保留 max-content（宽表可横向滚动查看，不丢数据） */
+  _rowWidth() {
+    return this._colsFit ? '0' : 'max-content'
   }
 
   _renderHead() {
@@ -376,14 +545,36 @@ export class ResultGrid {
         cols.map((c, i) => {
           const pk = c?.primaryKey ? '<span class="pk">PK</span>' : ''
           const type = c?.dataType ? `<span class="col-type">${escape(c.dataType)}</span>` : ''
-          return `<div class="th" data-c="${i}">${escape(this._colLabel(c))}${pk}${type}</div>`
+          const sorted = this.sortCol === i && this.sortDir
+          const arrow = sorted
+            ? `<span class="sort-ind" style="color:var(--accent);font-size:10px">${this.sortDir === 'asc' ? '▲' : '▼'}</span>`
+            : ''
+          return `<div class="th${sorted ? ' sorted' : ''}" data-c="${i}" style="cursor:pointer" title="点击排序（升序 → 降序 → 取消）">${escape(this._colLabel(c))}${pk}${type}${arrow}</div>`
         })
       )
       .join('')
-    this.el.head.innerHTML = `<div class="tr head-row" style="grid-template-columns:${tpl}">${cells}</div>`
+    let html = `<div class="tr head-row" style="grid-template-columns:${tpl};min-width:${this._rowWidth()}">${cells}</div>`
+    if (this.filterOpen && cols.length) {
+      const fcells = [
+        '<div class="th sel"></div>',
+        '<div class="th idx">#</div>'
+      ]
+        .concat(
+          cols.map((c, i) => {
+            const v = escape(this.filters[i] ?? '')
+            return `<div class="th" data-fc="${i}"><input type="text" class="rg-filter-input" data-filter-c="${i}" value="${v}" placeholder="筛选…" style="width:100%;min-width:60px;box-sizing:border-box;padding:2px 6px;font-size:11px;font-family:var(--font);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);color:var(--text);outline:none" /></div>`
+          })
+        )
+        .join('')
+      html += `<div class="tr rg-filter-row" style="grid-template-columns:${tpl};min-width:${this._rowWidth()}">${fcells}</div>`
+    }
+    this.el.head.innerHTML = html
+    this.el.filterToggle.hidden = !cols.length
+    this.el.filterToggle.classList.toggle('active', this.filterOpen)
+    this.el.filterToggle.style.color = this.filterOpen ? 'var(--accent)' : ''
     this.el.head.querySelector('[data-act=sel-all]')?.addEventListener('change', (e) => {
-      const all = this._allRowIndices()
-      if (e.target.checked) all.forEach((i) => this.selectedRows.add(i))
+      // 全选作用于当前视图（排序/筛选/分页后的可见行）
+      if (e.target.checked) this.viewIdxs.forEach((i) => this.selectedRows.add(i))
       else this.selectedRows.clear()
       this._renderRows()
       this.onSelectionChange(this.selectedRows)
@@ -442,7 +633,8 @@ export class ResultGrid {
   _renderRows() {
     const viewport = this.el.viewport
     const canvas = this.el.canvas
-    const total = this.rows.length + this.insertedRows.length
+    const view = this.viewIdxs
+    const total = view.length
     const scrollTop = viewport.scrollTop
     const h = viewport.clientHeight || 300
     const start = Math.max(0, Math.floor(scrollTop / ROW_H) - 5)
@@ -451,7 +643,8 @@ export class ResultGrid {
     canvas.style.paddingTop = `${start * ROW_H}px`
 
     const frag = document.createDocumentFragment()
-    for (let i = start; i < end; i++) {
+    for (let vi = start; vi < end; vi++) {
+      const i = view[vi]
       const row = this._getRow(i)
       if (!row) continue
       const st = this._ensureState(i)
@@ -460,8 +653,11 @@ export class ResultGrid {
       tr.dataset.row = i
       tr.style.height = `${ROW_H}px`
       tr.style.gridTemplateColumns = this._gridTemplate()
+      tr.style.minWidth = this._rowWidth()
       const checked = this.selectedRows.has(i) ? 'checked' : ''
-      let html = `<div class="td sel"><input type="checkbox" class="row-check" ${checked} /></div><div class="td idx">${i + 1}</div>`
+      // 行号与分页栏「from-to」同语义：全局连续（含过滤/排序后的视图顺序），插入行接续编号
+      const rowNo = this.page * this.pageSize + vi + 1
+      let html = `<div class="td sel"><input type="checkbox" class="row-check" ${checked} /></div><div class="td idx">${rowNo}</div>`
       this.columns.forEach((col, ci) => {
         const raw = row[ci]
         const cur = st.status === 'inserted' || st.status === 'dirty' ? st.current?.[ci] : raw
@@ -498,19 +694,61 @@ export class ResultGrid {
       frag.appendChild(tr)
     }
     canvas.replaceChildren(frag)
+    this._renderPager()
     this._renderStatus()
     this._renderBadge()
     this._renderSelbar()
+  }
+
+  /** 底部分页条：客户端分页（宿主 db.execute 无 offset 能力） */
+  _renderPager() {
+    const pager = this.el.pager
+    if (!pager) return
+    const total = this.viewAllIdxs.length
+    if (!this.columns.length || !this.rows.length) {
+      pager.hidden = true
+      pager.style.display = ''
+      pager.dataset.sig = ''
+      return
+    }
+    pager.hidden = false
+    pager.style.display = 'flex'
+    const pages = this._pageCount()
+    const page = Math.min(this.page, pages - 1)
+    const sizes = [50, 100, 200, 500]
+    if (!sizes.includes(this.pageSize)) sizes.unshift(this.pageSize)
+    const from = total ? page * this.pageSize + 1 : 0
+    const to = Math.min(total, (page + 1) * this.pageSize)
+    // 滚动也会触发 _renderRows：内容未变时跳过重建，避免 select 交互被打断
+    const sig = `${from}-${to}/${total}/${pages}/${this.pageSize}`
+    if (pager.dataset.sig === sig) return
+    pager.dataset.sig = sig
+    pager.innerHTML = `
+      <span class="muted sm">${from}-${to} / ${total} 行 · 客户端分页</span>
+      <button type="button" class="btn sm" data-pager="prev" ${page <= 0 ? 'disabled' : ''}>‹</button>
+      <span class="muted sm">${page + 1} / ${pages}</span>
+      <button type="button" class="btn sm" data-pager="next" ${page >= pages - 1 ? 'disabled' : ''}>›</button>
+      <select data-pager-select="size" title="每页行数">
+        ${sizes.map((s) => `<option value="${s}" ${s === this.pageSize ? 'selected' : ''}>${s} 行/页</option>`).join('')}
+      </select>
+    `
+    enhanceSelect(pager.querySelector('[data-pager-select=size]'))
   }
 
   _renderStatus() {
     const data = this.data
     const parts = []
     if (data) {
-      parts.push(`${this.rows.length} 行`)
+      const filtered = this.viewAllIdxs.length
+      const total = this.rows.length
+      // 行数：过滤/排序生效时展示 过滤后/总数
+      parts.push(
+        filtered === total ? `${total} 行` : `行 ${filtered}/${total}`
+      )
       if (data.affectedRows != null) parts.push(`影响 ${data.affectedRows}`)
       if (data.durationMs != null) parts.push(`${data.durationMs} ms`)
-      if (data.truncated) parts.push('已截断')
+      // 达到 maxRows 截断时提示（宿主 QueryResult.truncated）
+      if (data.truncated) parts.push('已达行数上限，结果可能被截断')
     }
     const pending = this.pendingChanges()
     if (pending.length) parts.push(`变更 ${pending.length}`)
@@ -567,7 +805,7 @@ export class ResultGrid {
     }
     this._applyCell(rowIdx, ci, value)
     ed.hidden = true
-    this._renderRows()
+    this._applyView()
   }
 
   _cancelEdit() {
@@ -605,6 +843,8 @@ export class ResultGrid {
     st.status = 'inserted'
     st.current = values
     st.insert = true
+    // 新增行永远追加在当前页尾部可见
+    this.viewIdxs = this.viewIdxs.concat([idx])
     this.el.viewport.scrollTop = this.el.viewport.scrollHeight
     this._renderRows()
   }
@@ -640,7 +880,7 @@ export class ResultGrid {
       else st.status = 'deleted'
     }
     this.selectedRows.clear()
-    this._renderRows()
+    this._applyView()
   }
 
   revertAll() {
@@ -648,7 +888,7 @@ export class ResultGrid {
     this.insertedRows = []
     this.selectedRows.clear()
     this.cellSel = null
-    this._renderRows()
+    this._applyView()
     toast('已放弃本地变更', 'info')
     this.onRevert()
   }
@@ -749,7 +989,7 @@ export class ResultGrid {
         anyFail = true
       }
     })
-    this._renderRows()
+    this._applyView()
     return { anyFail, results }
   }
 
@@ -791,7 +1031,8 @@ export class ResultGrid {
     if (scope === 'selected' && this.selectedRows.size) {
       rows = [...this.selectedRows].map((i) => this._getRow(i)).filter(Boolean)
     } else {
-      rows = this.rows.map((r) => r)
+      // 按当前视图顺序导出（含排序/筛选）；新增行随其后
+      rows = this.viewAllIdxs.map((i) => this._getRow(i)).filter(Boolean)
       rows = rows.concat(this.insertedRows.map((r) => r.values))
     }
     return { cols, rows }

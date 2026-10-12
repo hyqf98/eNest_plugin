@@ -26,6 +26,7 @@
 | `development.main` | string | 开发态 dev server URL |
 | `settings` | string | 设置页 HTML 路径（保留/实验） |
 | `ui` | object | UI 集成：`chrome` / `themeAware` / `background` / `preferredColorScheme` |
+| `market` | `{ featured?, tags?, screenshots? }` | 首页推荐和有序截图（第一张封面），详见 [README 截图契约](../README.md#首页推荐与截图元数据) |
 | `contributes` | object | **贡献点声明（插槽化架构）**，见下节 |
 
 ### UI 一致性：themeAware 与 followShellTheme

@@ -259,7 +259,7 @@ export class SidePanel {
     }
     let html = ''
     for (const [env, arr] of groups) {
-      html += `<div class="side-group">${esc(env === 'default' ? '默认' : env)}</div>`
+      html += `<div class="side-group" data-env="${esc(env)}">${esc(env === 'default' ? '默认' : env)}</div>`
       html += arr
         .map(
           (c) => {

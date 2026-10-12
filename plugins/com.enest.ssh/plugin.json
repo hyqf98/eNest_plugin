@@ -1,8 +1,8 @@
 {
   "id": "com.enest.ssh",
   "name": "SSH管理",
-  "version": "1.0.0",
-  "description": "生产级 SSH 客户端：连接资产库、交互终端、命令补全、历史片段、性能监控与最小 SFTP",
+  "version": "1.1.0",
+  "description": "生产级 SSH 客户端：连接资产库、交互终端、命令补全、终端搜索、历史片段、性能监控与完整 SFTP（重命名/删除/权限/传输进度）",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
@@ -24,6 +24,22 @@
     "shell.openExternal",
     "settings.register"
   ],
+  "contributes": {
+    "settings": [
+      {
+        "id": "ssh.prefs",
+        "title": "SSH",
+        "items": [
+          {
+            "key": "followShellTheme",
+            "type": "switch",
+            "label": "跟随壳子主题",
+            "default": true
+          }
+        ]
+      }
+    ]
+  },
   "window": {
     "minWidth": 960,
     "minHeight": 600

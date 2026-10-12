@@ -13,7 +13,7 @@
     "name": { "type": "string", "minLength": 1 },
     "version": {
       "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+([-+].*)?$"
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
     },
     "description": { "type": "string", "maxLength": 200 },
     "author": { "type": "string" },
@@ -99,8 +99,10 @@
     },
     "window": {
       "type": "object",
-      "description": "建议窗口最小尺寸",
+      "description": "Quick 内容区尺寸建议与下限；实际视口受工作区限制，主窗由用户控制",
       "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
         "minWidth": { "type": "number", "minimum": 200 },
         "minHeight": { "type": "number", "minimum": 200 }
       },
@@ -143,9 +145,16 @@
     "market": {
       "type": "object",
       "properties": {
-        "featured": { "type": "boolean" },
+        "featured": { "type": "boolean", "default": false, "description": "首页推荐候选；缺省 false" },
         "tags": { "type": "array", "items": { "type": "string" } },
-        "screenshots": { "type": "array", "items": { "type": "string" } }
+        "screenshots": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 },
+          "default": [],
+          "description": "有序真实产品截图，第一张为首页封面。插件根相对路径（png/jpg/jpeg/webp/gif）或 HTTPS URL；发布校验本地文件存在且不越界。缺省为空，不使用概念图补位。"
+        }
       }
     },
     "contributes": {

@@ -12,7 +12,7 @@
       <!-- 左侧：可收起侧栏 -->
       <aside class="sidebar" id="sidebar" data-collapsed="0">
         <div class="side-rail" id="side-rail">
-          <button class="rail-btn" id="btn-expand-side" title="展开侧栏" aria-label="展开侧栏" data-tip="展开侧栏">☰</button>
+          <button class="rail-btn" id="btn-toggle-side" title="展开侧栏" aria-label="展开侧栏" data-tip="展开侧栏">☰</button>
           <button class="rail-btn" id="rail-new" title="新建连接" aria-label="新建连接" data-tip="新建连接">＋</button>
           <button class="rail-btn" id="rail-search" title="搜索连接" aria-label="搜索连接" data-tip="搜索连接">⌕</button>
           <button class="rail-btn" id="rail-drawer" title="历史与常用" aria-label="历史与常用" data-tip="历史与常用">⏱</button>
@@ -22,7 +22,6 @@
 
         <div class="side-body" id="side-body">
           <div class="side-head">
-            <button class="icon-btn" id="btn-collapse-side" title="收起侧栏" aria-label="收起侧栏" data-tip="收起侧栏">‹</button>
             <h1>SSH</h1>
             <div class="spacer"></div>
             <button class="icon-btn" id="btn-side-more" title="更多操作" aria-label="更多操作" data-tip="更多操作">⋯</button>
@@ -70,8 +69,6 @@
               <!-- 补全浮层叠在终端上，不再单独提供命令输入条 -->
               <div class="completion-list" id="completion-list"></div>
               <div class="hint-meta" id="hint-meta"></div>
-              <!-- 无障碍/历史回填用的隐藏输入，非可见 UI -->
-              <input id="hint-input" type="text" class="sr-only" tabindex="-1" aria-hidden="true" autocomplete="off" />
             </div>
           </section>
 
@@ -148,51 +145,61 @@
             </label>
             <label class="field">环境
               <select id="f-env">
-                <option value="prod">prod</option>
-                <option value="staging">staging</option>
-                <option value="dev" selected>dev</option>
-                <option value="test">test</option>
+                <option value="prod">生产</option>
+                <option value="staging">预发</option>
+                <option value="dev" selected>开发</option>
+                <option value="test">测试</option>
                 <option value="custom">自定义</option>
               </select>
             </label>
             <label class="field">主机 *
-              <input id="f-host" type="text" placeholder="host" />
+              <input id="f-host" type="text" placeholder="如 10.0.0.1 或 example.com" />
             </label>
             <label class="field">端口
               <input id="f-port" type="number" value="22" min="1" max="65535" />
             </label>
             <label class="field">用户名 *
-              <input id="f-username" type="text" placeholder="user" />
+              <input id="f-username" type="text" placeholder="如 root" />
             </label>
             <label class="field">认证
               <select id="f-auth">
                 <option value="password">密码</option>
                 <option value="key">私钥</option>
-                <option value="agent">Agent</option>
+                <option value="agent">代理认证</option>
               </select>
             </label>
             <label class="field" id="f-password-wrap">密码
               <input id="f-password" type="password" placeholder="••••" autocomplete="new-password" />
             </label>
-            <label class="field" id="f-keypath-wrap">私钥路径
-              <input id="f-keypath" type="text" placeholder="~/.ssh/id_ed25519" />
-            </label>
+            <div class="field" id="f-keypath-wrap">
+              <span class="field-lbl">私钥路径</span>
+              <div class="input-row">
+                <input id="f-keypath" type="text" placeholder="~/.ssh/id_ed25519" />
+                <button type="button" class="btn sm" id="btn-keypath-browse" title="从电脑选择私钥文件">选择文件</button>
+              </div>
+            </div>
             <label class="field" id="f-passphrase-wrap">口令
               <input id="f-passphrase" type="password" placeholder="••••" autocomplete="new-password" />
             </label>
             <div class="field span2 secret-state" id="secret-state"></div>
-            <label class="field">分组
-              <select id="f-group"></select>
-            </label>
-            <label class="field">标签
-              <input id="f-tags" type="text" placeholder="a, b" />
-            </label>
-            <label class="field">颜色
-              <input id="f-color" type="text" placeholder="#5b8cff" />
-            </label>
-            <label class="field fav-field">
-              <span><input id="f-fav" type="checkbox" style="width:auto" /> 收藏</span>
-            </label>
+            <div class="field">
+              <span class="field-lbl">分组</span>
+              <button type="button" class="cs-trigger" id="f-group" data-value="" aria-haspopup="listbox" aria-expanded="false">
+                <span class="cs-label">未分组</span>
+                <span class="cs-caret">▾</span>
+              </button>
+            </div>
+            <div class="field">
+              <span class="field-lbl">颜色</span>
+              <div class="color-pick">
+                <div class="color-swatches" id="f-color-swatches"></div>
+                <div class="color-custom">
+                  <input id="f-color" type="text" class="color-hex" placeholder="#5b8cff" maxlength="9" spellcheck="false" />
+                  <input id="f-color-native" type="color" class="color-native" value="#5b8cff" title="自定义颜色" aria-label="自定义颜色" />
+                  <button type="button" class="btn sm ghost" id="btn-color-clear" title="清除颜色">清除</button>
+                </div>
+              </div>
+            </div>
             <label class="field span2">备注
               <textarea id="f-note" placeholder="备注"></textarea>
             </label>
@@ -200,37 +207,58 @@
           <details class="adv-block" id="adv-block">
             <summary>高级</summary>
             <div class="form-grid adv-grid">
-              <label class="field">保活 s
+              <label class="field">保活（秒）
                 <input id="f-keepalive" type="number" value="30" min="0" />
               </label>
-              <label class="field">超时 ms
+              <label class="field">超时（毫秒）
                 <input id="f-timeout" type="number" value="20000" min="1000" />
               </label>
-              <label class="field">TERM
+              <label class="field">终端类型
                 <input id="f-term" type="text" value="xterm-256color" />
               </label>
-              <label class="field">指纹
+              <label class="field">主机指纹策略
                 <select id="f-fp">
-                  <option value="tofu" selected>tofu</option>
-                  <option value="accept-new">accept-new</option>
-                  <option value="strict">strict</option>
+                  <option value="tofu" selected>首次信任</option>
+                  <option value="accept-new">自动接受新主机</option>
+                  <option value="strict">严格校验</option>
                 </select>
               </label>
-              <label class="field">cols
+              <label class="field">列数
                 <input id="f-cols" type="number" value="120" />
               </label>
-              <label class="field">rows
+              <label class="field">行数
                 <input id="f-rows" type="number" value="32" />
               </label>
+              <div class="field span2">
+                <span class="field-lbl">跳板机</span>
+                <button type="button" class="cs-trigger" id="f-jump-profile" data-value="" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="cs-label">不使用跳板</span>
+                  <span class="cs-caret">▾</span>
+                </button>
+              </div>
               <label class="field">跳板主机
-                <input id="f-jump-host" type="text" placeholder="ProxyJump" />
+                <input id="f-jump-host" type="text" placeholder="如 jump.example.com" />
               </label>
               <label class="field">跳板端口
-                <input id="f-jump-port" type="number" value="22" />
+                <input id="f-jump-port" type="number" value="22" min="1" max="65535" />
               </label>
-              <label class="field span2">跳板用户
-                <input id="f-jump-user" type="text" />
+              <label class="field">跳板用户
+                <input id="f-jump-user" type="text" placeholder="默认同连接用户" />
               </label>
+              <label class="field">跳板认证
+                <select id="f-jump-auth">
+                  <option value="password">密码</option>
+                  <option value="key">私钥</option>
+                  <option value="agent">代理认证</option>
+                </select>
+              </label>
+              <div class="field span2" id="f-jump-keypath-wrap">
+                <span class="field-lbl">跳板私钥路径</span>
+                <div class="input-row">
+                  <input id="f-jump-keypath" type="text" placeholder="~/.ssh/id_ed25519" />
+                  <button type="button" class="btn sm" id="btn-jump-key-browse" title="从电脑选择跳板私钥文件">选择文件</button>
+                </div>
+              </div>
             </div>
           </details>
           <div class="host-status" id="form-test-status"></div>
@@ -264,7 +292,8 @@
           <h2 id="prompt-title">输入</h2>
         </div>
         <div class="modal-body">
-          <input id="prompt-input" type="text" />
+          <input id="prompt-input" type="text" aria-label="输入" />
+          <div class="prompt-note" id="prompt-note" aria-live="polite"></div>
         </div>
         <div class="modal-foot">
           <button class="btn ghost" id="prompt-cancel">取消</button>

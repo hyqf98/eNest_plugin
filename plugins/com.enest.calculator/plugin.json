@@ -1,0 +1,47 @@
+{
+  "id": "com.enest.calculator",
+  "name": "计算器",
+  "version": "1.1.0",
+  "description": "四则运算与括号百分比，键盘即输即算，双形态界面与历史侧栏。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "icon.svg",
+  "form": "mini",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.write",
+    "ui.setTitle",
+    "ui.toast"
+  ],
+  "window": {
+    "minWidth": 320,
+    "minHeight": 200
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "四则运算计算器",
+      "cmds": [
+        "计算器",
+        "calc",
+        "js"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "featured": false,
+    "tags": [
+      "计算器",
+      "效率"
+    ]
+  }
+}

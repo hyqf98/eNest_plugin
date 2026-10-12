@@ -63,7 +63,7 @@
     if (top < 4) top = rect.bottom + gap
     if (top + th > window.innerHeight - 4) top = Math.max(4, window.innerHeight - th - 4)
     if (left < 4) left = 4
-    if (left + tw > window.innerWidth - 4) left = Math.max(4, window.innerWidth - tw - 4)
+    if (left + tw > window.innerWidth - 12) left = Math.max(4, window.innerWidth - tw - 12)
     tip.style.left = Math.round(left) + 'px'
     tip.style.top = Math.round(top) + 'px'
   }

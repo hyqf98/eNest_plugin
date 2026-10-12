@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-18T08:31:51.521Z",
+  "generatedAt": "2026-10-11T09:41:33.551Z",
   "channel": "stable",
   "categories": [
     "效率",
@@ -11,13 +11,50 @@
   ],
   "plugins": [
     {
+      "id": "com.enest.calculator",
+      "name": "计算器",
+      "version": "1.1.0",
+      "description": "四则运算与括号百分比，键盘即输即算，双形态界面与历史侧栏。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "plugins/com.enest.calculator/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "计算器",
+        "效率"
+      ],
+      "permissions": [
+        "clipboard.write",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "com.enest.calculator@1.1.0.enestplugin",
+        "url": "com.enest.calculator@1.1.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
       "id": "com.enest.clipboard",
       "name": "粘贴板",
       "version": "1.0.0",
       "description": "剪贴板历史、图片回显与快速选中回写",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "icons/com.enest.clipboard.svg",
+      "icon": "plugins/com.enest.clipboard/icon.svg",
+      "screenshots": [],
       "tags": [
         "剪贴板",
         "历史",
@@ -52,13 +89,92 @@
       }
     },
     {
-      "id": "com.enest.database",
-      "name": "数据库",
+      "id": "com.enest.codec",
+      "name": "编解码",
       "version": "1.0.0",
-      "description": "桌面级 SQL 客户端：连接管理、IDEA 式补全、结果集增删改批、控制台会话持久化",
+      "description": "Base64 / URL / Hex / Unicode 编码解码，中文安全，双栏互换。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "icons/com.enest.database.svg",
+      "icon": "plugins/com.enest.codec/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "base64",
+        "url",
+        "hex",
+        "开发"
+      ],
+      "permissions": [
+        "clipboard.read",
+        "clipboard.write",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "com.enest.codec@1.0.0.enestplugin",
+        "url": "com.enest.codec@1.0.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.color-picker",
+      "name": "取色器",
+      "version": "1.0.0",
+      "description": "屏幕取色：放大镜精准取点，HEX/RGB/HSL 一键复制，附历史色板。",
+      "author": "eNest Labs",
+      "category": "设计",
+      "icon": "plugins/com.enest.color-picker/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "取色",
+        "color",
+        "设计"
+      ],
+      "permissions": [
+        "screen.capture",
+        "clipboard.write",
+        "storage.local",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "com.enest.color-picker@1.0.0.enestplugin",
+        "url": "com.enest.color-picker@1.0.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.database",
+      "name": "数据库",
+      "version": "1.1.0",
+      "description": "桌面级 SQL 客户端：连接管理、IDEA 式补全（CTE/INSERT/JOIN ON/模糊匹配）、结果排序分页筛选、控制台会话持久化",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "plugins/com.enest.database/icon.svg",
+      "screenshots": [],
       "tags": [
         "数据库",
         "SQL",
@@ -91,8 +207,151 @@
         "preferredColorScheme": "auto"
       },
       "asset": {
-        "name": "com.enest.database@1.0.0.enestplugin",
-        "url": "com.enest.database@1.0.0.enestplugin",
+        "name": "com.enest.database@1.1.0.enestplugin",
+        "url": "com.enest.database@1.1.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.json-tools",
+      "name": "JSON 工具",
+      "version": "1.0.0",
+      "description": "JSON 格式化、压缩、校验定位与转义反转义。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "plugins/com.enest.json-tools/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "json",
+        "开发",
+        "格式化"
+      ],
+      "permissions": [
+        "clipboard.read",
+        "clipboard.write",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "com.enest.json-tools@1.0.0.enestplugin",
+        "url": "com.enest.json-tools@1.0.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.password-kit",
+      "name": "密码工具箱",
+      "version": "1.0.0",
+      "description": "随机密码生成（长度/字符集可调、强度提示）与 UUID v4 批量生成。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "plugins/com.enest.password-kit/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "密码",
+        "uuid",
+        "安全"
+      ],
+      "permissions": [
+        "clipboard.write",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {},
+      "asset": {
+        "name": "com.enest.password-kit@1.0.0.enestplugin",
+        "url": "com.enest.password-kit@1.0.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.pomodoro",
+      "name": "番茄钟",
+      "version": "1.0.0",
+      "description": "专注 25 分钟休息 5 分钟（可调），到点系统通知，今日完成统计。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "plugins/com.enest.pomodoro/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "番茄钟",
+        "专注",
+        "效率"
+      ],
+      "permissions": [
+        "notify",
+        "storage.local",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {},
+      "asset": {
+        "name": "com.enest.pomodoro@1.0.0.enestplugin",
+        "url": "com.enest.pomodoro@1.0.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.qrcode",
+      "name": "二维码",
+      "version": "1.0.0",
+      "description": "文本/URL 生成二维码（尺寸与纠错可调），剪贴板或本地图片解码。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "plugins/com.enest.qrcode/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "二维码",
+        "qr",
+        "效率"
+      ],
+      "permissions": [
+        "clipboard.read",
+        "clipboard.write",
+        "clipboard.readImage",
+        "clipboard.writeImage",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "com.enest.qrcode@1.0.0.enestplugin",
+        "url": "com.enest.qrcode@1.0.0.enestplugin",
         "size": 0,
         "sha256": ""
       }
@@ -100,11 +359,12 @@
     {
       "id": "com.enest.screen-assistant",
       "name": "屏幕助手",
-      "version": "1.0.0",
-      "description": "矩形截图、矩形录屏（可选声音）与截图贴到屏幕",
+      "version": "1.1.0",
+      "description": "矩形截图、矩形录屏（可选声音）与贴图三入口：截图并贴、贴剪贴板图片、贴本地图片，附贴图管理与截图历史",
       "author": "eNest Labs",
       "category": "媒体",
-      "icon": "icons/com.enest.screen-assistant.svg",
+      "icon": "plugins/com.enest.screen-assistant/icon.svg",
+      "screenshots": [],
       "tags": [
         "截图",
         "录屏",
@@ -114,6 +374,7 @@
         "screen.capture",
         "screen.record",
         "pin.create",
+        "clipboard.readImage",
         "clipboard.writeImage",
         "storage.local",
         "ui.setTitle",
@@ -131,8 +392,8 @@
         "preferredColorScheme": "auto"
       },
       "asset": {
-        "name": "com.enest.screen-assistant@1.0.0.enestplugin",
-        "url": "com.enest.screen-assistant@1.0.0.enestplugin",
+        "name": "com.enest.screen-assistant@1.1.0.enestplugin",
+        "url": "com.enest.screen-assistant@1.1.0.enestplugin",
         "size": 0,
         "sha256": ""
       }
@@ -140,11 +401,12 @@
     {
       "id": "com.enest.ssh",
       "name": "SSH管理",
-      "version": "1.0.0",
-      "description": "生产级 SSH 客户端：连接资产库、交互终端、命令补全、历史片段、性能监控与最小 SFTP",
+      "version": "1.1.0",
+      "description": "生产级 SSH 客户端：连接资产库、交互终端、命令补全、终端搜索、历史片段、性能监控与完整 SFTP（重命名/删除/权限/传输进度）",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "icons/com.enest.ssh.svg",
+      "icon": "plugins/com.enest.ssh/icon.svg",
+      "screenshots": [],
       "tags": [
         "SSH",
         "终端",
@@ -177,8 +439,120 @@
         "preferredColorScheme": "auto"
       },
       "asset": {
-        "name": "com.enest.ssh@1.0.0.enestplugin",
-        "url": "com.enest.ssh@1.0.0.enestplugin",
+        "name": "com.enest.ssh@1.1.0.enestplugin",
+        "url": "com.enest.ssh@1.1.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.sticky-notes",
+      "name": "备忘录",
+      "version": "1.0.1",
+      "description": "多张便签随手记：彩色标签、置顶、自动保存，重开不丢。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "plugins/com.enest.sticky-notes/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "备忘录",
+        "便签",
+        "笔记"
+      ],
+      "permissions": [
+        "storage.local",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "com.enest.sticky-notes@1.0.1.enestplugin",
+        "url": "com.enest.sticky-notes@1.0.1.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.timestamp",
+      "name": "时间戳",
+      "version": "1.0.0",
+      "description": "当前秒/毫秒实时刷新一键复制，时间戳与时间互转，ISO 等常用格式。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "plugins/com.enest.timestamp/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "时间戳",
+        "开发",
+        "日期"
+      ],
+      "permissions": [
+        "clipboard.write",
+        "ui.setTitle",
+        "ui.toast",
+        "ui.resize"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "com.enest.timestamp@1.0.0.enestplugin",
+        "url": "com.enest.timestamp@1.0.0.enestplugin",
+        "size": 0,
+        "sha256": ""
+      }
+    },
+    {
+      "id": "com.enest.todos",
+      "name": "待办清单",
+      "version": "1.0.0",
+      "description": "轻量待办：添加、勾选、置顶、编辑，完成情况自动保存。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "plugins/com.enest.todos/icon.svg",
+      "screenshots": [],
+      "tags": [
+        "待办",
+        "清单",
+        "效率"
+      ],
+      "permissions": [
+        "storage.local",
+        "ui.setTitle",
+        "ui.toast"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "installs": 0,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "com.enest.todos@1.0.0.enestplugin",
+        "url": "com.enest.todos@1.0.0.enestplugin",
         "size": 0,
         "sha256": ""
       }
@@ -186,11 +560,12 @@
     {
       "id": "com.enest.translate",
       "name": "翻译",
-      "version": "1.0.0",
-      "description": "谷歌翻译引擎，自动检测语言，一键复制译文",
+      "version": "1.2.0",
+      "description": "多引擎翻译（Google/MyMemory 自动切换），自动检测语言，一键复制译文。",
       "author": "Lingua",
       "category": "效率",
-      "icon": "icons/com.enest.translate.svg",
+      "icon": "plugins/com.enest.translate/icon.svg",
+      "screenshots": [],
       "tags": [
         "翻译",
         "谷歌",
@@ -202,7 +577,8 @@
         "clipboard.write",
         "storage.local",
         "ui.setTitle",
-        "ui.toast"
+        "ui.toast",
+        "ui.resize"
       ],
       "engines": {
         "enest": ">=0.1.0"
@@ -216,8 +592,8 @@
         "preferredColorScheme": "auto"
       },
       "asset": {
-        "name": "com.enest.translate@1.0.0.enestplugin",
-        "url": "com.enest.translate@1.0.0.enestplugin",
+        "name": "com.enest.translate@1.2.0.enestplugin",
+        "url": "com.enest.translate@1.2.0.enestplugin",
         "size": 0,
         "sha256": ""
       }
@@ -229,7 +605,8 @@
       "description": "eNest 标准插件骨架：manifest + 静态资源 + 全幅渲染。",
       "author": "eNest",
       "category": "效率",
-      "icon": "icons/com.example.hello.svg",
+      "icon": "plugins/com.example.hello/icon.svg",
+      "screenshots": [],
       "tags": [
         "示例",
         "入门"

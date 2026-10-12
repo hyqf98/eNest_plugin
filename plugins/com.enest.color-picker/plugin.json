@@ -1,0 +1,46 @@
+{
+  "id": "com.enest.color-picker",
+  "name": "取色器",
+  "version": "1.0.0",
+  "description": "屏幕取色：放大镜精准取点，HEX/RGB/HSL 一键复制，附历史色板。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "设计",
+  "icon": "icon.svg",
+  "permissions": [
+    "screen.capture",
+    "clipboard.write",
+    "storage.local",
+    "ui.setTitle",
+    "ui.toast"
+  ],
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "form": "mini",
+  "features": [
+    {
+      "code": "main",
+      "explain": "屏幕取色",
+      "cmds": [
+        "取色",
+        "颜色",
+        "color"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "featured": false,
+    "tags": [
+      "取色",
+      "color",
+      "设计"
+    ]
+  }
+}

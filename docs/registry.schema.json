@@ -25,6 +25,13 @@
           "author": { "type": "string" },
           "category": { "type": "string" },
           "icon": { "type": "string" },
+          "screenshots": {
+            "type": "array",
+            "maxItems": 8,
+            "items": { "type": "string", "minLength": 1 },
+            "default": [],
+            "description": "由 market.screenshots 生成，顺序保持，第一张为首页封面。发布索引为 HTTPS URL；本地索引相对 registry.json。旧索引缺省为空。"
+          },
           "tags": { "type": "array", "items": { "type": "string" } },
           "permissions": { "type": "array", "items": { "type": "string" } },
           "featured": { "type": "boolean" },

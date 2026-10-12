@@ -65,7 +65,11 @@
   }
 
   function mergeUi(raw) {
-    return { ...defaultUi(), ...(raw && typeof raw === 'object' ? raw : {}) }
+    const next = { ...defaultUi(), ...(raw && typeof raw === 'object' ? raw : {}) }
+    // 标签/收藏字段已移除，清理历史筛选残留
+    next.filterTag = ''
+    next.filterFavorite = false
+    return next
   }
 
   async function loadAll() {
@@ -160,7 +164,6 @@
 
   function sortProfiles(a, b) {
     const mode = state.ui.sortBy
-    if (a.favorite !== b.favorite) return a.favorite ? -1 : 1
     if (mode === 'lastConnected') {
       return (b.lastConnectedAt || 0) - (a.lastConnectedAt || 0)
     }
@@ -178,22 +181,13 @@
   function matchesFilters(profile) {
     const q = (state.ui.search || '').trim().toLowerCase()
     if (q) {
-      const hay = [
-        profile.name,
-        profile.host,
-        profile.username,
-        profile.note,
-        profile.env,
-        ...(profile.tags || []),
-      ]
+      const hay = [profile.name, profile.host, profile.username, profile.note, profile.env]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
       if (!hay.includes(q)) return false
     }
     if (state.ui.filterEnv && profile.env !== state.ui.filterEnv) return false
-    if (state.ui.filterTag && !(profile.tags || []).includes(state.ui.filterTag)) return false
-    if (state.ui.filterFavorite && !profile.favorite) return false
     if (state.ui.filterRecent) {
       const cutoff = Date.now() - 7 * 24 * 3600 * 1000
       if (!(profile.lastConnectedAt && profile.lastConnectedAt >= cutoff)) return false

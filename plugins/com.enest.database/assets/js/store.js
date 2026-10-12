@@ -180,7 +180,7 @@ export function activeEditor() {
 export function createEditorTab(session, title, sql = '') {
   const editor = {
     id: uid('ed'),
-    title: title || `query-${(session.editors?.length || 0) + 1}.sql`,
+    title: title || `查询-${(session.editors?.length || 0) + 1}.sql`,
     sql: sql.slice(0, LIMITS.sqlBytes),
     cursor: { line: 0, ch: 0 },
     dirty: false,

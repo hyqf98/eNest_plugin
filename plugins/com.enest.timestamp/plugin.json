@@ -1,0 +1,49 @@
+{
+  "id": "com.enest.timestamp",
+  "name": "时间戳",
+  "version": "1.0.0",
+  "description": "当前秒/毫秒实时刷新一键复制，时间戳与时间互转，ISO 等常用格式。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "开发",
+  "icon": "icon.svg",
+  "form": "mini",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.write",
+    "ui.setTitle",
+    "ui.toast",
+    "ui.resize"
+  ],
+  "window": {
+    "minWidth": 340,
+    "minHeight": 300
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "时间戳转换与实时时间",
+      "cmds": [
+        "时间戳",
+        "ts",
+        "timestamp"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "featured": false,
+    "tags": [
+      "时间戳",
+      "开发",
+      "日期"
+    ]
+  }
+}

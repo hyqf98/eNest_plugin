@@ -139,7 +139,14 @@ export function bindIconTips() {
         }
       } else if (m.type === 'childList') {
         m.addedNodes.forEach((n) => {
-          if (n.nodeType === 1) scanTips(n)
+          if (n.nodeType !== 1) return
+          // 弹窗打开（modal-mask 覆盖视口）时光标往往尚未移动、不会触发 mouseout，
+          // 残留的浮动 tip 会以高 z-index 叠在弹窗之上 —— 注入瞬间立即隐藏
+          if (n.matches?.('.modal-mask') || n.querySelector?.('.modal-mask')) {
+            clearTimeout(hideTimer)
+            hideTip()
+          }
+          scanTips(n)
         })
       }
     }

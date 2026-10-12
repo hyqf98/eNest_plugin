@@ -1,0 +1,54 @@
+{
+  "id": "com.enest.todos",
+  "name": "待办清单",
+  "version": "1.0.0",
+  "description": "轻量待办：添加、勾选、置顶、编辑，完成情况自动保存。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "storage.local",
+    "ui.setTitle",
+    "ui.toast"
+  ],
+  "features": [
+    {
+      "code": "main",
+      "explain": "打开待办清单",
+      "cmds": [
+        "todo",
+        "待办",
+        "清单"
+      ]
+    }
+  ],
+  "contributes": {
+    "homeCards": [
+      {
+        "id": "todos-card",
+        "title": "待办清单",
+        "glyph": "✓",
+        "color": "#3ddc97",
+        "explain": "添加、勾选、置顶待办，自动保存",
+        "openCode": "main"
+      }
+    ]
+  },
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "待办",
+      "清单",
+      "效率"
+    ]
+  }
+}

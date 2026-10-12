@@ -7,8 +7,6 @@ import { existsSync, readFileSync, mkdirSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
-import { pipeline } from 'node:stream/promises'
-import { createGzip } from 'node:zlib'
 
 // 简易 zip：使用系统 zip 更稳妥；无 zip 时提示
 import { execFileSync } from 'node:child_process'

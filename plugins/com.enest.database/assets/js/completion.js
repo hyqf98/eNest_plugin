@@ -8,16 +8,16 @@ import { keywordsFor, functionsFor, snippets, parseAliases } from './tokenizer.j
 import { state, bumpCompletionUsage, usageScore } from './store.js'
 
 const KIND_META = {
-  keyword: { color: '#c792ea', label: '关键字' },
-  table: { color: '#82aaff', label: '表' },
-  view: { color: '#82aaff', label: '视图' },
-  column: { color: '#c3e88d', label: '列' },
-  function: { color: '#ffcb6b', label: '函数' },
-  database: { color: '#89ddff', label: '库' },
-  schema: { color: '#89ddff', label: '库' },
-  snippet: { color: '#f78c6c', label: '模板' },
-  alias: { color: '#f07178', label: '别名' },
-  measurement: { color: '#82aaff', label: '时序表' }
+  keyword: { color: '#c792ea', label: '关键字', mark: 'K' },
+  table: { color: '#82aaff', label: '表', mark: 'T' },
+  view: { color: '#82aaff', label: '视图', mark: 'V' },
+  column: { color: '#c3e88d', label: '列', mark: 'C' },
+  function: { color: '#ffcb6b', label: '函数', mark: 'F' },
+  database: { color: '#89ddff', label: '库', mark: 'D' },
+  schema: { color: '#89ddff', label: '库', mark: 'S' },
+  snippet: { color: '#f78c6c', label: '模板', mark: 'S' },
+  alias: { color: '#f07178', label: '别名', mark: 'A' },
+  measurement: { color: '#82aaff', label: '时序表', mark: 'M' }
 }
 
 export function kindMeta(kind) {
@@ -268,6 +268,83 @@ function localItems(req) {
   const catalog = catalogOf(sessionKey)
   const items = []
   const d = dialectOf(dialect)
+  const before = ctx.before
+
+  // —— 本地上下文补齐（对齐宿主增强）：INSERT 列清单 / UPDATE SET / JOIN ON ——
+  const insM = /\bINSERT\s+INTO\s+([\w$#`".]+)\s*\(([^()]*)$/i.exec(before)
+  const updM = /\bUPDATE\s+([\w$#`".]+)\s+SET\s+(.*)$/is.exec(before)
+  const isJoinOn = /\bON\s+[\w.\s]*$/i.test(before) && /\bJOIN\b/i.test(before)
+
+  const writtenCols = (text) =>
+    text
+      .split(',')
+      .map((s) => s.replace(/["`]/g, '').trim().toLowerCase())
+      .filter(Boolean)
+
+  const tableByName = (name) =>
+    (catalog?.tables || []).find((t) => t.name.toLowerCase() === String(name).toLowerCase())
+
+  if (insM) {
+    const t = tableByName(insM[1])
+    const written = new Set(writtenCols(insM[2] || ''))
+    for (const col of t?.columns || []) {
+      if (written.has(col.name.toLowerCase())) continue
+      items.push({
+        label: col.name,
+        kind: 'column',
+        detail: `${col.type || ''}${col.pk ? ' · PK' : ''}`,
+        doc: col.comment,
+        insertText: col.name,
+        owner: t.name,
+        sortText: `0_${col.name}`
+      })
+    }
+  } else if (updM) {
+    const t = tableByName(updM[1])
+    const assignText = (updM[2] || '').replace(/\((?:[^()]|\([^()]*\))*\)/g, '()')
+    const written = new Set(writtenCols(assignText))
+    for (const col of t?.columns || []) {
+      if (written.has(col.name.toLowerCase())) continue
+      items.push({
+        label: col.name,
+        kind: 'column',
+        detail: `${col.type || ''} = `,
+        insertText: `${col.name} = `,
+        owner: t.name,
+        sortText: `0_${col.name}`
+      })
+    }
+  }
+
+  if (isJoinOn && aliases.length >= 2) {
+    // JOIN ON：同名列 / user_id↔id 后缀 → 完整等值条件
+    const newA = aliases[aliases.length - 1]
+    let pushed = 0
+    for (let j = aliases.length - 2; j >= 0 && pushed < 6; j--) {
+      const other = aliases[j]
+      const newT = tableByName(newA.table)
+      const otherT = tableByName(other.table)
+      for (const c of newT?.columns || []) {
+        if (pushed >= 6) break
+        const hit = (otherT?.columns || []).find(
+          (oc) =>
+            oc.name.toLowerCase() === c.name.toLowerCase() ||
+            c.name.toLowerCase().endsWith(`_${oc.name.toLowerCase()}`) ||
+            oc.name.toLowerCase().endsWith(`_${c.name.toLowerCase()}`)
+        )
+        if (hit) {
+          items.push({
+            label: `${newA.alias}.${c.name} = ${other.alias}.${hit.name}`,
+            kind: 'column',
+            detail: 'JOIN 条件',
+            insertText: `${newA.alias}.${c.name} = ${other.alias}.${hit.name}`,
+            sortText: `0_join_${pushed}_${c.name}`
+          })
+          pushed++
+        }
+      }
+    }
+  }
 
   items.push(...collectCatalogItems(catalog, { ctx, aliases, tables }))
 
@@ -385,6 +462,39 @@ export function applyCompletionItem(item) {
   }
 }
 
+/**
+ * 子序列模糊匹配（与宿主 completion.ts fuzzyMatch 对齐）
+ * 返回 { rank, ranges }：3=前缀 2=包含 1=子序列；ranges 为 label 内高亮下标
+ */
+export function fuzzyMatch(label, prefix) {
+  if (!prefix) return { rank: 2, ranges: [] }
+  const l = String(label).toLowerCase()
+  const p = String(prefix).toLowerCase()
+  const idx = l.indexOf(p)
+  if (idx >= 0) {
+    const ranges = []
+    for (let i = 0; i < p.length; i++) ranges.push(idx + i)
+    return { rank: idx === 0 ? 3 : 2, ranges }
+  }
+  const ranges = []
+  let li = 0
+  for (let pi = 0; pi < p.length; pi++) {
+    const ch = p[pi]
+    let found = -1
+    while (li < l.length) {
+      if (l[li] === ch) {
+        found = li
+        break
+      }
+      li++
+    }
+    if (found < 0) return null
+    ranges.push(found)
+    li = found + 1
+  }
+  return { rank: 1, ranges }
+}
+
 export function filterItems(items, prefix, limit = 80) {
   const p = (prefix || '').toLowerCase()
   if (!p) return items.slice(0, limit)
@@ -394,10 +504,17 @@ export function filterItems(items, prefix, limit = 80) {
   for (const it of items) {
     const label = String(it.label || '').toLowerCase()
     const filter = String(it.filterText || it.label || '').toLowerCase()
-    if (label === p || filter === p) exact.push(it)
-    else if (label.startsWith(p) || filter.startsWith(p) || p.split(/\s+/).some((tok) => tok && filter.startsWith(tok)))
-      start.push(it)
-    else if (label.includes(p) || filter.includes(p)) sub.push(it)
+    if (label === p || filter === p) {
+      it._matchRanges = it.matchRanges || []
+      exact.push(it)
+    } else {
+      // 优先 filterText（多表列带别名前缀时的裸列名），其次 label 子序列
+      const fz = fuzzyMatch(filter, p) || fuzzyMatch(label, p)
+      if (!fz) continue
+      it._matchRanges = fz.ranges
+      if (label.startsWith(p) || filter.startsWith(p)) start.push(it)
+      else sub.push(it)
+    }
   }
   return [...exact, ...start, ...sub].slice(0, limit)
 }

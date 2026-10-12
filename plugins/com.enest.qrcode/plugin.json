@@ -1,0 +1,47 @@
+{
+  "id": "com.enest.qrcode",
+  "name": "二维码",
+  "version": "1.0.0",
+  "description": "文本/URL 生成二维码（尺寸与纠错可调），剪贴板或本地图片解码。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "icon.svg",
+  "permissions": [
+    "clipboard.read",
+    "clipboard.write",
+    "clipboard.readImage",
+    "clipboard.writeImage",
+    "ui.setTitle",
+    "ui.toast"
+  ],
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "form": "panel",
+  "features": [
+    {
+      "code": "main",
+      "explain": "生成 / 解码二维码",
+      "cmds": [
+        "二维码",
+        "qrcode",
+        "qr"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "featured": false,
+    "tags": [
+      "二维码",
+      "qr",
+      "效率"
+    ]
+  }
+}

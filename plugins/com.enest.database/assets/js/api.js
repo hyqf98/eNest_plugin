@@ -300,6 +300,7 @@ const SHELL_TOKEN_KEYS = [
   '--text-3',
   '--accent',
   '--accent-soft',
+  '--accent-contrast',
   '--ok',
   '--ok-soft',
   '--danger',
@@ -385,6 +386,15 @@ export async function applyShellTheme() {
     const mono = pick('--mono', '--font-mono', 'fontMono', 'mono')
     if (mono) root.style.setProperty('--font-mono', mono)
 
+    // 宿主未提供 --brand 系列：映射到 accent，使主按钮/执行按钮/激活态跟随壳子强调色
+    const accent = pick('--accent', 'accent')
+    if (accent) {
+      root.style.setProperty('--brand', accent)
+      root.style.setProperty('--brand-strong', accent)
+    }
+    const accentSoft = pick('--accent-soft', 'accentSoft')
+    if (accentSoft) root.style.setProperty('--brand-soft', accentSoft)
+
     const m = mode || tokens.__mode || tokens.mode
     if (m === 'light' || m === 'dark') {
       root.dataset.theme = m
@@ -395,7 +405,7 @@ export async function applyShellTheme() {
   const restoreLocal = () => {
     // 关闭跟随主题时清掉 inline token，回落 CSS :root / data-theme
     const root = document.documentElement
-    for (const key of [...SHELL_TOKEN_KEYS, '--font-mono']) {
+    for (const key of [...SHELL_TOKEN_KEYS, '--font-mono', '--brand', '--brand-strong', '--brand-soft']) {
       root.style.removeProperty(key)
     }
   }

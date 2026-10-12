@@ -12,6 +12,19 @@ import {
 import { state, activeSession, activeEditor, updateSessionEditorSql } from './store.js'
 import { toast } from './api.js'
 
+/** 补全列表 label 渲染：按 _matchRanges 高亮模糊命中的字符 */
+function highlightLabel(it) {
+  const label = String(it.label || '')
+  const ranges = Array.isArray(it._matchRanges) ? it._matchRanges : null
+  if (!ranges?.length) return escape(label)
+  const set = new Set(ranges.filter((i) => i >= 0 && i < label.length))
+  let out = ''
+  for (let i = 0; i < label.length; i++) {
+    out += set.has(i) ? `<b class="comp-hit">${escape(label[i])}</b>` : escape(label[i])
+  }
+  return out
+}
+
 export class SqlEditor {
   constructor(root, opts = {}) {
     this.root = root
@@ -43,14 +56,6 @@ export class SqlEditor {
         </div>
         <div class="completion-popup" data-el="popup" hidden></div>
         <div class="completion-doc" data-el="doc" hidden></div>
-        <div class="editor-findbar" data-el="findbar" hidden>
-          <input data-el="findInput" placeholder="查找…" />
-          <input data-el="replInput" placeholder="替换…" />
-          <button type="button" class="btn" data-act="find-next">下一个</button>
-          <button type="button" class="btn" data-act="repl">替换</button>
-          <button type="button" class="btn" data-act="repl-all">全部</button>
-          <button type="button" class="btn ghost" data-act="find-close">关闭</button>
-        </div>
       </div>
     `
     this.el = {
@@ -59,10 +64,7 @@ export class SqlEditor {
       ta: this.root.querySelector('[data-el=ta]'),
       curline: this.root.querySelector('[data-el=curline]'),
       popup: this.root.querySelector('[data-el=popup]'),
-      doc: this.root.querySelector('[data-el=doc]'),
-      findbar: this.root.querySelector('[data-el=findbar]'),
-      findInput: this.root.querySelector('[data-el=findInput]'),
-      replInput: this.root.querySelector('[data-el=replInput]')
+      doc: this.root.querySelector('[data-el=doc]')
     }
   }
 
@@ -111,12 +113,6 @@ export class SqlEditor {
       }
     })
 
-    this.root.querySelector('[data-act=find-close]')?.addEventListener('click', () => {
-      this.el.findbar.hidden = true
-    })
-    this.root.querySelector('[data-act=find-next]')?.addEventListener('click', () => this._findNext())
-    this.root.querySelector('[data-act=repl]')?.addEventListener('click', () => this._replaceOne())
-    this.root.querySelector('[data-act=repl-all]')?.addEventListener('click', () => this._replaceAll())
   }
 
   setDialect(dialect) {
@@ -232,12 +228,6 @@ export class SqlEditor {
     if (mod && e.key === '/') {
       e.preventDefault()
       this.toggleComment()
-      return
-    }
-    if (mod && (e.key === 'f' || e.key === 'F')) {
-      e.preventDefault()
-      this.el.findbar.hidden = false
-      this.el.findInput.focus()
       return
     }
     if (e.key === 'F5') {
@@ -412,8 +402,8 @@ export class SqlEditor {
         const active = idx === st.index ? ' active' : ''
         const detail = it.detail ? `<span class="comp-detail">${escape(it.detail)}</span>` : ''
         return `<div class="comp-item${active}" data-idx="${idx}">
-          <span class="comp-kind" style="background:${meta.color}"></span>
-          <span class="comp-label">${escape(it.label)}</span>
+          <span class="comp-kind" style="background:${meta.color}">${escape(meta.mark || '')}</span>
+          <span class="comp-label">${highlightLabel(it)}</span>
           ${detail}
         </div>`
       })
@@ -512,48 +502,6 @@ export class SqlEditor {
     }
     const stmt = statementAtCursor(sql, selStart)
     return stmt
-  }
-
-  _findNext() {
-    const q = this.el.findInput.value
-    if (!q) return
-    const ta = this.el.ta
-    const from = ta.selectionEnd
-    const idx = ta.value.indexOf(q, from)
-    const idx2 = idx >= 0 ? idx : ta.value.indexOf(q)
-    if (idx2 < 0) {
-      toast('未找到', 'warn')
-      return
-    }
-    ta.focus()
-    ta.setSelectionRange(idx2, idx2 + q.length)
-  }
-
-  _replaceOne() {
-    const ta = this.el.ta
-    const q = this.el.findInput.value
-    const r = this.el.replInput.value
-    if (!q) return
-    const { selectionStart, selectionEnd, value } = ta
-    if (value.slice(selectionStart, selectionEnd) === q) {
-      ta.value = value.slice(0, selectionStart) + r + value.slice(selectionEnd)
-      ta.setSelectionRange(selectionStart + r.length, selectionStart + r.length)
-      this._highlight()
-      this.onChange(ta.value, this.getCursor())
-    }
-    this._findNext()
-  }
-
-  _replaceAll() {
-    const ta = this.el.ta
-    const q = this.el.findInput.value
-    const r = this.el.replInput.value
-    if (!q) return
-    const count = ta.value.split(q).length - 1
-    ta.value = ta.value.split(q).join(r)
-    this._highlight()
-    this.onChange(ta.value, this.getCursor())
-    toast(`已替换 ${count} 处`, 'success')
   }
 }
 

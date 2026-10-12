@@ -1,8 +1,8 @@
 {
   "id": "com.enest.translate",
   "name": "翻译",
-  "version": "1.0.0",
-  "description": "谷歌翻译引擎，自动检测语言，一键复制译文",
+  "version": "1.2.0",
+  "description": "多引擎翻译（Google/MyMemory 自动切换），自动检测语言，一键复制译文。",
   "author": "Lingua",
   "main": "index.html",
   "category": "效率",
@@ -17,11 +17,12 @@
     "clipboard.write",
     "storage.local",
     "ui.setTitle",
-    "ui.toast"
+    "ui.toast",
+    "ui.resize"
   ],
   "window": {
     "minWidth": 420,
-    "minHeight": 320
+    "minHeight": 360
   },
   "features": [
     {
@@ -48,6 +49,6 @@
       "效率"
     ],
     "minWidth": 420,
-    "minHeight": 320
+    "minHeight": 360
   }
 }
