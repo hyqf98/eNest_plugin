@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>主题示例</title>
+    <style>
+      /* ============================================================
+         主题示例 · theme pack demo
+         - 深色兜底色板（themeAware 注入会覆盖这些值）
+         - 切到本插件注册的主题包（暖沙/靛蓝/墨绿）时自动换肤
+         ============================================================ */
+      :root {
+        color-scheme: dark;
+        /* 主题 token 兜底（themeAware 注入会覆盖这些值） */
+        --bg: #17191b;
+        --surface: #202326;
+        --surface-2: #292d31;
+        --surface-3: #33383d;
+        --border: rgba(242, 243, 243, 0.09);
+        --border-strong: rgba(242, 243, 243, 0.16);
+        --text: #f2f3f3;
+        --text-2: #adb3b8;
+        --text-3: #7e878f;
+        --accent: #e98654;
+        --ok: #77bfa4;
+        --danger: #e79589;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI",
+              "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+      }
+      .app {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 36px 24px 48px;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+      }
+      .sub {
+        margin: 0 0 22px;
+        font-size: 13px;
+        color: var(--text-2);
+      }
+      ul.packs {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .pack {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: var(--surface);
+        box-shadow: inset 0 0 0 1px var(--border);
+      }
+      .swatches {
+        display: flex;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+      .swatches i {
+        width: 16px;
+        height: 16px;
+        border-radius: 5px;
+        box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
+      }
+      .pack .meta { min-width: 0; }
+      .pack .name {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .pack .desc {
+        margin-top: 2px;
+        font-size: 12px;
+        color: var(--text-3);
+      }
+      .tag {
+        margin-left: auto;
+        flex-shrink: 0;
+        font-size: 11px;
+        color: var(--text-2);
+        background: var(--surface-2);
+        border-radius: 999px;
+        padding: 3px 10px;
+      }
+      .guide {
+        margin-top: 26px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: var(--surface);
+        box-shadow: inset 0 0 0 1px var(--border);
+        font-size: 13px;
+        line-height: 1.7;
+        color: var(--text-2);
+      }
+      .guide b { color: var(--text); font-weight: 600; }
+      #runtime-state {
+        margin-top: 14px;
+        font-size: 12px;
+        color: var(--text-3);
+        min-height: 16px;
+      }
+      #runtime-state.err { color: var(--danger); }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <h1>主题示例</h1>
+      <p class="sub">注册 3 个主题包到壳子：2 个走 manifest 声明式，1 个走运行时 enest.theme.register。</p>
+
+      <ul class="packs">
+        <li class="pack">
+          <span class="swatches" aria-hidden="true">
+            <i style="background:#f6efe4"></i><i style="background:#b0763c"></i><i style="background:#4a3f30"></i>
+          </span>
+          <span class="meta">
+            <span class="name">暖沙</span>
+            <span class="desc" style="display:block">light 模式 · 米白底 + 陶土强调</span>
+          </span>
+          <span class="tag">manifest 声明</span>
+        </li>
+        <li class="pack">
+          <span class="swatches" aria-hidden="true">
+            <i style="background:#14172b"></i><i style="background:#7c9aff"></i><i style="background:#e8ebfa"></i>
+          </span>
+          <span class="meta">
+            <span class="name">靛蓝</span>
+            <span class="desc" style="display:block">dark 模式 · 靛蓝底 + 雾蓝强调</span>
+          </span>
+          <span class="tag">manifest 声明</span>
+        </li>
+        <li class="pack">
+          <span class="swatches" aria-hidden="true">
+            <i style="background:#152019"></i><i style="background:#5fae87"></i><i style="background:#e4efe8"></i>
+          </span>
+          <span class="meta">
+            <span class="name">墨绿</span>
+            <span class="desc" style="display:block">dark 模式 · 墨绿底 + 青翠强调（进入本页时运行时注册）</span>
+          </span>
+          <span class="tag">运行时注册</span>
+        </li>
+      </ul>
+
+      <div class="guide">
+        验证路径：<b>设置 → 外观 → 主题</b> 下拉应出现以上三个主题包；选中即全壳生效（含本插件页），
+        切回「跟随模式」恢复。卸载本插件后，下拉中的三个包应一并清理（活动包被删时自动回退）。
+      </div>
+      <p id="runtime-state"></p>
+    </main>
+    <script src="assets/js/main.js"></script>
+  </body>
+</html>

@@ -17,7 +17,6 @@
   "engines": {
     "enest": ">=0.1.0"
   },
-  "form": "mini",
   "features": [
     {
       "code": "main",
@@ -35,9 +34,7 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "market": {
-    "featured": false,
-    "tags": [
+  "market": {    "tags": [
       "取色",
       "color",
       "设计"

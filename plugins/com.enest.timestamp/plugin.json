@@ -7,7 +7,6 @@
   "main": "index.html",
   "category": "开发",
   "icon": "icon.svg",
-  "form": "mini",
   "engines": {
     "enest": ">=0.1.0"
   },
@@ -38,9 +37,7 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "market": {
-    "featured": false,
-    "tags": [
+  "market": {    "tags": [
       "时间戳",
       "开发",
       "日期"

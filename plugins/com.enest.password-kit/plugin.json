@@ -7,11 +7,29 @@
   "main": "index.html",
   "category": "效率",
   "icon": "icon.svg",
-  "permissions": ["clipboard.write", "ui.setTitle", "ui.toast"],
-  "engines": { "enest": ">=0.1.0" },
-  "form": "mini",
-  "features": [
-    { "code": "main", "cmds": ["密码", "password", "uuid"] }
+  "permissions": [
+    "clipboard.write",
+    "ui.setTitle",
+    "ui.toast"
   ],
-  "market": { "tags": ["密码", "uuid", "安全"] }
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "features": [
+    {
+      "code": "main",
+      "cmds": [
+        "密码",
+        "password",
+        "uuid"
+      ]
+    }
+  ],
+  "market": {
+    "tags": [
+      "密码",
+      "uuid",
+      "安全"
+    ]
+  }
 }

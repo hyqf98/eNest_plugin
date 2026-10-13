@@ -1,13 +1,12 @@
 {
   "id": "com.enest.database",
   "name": "数据库",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "桌面级 SQL 客户端：连接管理、IDEA 式补全（CTE/INSERT/JOIN ON/模糊匹配）、结果排序分页筛选、控制台会话持久化",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
   "icon": "icon.svg",
-  "form": "panel",
   "engines": {
     "enest": ">=0.1.0"
   },
@@ -21,7 +20,6 @@
     "ui.toast",
     "notify",
     "clipboard.write",
-    "shell.openExternal",
     "settings.register"
   ],
   "contributes": {
@@ -48,7 +46,13 @@
     {
       "code": "main",
       "explain": "数据库客户端",
-      "cmds": ["数据库", "database", "sql", "mysql", "sqlite"]
+      "cmds": [
+        "数据库",
+        "database",
+        "sql",
+        "mysql",
+        "sqlite"
+      ]
     }
   ],
   "ui": {
@@ -59,8 +63,12 @@
   },
   "market": {
     "featured": true,
-    "tags": ["数据库", "SQL", "开发", "MySQL", "SQLite"],
-    "minWidth": 1100,
-    "minHeight": 700
+    "tags": [
+      "数据库",
+      "SQL",
+      "开发",
+      "MySQL",
+      "SQLite"
+    ]
   }
 }

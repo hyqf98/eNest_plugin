@@ -60,10 +60,11 @@
           "ssh.sftp",
           "db.connect",
           "db.query",
-          "db.schema"
+          "db.schema",
+          "theme"
         ]
       },
-      "description": "API 白名单（与 src/shared/types/plugin.ts 的 PLUGIN_PERMISSIONS 一一对应）"
+      "description": "API 白名单（与 src/shared/types/plugin.ts 的 PLUGIN_PERMISSIONS 一一对应；theme 门禁主题包注册）"
     },
     "engines": {
       "type": "object",
@@ -107,11 +108,6 @@
         "minHeight": { "type": "number", "minimum": 200 }
       },
       "additionalProperties": false
-    },
-    "form": {
-      "type": "string",
-      "enum": ["mini", "panel"],
-      "description": "打开形态：mini 命令面板小窗优先 / panel 主窗 Tab（缺省）"
     },
     "development": {
       "type": "object",

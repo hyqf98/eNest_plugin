@@ -77,14 +77,6 @@ export async function clipboardWrite(text) {
   }
 }
 
-export async function openExternal(url) {
-  try {
-    return await api?.shell?.openExternal?.(url)
-  } catch {
-    return false
-  }
-}
-
 /* ── storage KV（Spec 2.0 键空间）── */
 
 export const StorageKeys = {

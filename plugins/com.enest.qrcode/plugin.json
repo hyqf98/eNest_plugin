@@ -18,7 +18,6 @@
   "engines": {
     "enest": ">=0.1.0"
   },
-  "form": "panel",
   "features": [
     {
       "code": "main",
@@ -36,9 +35,7 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "market": {
-    "featured": false,
-    "tags": [
+  "market": {    "tags": [
       "二维码",
       "qr",
       "效率"

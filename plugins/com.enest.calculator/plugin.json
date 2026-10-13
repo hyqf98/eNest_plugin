@@ -7,7 +7,6 @@
   "main": "index.html",
   "category": "效率",
   "icon": "icon.svg",
-  "form": "mini",
   "engines": {
     "enest": ">=0.1.0"
   },
@@ -37,9 +36,7 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "market": {
-    "featured": false,
-    "tags": [
+  "market": {    "tags": [
       "计算器",
       "效率"
     ]

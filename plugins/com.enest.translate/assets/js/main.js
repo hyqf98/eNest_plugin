@@ -73,12 +73,15 @@
       }
       window.addEventListener('beforeunload', () => clearTimeout(heightTimer))
 
+      // —— 偏好持久化：api.storage KV（storage.local 权限）。
+      //    壳侧 settings.get/set 仅限注册过的设置项（contributes.settings /
+      //    enest.settings.register），本插件未注册任何 section，故不走 settings 通道。
       async function loadPrefs() {
         try {
           const [src, tgt, engine] = await Promise.all([
-            api.settings.get('srcLang'),
-            api.settings.get('tgtLang'),
-            api.settings.get('engine')
+            api.storage.get('srcLang'),
+            api.storage.get('tgtLang'),
+            api.storage.get('engine')
           ])
           if (src) $('src').value = src
           if (tgt) $('tgt').value = tgt
@@ -87,12 +90,12 @@
       }
       async function savePrefs() {
         try {
-          await api.settings.set('srcLang', $('src').value)
-          await api.settings.set('tgtLang', $('tgt').value)
+          await api.storage.set('srcLang', $('src').value)
+          await api.storage.set('tgtLang', $('tgt').value)
         } catch {}
       }
       async function saveEngine() {
-        try { await api.settings.set('engine', $('engine').value) } catch {}
+        try { await api.storage.set('engine', $('engine').value) } catch {}
       }
 
       // —— 引擎层 ——

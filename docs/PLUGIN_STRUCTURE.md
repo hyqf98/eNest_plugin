@@ -32,34 +32,9 @@
 | 开发加载目录 | 设置 → 开发者 →「加载插件」 |
 | HMR | `development.main` 指向 Vite 等 |
 
-## plugin.json 最小示例
+## plugin.json 说明
 
-```json
-{
-  "id": "com.example.myplugin",
-  "name": "我的插件",
-  "version": "1.0.0",
-  "description": "一句话说明",
-  "author": "you",
-  "main": "index.html",
-  "category": "效率",
-  "icon": "logo.png",
-  "permissions": ["storage.local", "ui.setTitle", "ui.toast"],
-  "engines": { "enest": ">=0.1.0" },
-  "features": [
-    { "code": "main", "explain": "主功能", "cmds": ["我的插件", "myplugin"] }
-  ],
-  "ui": {
-    "chrome": "none",
-    "themeAware": true,
-    "background": "opaque",
-    "preferredColorScheme": "auto"
-  },
-  "development": {
-    "main": "http://127.0.0.1:5173/index.html"
-  }
-}
-```
+完整字段说明、最小示例与权限白名单见 [`docs/manifest.md`](./manifest.md)（权威 schema：[`plugin-manifest.schema.json`](./plugin-manifest.schema.json)，CI 用 ajv 校验）。
 
 > `ui.chrome` 缺省为 `none`：壳子不绘制名称/URL 顶栏，插件全幅渲染。仅历史插件可显式 `"chrome": "minimal"` 保留细条。
 

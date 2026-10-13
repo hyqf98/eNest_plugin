@@ -1,13 +1,12 @@
 {
   "id": "com.enest.translate",
   "name": "翻译",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "多引擎翻译（Google/MyMemory 自动切换），自动检测语言，一键复制译文。",
   "author": "Lingua",
   "main": "index.html",
   "category": "效率",
   "icon": "icon.svg",
-  "form": "mini",
   "engines": {
     "enest": ">=0.1.0"
   },
@@ -47,8 +46,6 @@
       "翻译",
       "谷歌",
       "效率"
-    ],
-    "minWidth": 420,
-    "minHeight": 360
+    ]
   }
 }

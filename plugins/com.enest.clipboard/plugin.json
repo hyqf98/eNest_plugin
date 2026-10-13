@@ -1,7 +1,7 @@
 {
   "id": "com.enest.clipboard",
   "name": "粘贴板",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "剪贴板历史、图片回显与快速选中回写",
   "author": "eNest Labs",
   "main": "index.html",
@@ -16,7 +16,6 @@
     "clipboard.readImage",
     "clipboard.writeImage",
     "clipboard.history",
-    "storage.local",
     "ui.setTitle",
     "ui.toast"
   ],
@@ -47,8 +46,6 @@
       "剪贴板",
       "历史",
       "效率"
-    ],
-    "minWidth": 420,
-    "minHeight": 360
+    ]
   }
 }

@@ -7,17 +7,30 @@
   "main": "index.html",
   "category": "效率",
   "icon": "icon.svg",
-  "form": "panel",
   "ui": {
     "chrome": "none",
     "themeAware": true,
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "permissions": ["storage.local", "ui.setTitle", "ui.toast"],
-  "engines": { "enest": ">=0.1.0" },
+  "permissions": [
+    "storage.local",
+    "ui.setTitle",
+    "ui.toast"
+  ],
+  "engines": {
+    "enest": ">=0.1.0"
+  },
   "features": [
-    { "code": "main", "explain": "打开备忘录", "cmds": ["备忘录", "memo", "便签"] }
+    {
+      "code": "main",
+      "explain": "打开备忘录",
+      "cmds": [
+        "备忘录",
+        "memo",
+        "便签"
+      ]
+    }
   ],
   "contributes": {
     "homeCards": [
@@ -32,6 +45,10 @@
     ]
   },
   "market": {
-    "tags": ["备忘录", "便签", "笔记"]
+    "tags": [
+      "备忘录",
+      "便签",
+      "笔记"
+    ]
   }
 }

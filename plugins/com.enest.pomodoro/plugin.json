@@ -7,11 +7,30 @@
   "main": "index.html",
   "category": "效率",
   "icon": "icon.svg",
-  "permissions": ["notify", "storage.local", "ui.setTitle", "ui.toast"],
-  "engines": { "enest": ">=0.1.0" },
-  "form": "mini",
-  "features": [
-    { "code": "main", "cmds": ["番茄钟", "pomodoro", "专注"] }
+  "permissions": [
+    "notify",
+    "storage.local",
+    "ui.setTitle",
+    "ui.toast"
   ],
-  "market": { "tags": ["番茄钟", "专注", "效率"] }
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "features": [
+    {
+      "code": "main",
+      "cmds": [
+        "番茄钟",
+        "pomodoro",
+        "专注"
+      ]
+    }
+  ],
+  "market": {
+    "tags": [
+      "番茄钟",
+      "专注",
+      "效率"
+    ]
+  }
 }

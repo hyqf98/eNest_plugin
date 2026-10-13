@@ -19,10 +19,9 @@
 |------|------|------|
 | `author` / `logo` / `icon` / `homepage` / `category` | — | 市场展示元数据 |
 | `engines.enest` | string | 壳子版本范围：`*` / `^x.y.z` / `>=x.y.z` / 精确 |
-| `permissions` | string[] | API 白名单（**21 项**，见下） |
+| `permissions` | string[] | API 白名单（**29 项**，见下） |
 | `features[]` | `{ code, cmds[], explain? }` | Quick 可搜索指令；`cmds` 为触发关键词 |
 | `window` | `{ minWidth?, minHeight? }` | 建议窗口最小尺寸 |
-| `form` | `mini \| panel` | 打开形态：mini 小窗优先；panel 主窗 Tab（缺省） |
 | `development.main` | string | 开发态 dev server URL |
 | `settings` | string | 设置页 HTML 路径（保留/实验） |
 | `ui` | object | UI 集成：`chrome` / `themeAware` / `background` / `preferredColorScheme` |
@@ -33,13 +32,14 @@
 
 与壳子 UI Standard v2 对齐时请注意：`ui` 整段或 `themeAware` 字段缺失时，**`themeAware` 缺省为 `true`**（壳子注入 CSS Token 并推送主题变更），与 `plugin-manifest.schema.json` / 壳子 `DEFAULT_PLUGIN_UI` 描述一致。插件侧 **SHOULD** 另经 `enest.settings.register` 或 `contributes.settings` 暴露布尔设置 **`followShellTheme`（缺省 `true`）**：`true` 时消费壳子 Token 并跟随主题；`false` 时插件钉住自有 `preferredColorScheme`。视觉 Token 清单、设计语言与检查清单见主仓 `docs/site/plugin/ui-standard.md`（设计语言与样式规范 · UI Standard v2）。
 
-## permissions（21 项）
+## permissions（29 项）
 
 `clipboard.read` `clipboard.write` `clipboard.readImage` `clipboard.writeImage`
 `clipboard.history` `screen.capture` `screen.record` `pin.create` `net.fetch`
 `shell.openExternal` `storage.local` `notify` `ui.setTitle` `ui.setIcon`
 `ui.setBadge` `ui.resize` `ui.toast` `settings.register` `settings.page` `hotkey`
-`contribute`
+`contribute` `theme` `db.connect` `db.query` `db.schema` `ssh.exec`
+`ssh.session` `ssh.sftp` `vault.write`
 
 - `settings.page`：自定义设置页嵌入（预留，本期仅声明与校验）。
 - `contribute`：运行时贡献点 API（`enest.contribute.*`，Quick 搜索 provider）。

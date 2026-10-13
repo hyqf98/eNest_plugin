@@ -2,6 +2,11 @@
 
 > 功能参考 [ZTools-plugins/quick-translate](https://github.com/ZToolsCenter/ZTools-plugins)（MIT, ZToolsCenter）
 
+## 1.2.1
+
+- 偏好持久化从 `api.settings.get/set` 迁移至 `api.storage` KV（`srcLang` / `tgtLang` / `engine`）：壳侧 settings 通道仅限注册过的设置项（`contributes.settings` / `enest.settings.register`），本插件未注册任何 section，storage 通道才是正确落点。
+- manifest 清理：移除 schema 外的顶层 `form: "mini"` 与 `market.minWidth/minHeight` 字段（Quick 内嵌自适应已由 `ui.resize` 承担）。
+
 ## 1.2.0
 
 UI 精致化重做 + 双形态响应式（功能逻辑不变）：

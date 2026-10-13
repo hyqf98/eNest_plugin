@@ -1,0 +1,15 @@
+{
+  "name": "enest-plugins",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "eNest 插件仓库：manifest 校验 / registry 生成 / 发布资产测试",
+  "scripts": {
+    "validate": "node scripts/validate-manifests.mjs",
+    "test": "node --test scripts/market-assets.test.mjs",
+    "registry": "node scripts/build-registry.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0"
+  }
+}

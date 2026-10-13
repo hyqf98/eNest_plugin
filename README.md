@@ -24,7 +24,7 @@ eNest_plugin/
 │       ├── index.html           # 入口（ui.chrome 缺省 none，全幅）
 │       └── assets/              # css / js / images
 ├── docs/PLUGIN_STRUCTURE.md     # 标准结构说明
-├── registry.json                # CI 生成，勿手改（本地可提交快照便于预览）
+├── registry.json                # CI 生成，勿手改（本地索引快照，已移出 git 跟踪；发布用 dist/ 副本）
 ├── scripts/build-registry.mjs   # 扫 plugins/ 生成 registry
 ├── scripts/pack-plugin.mjs      # 打 .enestplugin（zip）
 ├── scripts/prepare-release.mjs  # 截图/图标附件与最终下载 URL
@@ -33,56 +33,8 @@ eNest_plugin/
 
 ## 插件清单 `plugin.json`
 
-必填字段与壳子 `PluginManifest` 对齐，市场扩展字段放在 `market` 段：
+`plugin.json` 是插件唯一权威元数据：必填 `id` / `name` / `version` / `description` / `main`，另有 `category` / `icon` / `engines` / `permissions` / `features` / `window` / `ui` / `contributes` / `market` 等可选段。完整字段表、最小示例与权限白名单见 [docs/manifest.md](docs/manifest.md)（权威 JSON Schema：`docs/plugin-manifest.schema.json`，CI 用 `scripts/validate-manifests.mjs` 以 ajv 校验）。
 
-```jsonc
-{
-  "id": "com.example.hello",
-  "name": "Hello",
-  "version": "1.0.0",
-  "description": "一句话说明插件做什么",
-  "author": "Your Name",
-  "main": "index.html",
-  "permissions": ["storage.local"],
-  "category": "效率",
-  "icon": "icon.png",
-  "homepage": "https://github.com/org/eNest_plugin/tree/main/plugins/com.example.hello",
-  "engines": { "enest": ">=0.1.0" },
-  "ui": {
-    "chrome": "none",
-    "themeAware": true,
-    "background": "opaque",
-    "preferredColorScheme": "auto"
-  },
-  "market": {
-    "featured": false,
-    "tags": ["剪贴板", "效率"],
-    "screenshots": [],
-    "minWidth": 400,
-    "minHeight": 300
-  }
-}
-```
-
-| 字段 | 必填 | 说明 |
-|------|------|------|
-| `id` | ✓ | 全局唯一，反向域名，目录名必须等于 id |
-| `name` | ✓ | 显示名 |
-| `version` | ✓ | semver，`major.minor.patch` |
-| `description` | ✓ | 市场卡片描述（建议 ≤80 字） |
-| `main` | ✓ | 入口 HTML 相对路径 |
-| `category` | ✓ | 分类：效率 / 开发 / 设计 / 媒体 / 其它 |
-| `icon` | | 相对路径；缺省用 name 首字 |
-| `permissions` | | 与壳子权限表一致（白名单见 `docs/plugin-manifest.schema.json`，权威源为壳子 `src/shared/types/plugin.ts` → `PLUGIN_PERMISSIONS`，当前 21 项） |
-| `engines` | | `enest` 版本范围：`*` / `^x.y.z` / `>=x.y.z` / 精确 |
-| `features` | | Quick 指令 `{ code, explain?, cmds }` |
-| `window` | | Quick 内容尺寸建议 width / height 和下限 minWidth / minHeight；插件应响应实际视口，可用 enest.ui.resize 更新（需 ui.resize 权限），主窗大小由用户控制 |
-| `form` | | `mini` 命令面板小窗 / `panel` 主窗 Tab（缺省） |
-| `development` | | 开发态入口 URL `{ main }` |
-| `ui` | | chrome（缺省 none，default 已废弃）/ themeAware / background / preferredColorScheme |
-| `market` | | 市场展示扩展 |
-
-> Manifest JSON Schema：`docs/plugin-manifest.schema.json`（CI 用 ajv 校验，脚本 `scripts/validate-manifests.mjs`）。
 > 单文件快速校验也可用壳子仓库 SDK：`node ../eNest/packages/plugin-sdk/bin/enest-validate.mjs plugins/<id>/plugin.json`（详见 [packages/plugin-sdk](../eNest/packages/plugin-sdk/README.md)）。
 
 ## 首页推荐与截图元数据
@@ -158,7 +110,7 @@ CI 由所有 `plugin.json` 聚合，**一次下载即可渲染完整列表与分
 
 1. **列表**：优先拉 `releases/latest/download/registry.json`，缓存到本地；失败回退上次缓存或内置 mock。
 2. **分类**：直接用 registry.categories / plugin.category，无需二次请求。
-3. **安装**：下载 `asset.url` → 校验 `sha256` → 解压 `.enestplugin`（zip）→ 本地 `~/eNest/plugins/`。
+3. **安装**：下载 `asset.url` → 校验 `sha256` → 解压 `.enestplugin`（zip）→ 本地 `~/.eNest/plugins/`。
 4. **更新**：对比本地已装 `version` 与 registry；有新版提示下载。
 
 ## 发布命名约定
@@ -174,8 +126,10 @@ CI 由所有 `plugin.json` 聚合，**一次下载即可渲染完整列表与分
 # 1. 新建插件目录
 mkdir -p plugins/com.example.hello
 # 2. 写 plugin.json + index.html
+# 2b. 首次使用先安装依赖（package.json 已含 ajv）
+npm install
 # 3. 校验全部 manifest（ajv + docs/plugin-manifest.schema.json）
-node scripts/validate-manifests.mjs
+npm run validate
 # 3b. 单文件校验（壳子 SDK CLI；workspaces 接线后也可 npx enest-validate）
 node ../eNest/packages/plugin-sdk/bin/enest-validate.mjs plugins/com.example.hello/plugin.json
 # 4. 本地生成索引预览（内部先跑同一校验，失败不产出）
