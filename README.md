@@ -115,7 +115,7 @@ CI 由所有 `plugin.json` 聚合，**一次下载即可渲染完整列表与分
 
 ## 发布命名约定
 
-- Release tag：CI 使用 `plugins-${github.run_number}`
+- Release tag：推送 `v*` / `plugins-*` 标签触发发版，tag 名即发布名（也可 Actions 手动 dispatch 填已有标签）；推送代码分支不触发发版
 - 资产：`{id}@{version}.enestplugin`
 - 附属：`registry.json`、`{id}@{version}-icon.{ext}`、`{id}@{version}-screenshot-{序号}.{ext}`
 - GitHub Release 的附件没有目录层级；媒体与安装包都使用扁平且唯一的文件名。
@@ -138,7 +138,7 @@ node scripts/build-registry.mjs
 node scripts/pack-plugin.mjs com.example.hello
 ```
 
-合并到 `main` 后由 GitHub Actions 校验、测试、打包全部插件并创建 **草稿 Release**。当前 `draft: true` 保持不变；正式发布该 Release 后，壳子下次刷新市场才会从 `releases/latest/download/registry.json` 获取新元数据。此流程不会自动提交本地生成的索引快照。
+推送 `v*` / `plugins-*` 标签后由 GitHub Actions 校验、测试、打包全部插件并创建**正式 Release**（非草稿，直接进入 `releases/latest`，壳子下次刷新市场即可拉取新元数据）。推送代码分支只走校验不打包；此流程不会提交本地生成的索引快照（registry.json 已移出 git 跟踪）。
 
 ## 分类枚举
 

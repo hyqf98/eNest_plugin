@@ -1,14 +1,15 @@
 name: release-plugins
 
+# 发版模型：推送代码分支不发版；只有推送 v* / plugins-* 标签才触发打包发布。
+# 手动 dispatch 需显式填写发布标签（工作流不创建标签，标签需已存在）。
 on:
   push:
-    branches: [main]
-    paths:
-      - 'plugins/**'
-      - 'scripts/**'
-      - 'docs/**'
-      - '.github/workflows/release.yml'
-  workflow_dispatch: {}
+    tags: ['v*', 'plugins-*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '发布标签（须已存在，如 v0.2.0）'
+        required: true
 
 permissions:
   contents: write
@@ -47,14 +48,14 @@ jobs:
       - name: Prepare registry and media attachments
         env:
           REPO: ${{ github.repository }}
-          TAG: plugins-${{ github.run_number }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: node scripts/prepare-release.mjs
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: plugins-${{ github.run_number }}
-          name: Plugins ${{ github.run_number }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: Plugins ${{ inputs.tag || github.ref_name }}
           # 正式发布（非 draft）：进入 /releases/latest，壳子经
           # releases/latest/download/registry.json 拉取市场索引与安装包
           draft: false
