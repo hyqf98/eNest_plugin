@@ -1,0 +1,4 @@
+interface:
+  display_name: "eNest 开发"
+  short_description: "开发与验收 eNest 宿主、前端插件和主题的工程与权限契约"
+  default_prompt: "使用 $enest-development 按仓库契约完成 eNest 开发任务，并验证受影响的插件与发布产物。"

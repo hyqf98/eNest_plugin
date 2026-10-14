@@ -2,483 +2,487 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>番茄钟</title>
-    <!-- 壳子主题 token（--bg/--surface/--text/--accent…）；独立打开时落到下方 html 级兜底 -->
-    <link rel="stylesheet" href="enest://plugin/com.enest.pomodoro/__enest_theme.css" />
+
     <style>
-      /* ============ token 层 ============
-       * 兜底写在 html（specificity 低于注入 css 的 :root，主题包可正常覆盖）；
-       * :root 内为插件私有变量（环形色 / 排印 / 节奏），不与注入 token 重名。 */
-      html {
-        color-scheme: dark;
-        --bg: #17191b;
-        --surface: #202326;
-        --surface-2: #292d31;
-        --surface-3: #33383d;
-        --border: rgba(242, 243, 243, 0.09);
-        --border-strong: rgba(242, 243, 243, 0.16);
-        --text: #f2f3f3;
-        --text-2: #adb3b8;
-        --text-3: #7e878f;
-        --accent: #e98654;
-        --ok: #77bfa4;
-        --danger: #e79589;
-      }
       :root {
-        --focus-c: #5b8cff;                                  /* 专注段 accent */
-        --break-c: #3ddc97;                                  /* 休息段绿 */
-        --focus-ink: #0b1220;                                /* 专注实底按钮文字 */
-        --break-ink: #06180f;                                /* 休息实底按钮文字 */
-        --focus-soft: color-mix(in srgb, var(--focus-c) 14%, transparent);
-        --break-soft: color-mix(in srgb, var(--break-c) 14%, transparent);
-        --ring: color-mix(in srgb, var(--focus-c) 60%, transparent);
-        --ui: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-        --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono",
-          "Roboto Mono", monospace;
-        --ease: cubic-bezier(0.2, 0.7, 0.25, 1);
-        --t: 140ms;                 /* 统一过渡节奏 */
+        --line: var(--border, #e0e5e3);
+        --paper: var(--surface, #fff);
+        --muted: var(--text-2, #77847e);
+        --focus: var(--accent, #598774);
       }
-      /* 形态变量挂在 .timer-zone（容器查询可命中的后代节点）向下继承 */
-      .timer-zone {
-        --ring-d: 200px;            /* 窄形态表盘直径 */
-        --time-fs: 40px;            /* 中央 mm:ss 字号 */
-      }
-      * { box-sizing: border-box; }
-      html, body { height: 100%; }
       body {
-        margin: 0;
-        font-family: var(--ui);
-        background: var(--bg);
-        color: var(--text);
-        font-size: 12px;
-        line-height: 1.45;
-        -webkit-font-smoothing: antialiased;
         overflow: hidden;
       }
-      ::selection { background: var(--focus-soft); }
-      :where(button, input):focus-visible {
-        outline: 2px solid var(--ring);
-        outline-offset: 2px;
+      button {
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: inherit;
+        padding: 8px 12px;
       }
-
+      button:hover {
+        background: var(--surface-2, #e8eeeb);
+      }
+      input,
+      select {
+        background: var(--paper);
+        color: inherit;
+        border: 1px solid var(--line);
+        padding: 8px;
+        border-radius: 7px;
+        min-width: 0;
+      }
       .app {
         height: 100%;
         display: flex;
         flex-direction: column;
       }
-
-      /* ============ 页眉 + 今日徽标 ============ */
       header {
-        flex: none;
+        padding: 20px 25px;
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        border-bottom: 1px solid var(--border);
+        gap: 12px;
+        border-bottom: 1px solid var(--line);
       }
-      .brand { display: flex; align-items: center; color: var(--focus-c); }
       h1 {
+        font-size: 18px;
         margin: 0;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
+        letter-spacing: -0.4px;
       }
-      .today-badge {
-        margin-left: auto;
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        height: 22px;
-        padding: 0 9px;
-        border-radius: 999px;
-        background: var(--focus-soft);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-c) 26%, transparent);
-        font-size: 11px;
-        color: color-mix(in srgb, var(--focus-c) 78%, var(--text));
-        white-space: nowrap;
-      }
-      .today-badge b {
-        font-family: var(--mono);
+      header span {
+        flex: 1;
+        color: var(--muted);
         font-size: 12px;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        color: color-mix(in srgb, var(--focus-c) 92%, var(--text));
       }
-
-      /* ============ 环形表盘 ============ */
-      .timer-zone {
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(340px, 1fr) minmax(300px, 0.85fr);
         flex: 1;
         min-height: 0;
+      }
+      .focus-panel {
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        padding: 10px 16px;
+        overflow: auto;
+        padding: 28px 25px 18px;
       }
-      .ring-wrap {
-        position: relative;
-        width: var(--ring-d);
-        height: var(--ring-d);
-        filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--focus-c) 14%, transparent));
-        transition: filter 200ms var(--ease);
-      }
-      /* 休息段：环境光切绿（随 #ring 的 .break 类联动，200ms 过渡） */
-      .ring-wrap:has(.ring-fg.break) {
-        filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--break-c) 13%, transparent));
-      }
-      .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
-      .ring-bg {
-        stroke: var(--surface-2);
-        transition: stroke 200ms var(--ease);
-      }
-      .ring-fg {
-        stroke: var(--focus-c);
-        transition: stroke-dashoffset 0.25s linear, stroke 200ms var(--ease);
-      }
-      .ring-fg.break { stroke: var(--break-c); }
-      .ring-center {
-        position: absolute;
-        inset: 15%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 3px;
-      }
-      .phase {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 11.5px;
-        color: var(--text-2);
-        letter-spacing: 0.14em;
-      }
-      .phase .dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--focus-c);
-        transition: background-color 200ms var(--ease);
-      }
-      .ring-wrap:has(.ring-fg.break) .phase .dot { background: var(--break-c); }
-      .time {
-        font-family: var(--mono);
-        font-size: var(--time-fs);
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0.02em;
-        line-height: 1.1;
-        color: var(--text);
-      }
-      .cycle {
-        font-family: var(--mono);
-        font-size: 10.5px;
-        color: var(--text-3);
-        letter-spacing: 0.06em;
-        font-variant-numeric: tabular-nums;
-      }
-
-      /* ============ 控制行：主实底（开始/暂停）+ 幽灵图标钮（重置/跳过） ============ */
-      .controls {
-        flex: none;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 0 16px 4px;
-      }
-      #btn-toggle {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        appearance: none;
-        border: 0;
-        height: 40px;
-        border-radius: 12px;
-        font-family: inherit;
-        font-size: 13.5px;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        cursor: pointer;
-        background: var(--focus-c);
-        color: var(--focus-ink);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
-          0 2px 12px color-mix(in srgb, var(--focus-c) 30%, transparent);
-        transition: filter var(--t) var(--ease), transform var(--t) var(--ease),
-          background-color var(--t) var(--ease), color var(--t) var(--ease),
-          box-shadow var(--t) var(--ease);
-      }
-      #btn-toggle:hover { filter: brightness(1.06); }
-      #btn-toggle:active {
-        transform: translateY(1px);
-        box-shadow: inset 0 1px 2px rgba(8, 10, 12, 0.3);
-      }
-      /* 休息段配色（focus→break 200ms 环色/按钮同步过渡） */
-      #btn-toggle.break { background: var(--break-c); color: var(--break-ink); }
-      #btn-toggle.break:hover { filter: brightness(1.06); }
-      /* 运行中：幽灵描边态（暂停入口）；置于 .break 之后，运行态优先接管外观 */
-      #btn-toggle.running {
-        background: transparent;
-        color: var(--focus-c);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-c) 55%, transparent);
-      }
-      #btn-toggle.running:hover {
-        background: var(--focus-soft);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--focus-c) 70%, transparent);
-      }
-      #btn-toggle.running.break {
-        background: transparent;
-        color: var(--break-c);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--break-c) 55%, transparent);
-      }
-      #btn-toggle.running.break:hover {
-        background: var(--break-soft);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--break-c) 70%, transparent);
-      }
-      #btn-toggle svg { flex: none; }
-      #btn-toggle .ic-pause { display: none; }
-      #btn-toggle.running .ic-play { display: none; }
-      #btn-toggle.running .ic-pause { display: block; }
-
-      .ghost-btn {
-        appearance: none;
-        flex: none;
-        width: 40px;
-        height: 40px;
-        display: grid;
-        place-items: center;
-        padding: 0;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        background: var(--surface);
-        color: var(--text-2);
-        cursor: pointer;
-        transition: color var(--t) var(--ease), border-color var(--t) var(--ease),
-          background-color var(--t) var(--ease), transform var(--t) var(--ease);
-      }
-      .ghost-btn:hover {
-        color: var(--text);
-        border-color: var(--border-strong);
-        background: var(--surface-2);
-      }
-      .ghost-btn:active { transform: translateY(1px); }
-
-      /* ============ 设置行 ============ */
-      .settings {
-        flex: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 18px;
-        padding: 10px 16px;
-        border-top: 1px solid var(--border);
-        background: color-mix(in srgb, var(--surface) 50%, var(--bg));
-      }
-      .field {
-        display: flex;
-        align-items: baseline;
-        gap: 7px;
-        font-size: 11.5px;
-        color: var(--text-2);
-      }
-      .field input[type="number"] {
-        width: 58px;
-        border: 1px solid var(--border);
-        background: var(--surface-2);
-        color: var(--text);
-        border-radius: 9px;
-        padding: 5px 4px;
-        font-family: var(--mono);
-        font-size: 13px;
+      .task-input {
+        width: min(380px, 100%);
         text-align: center;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        border-radius: 0;
+        background: transparent;
+      }
+      .phase-tabs {
+        display: flex;
+        gap: 15px;
+        font-size: 12px;
+        color: var(--muted);
+        padding: 18px;
+      }
+      .phase-tabs .active {
+        color: var(--focus);
+        font-weight: 600;
+      }
+      .clock {
+        width: 245px;
+        height: 245px;
+        position: relative;
+        margin: 6px 0 20px;
+      }
+      .clock svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
+      .track {
+        stroke: var(--line);
+      }
+      .progress {
+        stroke: var(--focus);
+        transition: stroke-dashoffset 1s linear;
+      }
+      .clock-center {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      #time {
+        font-size: 48px;
+        font-weight: 500;
+        letter-spacing: -2px;
         font-variant-numeric: tabular-nums;
-        outline: none;
-        transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
       }
-      .field input[type="number"]:hover { border-color: var(--border-strong); }
-      .field input[type="number"]:focus {
-        border-color: color-mix(in srgb, var(--focus-c) 60%, transparent);
-        box-shadow: 0 0 0 3px var(--focus-soft);
+      #status {
+        font-size: 12px;
+        color: var(--muted);
       }
-      /* 去原生 number spinner */
-      .field input[type="number"]::-webkit-outer-spin-button,
-      .field input[type="number"]::-webkit-inner-spin-button {
-        -webkit-appearance: none;
+      #cycle {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .primary {
+        background: var(--focus);
+        color: white;
+        min-width: 145px;
+        font-weight: 600;
+        padding: 12px 20px;
+      }
+      .primary:hover {
+        background: var(--focus);
+        filter: brightness(1.05);
+      }
+      .presets {
+        display: flex;
+        gap: 8px;
+        margin: 22px 0 14px;
+      }
+      .presets button {
+        border: 1px solid var(--line);
+        font-size: 12px;
+      }
+      .configuration {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .configuration label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .configuration input {
+        width: 57px;
+        padding: 5px;
+      }
+      .hint {
+        font-size: 11px;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.8;
+        margin-top: 16px;
+        max-width: 370px;
+      }
+      .journal {
+        border-left: 1px solid var(--line);
+        padding: 25px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .journal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .journal h2 {
+        font-size: 16px;
         margin: 0;
       }
-      .divider { width: 1px; height: 16px; background: var(--border); }
-
-      .hint {
-        flex: none;
-        padding: 6px 16px 0;
-        font-size: 10.5px;
-        color: var(--text-3);
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        padding: 23px 0;
+      }
+      .stats b {
+        display: block;
+        font-size: 25px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+      }
+      .stats span {
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .week {
+        display: flex;
+        gap: 9px;
+        height: 90px;
+        align-items: end;
+        border-bottom: 1px solid var(--line);
+        padding: 0 6px 18px;
+        margin-bottom: 20px;
+      }
+      .day {
+        flex: 1;
+        position: relative;
+        height: 100%;
+        display: flex;
+        align-items: end;
+        justify-content: center;
+      }
+      .bar {
+        width: 70%;
+        background: color-mix(in srgb, var(--focus) 25%, transparent);
+        border-radius: 4px 4px 0 0;
+        min-height: 3px;
+      }
+      .day.today .bar {
+        background: var(--focus);
+      }
+      .day span {
+        position: absolute;
+        bottom: -16px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      #records {
+        overflow: auto;
+        flex: 1;
+      }
+      .record {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .record .body {
+        flex: 1;
+        min-width: 0;
+      }
+      .record-title {
+        font-size: 13px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .record-meta {
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 5px;
+      }
+      .record button {
+        font-size: 11px;
+        padding: 5px;
+      }
+      .record-time {
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      .empty {
+        padding: 35px 8px;
         text-align: center;
-        min-height: 0;
-        transition: opacity 200ms var(--ease);
+        color: var(--muted);
+        line-height: 1.8;
+        font-size: 12px;
       }
-      .hint:empty { display: none; }
-      footer {
-        flex: none;
-        padding: 7px 16px 9px;
-        font-size: 10.5px;
-        color: var(--text-3);
-        text-align: center;
+      .quick-today {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 15px;
       }
-
-      /* ============ 双形态响应式（容器查询优先，viewport 兜底） ============
-       * 窄容器（≤740px，Quick 内嵌 ~706px）：表盘 200px 居中，首屏 ~480px 内；
-       * 宽容器（>740px，固定主窗）：表盘 240px / mm:ss 48px，控制与输入适度放大。 */
-      @supports (container-type: inline-size) {
-        .app { container-type: inline-size; container-name: app; }
-        @container app (min-width: 741px) {
-          .timer-zone {
-            --ring-d: 240px;
-            --time-fs: 48px;
-          }
-          header { padding: 12px 20px; }
-          h1 { font-size: 14px; }
-          .timer-zone { padding: 14px 20px 10px; }
-          .phase { font-size: 12px; }
-          .cycle { font-size: 11px; }
-          .controls { padding: 0 20px 6px; gap: 10px; }
-          #btn-toggle { height: 44px; font-size: 14px; }
-          .ghost-btn { width: 44px; height: 44px; }
-          .settings { padding: 12px 20px; gap: 22px; }
-          .field input[type="number"] { width: 66px; }
-          .hint { padding: 7px 20px 0; }
-          footer { padding: 8px 20px 10px; }
+      dialog form {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        min-width: 270px;
+      }
+      dialog label {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      dialog .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      [data-mode='quick'] header {
+        padding: 10px 15px;
+        border: 0;
+      }
+      [data-mode='quick'] h1 {
+        font-size: 14px;
+      }
+      [data-mode='quick'] .workspace {
+        grid-template-columns: 1fr;
+      }
+      [data-mode='quick'] .focus-panel {
+        padding: 0 15px 15px;
+      }
+      [data-mode='quick'] .clock {
+        height: 175px;
+        width: 175px;
+        margin: 0 0 9px;
+      }
+      [data-mode='quick'] #time {
+        font-size: 39px;
+      }
+      [data-mode='quick'] .phase-tabs {
+        padding: 10px;
+      }
+      [data-mode='quick'] .presets {
+        margin: 13px 0 10px;
+      }
+      [data-mode='quick'] .hint {
+        margin-top: 9px;
+      }
+      [data-mode='quick'] .primary {
+        padding: 9px 18px;
+      }
+      [data-mode='quick'] .progress {
+        transition: none;
+      }
+      @media (max-width: 850px) {
+        [data-mode='shell'] .workspace {
+          grid-template-columns: 1fr;
+          overflow: auto;
+        }
+        [data-mode='shell'] .journal {
+          border-left: 0;
+          border-top: 1px solid var(--line);
+          min-height: 390px;
+        }
+        [data-mode='shell'] .focus-panel {
+          overflow: visible;
         }
       }
-      /* 无容器查询兜底（旧内核）：viewport 断点与容器断点一致 */
-      @media (min-width: 741px) {
-        .timer-zone {
-          --ring-d: 240px;
-          --time-fs: 48px;
-        }
-        header { padding: 12px 20px; }
-        h1 { font-size: 14px; }
-        .timer-zone { padding: 14px 20px 10px; }
-        .phase { font-size: 12px; }
-        .cycle { font-size: 11px; }
-        .controls { padding: 0 20px 6px; gap: 10px; }
-        #btn-toggle { height: 44px; font-size: 14px; }
-        .ghost-btn { width: 44px; height: 44px; }
-        .settings { padding: 12px 20px; gap: 22px; }
-        .field input[type="number"] { width: 66px; }
-        .hint { padding: 7px 20px 0; }
-        footer { padding: 8px 20px 10px; }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-          transition-duration: 0.01ms !important;
-          animation-duration: 0.01ms !important;
-        }
+      :root[data-anim='low'] .progress {
+        transition: none;
       }
     </style>
   </head>
   <body>
-    <!-- 内联 SVG 图标（stroke 1.5）：tomato / play / pause / reset / skip -->
-    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
-      <defs>
-        <g id="ic-tomato-def">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="13.5" r="7" />
-            <path d="M12 6.5c.9-1.2 2.3-1.9 4-2-.2 1.5-1 2.7-2.3 3.3" />
-            <path d="M12 6.5C11.1 5.3 9.7 4.6 8 4.6c.2 1.5 1 2.7 2.3 3.3" />
-          </svg>
-        </g>
-        <g id="ic-play-def">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 5.8v12.4c0 .8.9 1.3 1.6.9l9.8-6.2c.6-.4.6-1.4 0-1.8L9.6 4.9C8.9 4.5 8 5 8 5.8z" />
-          </svg>
-        </g>
-        <g id="ic-pause-def">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 5.5v13M15 5.5v13" />
-          </svg>
-        </g>
-        <g id="ic-reset-def">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 5.6A7 7 0 0 1 18.6 9" />
-            <path d="M19.4 4.2v5h-5" />
-            <path d="M16 18.4A7 7 0 0 1 5.4 15" />
-            <path d="M4.6 19.8v-5h5" />
-          </svg>
-        </g>
-        <g id="ic-skip-def">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 6.2v11.6c0 .8.9 1.3 1.6.9l8.4-5.4V17c0 .6.4 1 1 1s1-.4 1-1V7c0-.6-.4-1-1-1s-1 .4-1 1v3.7L6.6 5.3C5.9 4.9 5 5.4 5 6.2z" />
-          </svg>
-        </g>
-      </defs>
-    </svg>
-
     <div class="app">
       <header>
-        <div class="brand" aria-hidden="true">
-          <svg width="17" height="17"><use href="#ic-tomato-def" /></svg>
-        </div>
         <h1>番茄钟</h1>
-        <div class="today-badge" title="今日完成番茄数">今日 <b id="today">0</b> 🍅</div>
+        <span class="shell-only">一次只做一件事</span
+        ><button data-open-settings>偏好设置</button>
       </header>
-
-      <div class="timer-zone">
-        <div class="ring-wrap">
-          <svg viewBox="0 0 120 120" aria-hidden="true">
-            <circle class="ring-bg" cx="60" cy="60" r="52" fill="none" stroke-width="12" />
-            <circle class="ring-fg" id="ring" cx="60" cy="60" r="52" fill="none" stroke-width="12"
-              stroke-linecap="round" stroke-dasharray="326.73" stroke-dashoffset="0" />
-          </svg>
-          <div class="ring-center">
-            <div class="phase"><span class="dot" aria-hidden="true"></span><span id="phase">专注</span></div>
-            <div class="time" id="time">25:00</div>
-            <div class="cycle" id="cycle">第 1 轮</div>
+      <main class="workspace">
+        <section class="focus-panel">
+          <input
+            id="task"
+            class="task-input"
+            maxlength="500"
+            placeholder="这一次，想专注完成什么？"
+            aria-label="专注任务"
+          />
+          <div class="phase-tabs">
+            <span data-phase="focus">专注</span
+            ><span data-phase="break">短休息</span
+            ><span data-phase="longBreak">长休息</span>
           </div>
-        </div>
-      </div>
-
-      <div class="controls">
-        <button class="ghost-btn" id="btn-reset" title="重置本阶段" aria-label="重置本阶段">
-          <svg width="16" height="16"><use href="#ic-reset-def" /></svg>
-        </button>
-        <button id="btn-toggle">
-          <svg class="ic-play" width="14" height="14" aria-hidden="true"><use href="#ic-play-def" /></svg>
-          <svg class="ic-pause" width="14" height="14" aria-hidden="true"><use href="#ic-pause-def" /></svg>
-          <span class="btn-label">开始</span>
-        </button>
-        <button class="ghost-btn" id="btn-skip" title="跳过本阶段" aria-label="跳过本阶段">
-          <svg width="16" height="16"><use href="#ic-skip-def" /></svg>
-        </button>
-      </div>
-
-      <div class="settings">
-        <div class="field">
-          <label for="focus-min">专注</label>
-          <input type="number" id="focus-min" min="5" max="90" step="1" value="25" />
-          <span>分钟</span>
-        </div>
-        <span class="divider" aria-hidden="true"></span>
-        <div class="field">
-          <label for="break-min">休息</label>
-          <input type="number" id="break-min" min="1" max="30" step="1" value="5" />
-          <span>分钟</span>
-        </div>
-      </div>
-
-      <div class="hint" id="hint"></div>
-      <footer>专注结束自动休息 · 休息结束自动专注 · 后台持续计时</footer>
+          <div class="clock">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle
+                class="track"
+                cx="60"
+                cy="60"
+                r="54"
+                fill="none"
+                stroke-width="2"
+              ></circle>
+              <circle
+                class="progress"
+                id="ring"
+                cx="60"
+                cy="60"
+                r="54"
+                fill="none"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-dasharray="339.292"
+              ></circle>
+            </svg>
+            <div class="clock-center">
+              <span id="status">准备开始</span><span id="time">25:00</span
+              ><span id="cycle">第 1 轮</span>
+            </div>
+          </div>
+          <div class="controls">
+            <button id="stop" title="停止本次计时">停止</button
+            ><button id="toggle" class="primary">开始专注</button
+            ><button id="skip" title="跳过阶段，不计入完成">跳过</button>
+          </div>
+          <div class="presets">
+            <button data-preset="25,5">25 / 5 经典</button
+            ><button data-preset="50,10">50 / 10 深度</button
+            ><button data-preset="15,3">15 / 3 短冲刺</button>
+          </div>
+          <div class="configuration">
+            <label
+              >专注<input
+                id="focus-min"
+                type="number"
+                min="1"
+                max="180"
+                value="25"
+              />分</label
+            ><label
+              >短休息<input
+                id="break-min"
+                type="number"
+                min="1"
+                max="60"
+                value="5"
+              />分</label
+            >
+          </div>
+          <div class="hint" id="hint">
+            关闭插件标签后继续计时。退出 eNest 后暂停，重启可继续。<br />Space
+            开始 / 暂停
+          </div>
+          <div class="quick-today quick-only" id="quick-today"></div>
+        </section>
+        <aside class="journal shell-only">
+          <div class="journal-head">
+            <h2>专注记录</h2>
+            <button id="export">导出 CSV</button>
+          </div>
+          <div class="stats">
+            <div><b id="today-count">0</b><span>今日完成</span></div>
+            <div><b id="today-min">0</b><span>今日分钟</span></div>
+            <div><b id="week-count">0</b><span>近七天完成</span></div>
+          </div>
+          <div class="week" id="week"></div>
+          <div id="legacy" class="small" hidden></div>
+          <div id="records"></div>
+        </aside>
+      </main>
     </div>
+    <dialog id="record-dialog">
+      <form id="record-form">
+        <h3>编辑专注记录</h3>
+        <label>任务<input id="record-task" maxlength="500" /></label
+        ><label
+          >实际专注分钟<input
+            id="record-min"
+            type="number"
+            min="0"
+            max="180"
+            step="0.5" /></label
+        ><label
+          ><span
+            ><input id="record-counted" type="checkbox" /> 计入完成统计</span
+          ></label
+        >
+        <div class="actions">
+          <button type="button" id="cancel-edit">取消</button
+          ><button class="primary">保存</button>
+        </div>
+      </form>
+    </dialog>
 
-    <script src="./assets/js/main.js"></script>
+
+    <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

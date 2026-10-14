@@ -1,0 +1,93 @@
+{
+  "id": "com.enest.markdown",
+  "name": "Markdown 笔记",
+  "version": "1.0.0",
+  "description": "分组笔记树、实时预览、全文搜索、图片附件、模板与导出；Quick 速记直落收件箱。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.write",
+    "clipboard.readImage",
+    "fs.write"
+  ],
+  "window": {
+    "minWidth": 480,
+    "minHeight": 340
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "打开 Markdown 笔记",
+      "cmds": [
+        "笔记",
+        "md",
+        "bj"
+      ]
+    },
+    {
+      "code": "inbox",
+      "explain": "速记到收件箱",
+      "cmds": [
+        "速记",
+        "inbox"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "笔记",
+      "Markdown",
+      "效率"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "contributes": {
+    "homeCards": [
+      {
+        "id": "markdown-card",
+        "title": "Markdown 笔记",
+        "glyph": "M",
+        "color": "#5b9dd9",
+        "explain": "分组笔记、实时预览、全文搜索与导出",
+        "openCode": "main"
+      }
+    ],
+    "settings": [
+      {
+        "id": "markdown.preferences",
+        "title": "Markdown 笔记",
+        "items": [
+          {
+            "key": "followShellTheme",
+            "type": "switch",
+            "label": "跟随壳子主题",
+            "default": true
+          },
+          {
+            "key": "autoPreview",
+            "type": "switch",
+            "label": "桌面默认双栏实时预览",
+            "default": true
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
+  }
+}

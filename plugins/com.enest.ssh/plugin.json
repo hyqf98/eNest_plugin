@@ -2,25 +2,24 @@
   "id": "com.enest.ssh",
   "name": "SSH管理",
   "version": "1.1.1",
-  "description": "生产级 SSH 客户端：连接资产库、交互终端、命令补全、终端搜索、历史片段、性能监控与完整 SFTP（重命名/删除/权限/传输进度）",
+  "description": "SSH 工作台：快速连接、终端提示、远程文件、三平台资源与进程端口、服务容器、传输和隧道",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "engines": {
     "enest": ">=0.1.0"
   },
   "permissions": [
-    "vault.write",
     "ssh.session",
     "ssh.exec",
     "ssh.sftp",
-    "storage.local",
-    "ui.setTitle",
-    "ui.toast",
     "notify",
     "clipboard.write",
-    "settings.register"
+    "shell.openExternal",
+    "fs.read",
+    "fs.write",
+    "ssh.agent"
   ],
   "contributes": {
     "settings": [
@@ -33,14 +32,24 @@
             "type": "switch",
             "label": "跟随壳子主题",
             "default": true
+          },
+          {
+            "key": "workbenchSettings",
+            "type": "page",
+            "label": "SSH 详细设置与快捷键",
+            "entry": {
+              "code": "settings"
+            }
           }
         ]
       }
     ]
   },
   "window": {
-    "minWidth": 960,
-    "minHeight": 600
+    "width": 720,
+    "height": 420,
+    "minWidth": 480,
+    "minHeight": 240
   },
   "features": [
     {
@@ -69,6 +78,13 @@
       "运维",
       "开发",
       "SFTP"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

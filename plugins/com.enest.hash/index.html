@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>哈希与加密</title>
+
+
+    <link rel="stylesheet" href="src/css/main.css" />
+  </head>
+  <body>
+    <main class="hash-app">
+      <header class="topbar">
+        <nav class="tabs" role="tablist" aria-label="功能区">
+          <button role="tab" id="tab-hash" aria-selected="true">哈希</button>
+          <button role="tab" id="tab-crypto" aria-selected="false">加密</button>
+          <button role="tab" id="tab-jwt" aria-selected="false">JWT</button>
+        </nav>
+        <div class="spacer"></div>
+        <div class="encoding" id="encoding-row">
+          <span class="hint">输出</span>
+          <button id="enc-hex" aria-pressed="true">HEX</button>
+          <button id="enc-base64" aria-pressed="false">Base64</button>
+        </div>
+      </header>
+
+      <!-- ── 哈希区 ─────────────────────── -->
+      <section class="page" id="page-hash" role="tabpanel" aria-labelledby="tab-hash">
+        <div class="field">
+          <div class="field-head">
+            <label for="hash-input">输入内容</label>
+            <span class="field-actions">
+              <button id="hash-paste">粘贴</button>
+              <button id="hash-clear">清空</button>
+            </span>
+          </div>
+          <textarea id="hash-input" rows="4" spellcheck="false" placeholder="输入即算：同屏展示 SHA-1/224/256/384/512 与 MD5"></textarea>
+        </div>
+
+        <section class="hash-file">
+          <div class="dropzone" id="hash-drop" tabindex="0">
+            <input id="hash-file" type="file" hidden />
+            <span id="hash-file-label">拖入文件或点击选择 · 分块计算 SHA-256</span>
+          </div>
+          <div class="file-result mono" id="hash-file-result" hidden></div>
+        </section>
+
+        <ul class="hash-list" id="hash-list"></ul>
+      </section>
+
+      <!-- ── 加密区 ─────────────────────── -->
+      <section class="page" id="page-crypto" role="tabpanel" aria-labelledby="tab-crypto" hidden>
+        <details class="block" open>
+          <summary>HMAC 签名 <span class="hint">算法 + 密钥</span></summary>
+          <div class="block-body">
+            <div class="grid-row">
+              <div>
+                <label for="hmac-alg">算法</label>
+                <select id="hmac-alg">
+                  <option value="SHA-256">HMAC-SHA-256</option>
+                  <option value="SHA-1">HMAC-SHA-1</option>
+                  <option value="SHA-384">HMAC-SHA-384</option>
+                  <option value="SHA-512">HMAC-SHA-512</option>
+                </select>
+              </div>
+              <div class="grow">
+                <label for="hmac-key">密钥</label>
+                <div class="key-row">
+                  <input id="hmac-key" class="mono" spellcheck="false" placeholder="密钥文本" />
+                  <button id="hmac-gen-key" title="生成随机密钥">随机</button>
+                </div>
+              </div>
+            </div>
+            <div class="result-row">
+              <output id="hmac-out" class="mono"></output>
+              <button id="hmac-copy" disabled>复制</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="block" open>
+          <summary>AES-GCM <span class="hint">密钥 / IV 生成，base64 出入</span></summary>
+          <div class="block-body">
+            <div class="grid-row">
+              <div class="grow">
+                <label for="aes-key">密钥（base64，16/24/32 字节）</label>
+                <div class="key-row">
+                  <input id="aes-key" class="mono" spellcheck="false" placeholder="留空则点击生成" />
+                  <button id="aes-gen-key">生成密钥</button>
+                </div>
+              </div>
+              <div class="grow">
+                <label for="aes-iv">IV（base64，12 字节）</label>
+                <div class="key-row">
+                  <input id="aes-iv" class="mono" spellcheck="false" placeholder="留空则点击生成" />
+                  <button id="aes-gen-iv">生成 IV</button>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="aes-text">明文 / 密文（base64）</label>
+              <textarea id="aes-text" rows="3" class="mono" spellcheck="false" placeholder="加密时输入明文；解密时粘贴 base64 密文"></textarea>
+            </div>
+            <div class="result-row">
+              <output id="aes-out" class="mono"></output>
+              <button id="aes-encrypt">加密</button>
+              <button id="aes-decrypt">解密</button>
+              <button id="aes-copy" disabled>复制</button>
+            </div>
+            <p id="aes-error" class="error-bar" role="alert" hidden></p>
+          </div>
+        </details>
+
+        <details class="block">
+          <summary>RSA-OAEP / RSA-PSS <span class="hint">2048 位密钥对，签名验签</span></summary>
+          <div class="block-body">
+            <div class="result-row">
+              <span class="hint" id="rsa-status">尚未生成密钥对</span>
+              <span class="spacer"></span>
+              <button id="rsa-gen">生成密钥对（2048）</button>
+            </div>
+            <div class="field">
+              <label for="rsa-text">明文 / 密文（base64）</label>
+              <textarea id="rsa-text" rows="2" class="mono" spellcheck="false" placeholder="公钥加密明文；私钥解密 base64 密文"></textarea>
+            </div>
+            <div class="result-row">
+              <output id="rsa-out" class="mono"></output>
+              <button id="rsa-encrypt" disabled>公钥加密</button>
+              <button id="rsa-decrypt" disabled>私钥解密</button>
+              <button id="rsa-sign" disabled>私钥签名</button>
+              <button id="rsa-verify" disabled>公钥验签</button>
+              <button id="rsa-copy" disabled>复制</button>
+            </div>
+          </div>
+        </details>
+
+        <div class="utils">
+          <button id="gen-random">随机盐 / IV 生成器</button>
+          <output id="random-out" class="mono"></output>
+          <button id="random-copy" disabled>复制</button>
+        </div>
+      </section>
+
+      <!-- ── JWT 区 ─────────────────────── -->
+      <section class="page" id="page-jwt" role="tabpanel" aria-labelledby="tab-jwt" hidden>
+        <p class="hint jwt-note">仅解码展示 header / payload（不验签）；签名段原样透出。</p>
+        <div class="field">
+          <label for="jwt-input">JWT</label>
+          <textarea id="jwt-input" rows="4" class="mono" spellcheck="false" placeholder="eyJhbGciOi... 粘贴三段式 JWT"></textarea>
+        </div>
+        <div id="jwt-error" class="error-bar" role="alert" hidden></div>
+        <div class="jwt-parts">
+          <div class="jwt-part">
+            <h2>Header</h2>
+            <pre id="jwt-header" class="mono"></pre>
+          </div>
+          <div class="jwt-part">
+            <h2>Payload</h2>
+            <pre id="jwt-payload" class="mono"></pre>
+          </div>
+          <div class="jwt-part">
+            <h2>Signature <span class="hint">不校验</span></h2>
+            <pre id="jwt-signature" class="mono"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

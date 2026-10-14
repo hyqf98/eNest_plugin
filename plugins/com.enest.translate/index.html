@@ -2,466 +2,353 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>翻译</title>
+
     <style>
-      /* ============ 0. Token 体系 ============
-         中性色（bg/surface/text/border…）跟随壳子 themeAware 注入的同名 Token，
-         本块仅为注入前的本地回退值（取自壳子暗色预设）。
-         --brand 为插件身份色琥珀 #f5a524：仅出现在主 CTA、引擎标签与聚焦反馈，
-         独立命名以免被壳子 --accent Token 覆盖。禁纯黑、禁装饰性渐变。 */
       :root {
-        --bg: #17191b;
-        --surface: #202326;
-        --surface-2: #292d31;
-        --surface-3: #33383d;
-        --border: rgba(242, 243, 243, 0.09);
-        --border-strong: rgba(242, 243, 243, 0.16);
-        --text: #f2f3f3;
-        --text-2: #adb3b8;
-        --text-3: #7e878f;
-        --ok: #77bfa4;
-        --danger: #e79589;
-        --brand: #f5a524;       /* 唯一强调色：琥珀 */
-        --brand-ink: #221602;   /* 琥珀上的文字（深棕，非纯黑） */
-
-        --r-lg: 12px; /* 卡片/区块 */
-        --r-md: 10px; /* 输入、按钮 */
-        --r-sm: 7px; /* 标签、小件 */
-        --r-full: 999px;
-
-        --ease: cubic-bezier(0.32, 0.72, 0, 1);
-        --t-fast: 140ms;
-        --t-mid: 180ms;
-
-        /* 形态因子（由容器查询分档覆盖） */
-        --fs-title: 14px;
-        --fs-body: 14px;
-        --fs-out: 16px;
-        --fs-label: 12px;
-        --fs-mono: 11px;
-        --pane-gap: 10px;
-        --shell-pad: 10px;
-        --ta-min-h: 120px;
+        --line: var(--border, #dde2e6);
+        --paper: var(--surface, #fff);
+        --muted: var(--text-2, #78848d);
+        --blue: var(--accent, #457aa2);
       }
-
-      * { box-sizing: border-box; }
-      html { scrollbar-width: thin; }
-      html[data-theme] ::-webkit-scrollbar { width: 6px; height: 6px; }
-      html[data-theme] ::-webkit-scrollbar-thumb {
-        background: color-mix(in srgb, var(--text-3) 36%, transparent);
-        border-radius: var(--r-full);
-      }
-      html[data-theme] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text-3) 56%, transparent); }
-      html[data-theme] ::-webkit-scrollbar-track { background: transparent; }
       body {
-        margin: 0;
-        font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
-        font-size: var(--fs-body);
-        line-height: 1.6;
-        color: var(--text);
-        background: var(--bg);
-        color-scheme: dark;
-        -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
+        overflow: hidden;
       }
-      body[data-theme="light"], html[data-theme="light"] body { color-scheme: light; }
-
-      ::selection { background: color-mix(in srgb, var(--brand) 30%, transparent); }
-
+      button {
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        padding: 8px 11px;
+      }
+      button:hover {
+        background: var(--surface-2, #eaf0f4);
+      }
+      button.active {
+        color: var(--blue);
+        background: color-mix(in srgb, var(--blue) 10%, transparent);
+      }
+      input,
+      select {
+        color: inherit;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        padding: 7px 9px;
+        border-radius: 6px;
+        min-width: 0;
+      }
       .app {
-        padding: var(--shell-pad);
+        height: 100%;
         display: flex;
         flex-direction: column;
-        gap: var(--shell-pad);
-        min-height: 100vh;
       }
-
-      /* ============ 1. Header ============ */
       header {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 2px 4px 0;
-        min-height: 30px;
+        gap: 12px;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--line);
       }
       h1 {
+        font-size: 19px;
         margin: 0;
-        font-size: var(--fs-title);
-        font-weight: 600;
-        letter-spacing: 0.01em;
+        letter-spacing: -0.4px;
+      }
+      header p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0;
+        flex: 1;
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        min-height: 0;
+        flex: 1;
+      }
+      .translator {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .language-bar {
+        padding: 16px 24px;
         display: flex;
         align-items: center;
         gap: 8px;
-        white-space: nowrap;
       }
-      h1 svg { flex: none; color: var(--brand); }
-      .grow { flex: 1; min-width: 8px; }
-      #detected {
-        font-size: var(--fs-mono);
-        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-        color: var(--text-3);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 40%;
-      }
-
-      /* 引擎选择：右侧对齐收进 header，去原生外观 */
-      .engine {
-        position: relative;
-        display: inline-flex;
-        align-items: center;
-        flex: none;
-      }
-      .engine > svg {
-        position: absolute;
-        right: 9px;
-        top: 50%;
-        margin-top: -7px;
-        pointer-events: none;
-        color: var(--text-3);
-        transition: color var(--t-fast) var(--ease);
-      }
-      select {
-        appearance: none;
-        -webkit-appearance: none;
-        font: inherit;
-        font-size: var(--fs-label);
-        color: var(--text-2);
+      .language-bar select {
+        border: 0;
         background: transparent;
-        border: 1px solid transparent;
-        border-radius: var(--r-sm);
-        padding: 4px 26px 4px 10px;
-        cursor: pointer;
-        transition:
-          color var(--t-fast) var(--ease),
-          border-color var(--t-fast) var(--ease),
-          background-color var(--t-fast) var(--ease);
+        font-weight: 600;
       }
-      select:hover { color: var(--text); border-color: var(--border); }
-      select:hover + svg,
-      .engine:hover > svg { color: var(--text-2); }
-      select:focus-visible {
-        outline: none;
-        border-color: color-mix(in srgb, var(--brand) 45%, transparent);
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
+      .language-bar .spacer {
+        flex: 1;
       }
-      select option { background: var(--surface-2); color: var(--text); }
-
-      /* ============ 2. 语言栏 ============ */
-      .bar {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 6px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--r-lg);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.025),
-          0 1px 3px rgba(8, 10, 12, 0.16);
+      .common {
+        font-size: 11px;
+        display: flex;
+        gap: 2px;
+        color: var(--muted);
       }
-      /* 语言 select 填满格子，视觉对称 */
-      .bar select {
-        width: 100%;
-        font-size: var(--fs-label);
-        font-weight: 500;
-        color: var(--text);
-        padding: 7px 26px 7px 10px;
-        border-radius: var(--r-md);
-      }
-      .bar select:hover { background: var(--surface-2); }
-
-      /* 交换按钮：圆形描边钮，居中对称，hover 时图标 180° 旋转 */
-      .swap {
-        appearance: none;
-        -webkit-appearance: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 34px;
-        height: 34px;
-        margin: 0 2px;
-        flex: none;
-        border-radius: 50%;
-        border: 1px solid var(--border-strong);
-        background: var(--surface-2);
-        color: var(--text-2);
-        cursor: pointer;
-        transition:
-          color var(--t-fast) var(--ease),
-          border-color var(--t-fast) var(--ease),
-          background-color var(--t-fast) var(--ease),
-          transform var(--t-mid) var(--ease),
-          box-shadow var(--t-fast) var(--ease);
-      }
-      .swap svg { transition: transform var(--t-mid) var(--ease); }
-      .swap:hover {
-        color: var(--brand);
-        border-color: color-mix(in srgb, var(--brand) 40%, transparent);
-        background: color-mix(in srgb, var(--brand) 7%, var(--surface-2));
-      }
-      .swap:hover svg { transform: rotate(180deg); }
-      .swap:active { transform: scale(0.94); }
-      .swap:focus-visible {
-        outline: none;
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent);
-      }
-
-      /* ============ 3. 双栏 ============ */
       .panes {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: var(--pane-gap);
-        align-items: stretch;
+        flex: 1;
+        min-height: 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
       }
       .pane {
-        position: relative;
         display: flex;
         flex-direction: column;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--r-lg);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.02),
-          0 1px 3px rgba(8, 10, 12, 0.14);
-        overflow: hidden;
-        transition: border-color var(--t-mid) var(--ease), box-shadow var(--t-mid) var(--ease);
+        min-width: 0;
+        min-height: 0;
+        padding: 20px 24px;
       }
-      .pane:focus-within {
-        border-color: color-mix(in srgb, var(--brand) 42%, transparent);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.025),
-          0 0 0 4px color-mix(in srgb, var(--brand) 9%, transparent),
-          0 1px 3px rgba(8, 10, 12, 0.14);
+      .pane + .pane {
+        border-left: 1px solid var(--line);
+        background: color-mix(in srgb, var(--paper) 60%, transparent);
       }
-
-      /* 行内工具钮（清空 / 复制） */
-      .tool {
-        position: absolute;
-        z-index: 2;
-        top: 8px;
-        width: 26px;
-        height: 26px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 0;
-        border-radius: var(--r-sm);
-        background: color-mix(in srgb, var(--surface-3) 72%, transparent);
-        color: var(--text-3);
-        cursor: pointer;
-        opacity: 0;
-        transition:
-          opacity var(--t-fast) var(--ease),
-          color var(--t-fast) var(--ease),
-          background-color var(--t-fast) var(--ease),
-          transform var(--t-fast) var(--ease);
-        backdrop-filter: blur(4px);
-      }
-      .pane:hover .tool,
-      .tool:focus-visible,
-      .tool.done { opacity: 1; }
-      .tool:hover { color: var(--text); background: var(--surface-3); }
-      .tool:active { transform: scale(0.92); }
-      .tool:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 30%, transparent); }
-      .tool.done { color: var(--ok); }
-      .tool[disabled] { cursor: default; }
-      #btn-clear { right: 8px; top: 8px; }
-      #btn-paste { right: 8px; top: 40px; }
-      #btn-copy { right: 8px; top: 8px; }
-
-      textarea {
-        flex: 1 1 auto;
-        min-height: var(--ta-min-h);
-        max-height: 40vh;
-        border: 0;
-        resize: none;
-        padding: 12px 14px;
-        padding-right: 42px;
-        font: inherit;
-        font-size: var(--fs-body);
-        line-height: 1.65;
-        background: transparent;
-        color: var(--text);
-        outline: none;
-      }
-      textarea::placeholder { color: var(--text-3); }
-
-      /* 译文区 */
-      .out-wrap { position: relative; flex: 1 1 auto; display: flex; min-height: 0; }
-      .out {
-        flex: 1;
-        min-height: calc(var(--ta-min-h) + 27px);
-        margin: 0;
-        padding: 12px 14px;
-        padding-right: 42px;
-        font-size: var(--fs-out);
-        line-height: 1.65;
-        letter-spacing: 0.005em;
-        white-space: pre-wrap;
-        word-break: break-word;
-        overflow: auto;
-        color: var(--text);
-      }
-      .out.placeholder { color: var(--text-3); font-size: var(--fs-body); }
-      .out-meta {
+      .pane-label {
+        font-size: 11px;
+        color: var(--muted);
         display: flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 27px;
-        padding: 0 14px 6px;
-        font-size: var(--fs-mono);
-        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-        color: var(--text-3);
-        flex: none;
-      }
-      /* 引擎标签：琥珀系小徽标（唯一强调色出场之一） */
-      #engine-tag:not(:empty) {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-        font-size: var(--fs-mono);
-        color: var(--brand);
-        background: color-mix(in srgb, var(--brand) 10%, transparent);
-        border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
-        border-radius: var(--r-sm);
-        padding: 1px 7px;
-        line-height: 1.5;
-      }
-      #engine-tag:not(:empty)::before {
-        content: "";
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: var(--brand);
-      }
-
-      /* 翻译中：文本呼吸（JS 切 .loading） */
-      .out.loading { animation: breathe 1.1s var(--ease) infinite; }
-      @keyframes breathe {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.45; }
-      }
-
-      /* ============ 4. Footer ============ */
-      footer {
-        display: flex;
-        align-items: center;
         justify-content: space-between;
-        gap: 10px;
-        padding: 0 4px;
-        font-size: var(--fs-label);
-        color: var(--text-3);
+        align-items: center;
+        margin-bottom: 15px;
       }
-      footer .grow { min-width: 0; }
-      #meta {
-        white-space: nowrap;
+      .pane-label button {
+        padding: 4px 6px;
+      }
+      #input {
+        flex: 1;
+        min-height: 100px;
+        resize: none;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        outline: 0 !important;
+        font-size: 18px;
+        line-height: 1.8;
+        padding: 0;
+        font-family: inherit;
+      }
+      #output {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        overflow: auto;
+        font-size: var(--translation-font, 18px);
+        line-height: 1.8;
+        flex: 1;
+        min-height: 90px;
+      }
+      .placeholder {
+        color: var(--muted);
+      }
+      .pane-bottom {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        padding-top: 13px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .pane-bottom .spacer {
+        flex: 1;
+      }
+      .primary {
+        background: var(--blue);
+        color: white;
+        padding: 10px 20px;
+      }
+      .primary:hover {
+        background: var(--blue);
+        filter: brightness(1.04);
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 14px 24px;
+      }
+      .actions .grow {
+        flex: 1;
+      }
+      .hint {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .history {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-left: 1px solid var(--line);
+      }
+      .history-head {
+        padding: 14px 15px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .history-search {
+        padding: 0 15px 12px;
+      }
+      .history-search input {
+        width: 100%;
+      }
+      #history-list {
+        overflow: auto;
+        flex: 1;
+        padding: 0 10px;
+      }
+      .entry {
+        padding: 12px 10px;
+        border-top: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .entry:hover {
+        background: var(--paper);
+      }
+      .entry-source {
+        font-size: 12px;
         overflow: hidden;
         text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--muted);
+      }
+      .entry-result {
+        font-size: 13px;
+        line-height: 1.6;
+        margin: 6px 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .entry-meta {
+        font-size: 10px;
+        color: var(--muted);
+        display: flex;
+        gap: 5px;
+        align-items: center;
+      }
+      .entry-meta span {
+        flex: 1;
+      }
+      .entry-meta button {
+        padding: 2px 5px;
+      }
+      .history-foot {
+        padding: 8px;
+        border-top: 1px solid var(--line);
+      }
+      .empty {
+        padding: 45px 15px;
+        text-align: center;
+        color: var(--muted);
+        line-height: 1.8;
+        font-size: 12px;
+      }
+      .error {
+        color: var(--danger, #b65353);
+      }
+      .busy {
+        opacity: 0.65;
+      }
+      .counter {
         font-variant-numeric: tabular-nums;
       }
-      #hint { white-space: nowrap; }
-
-      .btn {
-        appearance: none;
-        -webkit-appearance: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        flex: none;
-        font: inherit;
-        font-size: var(--fs-label);
-        font-weight: 500;
-        color: var(--text-2);
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--r-md);
-        padding: 7px 14px;
-        cursor: pointer;
-        transition:
-          color var(--t-fast) var(--ease),
-          background-color var(--t-fast) var(--ease),
-          border-color var(--t-fast) var(--ease),
-          transform var(--t-fast) var(--ease),
-          box-shadow var(--t-fast) var(--ease);
+      #detected {
+        font-size: 11px;
+        color: var(--muted);
       }
-      .btn:hover { color: var(--text); background: var(--surface-2); border-color: var(--border-strong); }
-      .btn:active { transform: translateY(0.5px) scale(0.985); }
-      .btn:focus-visible {
-        outline: none;
-        border-color: color-mix(in srgb, var(--brand) 40%, transparent);
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
+      [data-mode='quick'] header {
+        display: none;
       }
-      .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-
-      /* 主 CTA：琥珀实底 + 内高光（禁止花哨渐变横幅） */
-      .btn.primary {
-        background: var(--brand);
-        border-color: transparent;
-        color: var(--brand-ink);
-        font-weight: 600;
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.22),
-          0 1px 4px color-mix(in srgb, var(--brand) 26%, transparent);
+      [data-mode='quick'] .workspace {
+        grid-template-columns: 1fr;
       }
-      .btn.primary:hover {
-        background: color-mix(in srgb, var(--brand) 92%, #ffffff);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.26),
-          0 2px 8px color-mix(in srgb, var(--brand) 34%, transparent);
+      [data-mode='quick'] .language-bar {
+        padding: 7px 10px;
       }
-      .btn.primary:active { transform: translateY(1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18); }
-
-      /* ============ 5. 双形态响应式（容器查询优先，viewport 兜底） ============
-         窄容器（Quick 内嵌 ≈ 706px 以下）：紧凑上下双栏
-         宽容器（⌘Enter 固定主窗后）：左右双栏舒展 */
-
-      /* —— 窄形态：上下双栏 —— */
-      .panes { grid-template-columns: 1fr; grid-template-rows: auto auto; }
-      .out { min-height: 96px; }
-
-      @supports (container-type: inline-size) {
-        .app { container-type: inline-size; container-name: app; }
-
-        /* 宽形态：左右双栏舒展 */
-        @container app (min-width: 741px) {
-          .panes { grid-template-columns: 1fr 1fr; grid-template-rows: none; }
-          .out { min-height: calc(var(--ta-min-h) + 27px); }
+      [data-mode='quick'] .panes {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(90px, 0.65fr) minmax(120px, 1fr);
+      }
+      [data-mode='quick'] .pane {
+        padding: 10px 15px;
+      }
+      [data-mode='quick'] .pane + .pane {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+      [data-mode='quick'] #input {
+        font-size: 14px;
+        min-height: 40px;
+      }
+      [data-mode='quick'] #output {
+        font-size: 16px;
+        min-height: 50px;
+      }
+      [data-mode='quick'] .pane-label {
+        margin-bottom: 5px;
+      }
+      [data-mode='quick'] .pane-bottom {
+        padding-top: 5px;
+      }
+      [data-mode='quick'] .actions {
+        padding: 8px 12px;
+      }
+      [data-mode='quick'] .history.open {
+        display: flex !important;
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        background: var(--paper);
+      }
+      [data-mode='quick'] .common {
+        display: none;
+      }
+      @media (max-width: 1100px) {
+        [data-mode='shell'] .workspace {
+          grid-template-columns: 1fr 240px;
         }
-
-        /* 大容器排印舒展（Quick 拖宽 / 主窗 Tab），形态变量挂在 .app 上向下继承 */
-        @container app (min-width: 901px) {
-          .app {
-            --fs-title: 15px;
-            --fs-out: 19px;
-            --fs-label: 13px;
-            --fs-mono: 11.5px;
-            --pane-gap: 12px;
-            --shell-pad: 14px;
-            --ta-min-h: 168px;
-          }
+        [data-mode='shell'] .panes {
+          grid-template-columns: 1fr;
+          grid-template-rows: 1fr 1fr;
+        }
+        [data-mode='shell'] .pane + .pane {
+          border-left: 0;
+          border-top: 1px solid var(--line);
         }
       }
-
-      /* 无容器查询兜底（旧内核）：viewport 断点与容器断点一致 */
-      @media (min-width: 741px) {
-        .panes { grid-template-columns: 1fr 1fr; grid-template-rows: none; }
-        .out { min-height: calc(var(--ta-min-h) + 27px); }
-      }
-      @media (min-width: 901px) {
-        .app {
-          --fs-title: 15px;
-          --fs-out: 19px;
-          --fs-label: 13px;
-          --fs-mono: 11.5px;
-          --pane-gap: 12px;
-          --shell-pad: 14px;
-          --ta-min-h: 168px;
+      @media (max-width: 720px) {
+        [data-mode='shell'] .workspace {
+          grid-template-columns: 1fr;
+        }
+        [data-mode='shell'] .history {
+          display: none;
+        }
+        [data-mode='shell'] .history.open {
+          display: flex;
+          position: absolute;
+          inset: 70px 0 0;
+          background: var(--paper);
+          z-index: 5;
+        }
+        .common {
+          display: none;
+        }
+        .language-bar {
+          padding: 12px;
+        }
+        .pane {
+          padding: 15px;
+        }
+        .actions {
+          padding: 12px;
         }
       }
     </style>
@@ -469,104 +356,102 @@
   <body>
     <div class="app">
       <header>
-        <h1>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 5h8M8 3v2c0 4-2.5 7.5-6 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M6 10c1.5 3 4 5.2 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M12.5 20.5l4-8 4 8M13.9 17.5h5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          翻译
-        </h1>
-        <span class="grow"></span>
-        <span id="detected"></span>
-        <span class="engine">
-          <select id="engine" title="翻译引擎">
-            <option value="auto" selected>自动</option>
-            <option value="google">Google</option>
-            <option value="mymemory">MyMemory</option>
-          </select>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M6 9.5l6 5.5 6-5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </span>
+        <h1>翻译</h1>
+        <p>读懂另一种表达</p>
+        <button id="history-toggle">历史与收藏</button
+        ><button data-open-settings>设置</button>
       </header>
-
-      <div class="bar">
-        <select id="src" aria-label="源语言">
-          <option value="auto" selected>自动检测</option>
-          <option value="zh-CN">中文</option>
-          <option value="en">英语</option>
-          <option value="ja">日语</option>
-          <option value="ko">韩语</option>
-          <option value="fr">法语</option>
-          <option value="de">德语</option>
-          <option value="es">西班牙语</option>
-          <option value="ru">俄语</option>
-        </select>
-        <button class="swap" id="swap" title="交换语言" aria-label="交换语言">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M8 4v14M8 4L4.5 7.5M8 4l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M16 20V6M16 20l3.5-3.5M16 20l-3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <select id="tgt" aria-label="目标语言">
-          <option value="zh-CN" selected>中文</option>
-          <option value="en">英语</option>
-          <option value="ja">日语</option>
-          <option value="ko">韩语</option>
-          <option value="fr">法语</option>
-          <option value="de">德语</option>
-          <option value="es">西班牙语</option>
-          <option value="ru">俄语</option>
-        </select>
-      </div>
-
-      <div class="panes">
-        <section class="pane">
-          <textarea id="input" placeholder="输入或粘贴要翻译的文本" spellcheck="false"></textarea>
-          <button class="tool" id="btn-clear" title="清空输入" aria-label="清空输入">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <button class="tool" id="btn-paste" title="粘贴剪贴板" aria-label="粘贴剪贴板">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M9 4.5h6M9 4.5a1.5 1.5 0 00-1.5 1.5H7A1.5 1.5 0 005.5 7.5v11A1.5 1.5 0 007 20h10a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0017 6h-.5A1.5 1.5 0 0015 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M12 10.5v4.5M12 15l2-2M12 15l-2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
-        </section>
-        <section class="pane">
-          <div class="out-wrap">
-            <div class="out placeholder" id="output" role="log" aria-live="polite">译文将显示在这里</div>
+      <main class="workspace">
+        <section class="translator">
+          <div class="language-bar">
+            <select id="src" aria-label="源语言"></select
+            ><button id="swap" aria-label="交换语言">⇄</button
+            ><select id="tgt" aria-label="目标语言"></select>
+            <div class="common">
+              <button data-lang="zh-CN">中</button
+              ><button data-lang="en">英</button
+              ><button data-lang="ja">日</button>
+            </div>
+            <span class="spacer"></span
+            ><select id="engine" aria-label="翻译引擎">
+              <option value="auto">自动引擎</option>
+              <option value="google">Google</option>
+              <option value="mymemory">MyMemory</option></select
+            ><button class="quick-only" id="quick-history">历史</button>
           </div>
-          <div class="out-meta">
-            <span id="engine-tag"></span>
+          <div class="panes">
+            <section class="pane">
+              <div class="pane-label">
+                <span>原文</span>
+                <div>
+                  <button id="paste">粘贴</button
+                  ><button id="clear">清空</button>
+                </div>
+              </div>
+              <textarea
+                id="input"
+                spellcheck="false"
+                placeholder="输入或粘贴文本，点击翻译"
+                aria-label="待翻译文本"
+                maxlength="10000"
+              ></textarea>
+              <div class="pane-bottom">
+                <span class="counter" id="counter">0 / 10000</span
+                ><span class="spacer"></span><span id="detected"></span>
+              </div>
+            </section>
+            <section class="pane">
+              <div class="pane-label">
+                <span>译文</span><span id="engine-tag"></span>
+              </div>
+              <div
+                id="output"
+                role="status"
+                aria-live="polite"
+                class="placeholder"
+              >
+                译文会显示在这里
+              </div>
+              <div class="pane-bottom">
+                <button id="favorite" disabled>☆ 收藏</button
+                ><span class="spacer"></span
+                ><button id="copy-both" disabled>复制双语</button
+                ><button id="copy" disabled>复制译文</button>
+              </div>
+            </section>
           </div>
-          <button class="tool" id="btn-copy" title="复制译文" aria-label="复制译文" disabled>
-            <svg class="ic-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="9" y="9" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M5 15H4.5A1.5 1.5 0 013 13.5v-9A1.5 1.5 0 014.5 3h9A1.5 1.5 0 0115 4.5V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            <svg class="ic-check" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:none">
-              <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+          <div class="actions">
+            <span class="hint" id="hint">Enter 翻译 · Shift+Enter 换行</span
+            ><span class="grow"></span
+            ><button id="export-current" class="shell-only" disabled>
+              导出文本</button
+            ><button id="run" class="primary">翻译</button>
+          </div>
         </section>
-      </div>
-
-      <footer>
-        <span id="meta"></span>
-        <span class="grow"></span>
-        <span id="hint">Enter 翻译 · Shift+Enter 换行</span>
-        <button class="btn primary" id="btn-run">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M5 12h13M13 6.5L18.5 12 13 17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          翻译
-        </button>
-      </footer>
+        <aside class="history shell-only" id="history">
+          <div class="history-head">
+            <button data-history="all" class="active">最近翻译</button
+            ><button data-history="starred">收藏</button
+            ><button id="close-history" style="margin-left: auto">×</button>
+          </div>
+          <div class="history-search">
+            <input
+              id="history-search"
+              type="search"
+              placeholder="搜索原文或译文"
+              aria-label="搜索翻译历史"
+            />
+          </div>
+          <div id="history-list"></div>
+          <div class="history-foot">
+            <button id="export-history">导出历史</button
+            ><button id="clear-history">清空未收藏</button>
+          </div>
+        </aside>
+      </main>
     </div>
-    <script src="./assets/js/main.js"></script>
+
+
+    <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

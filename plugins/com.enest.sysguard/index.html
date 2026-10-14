@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>进程与端口</title>
+
+
+    <link rel="stylesheet" href="src/css/main.css" />
+  </head>
+  <body>
+    <main class="sg" id="app">
+      <!-- Quick：单列表（输入端口号查占用 / 进程名搜索即杀候选） -->
+      <section class="sg-quick" id="quick-view" hidden>
+        <div class="sg-quick-bar">
+          <input id="q-input" type="search" placeholder="输入端口号查占用，或进程名 / pid 搜索" />
+          <button type="button" class="sg-btn primary" id="q-search">查询</button>
+        </div>
+        <div class="sg-quick-list" id="q-list"><!-- JS 渲染 --></div>
+        <div class="sg-quick-spark" id="q-spark">
+          <canvas id="q-canvas" height="56" aria-label="CPU / 内存曲线"></canvas>
+          <div class="sg-quick-legend">
+            <span><i class="dot" style="background: var(--accent)"></i>CPU <b id="q-cpu">-</b></span>
+            <span><i class="dot" style="background: var(--ok)"></i>内存 <b id="q-mem">-</b></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 桌面：Tab（进程 | 端口 | 曲线） -->
+      <section class="sg-desktop" id="desktop-view" hidden>
+        <header class="sg-top">
+          <h1 class="sg-logo">进程与端口</h1>
+          <nav class="sg-tabs" id="tabs" role="tablist">
+            <button type="button" data-tab="proc" class="active">进程</button>
+            <button type="button" data-tab="port">端口</button>
+            <button type="button" data-tab="chart">曲线</button>
+          </nav>
+          <div class="sg-spacer"></div>
+          <label class="sg-check" title="隐藏 uid<500 或 root 的系统进程">
+            <input type="checkbox" id="hide-sys" /> 隐藏系统进程
+          </label>
+          <button type="button" class="sg-btn" id="refresh">刷新</button>
+        </header>
+        <div class="sg-body" id="tab-body"><!-- JS 渲染 --></div>
+      </section>
+
+      <footer class="sg-foot">
+        <span id="foot">就绪</span>
+        <span class="sg-foot-hint">宿主 1s 采样缓存 · 结束进程需二次确认</span>
+      </footer>
+    </main>
+
+    <dialog id="dlg"></dialog>
+
+
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

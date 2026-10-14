@@ -1,19 +1,17 @@
 {
   "id": "com.enest.todos",
   "name": "待办清单",
-  "version": "1.0.0",
-  "description": "轻量待办：添加、勾选、置顶、编辑，完成情况自动保存。",
+  "version": "1.1.0",
+  "description": "任务清单、截止日期、子任务与标签；快捷记录，桌面完整整理。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "engines": {
     "enest": ">=0.1.0"
   },
   "permissions": [
-    "storage.local",
-    "ui.setTitle",
-    "ui.toast"
+    "fs.read"
   ],
   "features": [
     {
@@ -22,7 +20,13 @@
       "cmds": [
         "todo",
         "待办",
-        "清单"
+        "清单",
+        {
+          "type": "over",
+          "label": "添加到待办",
+          "minLength": 1,
+          "maxLength": 500
+        }
       ]
     }
   ],
@@ -35,6 +39,40 @@
         "color": "#3ddc97",
         "explain": "添加、勾选、置顶待办，自动保存",
         "openCode": "main"
+      }
+    ],
+    "settings": [
+      {
+        "id": "todos.preferences",
+        "title": "待办清单",
+        "items": [
+          {
+            "key": "defaultView",
+            "type": "select",
+            "label": "默认视图",
+            "default": "all",
+            "options": [
+              {
+                "label": "全部待办",
+                "value": "all"
+              },
+              {
+                "label": "今天",
+                "value": "today"
+              },
+              {
+                "label": "重要",
+                "value": "important"
+              }
+            ]
+          },
+          {
+            "key": "showCompleted",
+            "type": "switch",
+            "label": "全部视图显示已完成任务",
+            "default": false
+          }
+        ]
       }
     ]
   },
@@ -49,6 +87,13 @@
       "待办",
       "清单",
       "效率"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

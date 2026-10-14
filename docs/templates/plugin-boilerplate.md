@@ -1,67 +1,68 @@
-# 插件样板片段（plugin boilerplate）
+# 标准插件起步模板
 
-跨插件逐字节相同的 canonical 片段。**新插件从这里复制；勿手改**——要改先在本文档定稿，再同步到各插件。
+以 `plugins/com.example.hello` 为最小可运行参考。复制工程时同步修改目录名、`plugin.json.id`、`package.json.name` 和构建命令中的插件 ID；版本也保持一致。完整格式见 [工程结构](../PLUGIN_STRUCTURE.md)。
 
-片段来源：`com.enest.codec` / `com.enest.password-kit` 等 9 个插件共用的那套值。
+源码 HTML 使用外部入口：
 
-## JS：toast / isPerm / $ / failToast
+```html
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>我的工具</title>
+</head>
+<body>
+  <main id="app"></main>
+  <script type="module" src="./src/entry.js"></script>
+</body>
+</html>
+```
+
+`src/entry.js`（依赖 `@enest/plugin-kit`，开发时由 Vite 解析）：
 
 ```js
-const api = window.enest || window.zapi
-const $ = (id) => document.getElementById(id)
-const toast = async (message, type = 'info') => {
-  try { await api?.ui?.toast?.({ message, type }) } catch {}
-}
-const isPerm = (err) => String(err?.message || err).includes('permission denied')
-const failToast = (e, permName) =>
-  toast(isPerm(e) ? '缺少 ' + permName + ' 权限' : String(e?.message || e), 'error')
+import '@enest/plugin-kit/style.css'
+import '@enest/plugin-kit/responsive.css'
+import '@enest/plugin-kit'
+import './style.css'
+
+const api = window.enest
+const kit = window.PluginKit.create({ title: '我的工具', height: 420 })
+const draft = document.createElement('textarea')
+draft.setAttribute('aria-label', '输入内容')
+document.querySelector('#app').append(draft)
+
+// 当前页面迁移至另一容器时保留同一个 DOM 与输入。
+kit.onMode(mode => { document.documentElement.dataset.mode = mode })
+api.onBeforeClose(async () => { await api.storage.set('draft', draft.value) })
+api.onDestroy(() => { kit.destroy() })
 ```
 
-- `toast` 需声明 `ui.toast` 权限；未声明时静默（try/catch 容错）。
-- `isPerm` 匹配壳子权限拒绝文案 `permission denied`，用于区分「缺权限」与「宿主/网络错误」。
-- `failToast` 在 catch 里一行给出可读错误：`failToast(e, 'clipboard.write')`。
+私有存储、UI、设置和主题等基础能力无需声明或弹窗；按实际使用声明文件、网络、剪贴板等敏感权限；不要通过异常后退到 `navigator.clipboard`、Node、原生文件系统或任意 `fetch` 来绕开权限。外部文件通过宿主选择器取得句柄，读取、写入、保存都使用对应标准 API；用户取消时应保持原有输入和选择。
 
-## CSS：深色兜底色板变量块
-
-themeAware 注入会覆盖这些值；兜底保证浏览器直开 / 宿主未注入时可读。
-色值与壳子 `THEME_TOKEN_PRESETS.dark`（`src/shared/theme/presets.ts`）一致：
+`src/style.css` 可从以下布局开始，不复制固定宽高的完整桌面：
 
 ```css
-:root {
-  color-scheme: dark;
-  /* 主题 token 兜底（themeAware 注入会覆盖这些值） */
-  --bg: #17191b;
-  --surface: #202326;
-  --surface-2: #292d31;
-  --surface-3: #33383d;
-  --border: rgba(242, 243, 243, 0.09);
-  --border-strong: rgba(242, 243, 243, 0.16);
-  --text: #f2f3f3;
-  --text-2: #adb3b8;
-  --text-3: #7e878f;
-  --accent: #e98654;
-  --ok: #77bfa4;
-  --danger: #e79589;
+html, body { margin: 0; min-width: 0; min-height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: var(--font, system-ui); }
+#app { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; padding: clamp(.75rem, 2vw, 1.5rem); }
+textarea { box-sizing: border-box; min-width: 0; width: 100%; min-height: 10rem; background: var(--surface); color: inherit; }
+@media (max-width: 560px) { #app { padding: .75rem; } }
+```
+
+组件使用壳子 `--bg`、`--surface`、`--text`、`--accent` 等 token。自定义动画要响应 `data-anim` 与 `prefers-reduced-motion`。主题和字体由宿主注入，不在 HTML 中硬编码 `enest://` 样式地址。
+
+市场资料位于 `public/assets/market/`，包括 `icon.svg`、`README.md` 和真实界面截图。最终 `dist/` 必须带上这些文件；README 的截图引用写成 `./screenshots/01-main.png`。
+
+用户文件导入使用宿主 API，取消不改变当前内容：
+
+```js
+const [file] = await enest.localFiles.pick({ kind: 'file', access: 'read' })
+if (file) {
+  const text = await enest.localFiles.read({ handleId: file.id, encoding: 'text', maxBytes: 2 * 1024 * 1024 })
+  draft.value = text
 }
 ```
 
-需要派生面层时按需追加（同样 canonical）：
-
-```css
-  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
-  --danger-soft: color-mix(in srgb, var(--danger) 10%, transparent);
-  --ring: color-mix(in srgb, var(--accent) 70%, transparent);
-  --well: color-mix(in srgb, var(--bg) 84%, #000);
-  --panel: color-mix(in srgb, var(--surface) 50%, var(--bg));
-
-  --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
-  --ui: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI",
-        "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --ease: cubic-bezier(0.2, 0.7, 0.25, 1);
-```
-
-## 使用说明
-
-- 复制顺序：`api` / `$` / `toast` / `isPerm` / `failToast` 放 JS 顶部；色板块放 `<style>` 的 `:root`。
-- 主题包切换（含插件自注册 pack）只覆盖以上 token；插件自识色应引用 `var(--accent)` 等而非写死色值。
-- 字体与缓动变量（`--mono` / `--ui` / `--ease`）仅按需携带，不算必备片段。
+官方图像工具用 `@enest/plugin-kit/file-inputs` 把 `pick/read` 返回的授权字节转换为内存 `File`，复用图片解码算法；拖入文件先经 `fromDrop` 确认，再 `read`。这只是官方插件的开发适配层，不是恶意页面的安全边界；实际能力授权与文件句柄归属校验由宿主负责。不要在权限失败后直接读取原始拖拽 File，也不要把路径字符串当作句柄。

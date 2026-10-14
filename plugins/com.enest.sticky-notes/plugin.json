@@ -1,12 +1,12 @@
 {
   "id": "com.enest.sticky-notes",
   "name": "备忘录",
-  "version": "1.0.1",
-  "description": "多张便签随手记：彩色标签、置顶、自动保存，重开不丢。",
+  "version": "1.1.0",
+  "description": "快速记录、Markdown 预览、标签整理、归档回收与本地备份。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "ui": {
     "chrome": "none",
     "themeAware": true,
@@ -14,9 +14,8 @@
     "preferredColorScheme": "auto"
   },
   "permissions": [
-    "storage.local",
-    "ui.setTitle",
-    "ui.toast"
+    "clipboard.write",
+    "fs.read"
   ],
   "engines": {
     "enest": ">=0.1.0"
@@ -42,6 +41,58 @@
         "explain": "多张便签随手记，彩色标签、置顶、自动保存",
         "openCode": "main"
       }
+    ],
+    "settings": [
+      {
+        "id": "sticky-notes.preferences",
+        "title": "备忘录",
+        "items": [
+          {
+            "key": "defaultColor",
+            "type": "select",
+            "label": "新笔记颜色",
+            "default": "#cfa467",
+            "options": [
+              {
+                "label": "麦黄",
+                "value": "#cfa467"
+              },
+              {
+                "label": "青绿",
+                "value": "#7fa894"
+              },
+              {
+                "label": "暖红",
+                "value": "#b78180"
+              },
+              {
+                "label": "雾蓝",
+                "value": "#7b9ebc"
+              },
+              {
+                "label": "藤紫",
+                "value": "#a592b7"
+              }
+            ]
+          },
+          {
+            "key": "defaultLayout",
+            "type": "select",
+            "label": "桌面笔记视图",
+            "default": "list",
+            "options": [
+              {
+                "label": "列表",
+                "value": "list"
+              },
+              {
+                "label": "卡片",
+                "value": "grid"
+              }
+            ]
+          }
+        ]
+      }
     ]
   },
   "market": {
@@ -49,6 +100,13 @@
       "备忘录",
       "便签",
       "笔记"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

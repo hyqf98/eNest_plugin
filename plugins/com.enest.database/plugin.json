@@ -2,25 +2,23 @@
   "id": "com.enest.database",
   "name": "数据库",
   "version": "1.1.1",
-  "description": "桌面级 SQL 客户端：连接管理、IDEA 式补全（CTE/INSERT/JOIN ON/模糊匹配）、结果排序分页筛选、控制台会话持久化",
+  "description": "多数据库工作台：离线编辑器、查询与结果编辑、结构关系、资源中心和只读数据比较",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "engines": {
     "enest": ">=0.1.0"
   },
   "permissions": [
-    "vault.write",
     "db.connect",
     "db.query",
     "db.schema",
-    "storage.local",
-    "ui.setTitle",
-    "ui.toast",
     "notify",
     "clipboard.write",
-    "settings.register"
+    "shell.openExternal",
+    "fs.read",
+    "fs.write"
   ],
   "contributes": {
     "settings": [
@@ -28,6 +26,14 @@
         "id": "database.prefs",
         "title": "数据库",
         "items": [
+          {
+            "key": "workbench",
+            "type": "page",
+            "label": "打开数据库设置与快捷键",
+            "entry": {
+              "code": "settings"
+            }
+          },
           {
             "key": "followShellTheme",
             "type": "switch",
@@ -39,8 +45,10 @@
     ]
   },
   "window": {
-    "minWidth": 1100,
-    "minHeight": 700
+    "width": 720,
+    "height": 420,
+    "minWidth": 480,
+    "minHeight": 240
   },
   "features": [
     {
@@ -66,9 +74,17 @@
     "tags": [
       "数据库",
       "SQL",
-      "开发",
       "MySQL",
-      "SQLite"
+      "PostgreSQL",
+      "MongoDB",
+      "TDengine"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

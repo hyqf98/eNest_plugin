@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>局域网传件</title>
+
+
+    <link rel="stylesheet" href="src/css/main.css" />
+  </head>
+  <body>
+    <main class="lan-app">
+      <header>
+        <h1>局域网传件</h1>
+        <span class="pk-muted">同一网络 · 即扫即下 · 到期自动关闭</span>
+      </header>
+
+      <div class="layout">
+        <!-- 左：发送 / 当前分享（桌面） / 单列（Quick） -->
+        <section class="panel current-panel">
+          <!-- 待发送：丢文件 / 选择 -->
+          <div id="idle-view">
+            <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="拖入或选择文件">
+              <p class="dz-title">把文件拖到这里</p>
+              <p class="pk-muted">仅本机局域网可见，需要 6 位取件码才能下载</p>
+              <button id="pick-btn" class="primary">选择文件</button
+              >
+            </div>
+            <ul id="picked-list" class="picked-list" hidden></ul>
+            <div id="duration-row" class="duration-row" hidden>
+              <span>有效时长</span>
+              <div class="segmented" id="duration">
+                <button data-min="5" aria-pressed="false">5 分钟</button
+                ><button data-min="10" aria-pressed="true">10 分钟</button
+                ><button data-min="30" aria-pressed="false">30 分钟</button>
+              </div>
+              <button id="start-btn" class="primary" disabled>开始分享</button>
+            </div>
+          </div>
+
+          <!-- 分享中：码 + 二维码 + 地址 + 倒计时 + 日志 -->
+          <div id="live-view" hidden>
+            <div class="live-head">
+              <div class="code-block">
+                <span class="code-label">取件码</span>
+                <span id="share-code" class="code-value pk-mono"></span>
+                <button id="copy-code" class="ghost">复制</button>
+              </div>
+              <canvas id="qr-canvas" width="132" height="132" aria-label="下载二维码"></canvas>
+            </div>
+            <ul id="addr-list" class="addr-list pk-mono"></ul>
+            <div class="live-foot">
+              <span id="countdown" class="pk-mono"></span>
+              <span id="dl-count" class="pk-muted"></span>
+              <button id="stop-btn" class="danger">停止分享</button>
+            </div>
+            <div class="log-block">
+              <p class="log-title">下载请求</p>
+              <ul id="req-log" class="req-log pk-mono"></ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- 右：接收说明 + 历史（桌面 only） -->
+        <aside class="side">
+          <div class="panel steps-panel shell-only">
+            <h2>手机怎么收？</h2>
+            <ol class="steps">
+              <li>手机连接同一 Wi-Fi</li>
+              <li>扫码或输入地址（含 ?code=）</li>
+              <li>浏览器直接下载，无需装 App</li>
+            </ol>
+          </div>
+          <div class="panel history-panel">
+            <h2>历史记录</h2>
+            <ul id="history-list" class="history-list"></ul>
+            <button id="clear-history" class="ghost" hidden>清空历史</button>
+          </div>
+        </aside>
+      </div>
+
+      <p id="status" role="status" class="pk-muted"></p>
+    </main>
+
+    <script src="assets/vendor/qrcode.min.js"></script>
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

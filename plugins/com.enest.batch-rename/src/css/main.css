@@ -1,0 +1,233 @@
+/* 批量重命名 — 主题 token + 8px 栅格；容器查询 ≤740px 单列 */
+.rn-app {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  padding: 16px;
+  overflow: auto;
+  container-type: inline-size;
+}
+.rn-app header { display: flex; align-items: baseline; gap: 12px; }
+.rn-app h1 { margin: 0; font-size: 15px; }
+.rn-app h2 { margin: 0; font-size: 13px; }
+.rn-app h3 { margin: 0 0 8px; font-size: 14px; }
+
+.panel {
+  padding: 12px;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.head-actions { display: flex; gap: 8px; align-items: center; }
+
+button.ghost {
+  padding: 5px 10px;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: 8px;
+  background: transparent;
+  font-size: 12px;
+}
+button.danger {
+  padding: 6px 14px;
+  border: 1px solid var(--danger, #b44c50);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--danger, #b44c50);
+  font-size: 12px;
+}
+button.danger:disabled { opacity: 0.45; }
+
+/* —— 队列 —— */
+.drop-zone {
+  padding: 20px 16px;
+  border: 1px dashed var(--border-strong, #b8c2cf);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 13px;
+  transition: border-color 120ms, background-color 120ms;
+}
+.drop-zone p { margin: 0 0 4px; }
+.drop-zone.armed {
+  border-color: var(--accent, #3579dd);
+  background: color-mix(in srgb, var(--accent, #3579dd) 8%, transparent);
+}
+.file-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 152px;
+  overflow: auto;
+  font-size: 12px;
+}
+.file-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.file-list li:nth-child(odd) { background: color-mix(in srgb, var(--text, #252a32) 4%, transparent); }
+.file-list .f-index { color: var(--text-2, #747c88); min-width: 2.2em; text-align: right; }
+.file-list .f-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.file-list .f-size { color: var(--text-2, #747c88); }
+.file-list button {
+  padding: 1px 6px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-2, #747c88);
+  font-size: 11px;
+}
+.file-list button:hover { color: var(--danger, #b44c50); }
+
+/* —— 规则链 —— */
+.rule-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.rule-item .r-kind {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent, #3579dd) 12%, transparent);
+  color: var(--accent, #3579dd);
+  font-weight: 600;
+}
+.rule-item label { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2, #747c88); }
+.rule-item input[type="text"],
+.rule-item input[type="number"],
+.rule-item select {
+  padding: 4px 8px;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--text, #252a32);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.rule-item input[type="number"] { width: 4.5em; }
+.rule-item input[type="text"] { width: 9em; }
+.rule-item .r-order { color: var(--text-2, #747c88); cursor: grab; }
+.rule-item .r-del {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2, #747c88);
+}
+.rule-item .r-del:hover { color: var(--danger, #b44c50); }
+.rule-empty { margin: 0; color: var(--text-2, #747c88); font-size: 12px; }
+.rule-error {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger, #b44c50) 10%, transparent);
+  color: var(--danger, #b44c50);
+  font-size: 12px;
+}
+
+/* —— 预览 —— */
+.preview-table {
+  max-height: 224px;
+  overflow: auto;
+  font-size: 12px;
+}
+.pv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) minmax(8em, auto);
+  gap: 8px;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.pv-row:nth-child(odd) { background: color-mix(in srgb, var(--text, #252a32) 4%, transparent); }
+.pv-row .pv-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.pv-row .pv-arrow { color: var(--text-2, #747c88); }
+.pv-row .pv-new { color: var(--accent, #3579dd); }
+.pv-row .pv-note { color: var(--danger, #b44c50); font-size: 11px; text-align: right; }
+.pv-row.blocked .pv-new { color: inherit; text-decoration: line-through; }
+.pv-head {
+  position: sticky;
+  top: 0;
+  color: var(--text-2, #747c88);
+  font-size: 11px;
+  background: var(--surface, #fff);
+}
+
+@container (max-width: 740px) {
+  .pv-row { grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); }
+  .pv-row .pv-note { grid-column: 1 / -1; text-align: left; padding-left: 4px; }
+  .rule-item input[type="text"] { width: 7em; }
+}
+
+/* —— 确认对话框 —— */
+dialog::backdrop { background: #10182455; }
+dialog {
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--text, #252a32);
+  padding: 16px;
+  min-width: min(420px, 88vw);
+}
+dialog menu {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.confirm-list {
+  margin: 0;
+  padding: 8px 12px;
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: 8px;
+  font-size: 11px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#status { margin: 0; min-height: 18px; font-size: 12px; }

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>代码片段</title>
+
+    <link rel="stylesheet" href="src/css/main.css" />
+  </head>
+  <body>
+    <main class="snippets">
+      <header>
+        <div class="brand shell-only">
+          <div class="eyebrow">高频代码，一搜即得</div>
+          <h1>代码片段</h1>
+        </div>
+        <input id="search" class="search" type="search" placeholder="搜索标题、内容、标签" aria-label="搜索片段" />
+        <span class="grow"></span>
+        <button id="new-snippet" class="shell-only">新建片段</button>
+        <button id="export" class="shell-only">导出</button>
+        <button id="import" class="shell-only">导入</button>
+        <button id="import-file" class="shell-only" type="button">导入文件</button>
+      </header>
+
+      <div class="workspace">
+        <section class="list-pane">
+          <div id="list" role="listbox" aria-label="片段列表"></div>
+        </section>
+        <section class="detail" id="detail">
+          <div class="empty">左侧选择片段<br /><small>或点「新建片段」添加第一条</small></div>
+        </section>
+      </div>
+
+      <footer>
+        <span id="count"></span>
+        <span class="grow"></span>
+        <span id="hotkey-state" class="muted shell-only">全局热键未设置 · 在设置中配置后随时呼出</span>
+      </footer>
+    </main>
+
+    <dialog id="editor">
+      <form id="editor-form" method="dialog">
+        <h2 id="editor-title">新建片段</h2>
+        <label>标题<input id="f-title" maxlength="80" required placeholder="如：fetch 重试封装" /></label>
+        <div class="row">
+          <label>语言<input id="f-lang" maxlength="24" list="lang-options" placeholder="js / ts / py…" /></label>
+          <label>标签（逗号分隔）<input id="f-tags" maxlength="120" placeholder="网络, 工具" /></label>
+        </div>
+        <label>内容<textarea id="f-content" rows="10" required spellcheck="false" placeholder="支持 ${变量名} 占位符，复制时可逐个填值"></textarea></label>
+        <datalist id="lang-options">
+          <option value="js"></option><option value="ts"></option><option value="py"></option>
+          <option value="sh"></option><option value="go"></option><option value="rs"></option>
+          <option value="sql"></option><option value="html"></option><option value="css"></option>
+          <option value="json"></option><option value="yaml"></option>
+        </datalist>
+        <p class="form-error" id="editor-error" hidden></p>
+        <div class="actions">
+          <button type="button" id="editor-cancel">取消</button>
+          <button type="submit" class="primary">保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="vars-dialog">
+      <form id="vars-form" method="dialog">
+        <h2>填写占位符</h2>
+        <p class="muted" id="vars-hint"></p>
+        <div id="vars-fields"></div>
+        <div class="actions">
+          <button type="button" id="vars-cancel">取消</button>
+          <button type="submit" class="primary">复制结果</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="import-dialog">
+      <form id="import-form" method="dialog">
+        <h2>粘贴导入</h2>
+        <p class="muted">粘贴此前导出的 JSON 内容，合并为片段。</p>
+        <textarea id="import-text" rows="8" spellcheck="false" placeholder='{"version":1,"snippets":[…]}'></textarea>
+        <p class="form-error" id="import-error" hidden></p>
+        <div class="actions">
+          <button type="button" id="import-cancel">取消</button>
+          <button type="submit" class="primary">导入</button>
+        </div>
+      </form>
+    </dialog>
+
+
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

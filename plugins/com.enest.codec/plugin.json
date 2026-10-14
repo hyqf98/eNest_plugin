@@ -1,29 +1,43 @@
 {
   "id": "com.enest.codec",
   "name": "编解码",
-  "version": "1.0.0",
-  "description": "Base64 / URL / Hex / Unicode 编码解码，中文安全，双栏互换。",
+  "version": "1.1.0",
+  "description": "Base64、URL、Hex、Unicode、HTML 编解码与 JWT、URL 参数查看。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "engines": {
     "enest": ">=0.1.0"
   },
   "permissions": [
     "clipboard.read",
     "clipboard.write",
-    "ui.setTitle",
-    "ui.toast"
+    "shell.openExternal",
+    "fs.write"
   ],
   "features": [
     {
       "code": "main",
-      "explain": "Base64 / URL / Hex / Unicode 编码解码",
+      "explain": "编解码",
       "cmds": [
         "base64",
         "编解码",
         "codec"
+      ]
+    },
+    {
+      "code": "jwt",
+      "explain": "离线查看 JWT",
+      "cmds": [
+        "jwt"
+      ]
+    },
+    {
+      "code": "query",
+      "explain": "URL 参数解析",
+      "cmds": [
+        "url参数"
       ]
     }
   ],
@@ -33,11 +47,87 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "market": {    "tags": [
+  "market": {
+    "tags": [
       "base64",
       "url",
       "hex",
       "开发"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "window": {
+    "width": 760,
+    "height": 480,
+    "minWidth": 420,
+    "minHeight": 280
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "codec.preferences",
+        "title": "编解码",
+        "items": [
+          {
+            "key": "defaultMode",
+            "type": "select",
+            "label": "默认工具",
+            "default": "base64",
+            "options": [
+              {
+                "label": "base64",
+                "value": "base64"
+              },
+              {
+                "label": "base64url",
+                "value": "base64url"
+              },
+              {
+                "label": "url",
+                "value": "url"
+              },
+              {
+                "label": "hex",
+                "value": "hex"
+              },
+              {
+                "label": "unicode",
+                "value": "unicode"
+              },
+              {
+                "label": "html",
+                "value": "html"
+              },
+              {
+                "label": "jwt",
+                "value": "jwt"
+              },
+              {
+                "label": "query",
+                "value": "query"
+              }
+            ]
+          },
+          {
+            "key": "liveConversion",
+            "type": "switch",
+            "label": "输入后自动转换",
+            "default": true
+          },
+          {
+            "key": "strictUtf8",
+            "type": "switch",
+            "label": "严格校验 UTF-8",
+            "default": true
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

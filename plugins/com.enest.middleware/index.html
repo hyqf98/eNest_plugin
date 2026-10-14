@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>中间件控制台</title>
+    <!-- 首屏兜底主题（themeAware 注入后覆盖） -->
+
+    <link rel="stylesheet" href="src/css/main.css" />
+
+  </head>
+  <body>
+    <div class="app" id="app">
+      <!-- 顶部：连接 Tab 条（连接即 Tab） -->
+      <div class="conn-tabs" id="conn-tabs"></div>
+      <div class="app-body">
+        <!-- 左：连接树（按类型分组） -->
+        <aside class="tree" id="tree"></aside>
+        <div class="resizer tree-resizer" id="resizer-tree"></div>
+        <!-- 右：内容区（子导航 + 页面宿主） -->
+        <main class="content">
+          <div class="subnav" id="subnav"></div>
+          <div class="page-host" id="page-host"></div>
+        </main>
+      </div>
+      <footer class="status-bar" id="status-bar"></footer>
+    </div>
+
+    <!-- 弹窗 / 抽屉 / 右键菜单 / 本地 toast 的挂载点 -->
+    <div id="modal-root"></div>
+    <div id="drawer-root"></div>
+    <div id="ctx-root"></div>
+    <div id="local-toast" hidden></div>
+
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

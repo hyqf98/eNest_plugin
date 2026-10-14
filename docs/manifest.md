@@ -1,92 +1,111 @@
-# plugin.json 字段说明（manifest 参考）
+# plugin.json 参考
 
-权威 schema：同目录 [`plugin-manifest.schema.json`](./plugin-manifest.schema.json)。
-运行时类型：壳子 `src/shared/types/plugin.ts`（`PluginManifest` / `PluginContributes` / `PLUGIN_PERMISSIONS`）。
+权威校验是 [plugin-manifest.schema.json](plugin-manifest.schema.json)。宿主类型与权限表由 API 类型生成流程同步；本文介绍最常用字段和行为，完整能力见 [API](developer/api.md)。
 
-## 必填字段
+## 最小清单
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | string | 全局唯一反向域名（`^[a-z0-9]+(\.[a-z0-9-]+)+$`），必须与目录名一致 |
-| `name` | string | 显示名 |
-| `version` | string | semver（`x.y.z`，允许 `-beta.1` / `+build` 后缀） |
-| `main` | string | HTML 入口相对路径（缺省 `index.html`） |
-| `description` | string | 一句话说明（≤200 字符） |
-
-## 可选字段
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `author` / `logo` / `icon` / `homepage` / `category` | — | 市场展示元数据 |
-| `engines.enest` | string | 壳子版本范围：`*` / `^x.y.z` / `>=x.y.z` / 精确 |
-| `permissions` | string[] | API 白名单（**29 项**，见下） |
-| `features[]` | `{ code, cmds[], explain? }` | Quick 可搜索指令；`cmds` 为触发关键词 |
-| `window` | `{ minWidth?, minHeight? }` | 建议窗口最小尺寸 |
-| `development.main` | string | 开发态 dev server URL |
-| `settings` | string | 设置页 HTML 路径（保留/实验） |
-| `ui` | object | UI 集成：`chrome` / `themeAware` / `background` / `preferredColorScheme` |
-| `market` | `{ featured?, tags?, screenshots? }` | 首页推荐和有序截图（第一张封面），详见 [README 截图契约](../README.md#首页推荐与截图元数据) |
-| `contributes` | object | **贡献点声明（插槽化架构）**，见下节 |
-
-### UI 一致性：themeAware 与 followShellTheme
-
-与壳子 UI Standard v2 对齐时请注意：`ui` 整段或 `themeAware` 字段缺失时，**`themeAware` 缺省为 `true`**（壳子注入 CSS Token 并推送主题变更），与 `plugin-manifest.schema.json` / 壳子 `DEFAULT_PLUGIN_UI` 描述一致。插件侧 **SHOULD** 另经 `enest.settings.register` 或 `contributes.settings` 暴露布尔设置 **`followShellTheme`（缺省 `true`）**：`true` 时消费壳子 Token 并跟随主题；`false` 时插件钉住自有 `preferredColorScheme`。视觉 Token 清单、设计语言与检查清单见主仓 `docs/site/plugin/ui-standard.md`（设计语言与样式规范 · UI Standard v2）。
-
-## permissions（29 项）
-
-`clipboard.read` `clipboard.write` `clipboard.readImage` `clipboard.writeImage`
-`clipboard.history` `screen.capture` `screen.record` `pin.create` `net.fetch`
-`shell.openExternal` `storage.local` `notify` `ui.setTitle` `ui.setIcon`
-`ui.setBadge` `ui.resize` `ui.toast` `settings.register` `settings.page` `hotkey`
-`contribute` `theme` `db.connect` `db.query` `db.schema` `ssh.exec`
-`ssh.session` `ssh.sftp` `vault.write`
-
-- `settings.page`：自定义设置页嵌入（预留，本期仅声明与校验）。
-- `contribute`：运行时贡献点 API（`enest.contribute.*`，Quick 搜索 provider）。
-
-## contributes（贡献点，插槽化架构）
-
-声明式注册：安装 / Registry 扫描时写入壳子 `enest.db` 的 `contributions` 表，
-**重启即显示，不依赖插件运行**。`schemaVersion` 缺省视为 `'1'`，不匹配整条拒绝；
-同 `(slot, id)` 后注册覆盖前者。变更经 `shell:event`
-`contributions-changed { slot, source }` 广播。
-
-```jsonc
-"contributes": {
-  // 设置 section：设置页插件分组（等价运行时 enest.settings.register）
-  "settings": [
-    {
-      "id": "hello.prefs",
-      "title": "Hello 工具",
-      "items": [
-        { "key": "name", "type": "text", "label": "称呼", "default": "朋友" },
-        { "key": "opacity", "type": "slider", "label": "不透明度", "min": 0, "max": 100, "step": 5, "default": 80 },
-        { "key": "accent", "type": "color", "label": "强调色", "default": "#5b8cff" }
-      ]
-    }
-  ],
-  // 首页卡片：市场页（首页）「插件扩展」区块
-  "homeCards": [
-    { "id": "hello-card", "title": "Hello", "glyph": "H", "color": "#5b8cff",
-      "explain": "快速打招呼", "openCode": "main" }
-  ],
-  // 左侧轨道入口（orb 模式；数据层已下发，渲染消费后续批次接线）
-  "railEntries": [
-    { "id": "hello-rail", "glyph": "H", "color": "#5b8cff", "title": "Hello", "openCode": "main" }
-  ],
-  // 主题包（等价运行时 enest.theme.register；source 强制绑插件 id）
-  "themePacks": [ { "id": "...", "name": "...", "mode": "dark", "tokens": {} } ]
+```json
+{
+  "id": "com.example.hello",
+  "name": "Hello",
+  "version": "1.0.0",
+  "description": "一个标准 eNest 插件",
+  "main": "index.html",
+  "icon": "assets/market/icon.svg",
+  "category": "效率",
+  "permissions": [],
+  "features": [{ "code": "main", "explain": "打开工具", "cmds": ["hello"] }],
+  "ui": { "chrome": "none", "themeAware": true },
+  "market": {
+    "readme": "assets/market/README.md",
+    "screenshots": ["assets/market/screenshots/01-main.png"]
+  },
+  "development": { "main": "http://127.0.0.1:5173/" }
 }
 ```
 
-| 插槽 | 字段 | 消费方 |
-|------|------|--------|
-| `settings` | `contributes.settings[]` | 设置页插件分组（值仍存 settings.json plugins 段） |
-| `home-cards` | `contributes.homeCards[]` | 市场页「插件扩展」卡片，点击 `openPlugin(pluginId, { code: openCode })` |
-| `rail-entries` | `contributes.railEntries[]` | orb 圆轨底部入口（orb-state 下发） |
-| `theme-packs` | `contributes.themePacks[]` | 设置 → 主题下拉 |
-| quick provider | 运行时 only | `enest.contribute.registerQuickProvider`（manifest 声明不生效） |
+生产构建删除 `development`，其余媒体路径在发行包内必须真实存在。不要添加 `logo`、根 `settings` 或其它未定义顶层字段；Schema 会拒绝未知字段。
 
-设置 item `type`：`text` / `string` / `switch` / `boolean` / `bool` / `select`（需
-`options`）/ `number` / `slider`（需 `min` / `max` / `step`）/ `color` / `page`
-（预留，需 `settings.page` 权限）。非法 type 渲染层回退 text。
+## 字段
+
+| 字段 | 约束与含义 |
+| --- | --- |
+| `id` | 必填反向域名，匹配 `^[a-z0-9]+(\.[a-z0-9-]+)+$`，等于源码文件夹与 package 名；enest.builtin 为宿主保留标识 |
+| `name` | 必填非空显示名 |
+| `version` | 必填 semver，必须与 package.json 一致 |
+| `description` | 必填一句话功能说明，最长 200 字符 |
+| `main` | 必填，固定 `index.html` |
+| `icon` | 必填，固定 `assets/market/icon.svg` |
+| `market` | 必填 `readme` 与 `screenshots`；可选 `tags`、`featured` |
+| `author`、`homepage` | 作者与项目主页 |
+| `category` | 效率 / 开发 / 设计 / 媒体 / 其它 |
+| `engines.enest` | 宿主版本范围，支持 `*`、`^x.y.z`、`>=x.y.z` 或精确版本 |
+| `permissions` | 本插件使用的敏感能力；基础存储/UI/设置/主题无需声明，分类见 plugin-permission-policy.json |
+| `features` | `{code,cmds,explain?}` 数组；入口 code 由 `onEnter` 接收 |
+| `window` | Quick 高度建议及最小高度；主窗口由用户控制，不用于写死页面尺寸 |
+| `development.main` | 源码开发 HTTP(S) URL，不含凭据、fragment；发行包中禁止 |
+| `ui` | 是否跟随主题、背景与宿主 chrome |
+| `net` | `allowInsecure` 声明；仍受实际网络权限与宿主校验约束 |
+| `contributes` | 设置、首页入口、轨道入口和主题等声明式扩展 |
+
+`market.readme` 固定 `assets/market/README.md`，最大 512 KiB。截图固定在 `assets/market/screenshots/`，允许中文和空格，扩展名为 png/jpg/jpeg/webp（不区分大小写）。首次源码初始化可为空，正式构建/打包必须 1–8 张且不重复。源码的实际文件在 `public/` 下，完整路径规则见 [工程结构](PLUGIN_STRUCTURE.md)。
+
+## 指令与大小窗
+
+`features[].cmds` 可以是名称字符串、`regex` 内容匹配或 `over` 文本处理：
+
+```json
+{
+  "code": "format",
+  "explain": "格式化输入内容",
+  "cmds": [
+    "格式化",
+    { "type": "regex", "label": "处理 JSON", "match": "/^\\s*[\\[{]/", "minLength": 2 },
+    { "type": "over", "label": "处理文本", "minLength": 1, "maxLength": 10000 }
+  ]
+}
+```
+
+插件通过 `enest.onEnter` 处理 `code`、`payload` 与 `mode`，通过 `getLaunchMode` / `onModeChange` 区分 `quick` 与 `shell`。容器迁移不应重建会丢数据的业务状态。Quick 宽度由宿主与可用工作区确定；`window.width/minWidth` 不应作为插件布局的硬约束。详见 [UI Standard](developer/ui-standard.md) 与 [生命周期](developer/lifecycle.md)。
+
+## 权限与隔离
+
+页面运行在宿主隔离环境，没有 Node/Electron 权限。外部资源只能通过 `window.enest` 的受控能力访问；权限未声明、未授权、已撤销或选择器取消时，插件必须处理失败。
+
+| 能力 | 权限 |
+| --- | --- |
+| 剪贴板 | `clipboard.read`、`clipboard.write`、`clipboard.readImage`、`clipboard.writeImage`、`clipboard.history`、`clipboard.paste` |
+| 截屏、录制、贴图 | `screen.capture`、`screen.record`、`pin.create` |
+| 网络 | `net.fetch`、`net.socket`、`lan.share` |
+| 用户文件 | `fs.read`、`fs.write`、`fs.rename` |
+| 系统进程 | `sys.inspect`（读取）、`sys.control`（操作） |
+| AI CLI 配置 | `config.agent.read`、`config.agent.write` |
+| SSH | `ssh.session`、`ssh.exec`、`ssh.sftp`、`ssh.agent` |
+| 数据库、中间件 | `db.connect`、`db.query`、`db.schema`、`mw.connect`、`mw.query`、`mw.admin` |
+| DSH | `dsh.connect`、`dsh.chat`、`dsh.admin` |
+| 数据与密钥 | `storage.local`、`vault.write` |
+| 壳内界面 | `ui.setTitle`、`ui.setIcon`、`ui.setBadge`、`ui.resize`、`ui.toast` |
+| 设置与扩展 | `settings.register`、`settings.page`、`contribute`、`theme` |
+| 其它 | `shell.openExternal`、`notify`、`hotkey`、`timer.background` |
+
+本表不把权限声明视为自动授权。文件权限之外还必须通过宿主选择器拿到用途匹配的句柄；不能把 SQLite 路径、SSH 私钥路径、SFTP 本地路径或 SSH Agent socket 任意传给底层服务。插件持久数据使用 `enest.storage`，不手工操作 `~/.eNest`。详细合同见 [permissions.md](developer/permissions.md)。
+
+`net.allowInsecure: true` 声明插件确实需要明文 HTTP / WebSocket，宿主仍校验目标与权限。DSH 的本机嵌入由宿主在真实会话授权后放行指定服务地址；清单不能自行放宽任意 localhost 来源。
+
+## UI 与主题插件
+
+`ui` 默认相当于 `chrome: "none"`、`themeAware: true`、`background: "opaque"`、`preferredColorScheme: "auto"`。`minimal` 请求宿主细条；弃用值 `default` 等价于 none。插件使用宿主注入的 token 和字体，不能在切换主题时保留不适配的固定背景。
+
+主题插件同样遵守工程与发行结构，声明 `theme` 权限，通过 `contributes.themePacks` 提供安装即可发现的主题，或通过 `enest.theme.register(pack)` 动态注册。主题的 source 由宿主绑定插件 ID；不应直接修改宿主 DOM 或设置文件。参考 `com.enest.theme-demo` 与 [主题开发](developer/themes.md)。
+
+## contributes
+
+| 字段 | 用途 |
+| --- | --- |
+| `settings` | 设置分组，含 `id/title/items`；值由宿主保存 |
+| `homeCards` | 首页扩展入口，点击后进入该插件的 `openCode` |
+| `railEntries` | orb 轨道入口 |
+| `themePacks` | 声明式主题包 |
+| `quickProviders` | 保留字段；搜索 provider 使用运行时 `enest.contribute.registerQuickProvider` |
+
+设置项支持 text/string、switch/boolean/bool、select、number、slider、color、page。select 提供 options，slider 提供 min/max/step；page 使用 `entry: {code,payload?}` 打开本插件的设置功能，不另建根 `settings.html` 入口。综合插件可以使用一个 HTML 页面下的多 feature code，把工作区、设置、连接等分成模块，避免绕开标准入口。

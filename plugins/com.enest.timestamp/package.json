@@ -1,0 +1,17 @@
+{
+  "name": "com.enest.timestamp",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.enest.timestamp",
+    "pack": "node ../../scripts/pack-plugin.mjs com.enest.timestamp"
+  },
+  "dependencies": {
+    "@enest/plugin-kit": "1.0.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

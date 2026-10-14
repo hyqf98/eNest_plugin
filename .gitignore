@@ -3,3 +3,7 @@ dist/
 .DS_Store
 # registry.json：本地索引快照，发布用 dist/ 副本（CI 生成，勿手改）
 registry.json
+test-results/
+playwright-report/
+
+test-results-*/

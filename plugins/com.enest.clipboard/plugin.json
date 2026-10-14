@@ -1,12 +1,12 @@
 {
   "id": "com.enest.clipboard",
-  "name": "粘贴板",
-  "version": "1.0.1",
-  "description": "剪贴板历史、图片回显与快速选中回写",
+  "name": "剪贴板",
+  "version": "1.1.0",
+  "description": "搜索文本、图片与文件历史；快捷回贴，桌面预览与批量整理。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "engines": {
     "enest": ">=0.1.0"
   },
@@ -16,8 +16,8 @@
     "clipboard.readImage",
     "clipboard.writeImage",
     "clipboard.history",
-    "ui.setTitle",
-    "ui.toast"
+    "clipboard.paste",
+    "fs.read"
   ],
   "window": {
     "minWidth": 420,
@@ -31,6 +31,13 @@
         "剪贴板",
         "clipboard",
         "粘贴板"
+      ]
+    },
+    {
+      "code": "manage",
+      "explain": "管理剪贴板历史",
+      "cmds": [
+        "剪贴板管理"
       ]
     }
   ],
@@ -46,6 +53,97 @@
       "剪贴板",
       "历史",
       "效率"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "clipboard.preferences",
+        "title": "剪贴板",
+        "items": [
+          {
+            "key": "monitoring",
+            "type": "switch",
+            "label": "监控剪贴板",
+            "default": true
+          },
+          {
+            "key": "historyLimit",
+            "type": "number",
+            "label": "历史容量（条）",
+            "default": 200,
+            "min": 50,
+            "max": 10000
+          },
+          {
+            "key": "retentionDays",
+            "type": "number",
+            "label": "保留天数（0 为不限）",
+            "default": 0,
+            "min": 0,
+            "max": 3650
+          },
+          {
+            "key": "recordSource",
+            "type": "switch",
+            "label": "记录系统可识别的来源应用",
+            "default": true
+          },
+          {
+            "key": "defaultAction",
+            "type": "select",
+            "label": "Enter 默认操作",
+            "default": "paste",
+            "options": [
+              {
+                "label": "回贴到呼出前的应用",
+                "value": "paste"
+              },
+              {
+                "label": "复制到剪贴板",
+                "value": "copy"
+              }
+            ]
+          },
+          {
+            "key": "density",
+            "type": "select",
+            "label": "历史列表密度",
+            "default": "comfortable",
+            "options": [
+              {
+                "label": "舒适",
+                "value": "comfortable"
+              },
+              {
+                "label": "紧凑",
+                "value": "compact"
+              }
+            ]
+          },
+          {
+            "key": "excludedApps",
+            "type": "text",
+            "label": "排除应用（逗号分隔）",
+            "default": ""
+          },
+          {
+            "key": "management",
+            "type": "page",
+            "label": "分类、排除应用与历史清理",
+            "entry": {
+              "code": "manage"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

@@ -1,0 +1,8 @@
+{
+  "name": "@enest/plugin-sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "types": "index.d.ts",
+  "files": ["index.d.ts"],
+  "exports": { ".": { "types": "./index.d.ts" } }
+}

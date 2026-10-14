@@ -3,133 +3,108 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { createHash } from 'node:crypto'
-import { buildRegistry } from './build-registry.mjs'
+import { zipSync, strToU8 } from 'fflate'
+import { buildRegistry, archiveMetadata } from './build-registry.mjs'
 import { prepareRelease } from './prepare-release.mjs'
-import { validateAllManifests } from './validate-manifests.mjs'
-
+import { validateSource } from './validate-manifests.mjs'
+import { validateDistribution } from './validate-dist.mjs'
+import { validPath } from './plugin-contract.mjs'
 const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jStsAAAAASUVORK5CYII=', 'base64')
-
-function fixture(t, extra = {}) {
-  const repositoryRoot = mkdtempSync(join(tmpdir(), 'enest-market-'))
+function fixture(t) {
+  const repositoryRoot = mkdtempSync(join(tmpdir(), 'enest-standard-'))
   t.after(() => rmSync(repositoryRoot, { recursive: true, force: true }))
-  const manifest = {
-    id: 'com.example.test', name: 'Test', version: '1.0.0',
-    description: 'Metadata test fixture', main: 'index.html', ...extra
+  const manifest = { id: 'com.example.test', name: 'Test', version: '1.0.0', description: 'Fixture', main: 'index.html', icon: 'assets/market/icon.svg', market: { readme: 'assets/market/README.md', screenshots: ['assets/market/screenshots/01-main.png'] } }
+  const pluginDir = join(repositoryRoot, 'plugins', manifest.id), entries = {
+    'plugin.json': strToU8(JSON.stringify(manifest)), 'index.html': strToU8('<p>Fixture</p>'),
+    'assets/market/icon.svg': strToU8('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+    'assets/market/README.md': strToU8('# Package description\n![screen](./screenshots/01-main.png)'),
+    'assets/market/screenshots/01-main.png': image
   }
-  const pluginDir = join(repositoryRoot, 'plugins', manifest.id)
-  mkdirSync(join(pluginDir, 'assets', 'screenshots'), { recursive: true })
-  const writeManifest = () => writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest))
-  writeManifest()
-  return { repositoryRoot, pluginDir, manifest, writeManifest }
+  mkdirSync(join(repositoryRoot, 'dist'), { recursive: true }); mkdirSync(pluginDir, { recursive: true })
+  writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest))
+  function archive() { writeFileSync(join(repositoryRoot, 'dist', `${manifest.id}@${manifest.version}.enestplugin`), zipSync(entries)) }
+  function source() {
+    writeFileSync(join(pluginDir, 'index.html'), '<p>Source</p>')
+    writeFileSync(join(pluginDir, 'package.json'), JSON.stringify({ name: manifest.id, version: manifest.version, type: 'module' }))
+    for (const [path, value] of Object.entries(entries)) if (path.startsWith('assets/')) { const file = join(pluginDir, 'public', path); mkdirSync(join(file, '..'), { recursive: true }); writeFileSync(file, value) }
+  }
+  archive(); source(); return { repositoryRoot, pluginDir, manifest, entries, archive }
 }
-
-test('old manifests keep empty media and featured defaults', (t) => {
-  const { repositoryRoot } = fixture(t)
-  const plugin = buildRegistry(repositoryRoot).plugins[0]
-  assert.deepEqual(plugin.screenshots, [])
-  assert.equal(plugin.featured, false)
-  assert.equal(plugin.icon, '')
+test('strict source contract rejects legacy layout and validates public market resources', t => {
+  const f = fixture(t); assert.deepEqual(validateSource(f.pluginDir), [])
+  writeFileSync(join(f.pluginDir, 'icon.svg'), 'legacy')
+  assert.match(validateSource(f.pluginDir).join('\n'), /Legacy/)
+})
+test('registry metadata is extracted from final archives, independent of source content', t => {
+  const f = fixture(t)
+  writeFileSync(join(f.pluginDir, 'public/assets/market/README.md'), 'Different source text')
+  const registry = buildRegistry(f.repositoryRoot), item = registry.plugins[0]
+  assert.equal(item.icon, 'com.example.test%401.0.0/assets/market/icon.svg')
+  assert.match(readFileSync(join(f.repositoryRoot, 'dist/com.example.test@1.0.0/assets/market/README.md'), 'utf8'), /Package description/)
+  assert.ok(item.asset.size > 0); assert.match(item.asset.sha256, /^[0-9a-f]{64}$/)
+})
+test('package paths reject traversal, hidden names, schemes and encoded separators', () => {
+  for (const path of ['../a', '/a', 'a//b', 'a/./b', 'a/.secret', 'https:x', 'a\\b', 'a%2fb', 'a?x', 'a#x']) assert.equal(validPath(path), false, path)
+  assert.equal(validPath('assets/market/screenshots/01-main.png'), true)
+  assert.equal(validPath('assets/market/screenshots/主界面 1.PNG'), true)
+})
+test('source and archive accept Unicode, spaces and uppercase screenshot extensions', t => {
+  const f = fixture(t), path = 'assets/market/screenshots/主界面 1.PNG'
+  f.manifest.market.screenshots = [path]
+  f.entries[path] = image
+  f.entries['plugin.json'] = strToU8(JSON.stringify(f.manifest))
+  f.entries['assets/market/README.md'] = strToU8('![Main](<./screenshots/主界面 1.PNG>)')
+  writeFileSync(join(f.pluginDir, 'plugin.json'), JSON.stringify(f.manifest))
+  writeFileSync(join(f.pluginDir, 'public', path), image)
+  assert.deepEqual(validateSource(f.pluginDir), [])
+  assert.deepEqual(archiveMetadata(zipSync(f.entries)).manifest.market.screenshots, [path])
+  f.archive()
+  const item = prepareRelease({ repositoryRoot: f.repositoryRoot, repository: 'owner/plugins', tag: 'v1' }).plugins[0]
+  assert.equal(item.readmeImages['./screenshots/主界面 1.PNG'], item.screenshots[0])
+  assert.match(item.screenshots[0], /screenshot-1.png$/)
+})
+test('source images must be regular in-root files without symlinks', t => {
+  const f = fixture(t), imagePath = join(f.pluginDir, 'public/assets/market/screenshots/01-main.png')
+  rmSync(imagePath); symlinkSync(join(f.pluginDir, 'index.html'), imagePath)
+  assert.match(validateSource(f.pluginDir).join('\n'), /[Ss]ymlink|Symbolic/)
+})
+test('archive rejects missing market files, unpublished dev settings and extra roots', t => {
+  const f = fixture(t)
+  delete f.entries['assets/market/screenshots/01-main.png']
+  assert.throws(() => archiveMetadata(zipSync(f.entries)), /missing required/)
+  f.entries['assets/market/screenshots/01-main.png'] = image
+  f.entries['.env'] = strToU8('secret')
+  assert.throws(() => archiveMetadata(zipSync(f.entries)), /Invalid archive/)
+  delete f.entries['.env']; f.entries['plugin.json'] = strToU8(JSON.stringify({ ...f.manifest, development: { main: 'http://localhost:5173/' } }))
+  assert.throws(() => archiveMetadata(zipSync(f.entries)), /development/)
+})
+test('distribution validation catches missing local scripts and development source', async t => {
+  const f = fixture(t), directory = join(f.pluginDir, 'dist')
+  for (const [path, value] of Object.entries(f.entries)) { const file = join(directory, path); mkdirSync(join(file, '..'), { recursive: true }); writeFileSync(file, value) }
+  await validateDistribution(directory)
+  writeFileSync(join(directory, 'index.html'), '<script type="module" src="assets/missing.js"></script>')
+  await assert.rejects(validateDistribution(directory), /missing local resource/)
+})
+test('Release media attachments come from archives and match versioned URLs', t => {
+  const f = fixture(t), result = prepareRelease({ repositoryRoot: f.repositoryRoot, repository: 'owner/plugins', tag: 'v1.0.0' })
+  const item = result.plugins[0]
+  assert.match(item.icon, /com.example.test%401.0.0-icon.svg$/)
+  assert.deepEqual(readFileSync(join(f.repositoryRoot, 'dist/com.example.test@1.0.0-screenshot-1.png')), image)
+  assert.match(item.readmeUrl, /com.example.test%401.0.0-README.md$/)
+  assert.equal(item.readmeImages['./screenshots/01-main.png'], item.screenshots[0])
+})
+test('missing archive cannot publish a registry', t => {
+  const f = fixture(t); rmSync(join(f.repositoryRoot, 'dist/com.example.test@1.0.0.enestplugin'))
+  assert.throws(() => buildRegistry(f.repositoryRoot), /ENOENT/)
 })
 
-test('local registry preserves screenshot order and resolves plugin-relative paths', (t) => {
-  const { repositoryRoot, pluginDir } = fixture(t, {
-    market: { featured: true, screenshots: ['assets/screenshots/主界面 1.png', 'https://cdn.example.com/preview?id=2'] }
-  })
-  writeFileSync(join(pluginDir, 'assets/screenshots/主界面 1.png'), image)
-  const plugin = buildRegistry(repositoryRoot).plugins[0]
-  assert.equal(plugin.featured, true)
-  assert.deepEqual(plugin.screenshots, [
-    'plugins/com.example.test/assets/screenshots/%E4%B8%BB%E7%95%8C%E9%9D%A2%201.png',
-    'https://cdn.example.com/preview?id=2'
-  ])
-})
-
-test('invalid screenshot metadata fails validation and registry generation', async (t) => {
-  const invalid = [
-    ['../outside.png', /relative to the plugin root/],
-    ['/tmp/image.png', /relative to the plugin root/],
-    ['assets\\image.png', /relative to the plugin root/],
-    ['http://cdn.example.com/image.png', /relative to the plugin root/],
-    ['file:///tmp/image.png', /relative to the plugin root/],
-    ['https://user:pass@example.com/image.png', /credentials/],
-    ['assets/screenshots/missing.png', /file does not exist/],
-    ['assets/screenshots/image.svg', /must use/],
-    ['', /must NOT have fewer/]
-  ]
-  for (const [value, expected] of invalid) {
-    await t.test(value || 'empty screenshot', (t) => {
-      const { repositoryRoot } = fixture(t, { market: { screenshots: [value] } })
-      assert.match(validateAllManifests(repositoryRoot).join('\n'), expected)
-      assert.throws(() => buildRegistry(repositoryRoot), expected)
-    })
-  }
-})
-
-test('screenshot count, duplicate entries and element types follow the schema', (t) => {
-  const { repositoryRoot, manifest, writeManifest } = fixture(t)
-  for (const screenshots of [
-    Array.from({ length: 9 }, (_, i) => `https://cdn.example.com/${i}.png`),
-    ['https://cdn.example.com/a.png', 'https://cdn.example.com/a.png'],
-    [123], 'assets/image.png'
-  ]) {
-    manifest.market = { screenshots }
-    writeManifest()
-    assert.notEqual(validateAllManifests(repositoryRoot).length, 0)
-  }
-})
-
-test('local screenshot must be a regular file within its plugin root', (t) => {
-  const { repositoryRoot, pluginDir, manifest, writeManifest } = fixture(t)
-  mkdirSync(join(pluginDir, 'directory.png'))
-  manifest.market = { screenshots: ['directory.png'] }
-  writeManifest()
-  assert.match(validateAllManifests(repositoryRoot).join('\n'), /regular file/)
-  const outside = join(repositoryRoot, 'outside.png')
-  writeFileSync(outside, image)
-  symlinkSync(outside, join(pluginDir, 'escaped.png'))
-  manifest.market.screenshots = ['escaped.png']
-  writeManifest()
-  assert.match(validateAllManifests(repositoryRoot).join('\n'), /inside the plugin root/)
-})
-
-test('manifest versions cannot create attachment paths outside dist', (t) => {
-  const { repositoryRoot, manifest, writeManifest } = fixture(t)
-  manifest.version = '1.0.0-../../outside'
-  writeManifest()
-  assert.throws(() => buildRegistry(repositoryRoot), /version.*pattern/)
-  manifest.version = '1.0.0-beta.1+build.2'
-  writeManifest()
-  assert.deepEqual(validateAllManifests(repositoryRoot), [])
-})
-
-test('release URLs match flattened media attachments and archive hashes', (t) => {
-  const { repositoryRoot, pluginDir } = fixture(t, {
-    logo: 'assets/brand.svg', icon: 'unused-fallback.png',
-    market: { screenshots: ['assets/screenshots/cover.png', 'https://cdn.example.com/details.webp'] }
-  })
-  writeFileSync(join(pluginDir, 'assets/brand.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
-  writeFileSync(join(pluginDir, 'assets/screenshots/cover.png'), image)
-  const outDir = join(repositoryRoot, 'dist')
-  mkdirSync(outDir)
-  const archive = Buffer.from('archive fixture')
-  writeFileSync(join(outDir, 'com.example.test@1.0.0.enestplugin'), archive)
-  const registry = prepareRelease({ repositoryRoot, repository: 'org/plugins', tag: 'plugins-42' })
-  const plugin = registry.plugins[0]
-  assert.equal(plugin.icon, 'https://github.com/org/plugins/releases/download/plugins-42/com.example.test%401.0.0-icon.svg')
-  assert.equal(plugin.screenshots[0], 'https://github.com/org/plugins/releases/download/plugins-42/com.example.test%401.0.0-screenshot-1.png')
-  assert.equal(plugin.screenshots[1], 'https://cdn.example.com/details.webp')
-  assert.deepEqual(readFileSync(join(outDir, 'com.example.test@1.0.0-screenshot-1.png')), image)
-  for (const url of [plugin.icon, plugin.screenshots[0], plugin.asset.url]) {
-    const filename = decodeURIComponent(new URL(url).pathname.split('/').at(-1))
-    assert.ok(readFileSync(join(outDir, filename)).length)
-  }
-  assert.equal(plugin.asset.size, archive.length)
-  assert.equal(plugin.asset.sha256, createHash('sha256').update(archive).digest('hex'))
-  assert.deepEqual(JSON.parse(readFileSync(join(outDir, 'registry.json'), 'utf-8')), registry)
-})
-
-test('missing archive cannot produce a release index with empty asset metadata', (t) => {
-  const { repositoryRoot } = fixture(t)
-  assert.throws(() => prepareRelease({ repositoryRoot, repository: 'org/plugins', tag: 'plugins-42' }), /ENOENT/)
+test('archives reject missing entry points, foreign runtimes, source leakage and oversized README', t => {
+  const f = fixture(t)
+  const without = { ...f.entries }; delete without['index.html']
+  assert.throws(() => archiveMetadata(zipSync(without)), /no index.html/)
+  assert.throws(() => archiveMetadata(zipSync({ ...f.entries, 'runtime/a': strToU8('runtime') })), /only permitted for DSH/)
+  assert.throws(() => archiveMetadata(zipSync({ ...f.entries, 'assets/app/secret.ts': strToU8('source') })), /Development file/)
+  assert.throws(() => archiveMetadata(zipSync({ ...f.entries, 'assets/market/README.md': new Uint8Array(512 * 1024 + 1) })), /README exceeds/)
+  writeFileSync(join(f.pluginDir, 'public/assets/market/README.md'), Buffer.alloc(512 * 1024 + 1))
+  assert.match(validateSource(f.pluginDir).join('\n'), /README exceeds/)
 })

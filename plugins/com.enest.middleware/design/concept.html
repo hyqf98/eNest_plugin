@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>中间件控制台 · 概念稿</title>
+<style>
+/* ===== 壳子主题 token（与 tokens.css 对齐的兜底值，插件实际运行时由 themeAware 注入）===== */
+:root, :root[data-theme="dark"] {
+  --bg: #0d1017; --bg-dot: rgba(139, 148, 168, .10);
+  --surface: #141a26; --surface-2: #1a2130; --surface-3: #222b3e;
+  --border: #232c3f; --border-strong: #33405c;
+  --text: #e9edf5; --text-2: #9aa7bd; --text-3: #64718b;
+  --accent: #ff7a2f; --accent-soft: rgba(255, 122, 47, .13); --accent-contrast: #fff;
+  --ok: #3fb972; --ok-soft: rgba(63, 185, 114, .13);
+  --danger: #e5484d; --danger-soft: rgba(229, 72, 77, .13);
+  --link: #6ea8fe;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-pill: 999px;
+  --shadow-soft: 0 2px 10px rgba(0,0,0,.28); --shadow-float: 0 10px 34px rgba(0,0,0,.44);
+  --font: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  /* 中间件类型识别色（连接树/Tab/卡片上的品牌点） */
+  --c-kafka: #e0a94e; --c-rabbit: #ff8a4d; --c-mqtt: #8f7bff; --c-rocket: #35c4b5;
+}
+:root[data-theme="light"] {
+  --bg: #f4f6fa; --bg-dot: rgba(84, 96, 120, .08);
+  --surface: #ffffff; --surface-2: #f2f5fa; --surface-3: #e9eef6;
+  --border: #e3e8f0; --border-strong: #c9d3e2;
+  --text: #1b2434; --text-2: #55617a; --text-3: #8b97ae;
+  --accent: #f2620f; --accent-soft: rgba(242, 98, 15, .10); --accent-contrast: #fff;
+  --ok: #23865a; --ok-soft: rgba(35, 134, 90, .12);
+  --danger: #d3353b; --danger-soft: rgba(211, 53, 59, .10);
+  --shadow-soft: 0 2px 8px rgba(24, 34, 56, .08); --shadow-float: 0 12px 32px rgba(24, 34, 56, .16);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font: 13px/1.55 var(--font); color: var(--text); background: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px); background-size: 22px 22px;
+}
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input, select, textarea { font: inherit; color: var(--text); }
+
+/* ===== 概念稿脚手架（仅演示用，插件内不存在）===== */
+.demo-bar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+  position: sticky; top: 0; z-index: 50;
+}
+.demo-bar .title { font-weight: 600; letter-spacing: .02em; }
+.demo-bar .title em { color: var(--accent); font-style: normal; }
+.demo-seg { display: flex; gap: 4px; background: var(--surface-2); border-radius: var(--radius-pill); padding: 3px; }
+.demo-seg button { padding: 4px 14px; border-radius: var(--radius-pill); color: var(--text-2); font-size: 12px; }
+.demo-seg button.on { background: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+.demo-bar .spacer { flex: 1; }
+.demo-bar .hint { color: var(--text-3); font-size: 12px; }
+.theme-btn {
+  padding: 4px 12px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong);
+  color: var(--text-2); font-size: 12px;
+}
+.theme-btn:hover { color: var(--text); border-color: var(--accent); }
+
+/* ===== 应用框架：连接即 Tab（IDE 式）===== */
+.app { display: flex; flex-direction: column; height: calc(100vh - 45px); overflow: hidden; }
+.conn-tabs {
+  display: flex; align-items: center; gap: 2px; padding: 8px 12px 0;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.conn-tab {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px 9px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0; color: var(--text-2);
+  border: 1px solid transparent; border-bottom: none; font-size: 12.5px; position: relative;
+}
+.conn-tab:hover { color: var(--text); background: var(--surface-2); }
+.conn-tab.on {
+  background: var(--bg); color: var(--text); border-color: var(--border);
+  box-shadow: 0 -2px 0 var(--c-kafka) inset; font-weight: 600;
+}
+.conn-tab.on[data-kind="rabbitmq"] { box-shadow: 0 -2px 0 var(--c-rabbit) inset; }
+.conn-tab.on[data-kind="mqtt"] { box-shadow: 0 -2px 0 var(--c-mqtt) inset; }
+.conn-tab.on[data-kind="rocketmq"] { box-shadow: 0 -2px 0 var(--c-rocket) inset; }
+.kind-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.conn-tab .x { color: var(--text-3); font-size: 11px; padding: 0 2px; border-radius: 4px; visibility: hidden; }
+.conn-tab:hover .x { visibility: visible; }
+.conn-tab .x:hover { color: var(--danger); background: var(--danger-soft); }
+.conn-tab .plus { color: var(--text-3); font-size: 15px; padding: 6px 10px; }
+.conn-tab .plus:hover { color: var(--accent); }
+
+.app-body { flex: 1; display: flex; min-height: 0; }
+
+/* —— 左侧连接树 —— */
+.tree {
+  width: 232px; flex: none; display: flex; flex-direction: column;
+  border-right: 1px solid var(--border); background: var(--surface);
+}
+.tree-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 6px; color: var(--text-3); font-size: 11.5px; letter-spacing: .08em; }
+.tree-head button { color: var(--text-3); font-size: 14px; line-height: 1; border-radius: 6px; padding: 2px 6px; }
+.tree-head button:hover { color: var(--accent); background: var(--accent-soft); }
+.tree-scroll { flex: 1; overflow-y: auto; padding: 2px 8px 12px; }
+.tree-group { margin-top: 10px; }
+.tree-group > .g-label {
+  display: flex; align-items: center; gap: 7px; padding: 3px 8px; font-size: 11.5px;
+  color: var(--text-3); letter-spacing: .05em;
+}
+.tree-group > .g-label .kind-dot { width: 6px; height: 6px; }
+.tree-group > .g-label .cnt { margin-left: auto; font-size: 11px; }
+.tree-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 6px 8px 6px 21px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 12.5px;
+}
+.tree-item:hover { background: var(--surface-2); color: var(--text); }
+.tree-item.on { background: var(--accent-soft); color: var(--text); }
+.tree-item .env { margin-left: auto; font-size: 10.5px; padding: 1px 7px; border-radius: var(--radius-pill); }
+.env-prod { background: var(--danger-soft); color: var(--danger); }
+.env-staging { background: var(--accent-soft); color: var(--accent); }
+.env-test { background: var(--ok-soft); color: var(--ok); }
+.env-dev { background: var(--surface-3); color: var(--text-2); }
+.tree-item .lock { font-size: 10px; color: var(--text-3); }
+.tree-foot { padding: 8px; border-top: 1px solid var(--border); }
+.tree-foot .new-btn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm);
+  color: var(--text-3); font-size: 12.5px;
+}
+.tree-foot .new-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+/* —— 右侧内容区 —— */
+.content { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+.subnav {
+  display: flex; align-items: center; gap: 2px; padding: 0 16px;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.subnav button {
+  padding: 10px 13px; color: var(--text-2); font-size: 12.5px; position: relative;
+}
+.subnav button:hover { color: var(--text); }
+.subnav button.on { color: var(--accent); font-weight: 600; }
+.subnav button.on::after {
+  content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px;
+  background: var(--accent); border-radius: 2px;
+}
+.subnav .subnav-right { margin-left: auto; display: flex; gap: 10px; align-items: center; color: var(--text-3); font-size: 11.5px; }
+.page { flex: 1; min-height: 0; display: none; }
+.page.on { display: flex; flex-direction: column; }
+
+.status-bar {
+  display: flex; align-items: center; gap: 14px; padding: 5px 16px;
+  border-top: 1px solid var(--border); background: var(--surface);
+  color: var(--text-3); font-size: 11.5px;
+}
+.status-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.status-bar .dot.warn { background: var(--accent); }
+.status-bar .lat { font-family: var(--mono); color: var(--text-2); }
+.status-bar .grow { flex: 1; }
+
+/* ===== 通用控件 ===== */
+.toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 10px; }
+.search {
+  display: flex; align-items: center; gap: 8px; width: 260px; padding: 6px 11px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-3);
+}
+.search input { flex: 1; border: none; background: none; outline: none; font-size: 12.5px; color: var(--text); }
+.search input::placeholder { color: var(--text-3); }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; font-size: 12.5px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border-strong); color: var(--text-2);
+  background: var(--surface);
+}
+.btn:hover { color: var(--text); border-color: var(--text-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--surface-2); }
+.btn.accent { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.btn.danger { color: var(--danger); border-color: transparent; }
+.btn.danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+.toolbar .count { color: var(--text-3); font-size: 12px; margin-left: auto; }
+.toolbar .count b { color: var(--text-2); font-weight: 600; }
+
+/* ===== 紧凑表格（28px 行高）===== */
+.table-wrap { flex: 1; min-height: 0; overflow: auto; padding: 0 16px 12px; }
+table.grid { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+table.grid th {
+  position: sticky; top: 0; z-index: 2; text-align: left; font-weight: 500; color: var(--text-3);
+  font-size: 11.5px; letter-spacing: .03em; padding: 7px 10px; background: var(--bg);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+table.grid td {
+  padding: 0 10px; height: 28px; border-bottom: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); max-width: 340px;
+}
+table.grid td.name { color: var(--text); font-family: var(--mono); font-size: 12px; }
+table.grid td.num { font-family: var(--mono); font-size: 12px; text-align: right; }
+table.grid th.num { text-align: right; }
+table.grid tbody tr { cursor: default; }
+table.grid tbody tr:hover td { background: var(--surface); }
+table.grid tbody tr.sel td { background: var(--accent-soft); }
+table.grid tbody tr.sel td:first-child { box-shadow: 2px 0 0 var(--accent) inset; }
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: var(--radius-pill); font-size: 11px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+.chip.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.chip.warn { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.chip.bad { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+.chip .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.lag-bar { display: inline-flex; align-items: center; gap: 7px; }
+.lag-bar .track { width: 56px; height: 4px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.lag-bar .fill { height: 100%; border-radius: 3px; background: var(--ok); }
+.lag-bar .fill.warn { background: var(--accent); }
+.lag-bar .fill.bad { background: var(--danger); }
+
+/* ===== 右键菜单示意（常驻展示）===== */
+.ctxmenu {
+  position: absolute; z-index: 30; min-width: 168px; padding: 5px;
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+.ctxmenu .mi { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 12.5px; color: var(--text-2); }
+.ctxmenu .mi:hover { background: var(--surface-3); color: var(--text); }
+.ctxmenu .mi.danger { color: var(--danger); }
+.ctxmenu .mi.danger:hover { background: var(--danger-soft); }
+.ctxmenu hr { border: none; border-top: 1px solid var(--border); margin: 5px 8px; }
+
+/* ===== 页面 1：连接首页 ===== */
+.home { overflow-y: auto; padding: 26px 32px 40px; }
+.home h1 { font-size: 19px; font-weight: 650; letter-spacing: .01em; }
+.home .sub { color: var(--text-2); font-size: 12.5px; margin-top: 4px; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 22px; }
+.conn-card {
+  padding: 16px 18px; border-radius: var(--radius-lg); background: var(--surface);
+  border: 1px solid var(--border); box-shadow: var(--shadow-soft);
+  display: flex; flex-direction: column; gap: 12px; transition: transform .15s ease, border-color .15s ease;
+  cursor: pointer;
+}
+.conn-card:hover { transform: translateY(-2px); border-color: var(--border-strong); box-shadow: var(--shadow-float); }
+.conn-card .row1 { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.conn-card .cname { font-weight: 600; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conn-card .row1 .chip { flex: none; }
+.conn-card .metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.conn-card .m { background: var(--surface-2); border-radius: var(--radius-md); padding: 8px 11px; }
+.conn-card .m .k { font-size: 11px; color: var(--text-3); }
+.conn-card .m .v { font-size: 15px; font-weight: 600; font-family: var(--mono); margin-top: 1px; }
+.conn-card .m .v.warn { color: var(--accent); }
+.conn-card .m .v small { font-size: 11px; color: var(--text-3); font-weight: 400; }
+.conn-card .foot { display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 11.5px; }
+.conn-card .foot .grow { flex: 1; }
+.conn-card.new {
+  align-items: center; justify-content: center; min-height: 158px; border-style: dashed;
+  color: var(--text-3); background: transparent; box-shadow: none;
+}
+.conn-card.new:hover { color: var(--accent); border-color: var(--accent); }
+.conn-card.new .plus-big { font-size: 26px; line-height: 1; margin-bottom: 6px; }
+
+/* ===== 页面 3：消息浏览器 ===== */
+.live-bar {
+  display: flex; align-items: center; gap: 10px; margin: 12px 16px 0; padding: 8px 12px;
+  border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border);
+}
+.live-bar .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+.live-bar .live-tag { color: var(--danger); font-weight: 700; font-size: 11.5px; letter-spacing: .1em; }
+.live-bar .info { color: var(--text-3); font-size: 12px; }
+.live-bar .grow { flex: 1; }
+.filter-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 16px 10px;
+}
+.fld { display: flex; align-items: center; gap: 7px; color: var(--text-3); font-size: 12px; }
+.fld select, .fld input[type="number"], .fld input[type="datetime-local"] {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 5px 9px; font-size: 12.5px; color: var(--text); outline: none;
+}
+.fld select:focus, .fld input:focus { border-color: var(--accent); }
+.seg { display: flex; background: var(--surface-2); border-radius: var(--radius-sm); padding: 2px; }
+.seg button { padding: 4px 11px; font-size: 12px; color: var(--text-3); border-radius: 5px; }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-soft); }
+.msg-split { flex: 1; min-height: 0; display: flex; gap: 0; padding: 0 16px 12px; }
+.msg-table { flex: 1.5; min-width: 0; display: flex; flex-direction: column; }
+.msg-viewer {
+  width: 390px; flex: none; margin-left: 14px; border-radius: var(--radius-lg);
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-soft);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.msg-viewer .vh { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 12.5px; font-weight: 600; }
+.msg-viewer .vh .grow { flex: 1; }
+.msg-viewer .vh .btn { padding: 3px 10px; font-size: 11.5px; }
+.msg-viewer .meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 10px 14px; font-size: 11.5px; border-bottom: 1px solid var(--border); }
+.msg-viewer .meta .k { color: var(--text-3); }
+.msg-viewer .meta .v { font-family: var(--mono); color: var(--text-2); word-break: break-all; }
+.payload-pane { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; font-family: var(--mono); font-size: 12px; line-height: 1.6; white-space: pre; }
+.j-k { color: var(--link); } .j-s { color: var(--ok); } .j-n { color: var(--accent); } .j-b { color: var(--c-mqtt); } .j-p { color: var(--text-3); }
+
+/* ===== 新建连接抽屉（宽松表单区）===== */
+.mask { position: fixed; inset: 0; background: rgba(4, 6, 12, .55); backdrop-filter: blur(2px); z-index: 80; display: none; }
+.mask.on { display: block; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 460px; z-index: 90;
+  background: var(--surface); border-left: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-float); transform: translateX(100%); transition: transform .22s ease;
+  display: flex; flex-direction: column;
+}
+.drawer.on { transform: translateX(0); }
+.drawer .dh { display: flex; align-items: center; padding: 18px 22px 0; }
+.drawer .dh h2 { font-size: 16px; font-weight: 650; }
+.drawer .dh .x { margin-left: auto; color: var(--text-3); font-size: 15px; padding: 4px 8px; border-radius: 6px; }
+.drawer .dh .x:hover { color: var(--text); background: var(--surface-2); }
+.drawer .dbody { flex: 1; overflow-y: auto; padding: 6px 22px 20px; }
+.type-seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0 20px; }
+.type-seg button {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-2); font-size: 12px;
+  background: var(--surface-2);
+}
+.type-seg button .kind-dot { width: 9px; height: 9px; }
+.type-seg button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.form-row { margin-bottom: 15px; }
+.form-row label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+.form-row label .req { color: var(--accent); }
+.form-row input[type="text"], .form-row input[type="password"], .form-row select, .form-row textarea {
+  width: 100%; padding: 8px 11px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 13px; outline: none;
+}
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--accent); }
+.form-row .tip { font-size: 11.5px; color: var(--text-3); margin-top: 5px; }
+.form-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.switch-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.switch { position: relative; width: 34px; height: 20px; border-radius: var(--radius-pill); background: var(--surface-3); transition: background .15s; flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-3); transition: transform .15s, background .15s; }
+.switch.on { background: var(--accent); }
+.switch.on::after { transform: translateX(14px); background: #fff; }
+.switch-row .sl { font-size: 12.5px; color: var(--text-2); }
+.switch-row .sl b { color: var(--text); font-weight: 500; }
+.drawer .dfoot { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 22px; border-top: 1px solid var(--border); }
+.form-note {
+  display: flex; gap: 8px; padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--surface-2); color: var(--text-3); font-size: 11.5px; margin-bottom: 16px;
+}
+.form-note b { color: var(--text-2); font-weight: 600; }
+
+.empty-cap { margin: auto; text-align: center; color: var(--text-3); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ 概念稿脚手架：页面切换（正式插件中不存在）═══════════ -->
+<div class="demo-bar">
+  <span class="title">中间件控制台 <em>· 概念稿</em></span>
+  <div class="demo-seg" id="demoSeg">
+    <button data-page="home" class="on">① 连接首页</button>
+    <button data-page="topics">② Topic 列表</button>
+    <button data-page="messages">③ 消息浏览器</button>
+  </div>
+  <span class="hint">布局骨架 B（连接即 Tab）· 混合密度 · 左下 ⊕ 打开新建连接抽屉</span>
+  <span class="spacer"></span>
+  <button class="theme-btn" id="themeBtn">☀ / 🌙 主题</button>
+</div>
+
+<div class="app">
+  <!-- 顶部：连接 Tab 条 -->
+  <div class="conn-tabs">
+    <button class="conn-tab on" data-kind="kafka">
+      <span class="kind-dot" style="background:var(--c-kafka)"></span>prod-kafka
+      <span class="chip env-prod" style="font-size:10.5px">prod</span>
+      <span class="x">✕</span>
+    </button>
+    <button class="conn-tab" data-kind="rabbitmq">
+      <span class="kind-dot" style="background:var(--c-rabbit)"></span>dev-rabbit
+      <span class="chip env-dev" style="font-size:10.5px">dev</span>
+      <span class="x">✕</span>
+    </button>
+    <button class="conn-tab plus" title="连接一个新实例">＋</button>
+  </div>
+
+  <div class="app-body">
+    <!-- 左：连接树 -->
+    <aside class="tree">
+      <div class="tree-head"><span>连接</span><button title="新建连接">＋</button></div>
+      <div class="tree-scroll">
+        <div class="tree-group">
+          <div class="g-label"><span class="kind-dot" style="background:var(--c-kafka)"></span>Kafka<span class="cnt">2</span></div>
+          <button class="tree-item on">prod-kafka<span class="env env-prod">prod</span></button>
+          <button class="tree-item">dev-kafka<span class="env env-dev">dev</span></button>
+        </div>
+        <div class="tree-group">
+          <div class="g-label"><span class="kind-dot" style="background:var(--c-rabbit)"></span>RabbitMQ<span class="cnt">1</span></div>
+          <button class="tree-item">dev-rabbit<span class="env env-dev">dev</span></button>
+        </div>
+        <div class="tree-group">
+          <div class="g-label"><span class="kind-dot" style="background:var(--c-mqtt)"></span>MQTT<span class="cnt">2</span></div>
+          <button class="tree-item">emqx-prod<span class="env env-prod">prod</span></button>
+          <button class="tree-item">mosquitto-home<span class="env env-test">test</span><span class="lock" title="EMQX 适配未启用，能力受限">◐</span></button>
+        </div>
+        <div class="tree-group">
+          <div class="g-label"><span class="kind-dot" style="background:var(--c-rocket)"></span>RocketMQ<span class="cnt">1</span></div>
+          <button class="tree-item">rmq-cluster<span class="env env-staging">stg</span><span class="lock" title="只读">🔒</span></button>
+        </div>
+      </div>
+      <div class="tree-foot"><button class="new-btn" onclick="openDrawer()">＋ 新建连接</button></div>
+    </aside>
+
+    <!-- 右：内容区 -->
+    <main class="content">
+      <div class="subnav">
+        <button>概览</button>
+        <button class="on">Topic · 队列</button>
+        <button>消息</button>
+        <button>消费组 · 订阅</button>
+        <button>监控</button>
+        <button style="color:var(--text-3)">轨迹</button>
+        <button>发消息</button>
+        <div class="subnav-right"><span>子导航按连接类型显隐</span></div>
+      </div>
+
+      <!-- ── 页面 1：连接首页（所有 Tab 关闭时）── -->
+      <section class="page on" id="page-home">
+        <div class="home">
+          <h1>中间件控制台</h1>
+          <div class="sub">Kafka · RabbitMQ · MQTT · RocketMQ 统一管理 —— 连接、Topic、消息溯源、消费组与监控</div>
+          <div class="home-grid">
+            <div class="conn-card" onclick="gotoPage('topics')">
+              <div class="row1"><span class="kind-dot" style="background:var(--c-kafka)"></span><span class="cname">prod-kafka</span><span class="chip env-prod">prod</span><span class="chip ok" style="margin-left:auto"><span class="dot"></span>健康</span></div>
+              <div class="metrics">
+                <div class="m"><div class="k">Topic</div><div class="v">36</div></div>
+                <div class="m"><div class="k">消费堆积</div><div class="v warn">3.2k</div></div>
+                <div class="m"><div class="k">延迟</div><div class="v">24<small>ms</small></div></div>
+              </div>
+              <div class="foot"><span>3 brokers · cluster-id x7f…</span><span class="grow"></span><span>SASL/SCRAM</span></div>
+            </div>
+            <div class="conn-card">
+              <div class="row1"><span class="kind-dot" style="background:var(--c-mqtt)"></span><span class="cname">emqx-prod</span><span class="chip env-prod">prod</span><span class="chip warn" style="margin-left:auto"><span class="dot"></span>1 告警</span></div>
+              <div class="metrics">
+                <div class="m"><div class="k">连接</div><div class="v">1,204</div></div>
+                <div class="m"><div class="k">订阅</div><div class="v">2,318</div></div>
+                <div class="m"><div class="k">retained</div><div class="v">96</div></div>
+              </div>
+              <div class="foot"><span>EMQX v5 · 18083 管理面</span><span class="grow"></span><span>JWT</span></div>
+            </div>
+            <div class="conn-card">
+              <div class="row1"><span class="kind-dot" style="background:var(--c-rabbit)"></span><span class="cname">dev-rabbit</span><span class="chip env-dev">dev</span><span class="chip ok" style="margin-left:auto"><span class="dot"></span>健康</span></div>
+              <div class="metrics">
+                <div class="m"><div class="k">队列</div><div class="v">12</div></div>
+                <div class="m"><div class="k">就绪</div><div class="v">18</div></div>
+                <div class="m"><div class="k">消费者</div><div class="v">7</div></div>
+              </div>
+              <div class="foot"><span>3.13.0 · node rabbit@dev</span><span class="grow"></span><span>Basic</span></div>
+            </div>
+            <div class="conn-card">
+              <div class="row1"><span class="kind-dot" style="background:var(--c-rocket)"></span><span class="cname">rmq-cluster</span><span class="chip env-staging">stg</span><span class="chip ok" style="margin-left:auto"><span class="dot"></span>健康</span></div>
+              <div class="metrics">
+                <div class="m"><div class="k">Topic</div><div class="v">21</div></div>
+                <div class="m"><div class="k">消费组</div><div class="v">9</div></div>
+                <div class="m"><div class="k">堆积</div><div class="v">41<small>k</small></div></div>
+              </div>
+              <div class="foot"><span>经 rocketmq-dashboard · 🔒 只读</span><span class="grow"></span><span>4.9.4</span></div>
+            </div>
+            <div class="conn-card new" onclick="openDrawer()"><span class="plus-big">＋</span>新建连接</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 页面 2：Topic 列表（紧凑表格）── -->
+      <section class="page" id="page-topics">
+        <div class="toolbar">
+          <div class="search">🔍<input placeholder="搜索 Topic 名称…" /></div>
+          <button class="btn primary">＋ 新建 Topic</button>
+          <button class="btn ghost" title="刷新">⟳</button>
+          <span class="count">共 <b>36</b> 个 Topic · 右键行查看操作</span>
+        </div>
+        <div class="table-wrap" style="position:relative" id="topicsWrap">
+          <table class="grid">
+            <thead><tr>
+              <th style="width:32%">TOPIC</th><th class="num">分区</th><th class="num">消息数</th>
+              <th class="num">大小</th><th>最大堆积</th><th>健康</th><th>类型</th><th></th>
+            </tr></thead>
+            <tbody>
+              <tr class="sel"><td class="name">order-events</td><td class="num">12</td><td class="num">1,204,331</td><td class="num">1.2 GB</td><td class="num"><span class="lag-bar"><span class="track"><span class="fill bad" style="width:88%"></span></span>3,214</span></td><td><span class="chip bad"><span class="dot"></span>堆积告警</span></td><td><span class="chip">normal</span></td><td style="color:var(--text-3)">⋯</td></tr>
+              <tr><td class="name">payment-flow</td><td class="num">6</td><td class="num">803,102</td><td class="num">803 MB</td><td class="num"><span class="lag-bar"><span class="track"><span class="fill" style="width:8%"></span></span>12</span></td><td><span class="chip ok"><span class="dot"></span>正常</span></td><td><span class="chip">normal</span></td><td style="color:var(--text-3)">⋯</td></tr>
+              <tr><td class="name">user-notify-fifo</td><td class="num">3</td><td class="num">120,442</td><td class="num">121 MB</td><td class="num"><span class="lag-bar"><span class="track"><span class="fill" style="width:20%"></span></span>302</span></td><td><span class="chip ok"><span class="dot"></span>正常</span></td><td><span class="chip">fifo</span></td><td style="color:var(--text-3)">⋯</td></tr>
+              <tr><td class="name">%DLQ%order-service</td><td class="num">1</td><td class="num">2,318</td><td class="num">2.1 MB</td><td class="num"><span class="lag-bar"><span class="track"><span class="fill warn" style="width:64%"></span></span>2,318</span></td><td><span class="chip warn"><span class="dot"></span>死信待处理</span></td><td><span class="chip">dlq</span></td><td style="color:var(--text-3)">⋯</td></tr>
+              <tr><td class="name">trace-span-ingest</td><td class="num">12</td><td class="num">41,203,884</td><td class="num">38 GB</td><td class="num"><span class="lag-bar"><span class="track"><span class="fill" style="width:4%"></span></span>98</span></td><td><span class="chip ok"><span class="dot"></span>正常</span></td><td><span class="chip">normal</span></td><td style="color:var(--text-3)">⋯</td></tr>
+              <tr><td class="name">inventory-sync</td><td class="num">6</td><td class="num">55,120</td><td class="num">61 MB</td><td class="num"><span class="lag-bar"><span class="track"><span class="fill" style="width:12%"></span></span>66</span></td><td><span class="chip ok"><span class="dot"></span>正常</span></td><td><span class="chip">normal</span></td><td style="color:var(--text-3)">⋯</td></tr>
+              <tr style="opacity:.55"><td class="name">__consumer_offsets</td><td class="num">50</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td><span class="chip">内部</span></td><td><span class="chip">internal</span></td><td style="color:var(--text-3)">⋯</td></tr>
+            </tbody>
+          </table>
+          <!-- 右键菜单示意（常驻展示；正式实现为右键唤出） -->
+          <div class="ctxmenu" id="ctxMenu" style="right:120px; top:40px">
+            <div class="mi">📄 查看消息</div>
+            <div class="mi">⚙ 编辑配置</div>
+            <div class="mi">＋ 扩容分区…</div>
+            <hr />
+            <div class="mi">🧹 清空消息…</div>
+            <div class="mi danger">🗑 删除 Topic…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 页面 3：消息浏览器 ── -->
+      <section class="page" id="page-messages">
+        <div class="live-bar">
+          <span class="live-dot"></span><span class="live-tag">LIVE</span>
+          <span class="info">正在实时监听 <b style="color:var(--text-2)">order-events</b> · 已接收 1,284 条</span>
+          <span class="grow"></span>
+          <button class="btn ghost" style="padding:3px 10px;font-size:11.5px">⏸ 暂停</button>
+          <button class="btn ghost" style="padding:3px 10px;font-size:11.5px">清空</button>
+          <button class="btn danger" style="padding:3px 10px;font-size:11.5px">停止监听</button>
+        </div>
+        <div class="filter-bar">
+          <span class="fld">Topic <select><option>order-events</option><option>payment-flow</option><option>%DLQ%order-service</option></select></span>
+          <div class="seg"><button class="on">按 Offset</button><button>按时间</button><button>按 Key</button></div>
+          <span class="fld">分区 <select><option>全部</option><option>0</option><option>1</option><option>2</option></select></span>
+          <span class="fld">起点 <input type="number" value="1204300" style="width:96px" /></span>
+          <span class="fld">条数 <select><option>50</option><option>100</option><option>200</option></select></span>
+          <button class="btn primary">查询</button>
+          <span class="fld" style="margin-left:auto"><button class="btn ghost">📥 从查询结果转入监听</button></span>
+        </div>
+        <div class="msg-split">
+          <div class="msg-table table-wrap" style="padding:0">
+            <table class="grid">
+              <thead><tr><th class="num" style="width:90px">OFFSET</th><th style="width:150px">时间</th><th style="width:110px">KEY</th><th>PAYLOAD 预览</th></tr></thead>
+              <tbody id="msgRows"></tbody>
+            </table>
+          </div>
+          <aside class="msg-viewer">
+            <div class="vh">消息详情<span class="grow"></span><button class="btn">⧉ 复制</button><button class="btn accent">↪ 重发…</button></div>
+            <div class="meta">
+              <span class="k">topic / partition</span><span class="v">order-events / 3</span>
+              <span class="k">offset</span><span class="v">1,204,331</span>
+              <span class="k">timestamp</span><span class="v">2026-10-13 14:22:07.312</span>
+              <span class="k">key</span><span class="v">order-88213</span>
+              <span class="k">headers</span><span class="v" style="display:flex;gap:5px;flex-wrap:wrap"><span class="chip">trace-id=7f3ac2…</span><span class="chip">source=order-api</span></span>
+            </div>
+            <div class="payload-pane" id="payloadPane"></div>
+          </aside>
+        </div>
+      </section>
+
+      <footer class="status-bar">
+        <span class="dot"></span><span>prod-kafka 已连接</span>
+        <span class="lat">24ms</span><span>3 brokers · controller @b-2</span>
+        <span class="grow"></span>
+        <span>只读：关</span><span>⌘Enter 重发 · ⌘K 搜索</span>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<!-- ═══════════ 新建连接抽屉：表单随类型切换 ═══════════ -->
+<div class="mask" id="mask" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh"><h2>新建连接</h2><button class="x" onclick="closeDrawer()">✕</button></div>
+  <div class="dbody">
+    <div class="type-seg" id="typeSeg">
+      <button data-kind="kafka" class="on"><span class="kind-dot" style="background:var(--c-kafka)"></span>Kafka</button>
+      <button data-kind="rabbitmq"><span class="kind-dot" style="background:var(--c-rabbit)"></span>RabbitMQ</button>
+      <button data-kind="mqtt"><span class="kind-dot" style="background:var(--c-mqtt)"></span>MQTT</button>
+      <button data-kind="rocketmq"><span class="kind-dot" style="background:var(--c-rocket)"></span>RocketMQ</button>
+    </div>
+    <div class="form-note"><span>🔐</span><span><b>密码只进保险库</b>：凭据经 enest.vault 存为 secretRef，明文不落盘、不出主进程。</span></div>
+
+    <div class="form-row"><label>连接名称 <span class="req">*</span></label><input type="text" placeholder="如 prod-kafka" /></div>
+
+    <!-- Kafka 字段组 -->
+    <div data-f="kafka">
+      <div class="form-row"><label>Bootstrap Servers <span class="req">*</span></label><input type="text" value="10.2.1.11:9092,10.2.1.12:9092" /><div class="tip">逗号分隔多个 broker 地址</div></div>
+      <div class="form-cols">
+        <div class="form-row"><label>SASL 机制</label><select><option>SCRAM-SHA-512</option><option>SCRAM-SHA-256</option><option>PLAIN</option><option>无</option></select></div>
+        <div class="form-row"><label>环境</label><select><option>生产 prod</option><option>测试 test</option><option>预发 staging</option><option>开发 dev</option></select></div>
+      </div>
+      <div class="form-cols">
+        <div class="form-row"><label>用户名</label><input type="text" placeholder="SASL 用户" /></div>
+        <div class="form-row"><label>密码</label><input type="password" placeholder="存入 vault" /></div>
+      </div>
+      <div class="switch-row"><span class="switch on"></span><span class="sl"><b>TLS 加密</b>（自签证书可关闭校验）</span></div>
+    </div>
+
+    <!-- RabbitMQ 字段组 -->
+    <div data-f="rabbitmq" style="display:none">
+      <div class="form-row"><label>管理端点 <span class="req">*</span></label><input type="text" placeholder="http://10.2.1.21:15672" /></div>
+      <div class="form-cols">
+        <div class="form-row"><label>用户名</label><input type="text" placeholder="management 用户（guest 仅本机）" /></div>
+        <div class="form-row"><label>密码</label><input type="password" /></div>
+      </div>
+      <div class="form-cols">
+        <div class="form-row"><label>vhost</label><input type="text" placeholder="/" /></div>
+        <div class="form-row"><label>环境</label><select><option>开发 dev</option><option>生产 prod</option></select></div>
+      </div>
+      <div class="form-note" style="margin-top:14px"><span>ℹ️</span><span>队列/交换机/绑定 CRUD、队头 peek、实时监听（amqplib）均经 15672 管理面。</span></div>
+    </div>
+
+    <!-- MQTT 字段组 -->
+    <div data-f="mqtt" style="display:none">
+      <div class="form-row"><label>Broker URL <span class="req">*</span></label><input type="text" placeholder="mqtt://10.2.1.31:1883 或 mqtts:// wss://" /></div>
+      <div class="form-cols">
+        <div class="form-row"><label>用户名</label><input type="text" /></div>
+        <div class="form-row"><label>密码</label><input type="password" /></div>
+      </div>
+      <div class="form-row"><label>ClientId（缺省自动生成）</label><input type="text" placeholder="enest-mw-…" /></div>
+      <div class="switch-row"><span class="switch on"></span><span class="sl"><b>EMQX 管理适配</b>：启用客户端/订阅/retained 管理与完整监控</span></div>
+      <div class="form-row" style="margin-top:10px"><label>EMQX 管理端点</label><input type="text" placeholder="http://10.2.1.31:18083（v4 填 8081）" /></div>
+      <div class="form-cols">
+        <div class="form-row"><label>API Key</label><input type="text" /></div>
+        <div class="form-row"><label>API Secret</label><input type="password" /></div>
+      </div>
+      <div class="form-note" style="margin-top:14px"><span>ℹ️</span><span>通用 MQTT 无 Topic 实体与历史消息：仅 pub/sub、retained 快照与 $SYS 监控；EMQX 适配补齐管理面。</span></div>
+    </div>
+
+    <!-- RocketMQ 字段组 -->
+    <div data-f="rocketmq" style="display:none">
+      <div class="form-row"><label>rocketmq-dashboard 地址 <span class="req">*</span></label><input type="text" placeholder="http://10.2.1.41:8080" /></div>
+      <div class="form-cols">
+        <div class="form-row"><label>用户名</label><input type="text" placeholder="dashboard 账号（无鉴权可留空）" /></div>
+        <div class="form-row"><label>密码</label><input type="password" /></div>
+      </div>
+      <div class="form-note" style="margin-top:14px"><span>⚠️</span><span>RocketMQ 官方无 HTTP 管理 API，本插件经已部署的 dashboard 接口操作，接口随 dashboard 版本可能变化。</span></div>
+    </div>
+
+    <div class="form-row" style="margin-top:16px"><label>备注</label><textarea rows="2" placeholder="可选"></textarea></div>
+    <div class="switch-row"><span class="switch"></span><span class="sl"><b>只读连接</b>：宿主层拦截全部变更操作（删 Topic / 清空 / 重置 offset / 发消息）</span></div>
+  </div>
+  <div class="dfoot"><button class="btn">测试连接</button><button class="btn">取消</button><button class="btn primary">保存并连接</button></div>
+</aside>
+
+<script>
+// —— 概念稿交互：页面切换 / 主题 / 抽屉 / 假数据 ——
+const seg = document.getElementById('demoSeg')
+function gotoPage(name) {
+  seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.page === name))
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + name))
+}
+seg.addEventListener('click', e => { const b = e.target.closest('button'); if (b) gotoPage(b.dataset.page) })
+
+document.getElementById('themeBtn').onclick = () => {
+  const r = document.documentElement
+  r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark'
+}
+
+function openDrawer() { document.getElementById('drawer').classList.add('on'); document.getElementById('mask').classList.add('on') }
+function closeDrawer() { document.getElementById('drawer').classList.remove('on'); document.getElementById('mask').classList.remove('on') }
+
+document.getElementById('typeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return
+  document.querySelectorAll('#typeSeg button').forEach(x => x.classList.toggle('on', x === b))
+  document.querySelectorAll('[data-f]').forEach(g => g.style.display = g.dataset.f === b.dataset.kind ? '' : 'none')
+})
+
+// —— JSON 高亮 ——
+function hl(json) {
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, m => {
+    let cls = 'j-n'
+    if (/^"/.test(m)) cls = /:$/.test(m) ? 'j-k' : 'j-s'
+    else if (/true|false|null/.test(m)) cls = 'j-b'
+    return `<span class="${cls}">${m}</span>`
+  })
+}
+const samplePayload = JSON.stringify({
+  orderId: "88213", status: "PAID", amount: 129900,
+  items: [{ sku: "SKU-3321", qty: 2 }],
+  paidAt: "2026-10-13T14:22:07.301+08:00", retry: 0
+}, null, 2)
+document.getElementById('payloadPane').innerHTML = hl(samplePayload)
+
+// —— 消息行（假数据 + LIVE 模拟）——
+const rows = [
+  [1204305, '14:21:58.114', 'order-88208', '{"orderId":"88208","status":"CREATED"'],
+  [1204306, '14:22:00.402', 'order-88209', '{"orderId":"88209","status":"CREATED"'],
+  [1204307, '14:22:03.881', 'order-88211', '{"orderId":"88211","status":"PAID","amount":4"'],
+  [1204308, '14:22:07.312', 'order-88213', '{"orderId":"88213","status":"PAID","amount":129900'],
+]
+const tbody = document.getElementById('msgRows')
+function renderRows() {
+  tbody.innerHTML = rows.map((r, i) => `<tr${i === rows.length - 1 ? ' class="sel"' : ''}><td class="num">${r[0].toLocaleString()}</td><td style="font-family:var(--mono);font-size:12px">14:${r[1].slice(3)}</td><td style="font-family:var(--mono);font-size:12px;color:var(--text-2)">${r[2]}</td><td style="color:var(--text-2);font-family:var(--mono);font-size:12px;min-width:180px">${r[3]}…</td></tr>`).join('')
+}
+renderRows()
+let liveOff = 0
+setInterval(() => {
+  const page = document.getElementById('page-messages').classList.contains('on')
+  if (!page || liveOff) return
+  const n = 1204309 + Math.floor(Math.random() * 900)
+  rows.push([n, '14:22:1' + (Math.random() * 9 | 0) + '.20' + (Math.random() * 9 | 0), 'order-' + (88214 + (Math.random() * 40 | 0)), '{"orderId":"…","status":"PAID"'])
+  if (rows.length > 40) rows.shift()
+  renderRows()
+}, 1600)
+</script>
+</body>
+</html>

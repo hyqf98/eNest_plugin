@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SSH</title>
     <link rel="stylesheet" href="assets/vendor/xterm/xterm.css" />
-    <link rel="stylesheet" href="assets/css/main.css" />
+    <link rel="stylesheet" href="src/css/main.css" />
+
+    <link rel="stylesheet" href="src/css/workbench.css" />
   </head>
   <body>
     <div class="app" id="app">
@@ -165,16 +167,19 @@
               <select id="f-auth">
                 <option value="password">密码</option>
                 <option value="key">私钥</option>
-                <option value="agent">代理认证</option>
+                <option value="agent">SSH Agent</option>
+                <option value="keyboard-interactive">交互认证 / 双因素</option>
               </select>
             </label>
+            <label class="field span2">标签（逗号分隔）<input id="f-tags" type="text" placeholder="production, api" /></label>
+            <label class="field"><span><input id="f-favorite" type="checkbox" /> 收藏连接</span></label>
             <label class="field" id="f-password-wrap">密码
               <input id="f-password" type="password" placeholder="••••" autocomplete="new-password" />
             </label>
             <div class="field" id="f-keypath-wrap">
-              <span class="field-lbl">私钥路径</span>
+              <span class="field-lbl">私钥文件</span>
               <div class="input-row">
-                <input id="f-keypath" type="text" placeholder="~/.ssh/id_ed25519" />
+                <input id="f-keypath" type="text" readonly placeholder="通过宿主选择文件并授权" />
                 <button type="button" class="btn sm" id="btn-keypath-browse" title="从电脑选择私钥文件">选择文件</button>
               </div>
             </div>
@@ -229,8 +234,23 @@
               <label class="field">行数
                 <input id="f-rows" type="number" value="32" />
               </label>
+              <label class="field span2">SSH Agent<small>使用系统 SSH Agent，连接时由宿主请求单独授权。</small></label>
+              <label class="field span2">此连接的网络代理
+                <select id="f-proxy-type"><option value="">直连</option><option value="http-connect">HTTP CONNECT</option><option value="socks5">SOCKS5</option></select>
+                <small>仅代理第一跳；有跳板时代理连接到首台跳板。不使用壳软件的 HTTP 代理设置。</small>
+              </label>
+              <div class="form-grid span2 wb-proxy-fields" id="f-proxy-fields" hidden>
+                <label class="field">代理主机<input id="f-proxy-host" type="text" placeholder="127.0.0.1" autocomplete="off" /></label>
+                <label class="field">代理端口<input id="f-proxy-port" type="number" min="1" max="65535" value="1080" /></label>
+                <label class="field">代理用户名<input id="f-proxy-user" type="text" placeholder="留空表示不认证" autocomplete="off" /></label>
+                <label class="field">代理密码<input id="f-proxy-password" type="password" placeholder="留空保留已保存密码" autocomplete="new-password" /></label>
+                <div class="field span2" id="proxy-secret-state"></div>
+                <small class="span2">密码仅保存在凭据库。HTTP CONNECT 使用 Basic 认证；SOCKS5 支持无认证和用户名密码认证。</small>
+              </div>
+              <label class="field span2">多级跳板链（每行一个已有连接名称，按连接顺序填写）<textarea id="f-jumps" rows="3" placeholder="公网跳板
+内网跳板"></textarea><small>填写后优先使用此链；最多 8 层，各跳板沿用其认证方式。</small></label>
               <div class="field span2">
-                <span class="field-lbl">跳板机</span>
+                <span class="field-lbl">单级跳板机</span>
                 <button type="button" class="cs-trigger" id="f-jump-profile" data-value="" aria-haspopup="listbox" aria-expanded="false">
                   <span class="cs-label">不使用跳板</span>
                   <span class="cs-caret">▾</span>
@@ -249,13 +269,14 @@
                 <select id="f-jump-auth">
                   <option value="password">密码</option>
                   <option value="key">私钥</option>
-                  <option value="agent">代理认证</option>
+                  <option value="agent">SSH Agent</option>
+                <option value="keyboard-interactive">交互认证 / 双因素</option>
                 </select>
               </label>
               <div class="field span2" id="f-jump-keypath-wrap">
-                <span class="field-lbl">跳板私钥路径</span>
+                <span class="field-lbl">跳板私钥文件</span>
                 <div class="input-row">
-                  <input id="f-jump-keypath" type="text" placeholder="~/.ssh/id_ed25519" />
+                  <input id="f-jump-keypath" type="text" readonly placeholder="通过宿主选择文件并授权" />
                   <button type="button" class="btn sm" id="btn-jump-key-browse" title="从电脑选择跳板私钥文件">选择文件</button>
                 </div>
               </div>
@@ -304,11 +325,13 @@
 
     <script src="assets/vendor/xterm/xterm.js"></script>
     <script src="assets/vendor/xterm/addon-fit.js"></script>
-    <script src="assets/js/tips-global.js"></script>
-    <script src="assets/js/api.js"></script>
-    <script src="assets/js/dict.js"></script>
-    <script src="assets/js/store.js"></script>
-    <script src="assets/js/term.js"></script>
-    <script src="assets/js/app.js"></script>
+
+
+
+
+
+
+
+    <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

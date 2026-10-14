@@ -1,0 +1,75 @@
+(() => {
+  const api = window.enest || window.zapi, $ = id => document.getElementById(id), esc = PluginKit.escape
+  let query = '', type = 'all', items = [], total = 0, cursor = null, current = '', requestId = 0, loading = false, collection = '', selected = new Set(), groups = { names: [], entries: {} }, confirmation, detailRevision = 0, queryTimer, touched = false, initialized = Promise.resolve()
+  const images = new Map(), pendingImages = new Map()
+  const kit = PluginKit.create({ title: '剪贴板', height: 490, quickPlaceholder: '搜索剪贴板内容、文件或来源…', defaults: { monitoring: true, historyLimit: 200, retentionDays: 0, recordSource: true, defaultAction: 'paste', density: 'comfortable', excludedApps: '' }, onQuery: value => search(value), onAction: action => { if (action === 'next') move(1); if (action === 'previous') move(-1); if (action === 'submit') run(() => primary()); } })
+  const run = async task => { try { return await task() } catch (error) { kit.toast(error?.message || String(error), 'error') } }
+  const label = item => ({text:'文本',image:'图片',files:'文件'})[item.type] || '内容'
+  const age = ts => { const minutes = Math.floor((Date.now() - ts) / 60000); return minutes < 1 ? '刚刚' : minutes < 60 ? `${minutes} 分钟前` : new Date(ts).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) }
+  const size = bytes => bytes < 1024 ? `${bytes || 0} B` : bytes < 1024 ** 2 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  function saveView() { return run(() => kit.save('clipboard.view.v2', { query, type, current, collection, scroll: $('list').scrollTop })) }
+  function search(value) { touched = true; query = value; $('search').value = value; clearTimeout(queryTimer); queryTimer = setTimeout(() => { void refresh(); void saveView() }, 120) }
+  async function imageData(id) { if (images.has(id)) return images.get(id); if (pendingImages.has(id)) return pendingImages.get(id); const work = api.clipboard.history.get(id).then(value => { const url = value?.dataUrl; if (url) { images.set(id,url); while (images.size > 16 || [...images.values()].reduce((sum, value) => sum + value.length, 0) > 16 * 1024 * 1024) images.delete(images.keys().next().value) } return url }).finally(() => pendingImages.delete(id)); pendingImages.set(id,work); return work }
+  const observer = new IntersectionObserver(entries => { for (const entry of entries) { entry.target.dataset.visible = String(entry.isIntersecting); if (entry.isIntersecting) { void run(async () => { const value = await imageData(entry.target.dataset.image); if (value && entry.target.isConnected && entry.target.dataset.visible === 'true') entry.target.src = value }) } else entry.target.removeAttribute('src') } }, { root: $('list'), rootMargin: '80px' })
+  async function refresh(append = false) {
+    const revision = ++requestId; loading = true
+    try {
+      let result = await api.clipboard.history.query({ query, type: ['text','image','files'].includes(type) ? type : undefined, pinned: type === 'pinned', cursor: append ? cursor : 0, limit: 60 })
+      if (collection) { const gathered = [...result.items]; while (result.nextCursor !== null && revision === requestId) { result = await api.clipboard.history.query({query,type:['text','image','files'].includes(type)?type:undefined,pinned:type==='pinned',cursor:result.nextCursor,limit:100}); gathered.push(...result.items) } result = { items: gathered.filter(item => groups.entries[item.id] === collection), total: 0, nextCursor:null }; result.total = result.items.length }
+      if (revision !== requestId) return
+      items = append ? [...items, ...result.items.filter(item => !items.some(old => old.id === item.id))] : result.items; total = result.total; cursor = result.nextCursor
+      if (!items.some(item => item.id === current)) current = items[0]?.id || ''
+      selected = new Set([...selected].filter(id => items.some(item => item.id === id)))
+      render(); void renderDetail(); $('more').hidden = cursor === null
+    } catch (error) { if (revision === requestId) { $('count').textContent = '读取失败'; kit.toast(`读取历史失败：${error.message}`, 'error') } } finally { if (revision === requestId) loading = false }
+  }
+  function render() {
+    const scroll = $('list').scrollTop; observer.disconnect()
+    $('count').textContent = `${total} 条记录${kit.settings.monitoring ? '' : ' · 已暂停监控'}`
+    $('list').innerHTML = items.length ? items.map(item => `<div class="entry${item.id === current ? ' active' : ''}" data-id="${esc(item.id)}" id="entry-${esc(item.id)}" role="option" aria-selected="${item.id === current}"><input class="check shell-only" type="checkbox" aria-label="选择此记录" ${selected.has(item.id)?'checked':''}>${item.type==='image'?`<img data-image="${esc(item.id)}" alt="剪贴板图片缩略图">`:''}<div class="summary"><div class="preview">${item.pinned?'<span class="pin-mark">★ </span>':''}${esc(item.type === 'image' ? `${item.width} × ${item.height} 图片` : item.preview)}</div><div class="meta"><span>${age(item.ts)}</span><span class="source" title="${esc(item.sourceApp?.id || '')}">${esc(item.sourceApp?.name || '未知来源')}</span><span class="size">${item.type==='text'?`${(item.text||item.preview).length} 字符`:item.type==='files'?`${item.files?.length||0} 个文件`:size(item.bytes)}</span></div></div><button class="copy-row" data-copy aria-label="复制此记录">复制</button></div>`).join('') : '<div class="empty">没有匹配的记录<br>复制文本、图片或文件后，会自动出现在这里。</div>'
+    $('list').scrollTop = scroll; $('list').setAttribute('aria-activedescendant', current ? `entry-${current}` : '')
+    $('list').querySelectorAll('[data-image]').forEach(img => { observer.observe(img) })
+    controls()
+  }
+  function controls() { const item = items.find(item => item.id === current); const many = kit.mode === 'shell' && selected.size > 0; $('selected-label').textContent = many ? `已选 ${selected.size} 条` : item ? `${label(item)} · ${age(item.ts)}` : '请选择记录'; for (const id of ['copy','paste','pin','delete']) $(id).disabled = !item && !many; $('paste').disabled = !item || many; $('pin').disabled = !item || many; $('pin').textContent = item?.pinned ? '取消收藏' : '收藏'; $('copy').textContent = many ? '合并复制' : '复制'; $('paste').innerHTML = kit.settings.defaultAction==='copy' ? '复制 <kbd>↵</kbd>' : '回贴 <kbd>↵</kbd>' }
+  async function renderDetail() {
+    const revision = ++detailRevision, item = items.find(item => item.id === current)
+    if (!item) { $('detail').innerHTML = '<div class="empty">选择记录查看内容</div>'; return }
+    const header = `<div class="detail-heading"><span>${label(item)} · ${esc(new Date(item.ts).toLocaleString())}</span><span>${size(item.bytes)}</span></div>`
+    const group = `<div class="detail-actions"><select id="assign-group" aria-label="记录分类"><option value="">未分类</option>${groups.names.map(name => `<option ${groups.entries[item.id]===name?'selected':''}>${esc(name)}</option>`).join('')}</select><button data-detail-copy>复制${item.type==='files'?'文件':''}</button>${item.type==='text'?'<button id="trim-copy">去除首尾空白后复制</button>':''}</div>`
+    if (item.type === 'text') $('detail').innerHTML = header + `<pre class="full-text">${esc(item.text || item.preview)}</pre>` + group
+    else if (item.type === 'files') $('detail').innerHTML = header + (item.files || []).map((file,index) => `<div class="file${file.exists===false?' invalid':''}"><div><b>${esc(file.name)}</b><small>${esc(file.path)}</small>${file.exists===false?'<small>文件已移动或删除</small>':''}</div><button data-reveal="${index}" ${file.exists===false?'disabled':''}>定位</button></div>`).join('') + group + '<button id="copy-paths">复制路径</button>'
+    else { $('detail').innerHTML = header + '<div class="empty">正在读取原图…</div>' + group; if (kit.mode === 'shell') { const data = await run(() => imageData(item.id)); if (revision !== detailRevision) return; $('detail').innerHTML = header + (data ? `<img class="detail-image" alt="完整剪贴板图片" src="${data}">` : '<div class="empty">原图不可用</div>') + group } }
+  }
+  function choose(id, scroll = false) { current = id; render(); void renderDetail(); if (scroll) document.getElementById(`entry-${id}`)?.scrollIntoView({ block:'nearest' }); void saveView() }
+  function move(delta) { if (!items.length) return; const index = items.findIndex(item => item.id === current); choose(items[Math.max(0, Math.min(items.length-1,index+delta))].id,true); if (index + delta >= items.length && cursor !== null && !loading) void refresh(true) }
+  async function copy(id = current, options) { if (!id) return; await api.clipboard.history.copy(id, options); kit.toast('已复制', 'success') }
+  async function primary() { if (!current) return; if (kit.settings.defaultAction === 'copy') return copy(); const result = await api.clipboard.history.paste(current); if (!result.pasted) kit.toast(`已复制，请手动粘贴${result.reason?` · ${result.reason}`:''}`) }
+  async function batchCopy() { const list = kit.mode==='shell' && selected.size ? items.filter(item => selected.has(item.id)) : []; if (!list.length) return copy(); if (list.some(item => item.type==='image')) throw new Error('图片不能合并为文本，请单独复制图片'); await kit.copy(list.map(item => item.type==='files' ? item.files.map(file => file.path).join('\n') : item.text||item.preview).join('\n\n')) }
+  function confirm(title, message, callback) { $('confirm-title').textContent = title; $('confirm-text').textContent = message; confirmation = callback; $('confirm').showModal() }
+  $('confirm-cancel').onclick = () => $('confirm').close(); $('confirm-ok').onclick = () => { $('confirm').close(); void run(confirmation) }
+  $('search').addEventListener('input', event => { kit.setQuery(event.target.value); search(event.target.value) })
+  $('types').onclick = event => { const button = event.target.closest('[data-type]'); if (!button) return; type = button.dataset.type; document.querySelectorAll('[data-type]').forEach(el=>el.classList.toggle('active',el===button)); selected.clear(); void refresh(); void saveView() }
+  $('list').onclick = event => { const row = event.target.closest('[data-id]'); if (!row) return; if (event.target.closest('[data-copy]')) return void run(() => copy(row.dataset.id)); if (event.target.classList.contains('check')) { if (event.target.checked) selected.add(row.dataset.id); else selected.delete(row.dataset.id); controls(); return } choose(row.dataset.id); $('list').focus() }
+  $('list').ondblclick = () => void run(primary)
+  $('list').addEventListener('scroll', () => { if ($('list').scrollTop + $('list').clientHeight >= $('list').scrollHeight - 80 && cursor !== null && !loading) void refresh(true) })
+  $('detail').onclick = event => { if (event.target.closest('[data-detail-copy]')) void run(() => copy()); if (event.target.id==='trim-copy') void run(() => kit.copy((items.find(item=>item.id===current)?.text||'').trim())); if (event.target.id==='copy-paths') void run(() => copy(current,{paths:true})); if (event.target.dataset.reveal!==undefined) void run(() => api.clipboard.history.reveal(current,Number(event.target.dataset.reveal))) }
+  $('detail').onchange = event => { if (event.target.id==='assign-group') { groups.entries[current] = event.target.value; void run(() => kit.save('clipboard.groups.v2',groups)); if (collection) void refresh() } }
+  $('copy').onclick = () => void run(batchCopy); $('paste').onclick = () => void run(primary)
+  $('pin').onclick = () => void run(async () => { await api.clipboard.history.togglePin(current); await refresh() })
+  $('delete').onclick = () => { const ids = kit.mode==='shell' && selected.size ? [...selected] : [current].filter(Boolean); confirm('删除历史记录',`确定删除 ${ids.length} 条记录？文件原件不会被删除。`, async () => { for (const id of ids) await api.clipboard.history.remove(id); selected.clear(); await refresh(); kit.toast('已删除记录') }) }
+  $('select-all').onclick = () => { selected = selected.size===items.length ? new Set() : new Set(items.map(item=>item.id)); render() }
+  $('refresh').onclick = () => void refresh(); $('more').onclick = () => void refresh(true)
+  $('manage').onclick = () => { $('excluded').value = kit.settings.excludedApps; $('collections').value = groups.names.join('\n'); $('manager').showModal() }
+  function groupOptions() { $('collection-filter').innerHTML = '<option value="">所有分类</option>'+groups.names.map(name=>`<option>${esc(name)}</option>`).join(''); if (!groups.names.includes(collection)) collection=''; $('collection-filter').value=collection }
+  $('collection-filter').onchange = event => { collection=event.target.value; selected.clear(); void refresh(); void saveView() }
+  $('save-management').onclick = () => void run(async () => { await api.settings.set('excludedApps',$('excluded').value); kit.settings.excludedApps=$('excluded').value; groups.names=[...new Set($('collections').value.split('\n').map(value=>value.trim()).filter(Boolean))].slice(0,30); await kit.save('clipboard.groups.v2',groups); groupOptions(); $('manager').close(); await refresh(); kit.toast('管理设置已保存') })
+  $('clear').onclick = () => confirm('清理历史', '清理所有未收藏的历史记录，保留收藏和原文件。此操作不可撤销。', async()=>{await api.clipboard.history.clear(); await refresh(); kit.toast('历史已清理')})
+  async function capabilities() { const value = await api.clipboard.capabilities(); $('capability').hidden=value.paste; $('capability').querySelector('span').textContent = value.paste?'': value.reason || '回贴需要系统辅助功能授权，复制始终可用'; $('authorize').hidden=!value.permissionRequired }
+  $('authorize').onclick = () => void run(async()=>{await api.clipboard.requestPermission(); await capabilities()})
+  document.addEventListener('keydown',event=>{if(event.isComposing||event.defaultPrevented||document.querySelector('dialog[open]')||event.target.closest('input,textarea,select'))return; if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();move(event.key==='ArrowDown'?1:-1)}if(event.key==='Enter'){event.preventDefault();void run(primary)}if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='c'){event.preventDefault();void run(batchCopy)}if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();$('delete').click()}})
+  kit.onSettings(()=>{document.documentElement.dataset.density=kit.settings.density;controls()}); kit.onMode(()=>{controls();void renderDetail()})
+  const release = api?.clipboard?.history?.onChange?.(()=>void refresh()); api?.onDestroy?.(()=>{release?.();observer.disconnect();clearTimeout(queryTimer);images.clear()}); api?.onEnter?.(async event=>{await initialized;if(event.code==='manage')$('manage').click(); void refresh();void run(capabilities)})
+  api?.onBeforeClose?.(async()=>{await initialized;clearTimeout(queryTimer);await saveView()})
+  initialized = run(async()=>{await kit.ready;groups=await kit.load('clipboard.groups.v2',{names:[],entries:{}});const view=await kit.load('clipboard.view.v2',{});if(!touched){query=view.query||'';type=view.type||'all';current=view.current||'';collection=view.collection||'';}groupOptions();$('search').value=query;kit.setQuery(query);document.querySelectorAll('[data-type]').forEach(el=>el.classList.toggle('active',el.dataset.type===type));await refresh();$('list').scrollTop=view.scroll||0;await capabilities()})
+})()

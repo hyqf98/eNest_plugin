@@ -1,0 +1,12 @@
+/* Shared containment; individual plugins retain their visual language. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { min-width: 0; min-height: 0; max-width: 100%; }
+img, video, canvas { max-width: 100%; }
+input, textarea, select { min-width: 0; }
+dialog { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+@media (max-width: 640px) {
+  .app-head, .app-header, .toolbar, .section-head { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

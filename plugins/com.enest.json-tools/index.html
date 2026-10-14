@@ -2,519 +2,98 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>JSON 工具</title>
-    <style>
-      /* ============ 0. Token 体系 ============
-         中性色（bg/surface/text/border…）跟随壳子 themeAware 注入的同名 Token，
-         本块仅为注入前的本地回退值（取自壳子暗色预设，禁纯黑）。
-         --brand 为插件身份琥珀 #f5a524：仅用于主操作描边、聚焦反馈与大小徽标；
-         独立命名以免被壳子 --accent Token 覆盖。禁装饰性渐变。 */
-      :root {
-        --bg: #17191b;
-        --surface: #202326;
-        --surface-2: #292d31;
-        --surface-3: #33383d;
-        --border: rgba(242, 243, 243, 0.09);
-        --border-strong: rgba(242, 243, 243, 0.16);
-        --text: #f2f3f3;
-        --text-2: #adb3b8;
-        --text-3: #7e878f;
-        --ok: #77bfa4;
-        --danger: #e79589;
-        --brand: #f5a524;      /* 唯一强调色：琥珀 */
-        --brand-ink: #221602;  /* 琥珀上的文字（深棕，非纯黑） */
 
-        --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
-        --r-lg: 12px; /* 面板 */
-        --r-md: 9px;  /* 按钮 */
-        --r-sm: 7px;  /* kbd / 徽标 */
-
-        --ease: cubic-bezier(0.32, 0.72, 0, 1);
-        --t-fast: 140ms;
-        --t-mid: 180ms;
-
-        /* 8pt 基准间距 */
-        --s-1: 4px;
-        --s-2: 8px;
-        --s-3: 12px;
-        --s-4: 16px;
-        --s-5: 20px;
-
-        /* 形态因子（窄形态为默认，容器查询升宽形态） */
-        --shell-pad: 12px;
-        --pane-gap: 8px;
-        --ta-min-h: 140px;
-      }
-
-      * { box-sizing: border-box; }
-      html { scrollbar-width: thin; }
-      html[data-theme] ::-webkit-scrollbar { width: 6px; height: 6px; }
-      html[data-theme] ::-webkit-scrollbar-thumb {
-        background: color-mix(in srgb, var(--text-3) 36%, transparent);
-        border-radius: 999px;
-      }
-      html[data-theme] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text-3) 56%, transparent); }
-      html[data-theme] ::-webkit-scrollbar-track { background: transparent; }
-
-      body {
-        margin: 0;
-        font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
-        font-size: 14px;
-        line-height: 1.6;
-        color: var(--text);
-        background: var(--bg);
-        color-scheme: dark;
-        -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
-      }
-      body[data-theme="light"], html[data-theme="light"] body { color-scheme: light; }
-
-      ::selection { background: color-mix(in srgb, var(--brand) 30%, transparent); }
-
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
-      }
-
-      .app {
-        display: grid;
-        grid-template-rows: auto auto minmax(0, 1fr) auto;
-        gap: var(--s-2);
-        height: 100vh;
-        height: 100dvh;
-        padding: var(--shell-pad);
-      }
-
-      /* ============ 1. Header：标题 + 输入大小徽标 + 快捷键 kbd ============ */
-      header {
-        display: flex;
-        align-items: center;
-        gap: var(--s-2);
-        min-height: 26px;
-        padding: 0 2px;
-      }
-      h1 {
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: var(--s-2);
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        white-space: nowrap;
-      }
-      h1 svg { flex: none; color: var(--brand); }
-      .grow { flex: 1; min-width: 8px; }
-
-      /* 输入大小徽标：等宽 tabular-nums，空输入时收起 */
-      #meta:not(:empty) {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        font-family: var(--mono);
-        font-size: 11px;
-        line-height: 1.5;
-        font-variant-numeric: tabular-nums;
-        color: var(--brand);
-        background: color-mix(in srgb, var(--brand) 10%, transparent);
-        border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
-        border-radius: var(--r-sm);
-        padding: 1px 7px;
-        white-space: nowrap;
-      }
-      #meta:not(:empty)::before {
-        content: "";
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: var(--brand);
-      }
-
-      kbd {
-        font-family: var(--mono);
-        font-size: 11px;
-        line-height: 1;
-        color: var(--text-3);
-        background: color-mix(in srgb, var(--surface-2) 70%, transparent);
-        border: 1px solid var(--border);
-        border-radius: 4px;
-        padding: 3px 5px;
-        white-space: nowrap;
-      }
-      .keys { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-
-      /* ============ 2. 工具条：分组 + 1px 竖分隔 ============ */
-      .bar {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: var(--s-2);
-        padding: 6px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--r-lg);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.025),
-          0 1px 3px rgba(8, 10, 12, 0.16);
-      }
-      .group { display: inline-flex; align-items: center; gap: 6px; }
-      .sep {
-        width: 1px;
-        height: 18px;
-        margin: 0 2px;
-        flex: none;
-        background: var(--border);
-      }
-
-      .btn {
-        appearance: none;
-        -webkit-appearance: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        flex: none;
-        font: inherit;
-        font-size: 12px;
-        font-weight: 500;
-        line-height: 1;
-        color: var(--text-2);
-        background: transparent;
-        border: 1px solid var(--border);
-        border-radius: var(--r-md);
-        padding: 7px 11px;
-        cursor: pointer;
-        transition:
-          color var(--t-fast) var(--ease),
-          background-color var(--t-fast) var(--ease),
-          border-color var(--t-fast) var(--ease),
-          box-shadow var(--t-fast) var(--ease),
-          transform var(--t-fast) var(--ease);
-      }
-      .btn svg { flex: none; }
-      .btn:hover { color: var(--text); background: var(--surface-2); border-color: var(--border-strong); }
-      .btn:active { transform: translateY(0.5px) scale(0.985); }
-      .btn:focus-visible {
-        outline: none;
-        border-color: color-mix(in srgb, var(--brand) 40%, transparent);
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
-      }
-
-      /* 主操作（格式化 2）：accent 描边幽灵态 */
-      .btn.primary {
-        color: var(--brand);
-        border-color: color-mix(in srgb, var(--brand) 38%, transparent);
-        background: color-mix(in srgb, var(--brand) 7%, transparent);
-        font-weight: 600;
-      }
-      .btn.primary:hover {
-        color: var(--brand);
-        border-color: color-mix(in srgb, var(--brand) 58%, transparent);
-        background: color-mix(in srgb, var(--brand) 13%, transparent);
-      }
-      .btn.primary:active { transform: translateY(1px); }
-
-      /* 危险操作（清空）：淡红 */
-      .btn.danger { color: var(--danger); }
-      .btn.danger:hover {
-        color: var(--danger);
-        border-color: color-mix(in srgb, var(--danger) 38%, transparent);
-        background: color-mix(in srgb, var(--danger) 8%, transparent);
-      }
-
-      /* ============ 3. 双栏：井式 textarea ============ */
-      .panes {
-        display: grid;
-        grid-template-columns: 1fr;
-        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-        gap: var(--pane-gap);
-        min-height: 0;
-      }
-      .pane {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        min-width: 0;
-        background: color-mix(in srgb, var(--bg) 55%, var(--surface));
-        border: 1px solid var(--border);
-        border-radius: var(--r-lg);
-        /* 井式底：内描边高光 + 内阴影下沉 */
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.02),
-          inset 0 2px 6px rgba(8, 10, 12, 0.18);
-        overflow: hidden;
-        transition: border-color var(--t-mid) var(--ease), box-shadow var(--t-mid) var(--ease);
-      }
-      /* focus 描边亮起 + 3px 外发光 */
-      .pane:focus-within {
-        border-color: color-mix(in srgb, var(--brand) 42%, transparent);
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.02),
-          inset 0 2px 6px rgba(8, 10, 12, 0.18),
-          0 0 0 3px color-mix(in srgb, var(--brand) 10%, transparent);
-      }
-
-      textarea {
-        flex: 1 1 auto;
-        min-height: var(--ta-min-h);
-        width: 100%;
-        border: 0;
-        resize: none;
-        padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
-        font-family: var(--mono);
-        font-size: 13px;
-        line-height: 1.6;
-        tab-size: 2;
-        background: transparent;
-        color: var(--text);
-        outline: none;
-        white-space: pre;
-        overflow-wrap: normal;
-        overflow: auto;
-      }
-      textarea::placeholder { color: var(--text-3); }
-      textarea:focus-visible { outline: none; }
-
-      /* 行号感留白：输入区左侧细纵线刻度 */
-      .pane.taller::before {
-        content: "";
-        position: absolute;
-        left: 10px;
-        top: var(--s-3);
-        bottom: var(--s-3);
-        width: 1px;
-        background: repeating-linear-gradient(
-          to bottom,
-          var(--border) 0,
-          var(--border) 12px,
-          transparent 12px,
-          transparent 20.8px
-        );
-        pointer-events: none;
-      }
-      .pane.taller textarea { padding-left: 24px; }
-
-      /* 校验错误条：输入区下方红条 */
-      #error {
-        display: none;
-        margin: 0 var(--s-2) var(--s-2);
-        padding: 7px 10px;
-        font-family: var(--mono);
-        font-size: 11.5px;
-        line-height: 1.55;
-        color: var(--danger);
-        background: color-mix(in srgb, var(--danger) 10%, transparent);
-        border-left: 3px solid var(--danger);
-        border-radius: 0 var(--r-sm) var(--r-sm) 0;
-        white-space: pre-wrap;
-        word-break: break-all;
-      }
-
-      /* ============ 4. 统计卡（节点 / 深度 / 键数）+ Footer ============ */
-      #stats {
-        display: none;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: var(--s-2);
-        flex: none;
-      }
-      #stats.show { display: grid; }
-      .stat-card {
-        padding: 8px 12px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--r-md);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
-      }
-      .stat-card .num {
-        display: block;
-        font-family: var(--mono);
-        font-size: 17px;
-        line-height: 1.3;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        color: var(--ok);
-      }
-      .stat-card .label {
-        display: block;
-        margin-top: 1px;
-        font-size: 11px;
-        color: var(--text-3);
-        letter-spacing: 0.02em;
-      }
-      .stat-card .sub {
-        font-size: 11px;
-        color: var(--text-3);
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-      }
-      .stat-card:nth-child(2) .num { color: var(--text); }
-      .stat-card:nth-child(3) .num { color: var(--text); }
-
-      footer {
-        display: flex;
-        align-items: center;
-        gap: var(--s-2);
-        min-height: 24px;
-        padding: 0 2px;
-        font-size: 12px;
-        color: var(--text-3);
-      }
-      footer .grow { min-width: 0; }
-      #stat-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-      /* ============ 5. 双形态响应式（容器查询优先，viewport 兜底） ============
-         窄容器（Quick 呼出 ≤740px，默认形态）：上下堆叠、工具条可折行
-         宽容器（主窗 >740px）：左右双栏、统计卡并入 footer 行 */
-
-      @supports (container-type: inline-size) {
-        .app { container-type: inline-size; container-name: app; }
-
-        @container app (min-width: 741px) {
-          .app { --shell-pad: 16px; --pane-gap: 12px; }
-          .panes {
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: minmax(0, 1fr);
-          }
-          /* 宽形态：统计卡与 footer 提示同占一行（横向小卡） */
-          #stats {
-            display: none;
-            grid-template-columns: none;
-            grid-auto-flow: column;
-            grid-auto-columns: max-content;
-            gap: var(--s-2);
-          }
-          #stats.show { display: grid; }
-          .stat-card { padding: 4px 12px; }
-          .stat-card .num { font-size: 15px; display: inline; margin-right: 6px; }
-          .stat-card .label { display: inline; }
-          .stat-card .sub { margin-left: 6px; }
-          .main-row { display: flex; align-items: center; gap: var(--s-2); }
-        }
-      }
-
-      /* 无容器查询兜底（旧内核）：断点与容器断点一致 */
-      @media (min-width: 741px) {
-        .app { --shell-pad: 16px; --pane-gap: 12px; }
-        .panes { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr); }
-        #stats {
-          display: none;
-          grid-template-columns: none;
-          grid-auto-flow: column;
-          grid-auto-columns: max-content;
-          gap: var(--s-2);
-        }
-        #stats.show { display: grid; }
-        .stat-card { padding: 4px 12px; }
-        .stat-card .num { font-size: 15px; display: inline; margin-right: 6px; }
-        .stat-card .label { display: inline; }
-        .stat-card .sub { margin-left: 6px; }
-        .main-row { display: flex; align-items: center; gap: var(--s-2); }
-      }
-    </style>
+    <link rel="stylesheet" href="src/css/main.css" />
   </head>
   <body>
-    <div class="app">
+    <main class="json-workspace">
       <header>
-        <h1>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M9 4.5H6.5A2.5 2.5 0 004 7v10a2.5 2.5 0 002.5 2.5H9M15 4.5h2.5A2.5 2.5 0 0120 7v10a2.5 2.5 0 01-2.5 2.5H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M11 8.5l-2 7M15 8.5l-2 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          JSON 工具
-        </h1>
-        <span class="grow"></span>
-        <span class="keys"><kbd>Ctrl+Enter</kbd>格式化</span>
-        <span id="meta"></span>
+        <h1>JSON 工具</h1>
+        <span id="stats">保留数字原始精度</span>
+        <div class="quick-switch">
+          <button id="show-source" aria-pressed="true">原文</button
+          ><button id="show-result" aria-pressed="false">结果</button>
+        </div>
       </header>
-
-      <div class="bar" role="toolbar" aria-label="JSON 操作">
-        <div class="group">
-          <button class="btn primary" id="btn-fmt2" title="格式化（缩进 2）">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 6h16M4 12h10M4 18h13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            格式化 2
-          </button>
-          <button class="btn" id="btn-fmt4" title="格式化（缩进 4）">格式化 4</button>
-          <button class="btn" id="btn-min" title="压缩为单行">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 6h16M6.5 12h11M9 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            压缩
-          </button>
-        </div>
-        <span class="sep"></span>
-        <div class="group">
-          <button class="btn" id="btn-check" title="校验并统计">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4.5 12.5l4.5 4.5L19.5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            校验
-          </button>
-        </div>
-        <span class="sep"></span>
-        <div class="group">
-          <button class="btn" id="btn-esc" title="转义为 JSON 字符串内容">转义</button>
-          <button class="btn" id="btn-unesc" title="反转义回原文">反转义</button>
-        </div>
-        <span class="grow"></span>
-        <div class="group">
-          <button class="btn" id="btn-paste" title="粘贴剪贴板并格式化">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M9 4.5h6M9 4.5a1.5 1.5 0 00-1.5 1.5H7A1.5 1.5 0 005.5 7.5v11A1.5 1.5 0 007 20h10a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0017 6h-.5A1.5 1.5 0 0015 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            粘贴
-          </button>
-          <button class="btn" id="btn-copy" title="复制结果">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="9" y="9" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
-              <path d="M5 15h-.5A1.5 1.5 0 013 13.5v-9A1.5 1.5 0 014.5 3h9A1.5 1.5 0 0115 4.5V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-            复制
-          </button>
-          <button class="btn danger" id="btn-clear" title="清空输入与结果">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M5 6.5h14M9.5 6V4.8A1.3 1.3 0 0110.8 3.5h2.4A1.3 1.3 0 0114.5 4.8V6M7 6.5l.8 12.2A1.5 1.5 0 009.3 20h5.4a1.5 1.5 0 001.5-1.3L17 6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            清空
-          </button>
-        </div>
-      </div>
-
-      <div class="panes">
-        <section class="pane taller">
-          <textarea id="input" spellcheck="false" placeholder="输入或粘贴 JSON / 文本…" aria-label="输入"></textarea>
-          <div id="error" role="alert"></div>
-        </section>
-        <section class="pane taller">
-          <textarea id="output" spellcheck="false" readonly placeholder="结果将显示在这里" aria-label="结果"></textarea>
-        </section>
-      </div>
-
-      <div class="main-row">
-        <div id="stats">
-          <div class="stat-card">
-            <span class="num" id="st-nodes">0</span>
-            <span class="label">节点</span>
-            <span class="sub" id="st-root"></span>
+      <nav class="transforms" aria-label="JSON 操作">
+        <button data-action="format">格式化</button
+        ><select id="indent" aria-label="缩进">
+          <option value="2">2 空格</option>
+          <option value="4">4 空格</option></select
+        ><button data-action="minify">压缩</button
+        ><button data-action="check">校验</button
+        ><button data-action="sort">键排序</button
+        ><button data-action="escape">转义</button
+        ><button data-action="unescape">反转义</button
+        ><button id="paste">粘贴</button><button id="clear">清空</button>
+      </nav>
+      <div id="error" role="alert"></div>
+      <section class="editors">
+        <div class="source-pane">
+          <div class="pane-head">
+            <label for="input">原文</label><span id="input-size"></span>
           </div>
-          <div class="stat-card">
-            <span class="num" id="st-depth">0</span>
-            <span class="label">最大深度</span>
+          <textarea
+            id="input"
+            spellcheck="false"
+            placeholder='{"message": "粘贴 JSON 开始"}'
+          ></textarea>
+        </div>
+        <div class="result-pane">
+          <div class="pane-head">
+            <nav>
+              <button data-view="text" aria-pressed="true">文本</button
+              ><button data-view="tree" aria-pressed="false">树</button
+              ><button data-view="diff" aria-pressed="false">差异</button>
+            </nav>
+            <button id="copy">复制</button><button id="refill">回填</button
+            ><button id="save">导出</button>
           </div>
-          <div class="stat-card">
-            <span class="num" id="st-keys">0</span>
-            <span class="label">键</span>
+          <div class="view text-view" data-content="text">
+            <textarea
+              id="output"
+              readonly
+              spellcheck="false"
+              aria-label="JSON 结果"
+              placeholder="格式化结果显示在这里"
+            ></textarea>
+          </div>
+          <div class="view tree-view" data-content="tree" hidden>
+            <div class="tree-toolbar">
+              <input
+                id="search"
+                placeholder="搜索键、值或路径"
+                aria-label="搜索 JSON 树"
+              /><span id="search-count"></span>
+            </div>
+            <div id="tree"></div>
+          </div>
+          <div class="view diff-view" data-content="diff" hidden>
+            <textarea
+              id="compare"
+              spellcheck="false"
+              aria-label="比较 JSON"
+              placeholder="粘贴另一份 JSON，与左侧原文比较"
+            ></textarea>
+            <div class="diff-actions">
+              <button id="compare-run">比较</button
+              ><button id="diff-copy">复制差异</button
+              ><span>按路径比较；数字按原始 token 比较</span>
+            </div>
+            <div id="diff-results"></div>
           </div>
         </div>
-        <footer>
-          <span id="stat-hint" class="grow">Ctrl+1 压缩 · Ctrl+2 校验 · Ctrl+3 转义</span>
-          <span id="stat-size" style="font-variant-numeric: tabular-nums"></span>
-        </footer>
-      </div>
-    </div>
-    <script src="./assets/js/main.js"></script>
+      </section>
+      <footer>
+        <span id="result-size">离线处理 · 最大 8 MB</span
+        ><span>⌘/Ctrl + Shift + Enter 格式化</span>
+      </footer>
+    </main>
+
+
+    <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

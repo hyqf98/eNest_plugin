@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>图片工具箱</title>
+
+  <link rel="stylesheet" href="./src/css/main.css" />
+</head>
+<body>
+  <main class="image-app">
+    <header class="app-head">
+      <div><span class="eyebrow">图片处理</span><h1>图片工具箱</h1></div>
+      <span id="status" role="status">添加图片开始处理</span>
+      <button id="add-files" class="primary">添加图片</button>
+      <button id="from-clipboard">从剪贴板</button>
+      <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
+    </header>
+
+    <div class="drop-hint" id="drop-hint" aria-hidden="true"><span>松开以导入图片</span></div>
+
+    <section id="empty-state" class="empty-state">
+      <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="拖拽或点击添加图片">
+        <div class="drop-mark" aria-hidden="true"></div>
+        <h2>把图片拖到这里</h2>
+        <p>支持 PNG、JPEG、WebP，可多选；也可从剪贴板粘贴截图</p>
+        <div class="empty-actions">
+          <button id="empty-add" class="primary">选择文件</button>
+          <button id="empty-clipboard">读剪贴板</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="work-layout" id="work-layout" hidden>
+      <section class="queue-panel" aria-label="图片队列">
+        <div class="section-head">
+          <h2>队列</h2><span id="queue-count" class="pk-muted">0 张</span>
+          <button id="clear-queue" class="text-button">清空</button>
+        </div>
+        <div id="thumb-grid" class="thumb-grid" aria-label="图片缩略图"></div>
+        <div class="bulk-bar">
+          <span class="bulk-label">批量操作</span>
+          <div class="bulk-actions">
+            <button id="bulk-shrink" disabled>批量压缩</button>
+            <button id="bulk-convert" disabled>转 WebP</button>
+            <button id="export-all" disabled>全部另存</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="editor-panel" aria-label="操作面板" id="editor-panel">
+        <div class="panel-empty" id="panel-empty"><p>在队列中选择一张图片开始编辑</p></div>
+        <div id="panel-body" hidden>
+          <div class="preview-stage">
+            <img id="preview" alt="当前图片预览" />
+            <div class="compare-row">
+              <span id="file-meta" class="pk-muted pk-mono"></span>
+              <span id="compare-meta" class="pk-mono" hidden></span>
+            </div>
+          </div>
+
+          <nav class="tabs" aria-label="工具页">
+            <button data-tab="compress" aria-pressed="true">压缩</button>
+            <button data-tab="convert">格式</button>
+            <button data-tab="resize">缩放</button>
+            <button data-tab="transform">旋转裁剪</button>
+            <button data-tab="watermark">水印</button>
+            <button data-tab="exif">EXIF</button>
+            <button data-tab="palette">色板</button>
+          </nav>
+
+          <section id="tab-compress" class="tool-tab" aria-label="压缩">
+            <div class="mode-seg" role="radiogroup" aria-label="压缩模式">
+              <button data-mode="target" aria-pressed="true">目标体积</button>
+              <button data-mode="quality" aria-pressed="false">固定质量</button>
+            </div>
+            <label class="field" id="target-field"><span class="field-label">目标体积上限 <output id="target-kb">200</output> KB</span><input id="target-range" type="range" min="20" max="2048" step="20" value="200" /></label>
+            <label class="field" id="quality-field" hidden><span class="field-label">质量 <output id="quality-value">75</output>%</span><input id="quality-range" type="range" min="5" max="100" step="5" value="75" /></label>
+            <div class="action-row">
+              <button id="run-compress" class="primary">开始压缩</button>
+              <span id="compress-progress" class="pk-muted" role="status"></span>
+            </div>
+            <p class="error" id="compress-error" role="alert" hidden></p>
+          </section>
+
+          <section id="tab-convert" class="tool-tab" hidden aria-label="格式转换">
+            <span class="field-label">目标格式</span>
+            <div class="mode-seg" role="radiogroup" aria-label="目标格式">
+              <button data-format="image/png" aria-pressed="false">PNG</button>
+              <button data-format="image/jpeg" aria-pressed="true">JPEG</button>
+              <button data-format="image/webp" aria-pressed="false">WebP</button>
+            </div>
+            <label class="field"><span class="field-label">质量（JPEG / WebP）<output id="convert-quality-value">90</output>%</span><input id="convert-quality" type="range" min="5" max="100" step="5" value="90" /></label>
+            <div class="action-row"><button id="run-convert" class="primary">转换格式</button></div>
+          </section>
+
+          <section id="tab-resize" class="tool-tab" hidden aria-label="批量缩放">
+            <div class="mode-seg" role="radiogroup" aria-label="缩放方式">
+              <button data-resize="long" aria-pressed="true">最长边</button>
+              <button data-resize="percent" aria-pressed="false">百分比</button>
+            </div>
+            <label class="field"><span class="field-label"><span id="resize-label">最长边</span> <output id="resize-value">1280</output> px</span><input id="resize-range" type="range" min="16" max="4000" step="16" value="1280" /></label>
+            <div class="action-row"><button id="run-resize" class="primary">应用缩放</button><button id="preview-resize">预览尺寸</button></div>
+            <p id="resize-preview" class="helper pk-mono"></p>
+          </section>
+
+          <section id="tab-transform" class="tool-tab" hidden aria-label="旋转与裁剪">
+            <div class="action-row">
+              <button id="rotate-cw" title="顺时针 90°">旋转 90°</button>
+              <button id="flip-x" title="水平翻转">翻转 ⇄</button>
+              <button id="flip-y" title="垂直翻转">翻转 ⇅</button>
+              <button id="reset-transform" class="text-button">复位</button>
+            </div>
+            <span class="field-label">裁剪：在预览图上拖出框选区域（松开完成）</span>
+            <div class="crop-stage" id="crop-stage">
+              <img id="crop-image" alt="裁剪预览" />
+              <div id="crop-box" class="crop-box" hidden></div>
+            </div>
+            <div class="action-row">
+              <span id="crop-info" class="pk-muted pk-mono">未框选</span>
+              <button id="apply-crop" disabled>应用裁剪</button>
+            </div>
+          </section>
+
+          <section id="tab-watermark" class="tool-tab" hidden aria-label="文字水印">
+            <label class="field"><span class="field-label">水印文字</span><input id="wm-text" maxlength="60" placeholder="例如：@eNest" /></label>
+            <div class="grid-2">
+              <label class="field"><span class="field-label">透明度 <output id="wm-opacity-value">80</output>%</span><input id="wm-opacity" type="range" min="5" max="100" step="5" value="80" /></label>
+              <label class="field"><span class="field-label">字号 <output id="wm-size-value">28</output> px</span><input id="wm-size" type="range" min="10" max="200" step="2" value="28" /></label>
+            </div>
+            <span class="field-label">位置（九宫格）</span>
+            <div id="wm-grid" class="wm-grid" role="radiogroup" aria-label="水印位置"></div>
+            <div class="action-row"><button id="wm-toggle" aria-pressed="false">叠加预览</button><button id="wm-apply" class="primary">写入水印</button></div>
+          </section>
+
+          <section id="tab-exif" class="tool-tab" hidden aria-label="EXIF 元数据">
+            <div class="action-row"><button id="exif-read">读取 EXIF</button><button id="exif-export" class="primary">清除元数据导出</button></div>
+            <div id="exif-list" class="exif-list" aria-live="polite"></div>
+            <p class="helper">清除元数据导出会重绘像素，剥离全部 EXIF / GPS 信息。</p>
+          </section>
+
+          <section id="tab-palette" class="tool-tab" hidden aria-label="色板提取">
+            <div class="action-row"><button id="palette-run" class="primary">提取主色</button></div>
+            <div id="palette-list" class="palette-list" aria-live="polite"></div>
+          </section>
+
+          <div class="result-bar" id="result-bar" hidden>
+            <span id="result-badge" class="badge ok" hidden></span>
+            <span id="result-meta" class="pk-muted pk-mono"></span>
+            <span class="result-actions">
+              <button id="use-result" disabled>替换当前图</button>
+              <button id="save-result" disabled>另存</button>
+              <button id="pin-result" disabled>贴图</button>
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer><span id="footer-hint"></span><button class="text-button" data-open-settings>图片工具箱设置</button></footer>
+  </main>
+
+
+
+  <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

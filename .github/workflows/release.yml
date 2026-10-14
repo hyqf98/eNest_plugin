@@ -25,25 +25,31 @@ jobs:
           node-version: 20
 
       - name: Install deps
-        run: npm install
+        run: npm ci
 
-      - name: Validate plugin manifests
-        run: node scripts/validate-manifests.mjs
+      - name: Validate source contracts
+        run: npm run validate
 
-      - name: Test market metadata and release assets
-        run: node --test scripts/market-assets.test.mjs
+      - name: Unit and package contract tests
+        run: npm test
 
-      - name: Build registry
-        run: node scripts/build-registry.mjs
+      - name: Build every plugin
+        run: npm run build
 
-      - name: Pack all plugins
-        run: |
-          mkdir -p dist
-          for d in plugins/*/; do
-            id=$(basename "$d")
-            [ -f "$d/plugin.json" ] || continue
-            node scripts/pack-plugin.mjs "$id" dist
-          done
+      - name: Validate every distribution
+        run: npm run validate:dist
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify every plugin under production CSP
+        run: npm run capture:market -- --check
+
+      - name: Pack validated distributions
+        run: npm run pack -- --no-build
+
+      - name: Build archive-backed registry
+        run: npm run registry
 
       - name: Prepare registry and media attachments
         env:
@@ -61,5 +67,14 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            dist/*
+            dist/*.enestplugin
+            dist/*.tgz
+            dist/*.sha256
+            dist/*.svg
+            dist/*.png
+            dist/*.jpg
+            dist/*.jpeg
+            dist/*.webp
+            dist/*.md
+            dist/registry.json
           generate_release_notes: true

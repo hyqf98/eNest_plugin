@@ -2,468 +2,60 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>编解码</title>
-    <style>
-      /* ============================================================
-         编解码 · form panel 双形态
-         - ≤740px（Quick 呼出）：上下堆叠，输入 → 操作行横排 → 输出
-         - >740px（主窗）：双栏 textarea + 中间竖排操作列（CSS 容器查询）
-         - 主题 token 兜底值与壳子 presets 对齐，themeAware 注入后自动换肤
-         ============================================================ */
-      :root {
-        color-scheme: dark;
-        /* 主题 token 兜底（themeAware 注入会覆盖这些值） */
-        --bg: #17191b;
-        --surface: #202326;
-        --surface-2: #292d31;
-        --surface-3: #33383d;
-        --border: rgba(242, 243, 243, 0.09);
-        --border-strong: rgba(242, 243, 243, 0.16);
-        --text: #f2f3f3;
-        --text-2: #adb3b8;
-        --text-3: #7e878f;
-        --danger: #e79589;
 
-        /* 派生层（跟 accent 走，主题包换 accent 时同步换肤） */
-        --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
-        --danger-soft: color-mix(in srgb, var(--danger) 10%, transparent);
-        --ring: color-mix(in srgb, var(--accent) 70%, transparent);
-        --well: color-mix(in srgb, var(--bg) 84%, #000);          /* 井式深底 */
-        --panel: color-mix(in srgb, var(--surface) 50%, var(--bg));
 
-        --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
-        --ui: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI",
-              "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-        --ease: cubic-bezier(0.2, 0.7, 0.25, 1);
-      }
-      * { box-sizing: border-box; }
-      html, body { height: 100%; }
-      body {
-        margin: 0;
-        font-family: var(--ui);
-        background: var(--bg);
-        color: var(--text);
-        -webkit-font-smoothing: antialiased;
-        overflow: hidden;
-      }
-      ::selection { background: var(--accent-soft); }
-
-      .app {
-        container-type: inline-size;
-        height: 100%;
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-      }
-
-      /* —— 面板标签行：标题 + 模式分段 + 方向标签 + kbd 提示 + meta —— */
-      header {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        padding: 10px 16px;
-        border-bottom: 1px solid var(--border);
-        background: var(--panel);
-        min-height: 52px;
-      }
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--accent);
-      }
-      h1 {
-        margin: 0;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-      }
-      .dir-chip {
-        font-size: 11px;
-        font-weight: 500;
-        color: var(--text-2);
-        background: var(--well);
-        border-radius: 999px;
-        padding: 3px 10px;
-        box-shadow: inset 0 0 0 1px var(--border);
-        white-space: nowrap;
-        transition: color 0.14s var(--ease), box-shadow 0.14s var(--ease);
-      }
-      .dir-chip b { color: var(--text); font-weight: 600; }
-      .head-meta {
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 11px;
-        color: var(--text-3);
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        min-width: 0;
-      }
-      .hint kbd {
-        font-family: var(--ui);
-        font-size: 10px;
-        color: var(--text-2);
-        background: var(--surface-2);
-        border-radius: 4px;
-        padding: 1px 5px;
-        box-shadow: inset 0 0 0 1px var(--border), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
-      }
-
-      /* —— 模式分段控件：选中胶囊底 + 描边亮起 —— */
-      .segmented {
-        display: inline-flex;
-        gap: 2px;
-        padding: 2px;
-        border-radius: 10px;
-        background: var(--well);
-        box-shadow: inset 0 0 0 1px var(--border), inset 0 1px 2px rgba(8, 10, 12, 0.35);
-      }
-      .segmented button {
-        appearance: none;
-        border: 0;
-        background: transparent;
-        color: var(--text-2);
-        padding: 5px 12px;
-        font-family: var(--ui);
-        font-size: 12px;
-        font-weight: 500;
-        border-radius: 8px;
-        cursor: pointer;
-        box-shadow: inset 0 0 0 1px transparent;
-        transition: color 0.14s var(--ease), background 0.14s var(--ease),
-                    box-shadow 0.14s var(--ease);
-      }
-      .segmented button:hover { color: var(--text); }
-      .segmented button.active {
-        background: var(--accent-soft);
-        color: var(--text);
-        font-weight: 600;
-        box-shadow: inset 0 0 0 1px var(--ring);
-      }
-      .segmented button:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-
-      /* —— 主体：窄形态默认（上下堆叠） —— */
-      .stage {
-        display: grid;
-        grid-template-rows: minmax(120px, 1fr) auto minmax(120px, 1fr);
-        min-height: 0;
-        padding: 12px;
-        gap: 12px;
-        overflow-y: auto;
-        scrollbar-width: thin;
-        scrollbar-color: var(--surface-3) transparent;
-      }
-
-      /* —— 窗格：井式深底（内描边 + 顶部内阴影） —— */
-      .pane {
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        border-radius: 12px;
-        background: var(--well);
-        box-shadow:
-          inset 0 0 0 1px var(--border),
-          inset 0 1px 2px rgba(8, 10, 12, 0.4),
-          inset 0 -1px 0 rgba(255, 255, 255, 0.03);
-        transition: box-shadow 0.14s var(--ease);
-      }
-      .pane:focus-within {
-        box-shadow:
-          inset 0 0 0 1px var(--ring),
-          inset 0 1px 2px rgba(8, 10, 12, 0.4),
-          inset 0 -1px 0 rgba(255, 255, 255, 0.03),
-          0 0 0 3px var(--accent-soft);
-      }
-      .pane-head {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 8px 6px 12px;
-        border-bottom: 1px solid var(--border);
-      }
-      .pane-head .head-label {
-        display: flex;
-        align-items: baseline;
-        gap: 8px;
-        min-width: 0;
-        flex: 1;
-      }
-      .pane-title {
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--text-3);
-        white-space: nowrap;
-      }
-      .byte-count {
-        margin-left: auto;         /* 右对齐（tabular-nums） */
-        font-family: var(--mono);
-        font-size: 10px;
-        color: var(--text-3);
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0.02em;
-        white-space: nowrap;
-      }
-      .byte-count.live { color: var(--text-2); }
-      .pane-acts { display: flex; gap: 4px; }
-      .mini {
-        appearance: none;
-        border: 0;
-        background: transparent;
-        color: var(--text-2);
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-family: var(--ui);
-        font-size: 11px;
-        cursor: pointer;
-        transition: color 0.12s var(--ease), background 0.12s var(--ease);
-      }
-      .mini:hover { color: var(--text); background: var(--surface-2); }
-      .mini:active { transform: translateY(1px); }
-      .mini:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
-
-      textarea, .out {
-        flex: 1;
-        min-height: 120px;
-        border: 0;
-        resize: none;
-        padding: 12px 14px;
-        font-family: var(--mono);
-        font-size: 13px;
-        line-height: 1.6;
-        background: transparent;
-        color: var(--text);
-        outline: none;
-        caret-color: var(--accent);
-      }
-      textarea::placeholder, .out.placeholder { color: var(--text-3); }
-      textarea {
-        scrollbar-width: thin;
-        scrollbar-color: var(--surface-3) transparent;
-      }
-      .out {
-        white-space: pre-wrap;
-        word-break: break-all;
-        overflow: auto;
-        border-radius: 0 0 12px 12px;
-        scrollbar-width: thin;
-        scrollbar-color: var(--surface-3) transparent;
-        user-select: text;
-      }
-
-      /* —— 操作行（窄形态横排） —— */
-      .ops {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-      }
-      .icon-btn {
-        appearance: none;
-        border: 0;
-        background: var(--surface);
-        color: var(--text-2);
-        width: 32px;
-        height: 32px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 9px;
-        cursor: pointer;
-        box-shadow: inset 0 0 0 1px var(--border), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-        transition: color 0.14s var(--ease), box-shadow 0.14s var(--ease),
-                    background 0.14s var(--ease);
-      }
-      .icon-btn:hover {
-        color: var(--text);
-        background: var(--surface-2);
-        box-shadow: inset 0 0 0 1px var(--border-strong), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      }
-      .icon-btn:active { transform: translateY(1px); }
-      .icon-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-      .icon-btn svg { transition: transform 0.36s var(--ease); }
-      .icon-btn:hover svg { transform: rotate(180deg); }   /* hover 旋转 180° */
-
-      .run {
-        appearance: none;
-        border: 0;
-        background: var(--accent);
-        color: var(--accent-contrast, #17191b);
-        height: 32px;
-        padding: 0 16px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        border-radius: 9px;
-        cursor: pointer;
-        font-family: var(--ui);
-        font-size: 12.5px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.22),
-          0 2px 10px color-mix(in srgb, var(--accent) 30%, transparent);
-        transition: filter 0.14s var(--ease), box-shadow 0.14s var(--ease),
-                    transform 0.08s var(--ease);
-      }
-      .run:hover { filter: brightness(1.07); }
-      .run:active {
-        transform: translateY(1px);
-        filter: brightness(1.12);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-      }
-      .run:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-
-      /* —— 错误条：danger 10% 底 + 左边条，140ms 滑入 —— */
-      .err {
-        display: grid;
-        grid-template-rows: 0fr;
-        transition: grid-template-rows 0.14s var(--ease);
-      }
-      .err-inner {
-        overflow: hidden;
-        min-height: 0;
-      }
-      .err.show { grid-template-rows: 1fr; }
-      .err-card {
-        margin: 0;
-        padding: 8px 12px;
-        border-radius: 8px;
-        background: var(--danger-soft);
-        box-shadow:
-          inset 0 0 0 1px color-mix(in srgb, var(--danger) 26%, transparent),
-          inset 3px 0 0 var(--danger);
-        color: color-mix(in srgb, var(--danger) 85%, var(--text));
-        font-size: 12px;
-        line-height: 1.55;
-        opacity: 0;
-        transform: translateY(-4px);
-        transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
-      }
-      .err.show .err-card { opacity: 1; transform: translateY(0); }
-
-      /* —— 宽形态（>740px）：双栏 + 中间竖排操作列 —— */
-      @container (width > 740px) {
-        .stage {
-          grid-template-rows: minmax(0, 1fr) auto;
-          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-          padding: 16px;
-          gap: 12px;
-          overflow: hidden;
-        }
-        .pane-in { grid-column: 1; }
-        .ops {
-          grid-column: 2;
-          grid-row: 1;
-          flex-direction: column;
-          justify-content: center;   /* 竖排操作列垂直居中 */
-          align-self: stretch;
-          min-height: 0;
-        }
-        .pane-out { grid-column: 3; grid-row: 1; }
-        .err { grid-column: 1 / -1; grid-row: 2; }
-        .err:not(.show) { grid-template-rows: 0fr; }
-        .err-card { margin: 0 0 4px; }
-        textarea, .out { min-height: 0; }
-        .dir-chip { margin-left: 4px; }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-          transition-duration: 0.01ms !important;
-          animation-duration: 0.01ms !important;
-        }
-        .icon-btn:hover svg { transform: none; }
-      }
-    </style>
+    <link rel="stylesheet" href="src/css/main.css" />
   </head>
   <body>
-    <div class="app">
+    <main class="codec">
       <header>
-        <div class="brand">
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <rect x="2" y="2" width="16" height="16" rx="4.5" stroke="currentColor" stroke-width="1.5" />
-            <path d="M6.2 7.6 10 4l3.8 3.6M10 4.3V16" stroke="currentColor" stroke-width="1.5"
-                  stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <h1>编解码</h1>
-        </div>
-        <div class="segmented" id="modes" role="tablist" aria-label="编码模式">
-          <button data-mode="base64" class="active">Base64</button>
-          <button data-mode="url">URL</button>
-          <button data-mode="hex">Hex</button>
-          <button data-mode="unicode">Unicode</button>
-        </div>
-        <span class="dir-chip" id="dir-label">文本 → Base64</span>
-        <span class="head-meta">
-          <span class="hint"><kbd>Ctrl</kbd><kbd>Enter</kbd> 执行</span>
-          <span id="meta" hidden></span>
-        </span>
+        <h1>编解码</h1>
+        <nav id="modes" aria-label="转换类型"></nav>
       </header>
-
-      <div class="stage">
-        <section class="pane pane-in">
-          <div class="pane-head">
-            <span class="head-label"><span id="in-title" class="pane-title">输入</span><span class="byte-count" id="in-count"></span></span>
-            <span class="pane-acts">
-              <button class="mini" id="btn-paste">粘贴</button>
-              <button class="mini" id="btn-clear">清空</button>
-            </span>
-          </div>
-          <textarea id="input" placeholder="输入或粘贴文本…" spellcheck="false" aria-label="输入"></textarea>
-        </section>
-
-        <div class="ops" aria-label="操作">
-          <button class="icon-btn" id="btn-dir" title="切换编码 / 解码" aria-label="切换编码方向">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M4 5.5h8M10 3l2.5 2.5L10 8" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M12 10.5H4M6 8 3.5 10.5 6 13" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-          <button class="run" id="btn-run" title="执行（Ctrl+Enter）">
-            执行
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M3 8h9.5M9 4.5 12.5 8 9 11.5" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-          <button class="icon-btn" id="btn-swap-panes" title="互换：输出用作输入" aria-label="输出与输入互换">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M2.5 5.5h9M8.5 2.5l3 3-3 3" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M13.5 10.5h-9M7.5 7.5l-3 3 3 3" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-        </div>
-
-        <section class="pane pane-out">
-          <div class="pane-head">
-            <span class="head-label"><span id="out-title" class="pane-title">输出</span><span class="byte-count" id="out-count"></span></span>
-            <span class="pane-acts">
-              <button class="mini" id="btn-copy">复制</button>
-            </span>
-          </div>
-          <div class="out placeholder" id="output">结果将显示在这里</div>
-        </section>
-
-        <div class="err" id="error" role="alert">
-          <div class="err-inner"><div class="err-card" id="error-text"></div></div>
-        </div>
+      <div class="operation-bar">
+        <button id="direction">编码 →</button
+        ><label><input id="live" type="checkbox" checked /> 即时转换</label
+        ><label><input id="batch" type="checkbox" /> 逐行处理</label
+        ><span id="mode-help"></span><button id="run">执行</button>
       </div>
-    </div>
-    <script src="./assets/js/main.js"></script>
+      <section class="panes">
+        <div class="pane source">
+          <div class="pane-head">
+            <label for="input">输入</label><span id="in-size"></span
+            ><button id="paste">粘贴</button><button id="clear">清空</button>
+          </div>
+          <textarea
+            id="input"
+            spellcheck="false"
+            placeholder="输入或粘贴需要转换的内容"
+          ></textarea>
+        </div>
+        <div class="pane target">
+          <div class="pane-head">
+            <label for="output">结果</label><span id="out-size"></span
+            ><button id="swap">回填并反转</button
+            ><button id="copy" disabled>复制</button
+            ><button id="save" disabled>导出</button>
+          </div>
+          <textarea
+            id="output"
+            readonly
+            spellcheck="false"
+            placeholder="转换结果"
+            aria-live="polite"
+          ></textarea>
+        </div>
+      </section>
+      <div id="error" role="alert"></div>
+      <footer>
+        <span id="status">所有转换均在本地完成</span
+        ><span>⌘/Ctrl + Shift + Enter 执行</span>
+      </footer>
+    </main>
+
+
+    <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

@@ -1,0 +1,218 @@
+:root {
+  --line: var(--border, #dce2e8);
+  --muted: var(--text-3, #77828d);
+  --wash: var(--surface, #f1f4f7);
+  --accent: var(--primary, #4c719f);
+  --mono: "SF Mono", Consolas, monospace;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg, #fbfcfd);
+  color: var(--text, #28384a);
+  font: 12px var(--font-family, -apple-system, "PingFang SC", sans-serif);
+}
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+button:hover,
+button.active {
+  background: var(--wash);
+  color: var(--accent);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.codec {
+  height: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+}
+header {
+  min-width: 0;
+  padding: 14px 18px 0;
+}
+h1 {
+  font-size: 14px;
+  margin: 0 0 13px;
+}
+nav {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 9px;
+}
+nav button {
+  border-color: transparent;
+}
+nav button.active {
+  box-shadow: inset 0 -2px var(--accent);
+}
+.operation-bar {
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.operation-bar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.operation-bar input {
+  accent-color: var(--accent);
+}
+#run {
+  margin-left: auto;
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+#mode-help {
+  color: var(--muted);
+  font-size: 10px;
+}
+.panes {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--line);
+}
+.pane {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.target {
+  border-left: 1px solid var(--line);
+}
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--wash);
+}
+.pane-head label {
+  font-weight: 600;
+}
+.pane-head span {
+  margin-right: auto;
+  font-size: 10px;
+  color: var(--muted);
+}
+.pane-head button {
+  font-size: 11px;
+  padding: 4px 7px;
+}
+textarea {
+  display: block;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  outline: none;
+  border: 0;
+  padding: 18px;
+  background: transparent;
+  font: 13px/1.8 var(--mono);
+  tab-size: 2;
+}
+#error {
+  background: color-mix(in srgb, var(--danger, #c25c49) 7%, transparent);
+  color: var(--danger, #c25c49);
+  padding: 10px 18px;
+  font-size: 12px;
+}
+#error:empty {
+  display: none;
+}
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+}
+html[data-mode="quick"] header {
+  padding: 8px 12px 0;
+}
+html[data-mode="quick"] h1 {
+  display: none;
+}
+html[data-mode="quick"] nav {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+html[data-mode="quick"] nav button {
+  white-space: nowrap;
+}
+html[data-mode="quick"] .operation-bar {
+  padding: 8px 12px;
+  gap: 9px;
+}
+html[data-mode="quick"] #mode-help {
+  display: none;
+}
+html[data-mode="quick"] .panes {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(80px, 0.8fr) minmax(100px, 1.2fr);
+}
+html[data-mode="quick"] .target {
+  border-left: 0;
+  border-top: 1px solid var(--line);
+}
+html[data-mode="quick"] textarea {
+  padding: 10px 14px;
+  font-size: 12px;
+}
+html[data-mode="quick"] .pane-head {
+  padding: 6px 12px;
+}
+@media (max-width: 600px) {
+  #mode-help {
+    display: none;
+  }
+  .pane-head span {
+    display: none;
+  }
+  .pane-head label {
+    margin-right: auto;
+  }
+  html[data-mode="shell"] .panes {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  .target {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}

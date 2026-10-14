@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>正则工作台</title>
+
+
+    <link rel="stylesheet" href="src/css/main.css" />
+  </head>
+  <body>
+    <main class="regex-app">
+      <header class="topbar">
+        <h1>正则工作台</h1>
+        <span class="sub">实时匹配 · 分组 · 替换预览</span>
+        <div class="toolbar">
+          <button id="toggle-sheet" class="shell-only">速查表</button>
+          <button id="toggle-snippets" class="shell-only" aria-expanded="true">片段库</button>
+        </div>
+      </header>
+
+      <section class="workbench">
+        <!-- 片段库侧栏（桌面形态） -->
+        <aside class="snippets shell-only" id="snippets" aria-label="正则片段库">
+          <div class="snippets-head">
+            <h2>片段库</h2>
+            <button id="snippet-reset" title="恢复默认片段">重置</button>
+          </div>
+          <ul id="snippet-list" class="snippet-list"></ul>
+          <form id="snippet-form" class="snippet-form">
+            <input id="snippet-name" placeholder="名称，如 座机" maxlength="24" />
+            <input id="snippet-body" placeholder="^\d{3,4}-\d{7,8}$" spellcheck="false" maxlength="200" />
+            <button type="submit" class="primary">添加片段</button>
+          </form>
+        </aside>
+
+        <!-- 主工作区 -->
+        <section class="lab">
+          <div class="field pattern-field">
+            <label for="pattern">正则表达式</label>
+            <div class="pattern-row">
+              <div class="pattern-delimiter">/</div>
+              <textarea id="pattern" rows="2" spellcheck="false" placeholder="(\d{4})-(\d{2})-(\d{2})"></textarea>
+              <div class="pattern-delimiter">/</div>
+              <div id="flags" class="flags" role="group" aria-label="匹配标志"></div>
+            </div>
+            <div id="pattern-error" class="error-bar" role="alert" hidden></div>
+          </div>
+
+          <div class="field">
+            <div class="field-head">
+              <label for="samples">测试样例 <span id="match-count" class="mono"></span></label>
+              <button id="fill-sample" class="ghost">填入示例</button>
+            </div>
+            <div class="sample-wrap">
+              <textarea id="samples" rows="6" spellcheck="false" placeholder="每行一条样例，或直接粘贴一段文本"></textarea>
+              <div id="sample-highlight" class="sample-highlight" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <div class="panels">
+            <section class="panel">
+              <h2>匹配列表 <span id="match-badge" class="badge"></span></h2>
+              <ol id="match-list" class="match-list"></ol>
+            </section>
+            <section class="panel">
+              <h2>捕获分组</h2>
+              <div id="groups" class="groups"></div>
+            </section>
+            <section class="panel replace-panel">
+              <h2>替换预览</h2>
+              <div class="replace-row">
+                <input id="replacement" class="mono" spellcheck="false" placeholder="$1年$2月$3日，支持 $1 与 $<name>" />
+                <button id="copy-result" disabled>复制</button>
+              </div>
+              <div id="replace-output" class="replace-output mono"></div>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <!-- 速查表抽屉（桌面形态） -->
+      <aside class="sheet" id="sheet" hidden>
+        <div class="sheet-head">
+          <h2>正则速查表</h2>
+          <button id="close-sheet" aria-label="关闭速查表">×</button>
+        </div>
+        <div class="sheet-body" id="cheatsheet"></div>
+      </aside>
+    </main>
+
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

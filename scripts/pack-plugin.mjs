@@ -1,48 +1,32 @@
 #!/usr/bin/env node
-/**
- * pack-plugin — 将 plugins/<id> 打成 {id}@{version}.enestplugin（zip）
- * 用法: node scripts/pack-plugin.mjs <pluginId> [outdir]
- */
-import { existsSync, readFileSync, mkdirSync } from 'node:fs'
-import { join, dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { resolve, join } from 'node:path'
 import { createHash } from 'node:crypto'
-
-// 简易 zip：使用系统 zip 更稳妥；无 zip 时提示
 import { execFileSync } from 'node:child_process'
+import { buildPlugin } from './build-plugin.mjs'
+import { repositoryRoot, pluginIds, readManifest, DSH_ID, DSH_VERSION } from './plugin-contract.mjs'
+import { validateDistribution } from './validate-dist.mjs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const root = join(__dirname, '..')
-
-const id = process.argv[2]
-if (!id) {
-  console.error('usage: node scripts/pack-plugin.mjs <pluginId> [outdir]')
-  process.exit(1)
+export async function packPlugin(id, { outDir = join(repositoryRoot, 'dist'), build = true } = {}) {
+  if (!pluginIds().includes(id)) throw new Error(`Unknown plugin: ${id}`)
+  const directory = build ? await buildPlugin(id) : join(repositoryRoot, 'plugins', id, 'dist')
+  await validateDistribution(directory)
+  const manifest = readManifest(directory)
+  await mkdir(outDir, { recursive: true })
+  const name = `${manifest.id}@${manifest.version}.enestplugin`, output = join(outDir, name)
+  if (resolve(output, '..') !== resolve(outDir)) throw new Error('Invalid package output path')
+  await rm(output, { force: true })
+  execFileSync('zip', ['-r', '-q', resolve(output), '.'], { cwd: directory })
+  const data = await readFile(output)
+  if (id === DSH_ID) {
+    const runtimeName = `dsh-runtime-${DSH_VERSION}-${process.platform}-${process.arch}.tgz`, runtimePath = join(outDir, runtimeName)
+    execFileSync('tar', ['-C', join(directory, 'runtime'), '-czf', runtimePath, './node_modules', './package.json'])
+    await writeFile(runtimePath + '.sha256', createHash('sha256').update(await readFile(runtimePath)).digest('hex') + '  ' + runtimeName + '\n')
+  }
+  return { name, path: output, size: data.length, sha256: createHash('sha256').update(data).digest('hex') }
 }
-
-const src = join(root, 'plugins', id)
-const manifestPath = join(src, 'plugin.json')
-if (!existsSync(manifestPath)) {
-  console.error(`missing ${manifestPath}`)
-  process.exit(1)
+if (process.argv[1] && resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+  const input = process.argv.slice(2), ids = input[0] === '--all' ? pluginIds() : input.filter(value => !value.startsWith('--'))
+  if (!ids.length) throw new Error('usage: pack-plugin.mjs <id>|--all [--no-build]')
+  for (const id of ids) console.log(JSON.stringify(await packPlugin(id, { build: !input.includes('--no-build') })))
 }
-
-const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
-const version = manifest.version
-// outDir/outPath 必须是绝对路径：zip 以 src 为 cwd，相对路径会写到插件目录下
-const outDir = resolve(root, process.argv[3] || join(root, 'dist'))
-mkdirSync(outDir, { recursive: true })
-
-const outName = `${id}@${version}.enestplugin`
-const outPath = join(outDir, outName)
-
-try {
-  execFileSync('zip', ['-r', '-q', outPath, '.'], { cwd: src, stdio: 'inherit' })
-} catch {
-  console.error('zip command failed — install zip or pack manually')
-  process.exit(1)
-}
-
-const buf = readFileSync(outPath)
-const sha256 = createHash('sha256').update(buf).digest('hex')
-console.log(JSON.stringify({ name: outName, path: outPath, size: buf.length, sha256 }, null, 2))

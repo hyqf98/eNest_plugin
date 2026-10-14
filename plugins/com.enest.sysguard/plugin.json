@@ -1,0 +1,55 @@
+{
+  "id": "com.enest.sysguard",
+  "name": "进程与端口",
+  "version": "1.0.0",
+  "description": "本机进程与监听端口巡检：双表联动、搜索、收藏置顶、结束进程危险确认、CPU·内存 60 秒滚动曲线",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "sys.inspect",
+    "sys.control"
+  ],
+  "window": {
+    "width": 760,
+    "height": 420,
+    "minWidth": 480,
+    "minHeight": 240
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "进程与端口巡检",
+      "cmds": [
+        "进程",
+        "port",
+        "jincheng"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "进程",
+      "端口",
+      "系统",
+      "监控"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
+  }
+}

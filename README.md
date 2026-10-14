@@ -1,147 +1,84 @@
-# eNest_plugin
+# eNest 官方插件仓库
 
-eNest 官方插件 monorepo。源码在 `plugins/<pluginId>/`，CI 自动生成 `registry.json` 并打包全部插件为 GitHub Release 资产。
+本仓库维护插件源码、共享 UI 工具、API 类型、开发文档和发布工具。所有插件使用同一套源码与发行目录契约；Vue、React、Vite 和原生前端都通过根目录的 `plugin.json` 与 `index.html` 接入壳子。
 
-壳子（eNest 桌面端）从本仓库 **Release** 读取插件列表与安装包：
+先读 [开发入门](docs/developer/getting-started.md)、[工程结构](docs/PLUGIN_STRUCTURE.md) 和 [manifest 参考](docs/manifest.md)。AI 开发入口是 [skills/enest-development/SKILL.md](skills/enest-development/SKILL.md)，完整导航在 [docs/README.md](docs/README.md)。
 
-```
-GET https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json
-GET https://github.com/hyqf98/eNest_plugin/releases/latest/download/{id}@{version}.enestplugin
-```
+## 开发与验证
 
-回退（无 Release 时）：`raw.githubusercontent.com/hyqf98/eNest_plugin/main/registry.json`
+在本仓库根目录执行：
 
-## 目录结构
-
-标准插件形态见 [docs/PLUGIN_STRUCTURE.md](docs/PLUGIN_STRUCTURE.md)（对齐 uTools：`plugin.json` + `logo` + `index.html` + `assets/`）。
-
-```
-eNest_plugin/
-├── plugins/
-│   └── com.example.hello/
-│       ├── plugin.json          # 插件清单（权威元数据）
-│       ├── logo.png             # 可选 128×128
-│       ├── index.html           # 入口（ui.chrome 缺省 none，全幅）
-│       └── assets/              # css / js / images
-├── docs/PLUGIN_STRUCTURE.md     # 标准结构说明
-├── registry.json                # CI 生成，勿手改（本地索引快照，已移出 git 跟踪；发布用 dist/ 副本）
-├── scripts/build-registry.mjs   # 扫 plugins/ 生成 registry
-├── scripts/pack-plugin.mjs      # 打 .enestplugin（zip）
-├── scripts/prepare-release.mjs  # 截图/图标附件与最终下载 URL
-└── .github/workflows/release.yml
+```bash
+npm install
+npm run dev --workspace com.example.hello
+# 在 eNest 开发测试中选择 plugins/com.example.hello 源码文件夹。
+# development.main 指向已运行的 http://127.0.0.1:5173/，壳子自动打开插件。
 ```
 
-## 插件清单 `plugin.json`
+开发者可以选择仓库外的源码文件夹。壳子只读标准入口，不复制源码到已安装插件目录，也不启动 npm、不监听源码文件。HMR 由开发者启动的 Vite 服务负责；另一台开发机可用 `--host 0.0.0.0` 启动，并将 `development.main` 配为实际 IP、端口与入口路径。
 
-`plugin.json` 是插件唯一权威元数据：必填 `id` / `name` / `version` / `description` / `main`，另有 `category` / `icon` / `engines` / `permissions` / `features` / `window` / `ui` / `contributes` / `market` 等可选段。完整字段表、最小示例与权限白名单见 [docs/manifest.md](docs/manifest.md)（权威 JSON Schema：`docs/plugin-manifest.schema.json`，CI 用 `scripts/validate-manifests.mjs` 以 ajv 校验）。
+```bash
+npm run validate                 # 源码清单、包名/版本、市场资源
+npm test                         # 单元与包格式合同
+npm run build                    # 自动发现并构建所有 plugins/*
+npm run validate:dist            # 路径边界、入口与离线资源引用
+npm run capture:market -- --check # 全部发行页面：生产 CSP、资源与尺寸检查
+npm run test:ui                  # 关键交互流程，宿主能力使用隔离 fixture
+npm run pack -- --no-build       # 打包已验证的 dist 内容
+npm run registry                # 只从最终归档读取市场数据
+```
 
-> 单文件快速校验也可用壳子仓库 SDK：`node ../eNest/packages/plugin-sdk/bin/enest-validate.mjs plugins/<id>/plugin.json`（详见 [packages/plugin-sdk](../eNest/packages/plugin-sdk/README.md)）。
+首次新增插件还没有截图时，可用 `node scripts/capture-market.mjs <id> --build` 构建预览并生成真实页面截图，随后重新构建以把截图纳入发行包。截图脚本使用隔离演示数据，不能替代真实数据库、SSH、操作系统权限和硬件功能的集成测试。
 
-## 首页推荐与截图元数据
+## 源码与发行包
 
-维护入口始终是**本独立插件仓库**的 `plugins/<id>/plugin.json`，壳子不维护插件截图表：
+```text
+plugins/<id>/
+  plugin.json                 # main: index.html；源码可声明 development.main
+  package.json                # name === id；version 与 manifest 一致
+  index.html                  # 加载 src/entry.js
+  src/                        # 业务源码、框架组件和样式
+  public/assets/market/       # icon.svg、README.md、screenshots/*
+  public/assets/vendor/       # 必须原样复制的第三方静态资源
+  tests/
+  dist/                       # 构建生成，不提交
+    plugin.json               # 已移除 development
+    index.html
+    assets/app/               # 打包后的 JS、CSS、worker
+    assets/market/
+    assets/vendor/
+```
 
-```jsonc
-"market": {
-  "featured": true,
-  "tags": ["截图", "录屏"],
-  "screenshots": [
-    "assets/screenshots/main.png",
-    "https://cdn.example.com/my-plugin/recording.webp"
-  ]
+`.enestplugin` 是 ZIP，根目录直接是 `dist/` 的内容，不能再套一层插件目录。源码、测试、`node_modules`、软链接、隐藏路径、Source Map、TS/TSX/Vue 文件不进入包。DSH 的固定生产运行时是唯一显式 `runtime/` 例外，详见 [工程结构](docs/PLUGIN_STRUCTURE.md)。
+
+共享工具以 npm workspace `@enest/plugin-kit` 引用，由 Vite 编译到各自发行包；不复制 `assets/shared`，不引用其他插件目录。类型由 `@enest/plugin-sdk` 提供，维护入口见 [API 类型](docs/developer/api-types.md)。
+
+## 图标、说明与截图
+
+每个清单必须声明：
+
+```json
+{
+  "icon": "assets/market/icon.svg",
+  "market": {
+    "readme": "assets/market/README.md",
+    "screenshots": ["assets/market/screenshots/01-main.png"]
+  }
 }
 ```
 
-示例路径需换成实际文件或可用 URL。规则如下：
+以上路径指向发行包内的文件；源码对应位置在 `public/` 下。图标应表达插件功能，截图使用真实界面，发行必须包含 1–8 张 PNG/JPG/JPEG/WebP，第一张作为封面。README 上限 512 KiB，图片使用如 `./screenshots/01-main.png` 的包内相对路径。外部图片 URL、任意根目录图标和旧 `logo` 字段不属于新契约。
 
-- `featured` 指定首页推荐候选，缺省 `false`；沿用已有字段，无需额外的 banner 元数据。
-- `screenshots` 是有序 `string[]`，最多 8 张、不可重复；**第一张用于首页推荐封面**。应提交真实产品截图，建议横向 16:10 或 16:9；首页完整显示图片，不裁掉界面内容。
-- 本地路径相对当前 `plugin.json` 所在的插件根，例如 `assets/screenshots/main.png`。支持 PNG / JPG / JPEG / WebP / GIF，不接受绝对路径、`..`、反斜杠或逃出插件根的符号链接。校验/构建会拒绝缺失的文件、目录和不支持的扩展名。
-- 外链必须是无账号密码的 HTTPS URL（允许 CDN 查询参数）；生成器保留它，不下载、不校验外部服务在线状态。
-- 缺省或 `[]` 表示暂无截图，壳子显示插件名称/描述/图标，不把首页概念图或通用插画伪装成插件截图。旧索引缺少该字段仍可读取。
+`build-registry.mjs` 从最终 ZIP 提取 manifest 与市场资源，再生成 `dist/registry.json`，不会以源码中的截图冒充归档内容。索引含 `icon`、`readmeUrl`、`screenshots`、`asset.url/size/sha256`。`prepare-release.mjs` 生成 GitHub Release 扁平附件及 README 图片映射 `readmeImages`。
 
-`build-registry.mjs` 将字段展开为 `registry.plugins[].screenshots`：本地文件转换为相对 `registry.json` 的 `plugins/<id>/assets/screenshots/main.png`，路径按段做 URL 编码，外链保持绝对 URL。`prepare-release.mjs` 再把实际本地图片复制为 `dist/{id}@{version}-screenshot-1.png` 等附件，输出 Release 绝对下载地址。图标按 `logo` 优先、`icon` 兜底读取声明的真实文件（支持 SVG），同样复制为扁平附件；不再假设图标必须叫 `icon.png`。
-
-发布索引位于 `dist/registry.json`；`asset.url/size/sha256` 与所有本地截图/图标 URL 均对应本次 Release 的真实附件，缺包或缺图会阻断生成。壳子通过市场服务获取索引，将 `screenshots` 与 `featured` 一起传给首页；相对媒体地址按索引所在 URL 解析，图片加载失败则回退文字内容。
+## 发布
 
 ```bash
-node --test scripts/market-assets.test.mjs
-# 打包全部插件后生成待上传文件，不会创建或发布 GitHub Release
+node scripts/pack-plugin.mjs com.example.hello
+# 全部插件已打包后，生成本地待发布材料；此命令不会上传
 REPO=hyqf98/eNest_plugin TAG=plugins-local node scripts/prepare-release.mjs
 ```
 
-## registry.json（壳子列表索引）
+推送 `v*` / `plugins-*` 标签或手动触发已有标签的工作流才会创建正式 Release。CI 顺序为源码校验、合同测试、全部构建、发行检查、生产 CSP 页面检查、打包、生成索引与媒体附件；普通分支推送不触发本发布工作流。
 
-CI 由所有 `plugin.json` 聚合，**一次下载即可渲染完整列表与分类**：
-
-```jsonc
-{
-  "schemaVersion": 1,
-  "generatedAt": "2026-09-16T12:00:00.000Z",
-  "channel": "stable",
-  "categories": ["效率", "开发", "设计", "媒体", "其它"],
-  "plugins": [
-    {
-      "id": "com.example.hello",
-      "name": "Hello",
-      "version": "1.0.0",
-      "description": "…",
-      "author": "…",
-      "category": "效率",
-      "icon": "https://github.com/<org>/eNest_plugin/releases/download/plugins-123/com.example.hello%401.0.0-icon.png",
-      "screenshots": [],
-      "tags": ["示例"],
-      "permissions": ["storage.local"],
-      "engines": { "enest": ">=0.1.0" },
-      "featured": false,
-      "installs": 0,
-      "asset": {
-        "name": "com.example.hello@1.0.0.enestplugin",
-        "url": "https://github.com/<org>/eNest_plugin/releases/download/plugins-123/com.example.hello%401.0.0.enestplugin",
-        "size": 10240,
-        "sha256": "…"
-      }
-    }
-  ]
-}
-```
-
-### 壳子加载策略（约定）
-
-1. **列表**：优先拉 `releases/latest/download/registry.json`，缓存到本地；失败回退上次缓存或内置 mock。
-2. **分类**：直接用 registry.categories / plugin.category，无需二次请求。
-3. **安装**：下载 `asset.url` → 校验 `sha256` → 解压 `.enestplugin`（zip）→ 本地 `~/.eNest/plugins/`。
-4. **更新**：对比本地已装 `version` 与 registry；有新版提示下载。
-
-## 发布命名约定
-
-- Release tag：推送 `v*` / `plugins-*` 标签触发发版，tag 名即发布名（也可 Actions 手动 dispatch 填已有标签）；推送代码分支不触发发版
-- 资产：`{id}@{version}.enestplugin`
-- 附属：`registry.json`、`{id}@{version}-icon.{ext}`、`{id}@{version}-screenshot-{序号}.{ext}`
-- GitHub Release 的附件没有目录层级；媒体与安装包都使用扁平且唯一的文件名。
-
-## 开发流程
-
-```bash
-# 1. 新建插件目录
-mkdir -p plugins/com.example.hello
-# 2. 写 plugin.json + index.html
-# 2b. 首次使用先安装依赖（package.json 已含 ajv）
-npm install
-# 3. 校验全部 manifest（ajv + docs/plugin-manifest.schema.json）
-npm run validate
-# 3b. 单文件校验（壳子 SDK CLI；workspaces 接线后也可 npx enest-validate）
-node ../eNest/packages/plugin-sdk/bin/enest-validate.mjs plugins/com.example.hello/plugin.json
-# 4. 本地生成索引预览（内部先跑同一校验，失败不产出）
-node scripts/build-registry.mjs
-# 5. 单包
-node scripts/pack-plugin.mjs com.example.hello
-```
-
-推送 `v*` / `plugins-*` 标签后由 GitHub Actions 校验、测试、打包全部插件并创建**正式 Release**（非草稿，直接进入 `releases/latest`，壳子下次刷新市场即可拉取新元数据）。推送代码分支只走校验不打包；此流程不会提交本地生成的索引快照（registry.json 已移出 git 跟踪）。
-
-## 分类枚举
-
-固定五类，CI 校验 `category` 必须落在枚举内：
-
-- `效率` `开发` `设计` `媒体` `其它`
+壳子从 [最新市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，通过 SHA-256 校验后安装到 `~/.eNest/plugins/`。文件名固定 `{id}@{version}.enestplugin`，分类固定为效率、开发、设计、媒体、其它。

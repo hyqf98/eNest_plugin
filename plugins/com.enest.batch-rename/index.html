@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>批量重命名</title>
+
+
+    <link rel="stylesheet" href="src/css/main.css" />
+  </head>
+  <body>
+    <main class="rn-app">
+      <header>
+        <h1>批量重命名</h1>
+        <span class="pk-muted">规则链实时预览 · 确认后执行 · 可撤销</span>
+      </header>
+
+      <!-- 上：文件队列 -->
+      <section class="panel queue-panel">
+        <div class="panel-head">
+          <h2>文件队列 <span id="queue-count" class="pk-muted"></span></h2>
+          <div class="head-actions">
+            <button id="pick-btn" class="ghost">添加文件</button
+            >
+            <button id="clear-queue" class="ghost" hidden>清空</button>
+          </div>
+        </div>
+        <div id="drop-zone" class="drop-zone">
+          <p>拖入要改名的文件（可多选）</p>
+          <p class="pk-muted">改名只发生在原目录内；同名 / 非法目标不会执行</p>
+        </div>
+        <ul id="file-list" class="file-list" hidden></ul>
+      </section>
+
+      <!-- 中：规则链 -->
+      <section class="panel rules-panel">
+        <div class="panel-head">
+          <h2>规则链 <span class="pk-muted">按序叠加应用</span></h2>
+          <div class="head-actions">
+            <select id="rule-add" aria-label="添加规则">
+              <option value="">+ 添加规则…</option>
+              <option value="replace">查找替换</option>
+              <option value="number">序号</option>
+              <option value="date">日期</option>
+              <option value="case">大小写转换</option>
+              <option value="ext">扩展名替换</option>
+            </select>
+          </div>
+        </div>
+        <ol id="rule-list" class="rule-list"></ol>
+        <p id="rule-error" class="rule-error" role="alert" hidden></p>
+      </section>
+
+      <!-- 下：预览表 -->
+      <section class="panel preview-panel">
+        <div class="panel-head">
+          <h2>预览 <span id="preview-meta" class="pk-muted"></span></h2>
+          <div class="head-actions">
+            <button id="undo-btn" class="ghost" hidden>撤销上次</button>
+            <button id="run-btn" class="danger" disabled>执行改名</button>
+          </div>
+        </div>
+        <div id="preview-table" class="preview-table"></div>
+      </section>
+
+      <p id="status" role="status" class="pk-muted"></p>
+    </main>
+
+    <!-- 危险确认对话框 -->
+    <dialog id="confirm-dialog">
+      <form method="dialog">
+        <h3>确认执行改名？</h3>
+        <p class="pk-muted" id="confirm-summary"></p>
+        <ul id="confirm-list" class="confirm-list pk-mono"></ul>
+        <menu>
+          <button value="cancel" class="ghost">取消</button
+          ><button value="ok" class="danger">确认执行</button>
+        </menu>
+      </form>
+    </dialog>
+
+
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

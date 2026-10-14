@@ -1,25 +1,25 @@
 {
   "id": "com.enest.json-tools",
   "name": "JSON 工具",
-  "version": "1.0.0",
-  "description": "JSON 格式化、压缩、校验定位与转义反转义。",
+  "version": "1.1.0",
+  "description": "无损数字 JSON 格式化、校验、树浏览、搜索、键排序与差异比较。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "engines": {
     "enest": ">=0.1.0"
   },
   "permissions": [
     "clipboard.read",
     "clipboard.write",
-    "ui.setTitle",
-    "ui.toast"
+    "shell.openExternal",
+    "fs.write"
   ],
   "features": [
     {
       "code": "main",
-      "explain": "JSON 格式化、压缩、校验定位与转义反转义",
+      "explain": "JSON 格式化与检查",
       "cmds": [
         "json",
         "JSON",
@@ -33,10 +33,72 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "market": {    "tags": [
+  "market": {
+    "tags": [
       "json",
       "开发",
       "格式化"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "window": {
+    "width": 760,
+    "height": 480,
+    "minWidth": 420,
+    "minHeight": 280
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "json-tools.preferences",
+        "title": "JSON 工具",
+        "items": [
+          {
+            "key": "indent",
+            "type": "select",
+            "label": "格式化缩进",
+            "default": "2",
+            "options": [
+              {
+                "label": "2 空格",
+                "value": "2"
+              },
+              {
+                "label": "4 空格",
+                "value": "4"
+              }
+            ]
+          },
+          {
+            "key": "defaultView",
+            "type": "select",
+            "label": "默认结果视图",
+            "default": "text",
+            "options": [
+              {
+                "label": "文本",
+                "value": "text"
+              },
+              {
+                "label": "树",
+                "value": "tree"
+              }
+            ]
+          },
+          {
+            "key": "wrapLines",
+            "type": "switch",
+            "label": "编辑器自动换行",
+            "default": true
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

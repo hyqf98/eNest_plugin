@@ -1,12 +1,12 @@
 {
   "id": "com.enest.screen-assistant",
   "name": "屏幕助手",
-  "version": "1.1.0",
-  "description": "矩形截图、矩形录屏（可选声音）与贴图三入口：截图并贴、贴剪贴板图片、贴本地图片，附贴图管理与截图历史",
+  "version": "1.2.0",
+  "description": "截图与原图历史、裁剪箭头文字马赛克标注、区域录屏和贴图管理；小窗快速操作，桌面展开完整编辑。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "媒体",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "engines": {
     "enest": ">=0.1.0"
   },
@@ -16,9 +16,10 @@
     "pin.create",
     "clipboard.readImage",
     "clipboard.writeImage",
-    "storage.local",
-    "ui.setTitle",
-    "ui.toast"
+    "clipboard.write",
+    "shell.openExternal",
+    "fs.read",
+    "fs.write"
   ],
   "window": {
     "minWidth": 480,
@@ -63,6 +64,58 @@
       "截图",
       "录屏",
       "贴图"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "screen-preferences",
+        "title": "截图与录屏",
+        "items": [
+          {
+            "key": "captureAction",
+            "type": "select",
+            "label": "截图完成后的操作",
+            "default": "preview",
+            "options": [
+              {
+                "label": "打开预览",
+                "value": "preview"
+              },
+              {
+                "label": "复制到剪贴板",
+                "value": "copy"
+              },
+              {
+                "label": "贴到屏幕",
+                "value": "pin"
+              }
+            ]
+          },
+          {
+            "key": "historyLimit",
+            "type": "slider",
+            "label": "原图历史保留数量",
+            "default": 24,
+            "min": 8,
+            "max": 80,
+            "step": 8
+          },
+          {
+            "key": "withAudio",
+            "type": "boolean",
+            "label": "录屏默认录入系统声音",
+            "default": false
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

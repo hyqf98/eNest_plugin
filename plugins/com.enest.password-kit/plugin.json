@@ -1,16 +1,14 @@
 {
   "id": "com.enest.password-kit",
   "name": "密码工具箱",
-  "version": "1.0.0",
-  "description": "随机密码生成（长度/字符集可调、强度提示）与 UUID v4 批量生成。",
+  "version": "1.1.0",
+  "description": "随机密码与 UUID v4 批量生成，字符排除、结果遮罩和复制格式。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "permissions": [
-    "clipboard.write",
-    "ui.setTitle",
-    "ui.toast"
+    "clipboard.write"
   ],
   "engines": {
     "enest": ">=0.1.0"
@@ -18,9 +16,16 @@
   "features": [
     {
       "code": "main",
+      "explain": "随机密码",
       "cmds": [
         "密码",
-        "password",
+        "password"
+      ]
+    },
+    {
+      "code": "uuid",
+      "explain": "UUID v4 生成",
+      "cmds": [
         "uuid"
       ]
     }
@@ -30,6 +35,65 @@
       "密码",
       "uuid",
       "安全"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "window": {
+    "width": 760,
+    "height": 520,
+    "minWidth": 420,
+    "minHeight": 280
+  },
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "password-kit.preferences",
+        "title": "密码工具箱",
+        "items": [
+          {
+            "key": "defaultLength",
+            "type": "number",
+            "label": "默认密码长度",
+            "default": 16
+          },
+          {
+            "key": "avoidAmbiguous",
+            "type": "switch",
+            "label": "排除易混淆字符",
+            "default": false
+          },
+          {
+            "key": "maskResults",
+            "type": "switch",
+            "label": "默认遮罩密码",
+            "default": true
+          },
+          {
+            "key": "uuidUppercase",
+            "type": "switch",
+            "label": "UUID 大写字母",
+            "default": false
+          },
+          {
+            "key": "uuidHyphens",
+            "type": "switch",
+            "label": "UUID 保留连字符",
+            "default": true
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

@@ -1,0 +1,106 @@
+{
+  "id": "com.enest.unit-convert",
+  "name": "单位与汇率",
+  "version": "1.0.0",
+  "description": "长度/面积/体积/质量/温度/速度/数据量/进制/汇率同屏联动换算，人民币大写。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "net.fetch",
+    "clipboard.write"
+  ],
+  "window": {
+    "minWidth": 420,
+    "minHeight": 320
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "单位与汇率换算",
+      "cmds": [
+        "换算",
+        "convert",
+        "dw"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "单位",
+      "汇率",
+      "换算"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "contributes": {
+    "homeCards": [
+      {
+        "id": "unit-convert-card",
+        "title": "单位与汇率",
+        "glyph": "⇄",
+        "color": "#4ca77c",
+        "explain": "同屏多单位联动换算、汇率与人民币大写",
+        "openCode": "main"
+      }
+    ],
+    "settings": [
+      {
+        "id": "unit-convert.preferences",
+        "title": "单位与汇率",
+        "items": [
+          {
+            "key": "followShellTheme",
+            "type": "switch",
+            "label": "跟随壳子主题",
+            "default": true
+          },
+          {
+            "key": "baseCurrency",
+            "type": "select",
+            "label": "汇率基准币种",
+            "default": "USD",
+            "options": [
+              {
+                "label": "USD 美元",
+                "value": "USD"
+              },
+              {
+                "label": "CNY 人民币",
+                "value": "CNY"
+              },
+              {
+                "label": "EUR 欧元",
+                "value": "EUR"
+              },
+              {
+                "label": "JPY 日元",
+                "value": "JPY"
+              },
+              {
+                "label": "HKD 港币",
+                "value": "HKD"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
+  }
+}

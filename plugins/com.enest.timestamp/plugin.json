@@ -1,29 +1,30 @@
 {
   "id": "com.enest.timestamp",
   "name": "时间戳",
-  "version": "1.0.0",
-  "description": "当前秒/毫秒实时刷新一键复制，时间戳与时间互转，ISO 等常用格式。",
+  "version": "1.1.0",
+  "description": "时间戳与时区转换、批量转换、日期加减与时间差。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "engines": {
     "enest": ">=0.1.0"
   },
   "permissions": [
     "clipboard.write",
-    "ui.setTitle",
-    "ui.toast",
-    "ui.resize"
+    "shell.openExternal",
+    "fs.write"
   ],
   "window": {
-    "minWidth": 340,
-    "minHeight": 300
+    "width": 760,
+    "height": 480,
+    "minWidth": 420,
+    "minHeight": 280
   },
   "features": [
     {
       "code": "main",
-      "explain": "时间戳转换与实时时间",
+      "explain": "时间戳与日期转换",
       "cmds": [
         "时间戳",
         "ts",
@@ -37,10 +38,78 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "market": {    "tags": [
+  "market": {
+    "tags": [
       "时间戳",
       "开发",
       "日期"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "timestamp.preferences",
+        "title": "时间戳",
+        "items": [
+          {
+            "key": "timeZone",
+            "type": "text",
+            "label": "默认 IANA 时区",
+            "default": "Asia/Shanghai"
+          },
+          {
+            "key": "defaultUnit",
+            "type": "select",
+            "label": "默认输入单位",
+            "default": "auto",
+            "options": [
+              {
+                "label": "自动识别",
+                "value": "auto"
+              },
+              {
+                "label": "秒",
+                "value": "s"
+              },
+              {
+                "label": "毫秒",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "key": "batchFormat",
+            "type": "select",
+            "label": "批量输出格式",
+            "default": "date",
+            "options": [
+              {
+                "label": "所选时区日期",
+                "value": "date"
+              },
+              {
+                "label": "ISO UTC",
+                "value": "iso"
+              },
+              {
+                "label": "秒",
+                "value": "s"
+              },
+              {
+                "label": "毫秒",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

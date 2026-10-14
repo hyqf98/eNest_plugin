@@ -1,0 +1,18 @@
+{
+  "name": "@enest/plugin-kit",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./plugin-kit.js",
+    "./style.css": "./plugin-kit.css",
+    "./workbench": "./workbench.js",
+    "./workbench.css": "./workbench.css",
+    "./responsive.css": "./responsive.css",
+    "./file-inputs": "./file-inputs.js"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.57.0",
+    "sql-formatter": "^15.9.0"
+  }
+}

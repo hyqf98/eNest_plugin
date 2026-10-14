@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>网络调试台</title>
+
+
+    <link rel="stylesheet" href="src/css/main.css" />
+  </head>
+  <body>
+    <main class="nk" id="app">
+      <!-- 顶栏：模式切换 + 环境 + 会话 Tab -->
+      <header class="nk-top">
+        <h1 class="nk-logo">网络调试台</h1>
+        <nav class="nk-modes" id="modes" aria-label="模式"></nav>
+        <div class="nk-env shell-only" id="env-box">
+          <select id="env-select" aria-label="环境"></select>
+          <button type="button" class="nk-btn ghost" id="env-edit" title="编辑环境变量">变量</button>
+        </div>
+        <div class="nk-spacer"></div>
+        <button type="button" class="nk-btn ghost shell-only" id="btn-history">历史</button>
+        <button type="button" class="nk-btn ghost shell-only" id="btn-sets">集合</button>
+      </header>
+
+      <!-- 会话 Tab（桌面多会话；Quick 单会话） -->
+      <div class="nk-tabs shell-only" id="tabs" role="tablist"></div>
+
+      <!-- 内容区 -->
+      <section class="nk-body" id="body"><!-- JS 渲染 --></section>
+
+      <footer class="nk-foot">
+        <span id="foot-status">就绪</span>
+        <span class="nk-foot-hint">出站连接由宿主代理 · 单插件 8 并发 · 收流 4MB 环形缓冲</span>
+      </footer>
+    </main>
+
+    <!-- 通用浮层宿主 -->
+    <dialog id="dlg"></dialog>
+
+
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

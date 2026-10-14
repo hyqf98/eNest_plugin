@@ -6,10 +6,32 @@
   "description": "eNest 插件仓库：manifest 校验 / registry 生成 / 发布资产测试",
   "scripts": {
     "validate": "node scripts/validate-manifests.mjs",
-    "test": "node --test scripts/market-assets.test.mjs",
-    "registry": "node scripts/build-registry.mjs"
+    "test": "node --test scripts/*.test.mjs scripts/tests/*.test.mjs",
+    "registry": "node scripts/build-registry.mjs",
+    "build": "node scripts/build-plugin.mjs",
+    "test:ui": "playwright test",
+    "build:tools": "node scripts/build-plugin.mjs",
+    "test:tools": "node scripts/test-tools.mjs",
+    "pack": "node scripts/pack-plugin.mjs --all",
+    "capture:market": "node scripts/capture-market.mjs",
+    "validate:dist": "node scripts/validate-dist.mjs",
+    "api:generate": "node scripts/generate-api-types.mjs",
+    "api:check": "node scripts/generate-api-types.mjs --check",
+    "docs:sync": "node scripts/sync-developer-docs.mjs",
+    "docs:check": "node scripts/sync-developer-docs.mjs --check"
   },
   "devDependencies": {
-    "ajv": "^8.20.0"
-  }
+    "@playwright/test": "^1.64.0",
+    "ajv": "^8.20.0",
+    "es-module-lexer": "^1.7.0",
+    "fflate": "^0.8.2",
+    "monaco-editor": "^0.57.0",
+    "sql-formatter": "^15.9.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4"
+  },
+  "workspaces": [
+    "plugins/*",
+    "packages/*"
+  ]
 }

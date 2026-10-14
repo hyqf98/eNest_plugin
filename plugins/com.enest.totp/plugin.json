@@ -1,0 +1,86 @@
+{
+  "id": "com.enest.totp",
+  "name": "验证器",
+  "version": "1.0.0",
+  "description": "TOTP 两步验证：otpauth 导入、倒计时环出码、点击复制、分组搜索与口令加密备份。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.read",
+    "clipboard.write",
+    "fs.read",
+    "fs.write"
+  ],
+  "window": {
+    "minWidth": 420,
+    "minHeight": 340
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "打开验证器",
+      "cmds": [
+        "验证码",
+        "totp",
+        "yzm"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "TOTP",
+      "两步验证",
+      "安全"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "contributes": {
+    "homeCards": [
+      {
+        "id": "totp-card",
+        "title": "验证器",
+        "glyph": "⏱",
+        "color": "#c9767b",
+        "explain": "两步验证码倒计时出码，点击即复制",
+        "openCode": "main"
+      }
+    ],
+    "settings": [
+      {
+        "id": "totp.preferences",
+        "title": "验证器",
+        "items": [
+          {
+            "key": "followShellTheme",
+            "type": "switch",
+            "label": "跟随壳子主题",
+            "default": true
+          },
+          {
+            "key": "autoCopy",
+            "type": "switch",
+            "label": "点击条目自动复制验证码",
+            "default": true
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
+  }
+}

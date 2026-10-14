@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>文本对比</title>
+
+
+    <link rel="stylesheet" href="src/css/main.css" />
+  </head>
+  <body>
+    <main class="diff-app">
+      <header class="topbar">
+        <h1>文本对比</h1>
+        <span id="stats" class="stats mono" role="status" aria-live="polite"></span>
+        <div class="toolbar">
+          <div class="options" role="group" aria-label="对比选项">
+            <button id="opt-inline" aria-pressed="true">行内细化</button>
+            <button id="opt-ws" aria-pressed="false">忽略空白</button>
+            <button id="opt-case" aria-pressed="false">忽略大小写</button>
+          </div>
+          <button id="nav-prev" disabled title="上一处差异">↑ 上一处</button>
+          <button id="nav-next" disabled title="下一处差异">↓ 下一处</button>
+          <button id="swap" title="交换两栏">⇄ 交换</button>
+          <button id="export-diff" disabled>复制 unified diff</button>
+        </div>
+      </header>
+
+      <section class="editor" id="editor">
+        <div class="pane" data-pane="source">
+          <div class="pane-head">
+            <label for="source">源文本</label>
+            <span class="pane-actions">
+              <button id="paste-source">粘贴</button>
+              <button id="clear-source">清空</button>
+            </span>
+          </div>
+          <div class="editor-wrap" id="source-drop">
+            <textarea id="source" class="mono" spellcheck="false" placeholder="粘贴源文本，或把文件拖进来"></textarea>
+            <div class="drop-hint" hidden>松开以读取文件</div>
+          </div>
+        </div>
+        <div class="pane" data-pane="target">
+          <div class="pane-head">
+            <label for="target">目标文本</label>
+            <span class="pane-actions">
+              <button id="paste-target">粘贴</button>
+              <button id="clear-target">清空</button>
+            </span>
+          </div>
+          <div class="editor-wrap" id="target-drop">
+            <textarea id="target" class="mono" spellcheck="false" placeholder="粘贴目标文本，或把文件拖进来"></textarea>
+            <div class="drop-hint" hidden>松开以读取文件</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="result" id="result">
+        <div class="pane-head result-head">
+          <h2>差异结果 <span id="result-mode" class="hint">行级</span></h2>
+          <span class="hint" id="result-hint">差异块以底色标注；⌘↑ / ⌘↓ 或按钮导航</span>
+        </div>
+        <div id="diff-view" class="diff-view mono" tabindex="0"></div>
+      </section>
+    </main>
+
+
+    <script type="module" src="./src/entry.js"></script>
+  </body>
+</html>

@@ -1,0 +1,277 @@
+:root {
+  --line: var(--border, #dfe3e8);
+  --muted: var(--text-3, #7d8896);
+  --soft: var(--surface-2, #eef1f4);
+  --raise: var(--surface, #fff);
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg, #fafbfc);
+  color: var(--text, #29303b);
+  font: 13px/1.55 var(--font, -apple-system, "PingFang SC", sans-serif);
+  overflow: hidden;
+}
+button,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 12px;
+  transition:
+    background-color 140ms,
+    color 140ms,
+    border-color 140ms;
+}
+button:hover:not(:disabled) {
+  background: var(--soft);
+}
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button[aria-pressed="true"] {
+  color: var(--accent, #4772bf);
+  border-color: var(--accent, #4772bf);
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 12%, transparent));
+}
+:focus-visible {
+  outline: 2px solid var(--accent, #4772bf);
+  outline-offset: 2px;
+}
+h1,
+h2,
+p {
+  margin: 0;
+}
+.mono {
+  font-family: var(--mono, "SF Mono", ui-monospace, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+}
+.hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+label,
+.pane-head h2 {
+  font-size: 12px;
+  color: var(--text-2, #6b7686);
+}
+.diff-app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.topbar h1 {
+  font-size: 14px;
+}
+.stats {
+  font-size: 12px;
+  display: inline-flex;
+  gap: 8px;
+}
+.stats .add {
+  color: var(--ok, #35845f);
+  background: var(--ok-soft, color-mix(in srgb, var(--ok) 12%, transparent));
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.stats .del {
+  color: var(--danger, #c4544a);
+  background: var(--danger-soft, color-mix(in srgb, var(--danger) 12%, transparent));
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.toolbar {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.options {
+  display: flex;
+  gap: 4px;
+  margin-right: 8px;
+}
+/* ── 双栏输入 ─────────────────────────── */
+.editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+}
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.pane + .pane {
+  border-left: 1px solid var(--line);
+}
+.pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+}
+.pane-head label {
+  margin: 0;
+}
+.pane-actions {
+  display: flex;
+  gap: 4px;
+}
+.editor-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.editor-wrap textarea {
+  flex: 1;
+  resize: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.7;
+  outline: none;
+}
+.editor-wrap.dragover {
+  outline: 2px dashed var(--accent, #4772bf);
+  outline-offset: -4px;
+}
+.drop-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 12%, transparent));
+  color: var(--accent, #4772bf);
+  font-size: 13px;
+  pointer-events: none;
+}
+/* ── 结果区 ─────────────────────────── */
+.result {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.result-head {
+  padding: 8px 14px;
+}
+.diff-view {
+  flex: 1;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 0 0 12px;
+}
+.diff-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px minmax(0, 1fr);
+  min-width: fit-content;
+}
+.diff-row .gutter {
+  text-align: right;
+  padding: 0 8px;
+  color: var(--muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.diff-row .cell {
+  padding: 0 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.diff-row.hunk {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 2px 10px;
+  color: var(--muted);
+  background: var(--soft);
+  font-size: 11px;
+}
+.diff-row.add .cell {
+  background: var(--ok-soft, color-mix(in srgb, var(--ok) 12%, transparent));
+}
+.diff-row.del .cell {
+  background: var(--danger-soft, color-mix(in srgb, var(--danger) 12%, transparent));
+}
+.diff-row .cell ins {
+  text-decoration: none;
+  background: var(--ok-soft, color-mix(in srgb, var(--ok) 16%, transparent));
+  color: var(--ok, #35845f);
+  border-radius: 3px;
+}
+.diff-row .cell del {
+  background: var(--danger-soft, color-mix(in srgb, var(--danger) 16%, transparent));
+  color: var(--danger, #c4544a);
+  border-radius: 3px;
+}
+.diff-row.current {
+  box-shadow: inset 0 0 0 1px var(--accent, #4772bf);
+}
+.diff-empty {
+  padding: 24px 18px;
+  color: var(--muted);
+  font-family: inherit;
+  line-height: 1.9;
+}
+/* hex 模式三列风格 */
+.diff-view.hex .diff-row {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+.diff-view.hex .hex-line {
+  padding: 0 12px;
+  white-space: pre;
+}
+/* ── Quick 紧凑形态 ─────────────────────────── */
+html[data-mode="quick"] .diff-app {
+  grid-template-rows: minmax(0, 1fr) minmax(120px, 0.8fr);
+}
+html[data-mode="quick"] .topbar {
+  display: none;
+}
+html[data-mode="quick"] .editor textarea {
+  font-size: 11px;
+  padding: 8px 10px;
+}
+html[data-mode="quick"] .pane-head {
+  padding: 6px 10px;
+}
+html[data-mode="quick"] .result-head .hint {
+  display: none;
+}
+html[data-mode="quick"] .diff-row {
+  grid-template-columns: 32px minmax(0, 1fr) 32px minmax(0, 1fr);
+}
+html[data-mode="quick"] .options {
+  display: none;
+}

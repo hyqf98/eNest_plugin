@@ -2,413 +2,369 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>待办清单</title>
+
     <style>
       :root {
-        --bg: #0b0f17;
-        --surface: #121826;
-        --surface-2: #1a2234;
-        --border: rgba(255, 255, 255, 0.08);
-        --border-strong: rgba(255, 255, 255, 0.16);
-        --text: #e6edf7;
-        --text-2: #9aa7b8;
-        --text-3: #6b7688;
-        --accent: #3ddc97;
-        --accent-bright: #4ae3a3;
-        --accent-dim: rgba(61, 220, 151, 0.12);
-        --danger: #f87171;
-        --ease: cubic-bezier(0.32, 0.72, 0, 1);
-        --t: 140ms;
+        --line: var(--border, #dce2e6);
+        --paper: var(--surface, #fff);
+        --muted: var(--text-2, #73808c);
+        --mark: var(--accent, #358472);
       }
-      * { box-sizing: border-box; }
-      html, body { height: 100%; }
       body {
-        margin: 0;
-        font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "PingFang SC",
-          "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        font-size: 14px;
-        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
       }
-      ::selection { background: rgba(61, 220, 151, 0.25); }
-
-      .app {
-        display: grid;
-        grid-template-rows: auto 1fr;
-        height: 100%;
-        min-height: 0;
+      button {
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: inherit;
+        padding: 7px 10px;
       }
-      /* 统一内容列：宽容器 640 居中，窄容器全宽 */
-      .column {
-        width: 100%;
-        max-width: 640px;
-        margin: 0 auto;
-        padding-left: 24px;
-        padding-right: 24px;
+      button:hover {
+        background: var(--surface-2, #eaf0ef);
       }
-
-      /* —— 顶部区（标题 + 吸顶输入区） —— */
-      .top {
-        background: var(--bg);
-        border-bottom: 1px solid var(--border);
-        position: relative;
-        z-index: 1;
+      input,
+      textarea,
+      select {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--paper);
+        color: inherit;
+        padding: 8px;
+        min-width: 0;
+      }
+      textarea {
+        resize: vertical;
       }
       header {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding-top: 16px;
-        padding-bottom: 12px;
+        gap: 12px;
+        padding: 20px 24px 14px;
       }
-      .title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
       h1 {
+        font-size: 21px;
+        letter-spacing: -0.6px;
         margin: 0;
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        white-space: nowrap;
       }
-      .count {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        height: 22px;
-        padding: 0 10px;
-        border-radius: 999px;
-        background: var(--accent-dim);
-        color: var(--accent);
+      header .grow {
+        flex: 1;
+      }
+      .eyebrow {
         font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 5px;
+      }
+      .workspace {
+        height: calc(100% - 83px);
+        display: grid;
+        grid-template-columns: 180px minmax(280px, 1fr) 285px;
+      }
+      nav {
+        padding: 12px;
+        border-right: 1px solid var(--line);
+      }
+      nav button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        margin: 3px 0;
+      }
+      button.active {
+        background: color-mix(in srgb, var(--mark) 12%, transparent);
+        color: var(--mark);
         font-weight: 600;
-        white-space: nowrap;
-        font-variant-numeric: tabular-nums;
       }
-      .count::before {
-        content: "";
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--accent);
+      .list-pane {
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
       }
-      .spacer { flex: 1; }
-      .btn-ghost {
-        appearance: none;
+      .filters {
+        display: flex;
+        gap: 3px;
+        padding: 10px 18px;
+        border-bottom: 1px solid var(--line);
+        overflow-x: auto;
         flex: none;
-        height: 28px;
-        padding: 0 12px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: transparent;
-        color: var(--text-2);
-        font-size: 12px;
-        font-family: inherit;
-        cursor: pointer;
-        white-space: nowrap;
-        transition: color var(--t) var(--ease), border-color var(--t) var(--ease),
-          background var(--t) var(--ease);
       }
-      .btn-ghost:hover:not(:disabled) {
-        color: var(--text);
-        border-color: var(--border-strong);
-        background: var(--surface);
-      }
-      .btn-ghost:active:not(:disabled) { transform: translateY(1px); }
-      .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
-
-      /* —— 输入区：圆角 12px 一体框 —— */
-      .composer-wrap { padding-bottom: 16px; }
       .composer {
         display: flex;
-        align-items: center;
         gap: 8px;
-        height: 44px;
-        padding: 0 6px 0 14px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: var(--surface);
-        transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
-      }
-      .composer:focus-within {
-        border-color: rgba(61, 220, 151, 0.55);
-        box-shadow: 0 0 0 4px rgba(61, 220, 151, 0.1);
+        padding: 14px 18px;
       }
       .composer input {
         flex: 1;
-        min-width: 0;
-        border: 0;
         background: transparent;
-        color: var(--text);
-        font-size: 13.5px;
-        font-family: inherit;
-        outline: none;
-        caret-color: var(--accent);
       }
-      .composer input::placeholder { color: var(--text-3); }
-      .add-btn {
-        appearance: none;
-        flex: none;
-        height: 32px;
-        padding: 0 14px;
-        border: 0;
-        border-radius: 8px;
-        background: var(--accent);
-        color: #08130d;
-        font-size: 12.5px;
-        font-weight: 600;
-        font-family: inherit;
-        cursor: pointer;
-        white-space: nowrap;
-        transition: background var(--t) var(--ease), transform var(--t) var(--ease);
+      .primary {
+        background: var(--mark);
+        color: #fff;
       }
-      .add-btn:hover { background: var(--accent-bright); }
-      .add-btn:active { transform: scale(0.96); }
-      .add-btn:focus-visible, .btn-ghost:focus-visible, .checkbox:focus-visible,
-      .pin-btn:focus-visible, .del-btn:focus-visible {
-        outline: 2px solid rgba(61, 220, 151, 0.6);
-        outline-offset: 2px;
+      .primary:hover {
+        filter: brightness(1.05);
+        background: var(--mark);
       }
-
-      /* —— 列表 —— */
-      .list {
+      #tasks {
         overflow: auto;
-        min-height: 0;
-        scroll-behavior: smooth;
+        flex: 1;
+        padding: 0 12px;
       }
-      .list-inner {
-        min-height: 100%;
-        display: flex;
-        flex-direction: column;
-        padding-top: 8px;
-        padding-bottom: 32px;
-      }
-      .list::-webkit-scrollbar { width: 8px; }
-      .list::-webkit-scrollbar-track { background: transparent; }
-      .list::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 4px;
-        border: 2px solid transparent;
-        background-clip: padding-box;
-      }
-      .list::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.14); background-clip: padding-box; }
-
-      .todo {
-        position: relative;
+      .task {
         display: flex;
         align-items: center;
-        gap: 12px;
-        min-height: 48px;
-        padding: 6px 12px;
-        border-radius: 12px;
-        user-select: none;
-        transition: background var(--t) var(--ease);
+        gap: 10px;
+        padding: 12px 9px;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+        border-radius: 6px;
       }
-      .todo:hover { background: var(--surface); }
-      .todo.enter { animation: enter-in 160ms var(--ease); }
-      @keyframes enter-in {
-        from { opacity: 0; transform: translateY(4px); }
-        to { opacity: 1; transform: none; }
+      .task.selected {
+        background: color-mix(in srgb, var(--mark) 9%, transparent);
+        box-shadow: inset 3px 0 var(--mark);
       }
-      /* 置顶：左侧 3px 主色竖条 */
-      .todo.pinned::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 3px;
-        height: 20px;
-        border-radius: 2px;
-        background: var(--accent);
+      .task.done .task-title {
+        text-decoration: line-through;
+        color: var(--muted);
       }
-
-      /* —— 勾选框 —— */
-      .checkbox {
-        flex: none;
+      .check {
         width: 20px;
         height: 20px;
-        border-radius: 50%;
-        border: 1.5px solid var(--text-3);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        background: transparent;
+        border: 1px solid var(--line);
         padding: 0;
-        transition: border-color var(--t) var(--ease), background var(--t) var(--ease),
-          transform var(--t) var(--ease);
-      }
-      .checkbox:hover { border-color: var(--text-2); }
-      .checkbox:active { transform: scale(0.92); }
-      .checkbox svg {
-        width: 11px;
-        height: 11px;
-        opacity: 0;
-        transform: scale(0.5);
-        transition: transform 160ms var(--ease), opacity 160ms var(--ease);
-      }
-      .todo.done .checkbox {
-        background: var(--accent);
-        border-color: var(--accent);
-      }
-      .todo.done .checkbox:hover { background: var(--accent-bright); border-color: var(--accent-bright); }
-      .todo.done .checkbox svg { opacity: 1; transform: scale(1); }
-
-      .todo-text {
-        flex: 1;
-        min-width: 0;
-        font-size: 14px;
-        line-height: 1.45;
-        word-break: break-word;
-        cursor: default;
-        text-decoration: line-through transparent;
-        text-decoration-thickness: 1px;
-        transition: color var(--t) var(--ease), text-decoration-color var(--t) var(--ease);
-      }
-      .todo.done .todo-text {
-        color: var(--text-3);
-        text-decoration-color: rgba(154, 167, 184, 0.55);
-      }
-
-      /* —— 行内编辑：与文本同位置同尺寸无缝切换 —— */
-      .todo-edit {
-        flex: 1;
-        min-width: 0;
-        border: 0;
-        background: transparent;
-        color: var(--text);
-        font-size: 14px;
-        line-height: 1.45;
-        font-family: inherit;
-        padding: 0;
-        outline: none;
-        caret-color: var(--accent);
-        box-shadow: inset 0 -1px 0 rgba(61, 220, 151, 0.6);
-      }
-      .todo-edit:focus { box-shadow: inset 0 -1.5px 0 var(--accent); }
-
-      /* —— 行操作：hover 才出现 —— */
-      .pin-btn, .del-btn {
+        border-radius: 6px;
         flex: none;
-        appearance: none;
-        border: 0;
-        background: transparent;
-        color: var(--text-3);
-        width: 28px;
-        height: 28px;
-        border-radius: 8px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        padding: 0;
-        opacity: 0;
-        transition: opacity var(--t) var(--ease), color var(--t) var(--ease),
-          background var(--t) var(--ease);
       }
-      .todo:hover .pin-btn, .todo:hover .del-btn,
-      .todo:focus-within .pin-btn, .todo:focus-within .del-btn { opacity: 1; }
-      .pin-btn svg { width: 14px; height: 14px; display: block; }
-      .del-btn svg { width: 13px; height: 13px; display: block; }
-      .pin-btn:hover { color: var(--accent); background: var(--accent-dim); }
-      .pin-btn.active { color: var(--accent); }
-      .del-btn:hover { color: var(--danger); background: rgba(248, 113, 113, 0.1); }
-      .del-btn.confirm {
-        opacity: 1;
-        color: #1a0d0d;
-        background: var(--danger);
+      .done .check {
+        background: var(--mark);
+        color: white;
+      }
+      .task-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .task-title {
+        overflow-wrap: anywhere;
+        font-size: 14px;
+      }
+      .meta {
+        display: flex;
+        gap: 8px;
         font-size: 11px;
-        font-weight: 600;
-        width: auto;
-        padding: 0 8px;
+        color: var(--muted);
+        margin-top: 5px;
       }
-
-      /* —— 已完成沉底分组 —— */
-      .group-sep {
+      .overdue {
+        color: var(--danger, #b35350);
+      }
+      .pin {
+        color: var(--mark);
+      }
+      .task .remove {
+        opacity: 0;
+      }
+      .task:hover .remove,
+      .task:focus-within .remove {
+        opacity: 1;
+      }
+      .batch {
+        padding: 7px 18px;
+        display: flex;
+        gap: 5px;
+        border-top: 1px solid var(--line);
+      }
+      .detail {
+        overflow: auto;
+        border-left: 1px solid var(--line);
+        padding: 18px;
+      }
+      .detail label {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin: 13px 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .detail input,
+      .detail textarea,
+      .detail select {
+        width: 100%;
+        color: var(--text, #252a32);
+      }
+      .detail h2 {
+        font-size: 14px;
+        margin: 0 0 15px;
+      }
+      .detail .subtask {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin: 7px 0;
+      }
+      .subtask input[type='checkbox'] {
+        width: auto;
+      }
+      .subtask span {
+        flex: 1;
+        overflow-wrap: anywhere;
+      }
+      .detail-actions {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .empty {
+        padding: 60px 18px;
+        text-align: center;
+        color: var(--muted);
+      }
+      footer {
         display: flex;
         align-items: center;
         gap: 12px;
-        margin: 20px 4px 4px;
-      }
-      .group-sep::after {
-        content: "";
-        flex: 1;
-        height: 1px;
-        background: var(--border);
-      }
-      .group-label {
         font-size: 11px;
-        font-weight: 500;
-        letter-spacing: 0.14em;
-        color: var(--text-3);
-        white-space: nowrap;
-        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+        padding: 9px 18px;
+        border-top: 1px solid var(--line);
       }
-
-      /* —— 空状态 —— */
-      .empty {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        min-height: 320px;
-        padding: 32px 16px;
-        text-align: center;
+      #save-state {
+        margin-left: auto;
       }
-      .empty .glyph { width: 56px; height: 56px; margin-bottom: 6px; }
-      .empty .glyph svg { width: 100%; height: 100%; display: block; }
-      .empty-title { font-size: 13px; color: var(--text-2); }
-      .empty-sub { font-size: 12px; color: var(--text-3); }
-
-      /* —— 窄容器降级（≤740px，Quick 呼出） —— */
-      @media (max-width: 740px) {
-        .column { max-width: none; padding-left: 16px; padding-right: 16px; }
-        header { padding-top: 10px; padding-bottom: 10px; }
-        .composer-wrap { padding-bottom: 12px; }
-        .composer { height: 40px; padding-left: 12px; }
-        .add-btn { height: 28px; padding: 0 10px; }
-        .todo { min-height: 44px; padding: 5px 8px; gap: 10px; border-radius: 10px; }
-        .todo-text { font-size: 13.5px; }
-        .todo-edit { font-size: 13.5px; }
-        .list-inner { padding-bottom: 24px; }
-        .group-sep { margin: 14px 2px 2px; }
-        .empty { min-height: 240px; }
-        .empty .glyph { width: 48px; height: 48px; }
+      .quick-summary {
+        font-weight: 600;
+        padding: 10px 18px 0;
       }
-
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after {
-          animation-duration: 0.01ms !important;
-          transition-duration: 0.01ms !important;
+      .search {
+        width: 220px;
+      }
+      #undo {
+        color: var(--mark);
+      }
+      [data-mode='quick'] .workspace {
+        height: 100%;
+        grid-template-columns: 1fr;
+      }
+      [data-mode='quick'] .filters {
+        padding: 5px 10px;
+      }
+      [data-mode='quick'] .composer {
+        padding: 9px 12px;
+      }
+      [data-mode='quick'] .task {
+        padding: 9px 8px;
+      }
+      [data-mode='quick'] .task-title {
+        font-size: 13px;
+      }
+      [data-mode='quick'] .detail {
+        position: absolute;
+        inset: 0 0 0 30%;
+        background: var(--paper);
+        z-index: 5;
+        box-shadow: -8px 0 30px #15202615;
+      }
+      [data-mode='quick'] .detail:not(.open) {
+        display: none;
+      }
+      [data-mode='quick'] .batch {
+        display: none;
+      }
+      @media (max-width: 900px) {
+        [data-mode='shell'] .workspace {
+          grid-template-columns: 145px 1fr;
+        }
+        [data-mode='shell'] .detail {
+          position: absolute;
+          right: 0;
+          top: 80px;
+          bottom: 0;
+          width: 310px;
+          background: var(--paper);
+          z-index: 5;
+        }
+        [data-mode='shell'] .detail:not(.open) {
+          display: none;
+        }
+      }
+      @media (max-width: 540px) {
+        [data-mode='quick'] .detail {
+          left: 0;
+        }
+        .task .remove {
+          opacity: 1;
         }
       }
     </style>
   </head>
   <body>
-    <div class="app">
-      <div class="top">
-        <header class="column">
-          <div class="title-wrap">
-            <h1>待办清单</h1>
-            <span class="count" id="count">进行中 0</span>
-          </div>
-          <div class="spacer"></div>
-          <button class="btn-ghost" id="btn-clear" disabled>清已完成</button>
-        </header>
-        <div class="composer-wrap column">
-          <div class="composer">
-            <input id="input" type="text" placeholder="想做什么？回车添加" maxlength="500" autocomplete="off" />
-            <button class="add-btn" id="btn-add">添加</button>
-          </div>
+    <header class="shell-only">
+      <div>
+        <div class="eyebrow">把下一步写下来</div>
+        <h1>待办清单</h1>
+      </div>
+      <span class="grow"></span
+      ><input
+        class="search"
+        id="search"
+        type="search"
+        placeholder="搜索任务、标签、备注"
+        aria-label="搜索任务"
+      /><button id="export">导出</button
+      ><button data-open-settings>设置</button>
+    </header>
+    <div class="workspace">
+      <nav class="shell-only">
+        <div class="eyebrow">清单</div>
+        <div id="lists"></div>
+        <button id="new-list">＋ 新建清单</button>
+        <form id="list-form" hidden>
+          <input
+            id="list-name"
+            placeholder="清单名称"
+            maxlength="50"
+            aria-label="新清单名称"
+            style="width: 100%"
+          /><button>创建</button
+          ><button type="button" id="cancel-list">取消</button>
+        </form>
+        <hr />
+        <button id="import">导入任务</button
+        >
+      </nav>
+      <section class="list-pane">
+        <div class="quick-summary quick-only">
+          待办清单 <span id="quick-count"></span>
         </div>
-      </div>
-      <div class="list" id="list">
-        <div class="list-inner column" id="list-inner"></div>
-      </div>
+        <div class="filters" id="filters"></div>
+        <form class="composer" id="composer">
+          <input
+            id="new-task"
+            autocomplete="off"
+            maxlength="500"
+            placeholder="下一件要做的事…"
+            aria-label="新任务"
+          /><button class="primary" type="submit">添加</button>
+        </form>
+        <div id="tasks" role="list"></div>
+        <div class="batch shell-only">
+          <button id="batch-done">完成已选</button
+          ><button id="batch-archive">归档已选</button
+          ><button id="clear-done">归档已完成</button>
+        </div>
+        <footer>
+          <span id="count"></span><button id="undo" hidden>撤销</button
+          ><span id="save-state">已保存</span>
+        </footer>
+      </section>
+      <aside class="detail" id="detail">
+        <div class="empty">选择任务，安排下一步</div>
+      </aside>
     </div>
-    <script src="./assets/js/main.js"></script>
+
+
+    <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

@@ -6,12 +6,27 @@
   "author": "eNest",
   "main": "index.html",
   "category": "效率",
-  "icon": "icon.svg",
-  "permissions": ["storage.local", "ui.setTitle"],
-  "engines": { "enest": ">=0.1.0" },
+  "icon": "assets/market/icon.svg",
+  "permissions": [],
+  "engines": {
+    "enest": ">=0.1.0"
+  },
   "features": [
-    { "code": "main", "explain": "打开 Hello", "cmds": ["hello", "你好"] },
-    { "code": "hello", "explain": "首页卡片入口", "cmds": ["问候"] }
+    {
+      "code": "main",
+      "explain": "打开 Hello",
+      "cmds": [
+        "hello",
+        "你好"
+      ]
+    },
+    {
+      "code": "hello",
+      "explain": "首页卡片入口",
+      "cmds": [
+        "问候"
+      ]
+    }
   ],
   "contributes": {
     "homeCards": [
@@ -25,7 +40,13 @@
       }
     ],
     "railEntries": [
-      { "id": "hello-rail", "glyph": "H", "color": "#7aa2ff", "title": "Hello", "openCode": "hello" }
+      {
+        "id": "hello-rail",
+        "glyph": "H",
+        "color": "#7aa2ff",
+        "title": "Hello",
+        "openCode": "hello"
+      }
     ]
   },
   "ui": {
@@ -35,6 +56,16 @@
     "preferredColorScheme": "auto"
   },
   "market": {
-    "tags": ["示例", "入门"]
+    "tags": [
+      "示例",
+      "入门"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }

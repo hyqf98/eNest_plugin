@@ -1,17 +1,15 @@
 {
   "id": "com.enest.pomodoro",
   "name": "番茄钟",
-  "version": "1.0.0",
-  "description": "专注 25 分钟休息 5 分钟（可调），到点系统通知，今日完成统计。",
+  "version": "1.1.0",
+  "description": "主进程后台专注计时，长短休息、阶段记录与本地统计。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
-  "icon": "icon.svg",
+  "icon": "assets/market/icon.svg",
   "permissions": [
     "notify",
-    "storage.local",
-    "ui.setTitle",
-    "ui.toast"
+    "timer.background"
   ],
   "engines": {
     "enest": ">=0.1.0"
@@ -31,6 +29,77 @@
       "番茄钟",
       "专注",
       "效率"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
     ]
+  },
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "pomodoro.preferences",
+        "title": "番茄钟",
+        "items": [
+          {
+            "key": "focusMin",
+            "type": "number",
+            "label": "默认专注分钟",
+            "default": 25,
+            "min": 1,
+            "max": 180,
+            "step": 1
+          },
+          {
+            "key": "breakMin",
+            "type": "number",
+            "label": "默认短休息分钟",
+            "default": 5,
+            "min": 1,
+            "max": 60,
+            "step": 1
+          },
+          {
+            "key": "longBreakMin",
+            "type": "number",
+            "label": "长休息分钟",
+            "default": 15,
+            "min": 1,
+            "max": 120,
+            "step": 1
+          },
+          {
+            "key": "longBreakEvery",
+            "type": "number",
+            "label": "每几轮长休息",
+            "default": 4,
+            "min": 2,
+            "max": 12,
+            "step": 1
+          },
+          {
+            "key": "autoStart",
+            "type": "switch",
+            "label": "阶段结束自动开始下一阶段",
+            "default": false
+          },
+          {
+            "key": "notify",
+            "type": "switch",
+            "label": "阶段完成时发送系统通知",
+            "default": true
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5173/"
   }
 }
