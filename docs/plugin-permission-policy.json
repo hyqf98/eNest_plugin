@@ -9,7 +9,10 @@
     "settings.register",
     "settings.page",
     "theme",
-    "vault.write"
+    "vault.write",
+    "timer.background",
+    "fs.read",
+    "fs.write"
   ],
   "consent": [
     "clipboard.read",
@@ -18,7 +21,6 @@
     "clipboard.writeImage",
     "clipboard.history",
     "clipboard.paste",
-    "timer.background",
     "screen.capture",
     "screen.record",
     "pin.create",
@@ -42,8 +44,6 @@
     "net.socket",
     "lan.share",
     "fs.rename",
-    "fs.read",
-    "fs.write",
     "sys.control",
     "ssh.agent",
     "config.agent.read",

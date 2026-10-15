@@ -17,9 +17,7 @@
     "clipboard.readImage",
     "clipboard.writeImage",
     "clipboard.write",
-    "shell.openExternal",
-    "fs.read",
-    "fs.write"
+    "shell.openExternal"
   ],
   "window": {
     "minWidth": 480,

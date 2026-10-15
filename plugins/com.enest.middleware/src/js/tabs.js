@@ -1,296 +1,204 @@
-/**
- * tabs.js — 连接 Tab 条 + 子导航 + 页面路由
- * - .conn-tab：kind-dot + label + env chip + ✕；＋ 按钮开新建抽屉
- * - subnav：按当前连接 kind 过滤 PAGES（kinds 为 null 或含 kind）
- * - ctx 组装：{ api, store, conn, sessionKey, caps, queryModes, mode, switchPage, refreshStatus }
- * - 页面切换先调旧页 destroy()；同一连接重复 Tab 不重复开
- */
-import { PAGES } from './pages/index.js'
-import { KIND_META, kindDot, envChip } from './components.js'
+/** Unified connection-bound work tabs. Hidden panels retain drafts, selection and results. */
+import { PAGES } from '@mw/pages/index.js'
+import { KIND_META, kindDot, el, escapeHtml } from './components.js'
 import api from './api.js'
 import store from './store.js'
+import { bindTaskApi } from './workspace.js'
+import { SessionCoordinator } from './sessionCoordinator.js'
 import { refreshStatus } from './status.js'
 
-let appMode = 'shell' // workbench.js 启动时 setMode
-let currentPageId = null
-let currentPageInstance = null
-const pageModuleCache = new Map() // pageId -> module
-const sessionCaps = new Map() // connId -> { caps, queryModes }（session.open 回填 + api.session 恢复）
-
-const dom = () => ({
-  connTabs: document.getElementById('conn-tabs'),
-  subnav: document.getElementById('subnav'),
-  pageHost: document.getElementById('page-host')
+let appMode = 'shell'
+const modules = new Map()
+const surfacePanels = { shell: new Map(), quick: new Map() }
+const sharedPanels = new Map()
+const allPanels = () => [...Object.values(surfacePanels), sharedPanels]
+let panels = surfacePanels.shell
+const activatedConnections = new Set()
+const sessions = new SessionCoordinator({
+  open: (key, configuration) => api.openConnection(configuration.connection, { sessionKey: key, readOnly: configuration.readOnly }),
+  close: key => api.closeConnection(key)
 })
+export const sessionKeyFor = connectionId => appMode === 'quick' ? `mw:quick:${connectionId}` : api.sessionKeyOf(connectionId)
 
 export function setMode(mode) {
-  appMode = mode === 'quick' ? 'quick' : 'shell'
+  const next = mode === 'quick' ? 'quick' : 'shell'
+  if (appMode !== next) { for (const record of panels.values()) record.node.hidden = true }
+  appMode = next
+  panels = surfacePanels[next]
+}
+export function forgetSessionCaps(connectionId) {
+  for (const key of [api.sessionKeyOf(connectionId), `mw:quick:${connectionId}`]) void sessions.invalidate(key)
+  for (const collection of Object.values(surfacePanels)) for (const [id, record] of collection) if (record.connectionId === connectionId) disposePanel(id, collection)
+}
+function disposePanel(id, collection = panels) {
+  const record = collection.get(id)
+  if (!record) return
+  record.alive = false
+  try { record.instance?.destroy?.() } catch { /* Closing one page must not block others. */ }
+  record.node.remove()
+  collection.delete(id)
+}
+export function disposePanels() { for (const collection of allPanels()) for (const id of collection.keys()) disposePanel(id, collection) }
+
+export async function ensureSession(connectionId) {
+  const connection = store.getConnection(connectionId ?? store.activeTab)
+  if (!connection) return null
+  const info = await sessions.ensure(sessionKeyFor(connection.id), { connection, readOnly: appMode === 'quick' || !!connection.readOnly })
+  return { caps: info?.capabilities || {}, queryModes: info?.messageQueryModes || null }
 }
 
-/** openConnection 成功后由 workbench.js 回填会话能力 */
-export function setSessionCaps(connId, caps, queryModes) {
-  sessionCaps.set(connId, { caps: caps || {}, queryModes: queryModes || null })
-}
+export function visiblePages(kind) { return PAGES.filter(page => !page.kinds || page.kinds.includes(kind)) }
+function notifyNavigation() { document.dispatchEvent(new CustomEvent('mw-navigation-changed')) }
 
-export function forgetSessionCaps(connId) {
-  sessionCaps.delete(connId)
-}
-
-/** 某连接 Tab 关闭时若持有会话则关连接（异步，失败不打断 UI） */
-async function tryCloseSession(connId) {
-  const key = api.sessionKeyOf(connId)
-  try {
-    await api.closeConnection(key)
-  } catch { /* 会话可能本就不存在 */ }
-  forgetSessionCaps(connId)
-  await api.forgetConnection(connId).catch(() => {})
-}
-
-/* ———————————————— Tab 条 ———————————————— */
-
-function renderConnTabs() {
-  const { connTabs } = dom()
-  if (!connTabs) return
-  connTabs.innerHTML = ''
-  for (const connId of store.tabs) {
-    const conn = store.getConnection(connId)
-    if (!conn) continue
-    const tab = document.createElement('button')
-    tab.type = 'button'
-    tab.className = 'conn-tab' + (store.activeTab === connId ? ' on' : '')
-    tab.dataset.kind = conn.kind
-    tab.title = `${conn.name || conn.id} · ${KIND_META[conn.kind]?.label ?? conn.kind}`
-    const label = document.createElement('span')
-    label.className = 'label'
-    label.textContent = conn.name || conn.id
-    tab.appendChild(el_html(kindDot(conn.kind)))
-    tab.appendChild(label)
-    tab.insertAdjacentHTML('beforeend', envChip(conn.env))
-    const x = document.createElement('span')
-    x.className = 'x'
-    x.textContent = '✕'
-    x.title = '关闭 Tab'
-    x.addEventListener('click', (e) => {
-      e.stopPropagation()
-      closeConnTab(connId)
+function renderTabs() {
+  const root = document.getElementById('conn-tabs')
+  root.replaceChildren()
+  for (const task of store.tasks) {
+    const connection = store.getConnection(task.connectionId)
+    const page = task.pageId === 'settings' ? { title: '设置' } : PAGES.find(page => page.id === task.pageId)
+    if ((!connection && task.pageId !== 'settings') || !page) continue
+    const title = connection ? `${page.title} · ${connection.name}` : '插件设置'
+    const tab = el('div', { class: `conn-tab${store.activeTask === task.id ? ' on' : ''}`, role: 'tab', tabindex: store.activeTask === task.id ? '0' : '-1', 'aria-selected': String(store.activeTask === task.id), 'aria-controls': `panel-${task.pageId === 'settings' ? 'shared' : appMode}-${task.id}`, 'data-task': task.id, title }, [
+      connection ? el('span', { html: kindDot(connection.kind) }) : el('span', {}, '⚙'),
+      el('span', { class: 'label' }, page.title),
+      el('span', { class: 'tab-connection' }, connection?.name || ''),
+      el('button', { class: 'x', 'aria-label': `关闭 ${title}`, title: '关闭标签', onclick: event => { event.stopPropagation(); closeTaskTab(task.id) } }, '×')
+    ])
+    tab.addEventListener('click', () => { store.activateTask(task.id); renderAll() })
+    tab.addEventListener('keydown', event => {
+      if (event.key === 'Delete') { event.preventDefault(); closeTaskTab(task.id); return }
+      const tabs = [...root.querySelectorAll('[role=tab]')]
+      let index = tabs.indexOf(tab)
+      if (event.key === 'ArrowRight') index = (index + 1) % tabs.length
+      else if (event.key === 'ArrowLeft') index = (index - 1 + tabs.length) % tabs.length
+      else if (event.key === 'Home') index = 0
+      else if (event.key === 'End') index = tabs.length - 1
+      else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); tab.click(); return }
+      else return
+      event.preventDefault(); tabs[index].focus(); tabs[index].click()
+      root.querySelector(`[data-task="${CSS.escape(store.activeTask)}"]`)?.focus()
     })
-    tab.appendChild(x)
-    tab.addEventListener('click', () => {
-      if (store.setActiveTab(connId)) renderAll()
-    })
-    connTabs.appendChild(tab)
+    root.append(tab)
   }
-  const plus = document.createElement('button')
-  plus.type = 'button'
-  plus.className = 'conn-tab plus'
-  plus.title = '连接一个新实例'
-  plus.textContent = '＋'
-  plus.addEventListener('click', () => {
-    import('./connections.js').then(({ openConnectionDrawer }) => openConnectionDrawer())
-  })
-  connTabs.appendChild(plus)
+  if (!store.tasks.length) root.append(el('span', { class: 'tabs-placeholder' }, '工作区'))
 }
 
-function el_html(html) {
-  const t = document.createElement('template')
-  t.innerHTML = html.trim()
-  return t.content.firstChild
+export function closeTaskTab(id = store.activeTask) {
+  const task = store.tasks.find(task => task.id === id)
+  if (!task) return
+  if (allPanels().some(collection => collection.get(id)?.instance?.beforeClose?.() === false)) return
+  for (const collection of allPanels()) disposePanel(id, collection)
+  store.closeTask(id)
+  if (task.connectionId && !store.tasks.some(item => item.connectionId === task.connectionId)) closeSession(task.connectionId)
+  renderAll()
 }
-
-export function closeConnTab(connId) {
-  store.closeTab(connId)
-  void tryCloseSession(connId)
+function closeSession(connectionId) {
+  forgetSessionCaps(connectionId)
+  activatedConnections.delete(connectionId)
+  void api.forgetConnection(connectionId)
+}
+export function closeConnTab(connectionId) {
+  for (const task of [...store.tasks]) if (task.connectionId === connectionId) { disposePanel(task.id); store.closeTask(task.id) }
+  store.closeTab(connectionId)
+  closeSession(connectionId)
+  renderAll()
+}
+export async function openConnTab(connectionId) { activateWithPage(connectionId) }
+export function openSettings() { store.openTask(null, 'settings'); renderAll() }
+export function activateWithPage(connectionId, pageId) {
+  const connection = store.getConnection(connectionId)
+  if (!connection) return
+  const target = pageId || store.ui.lastPage[connectionId] || 'overview'
+  if (!visiblePages(connection.kind).some(page => page.id === target)) return
+  activatedConnections.add(connectionId)
+  store.openTask(connectionId, target)
   renderAll()
 }
 
-/** 打开（或激活）某连接 Tab；重复 Tab 不重复开；激活后懒连接宿主会话并回填能力 */
-export async function openConnTab(connId) {
-  if (!store.openTab(connId)) return
-  renderAll()
-  await ensureSession(connId)
+function renderContext(connection, task) {
+  const root = document.getElementById('subnav')
+  root.replaceChildren()
+  if (task?.pageId === 'settings') { root.append(el('span', { class: 'context-connection' }, '快捷键与输入提示')); return }
+  if (!connection) return
+  root.append(el('span', { class: 'context-connection', title: connection.name }, `${connection.name} · ${KIND_META[connection.kind]?.label || connection.kind}`))
+  for (const page of visiblePages(connection.kind)) {
+    root.append(el('button', { class: page.id === task.pageId ? 'on' : '', 'data-page': page.id, onclick: () => activateWithPage(connection.id, page.id) }, page.title))
+  }
+  root.append(el('span', { class: 'subnav-right' }, appMode === 'quick' || connection.readOnly ? '只读' : '可读写'))
 }
 
-/** 懒连接：打开宿主会话（未开时），能力就位后重绘一次 subnav */
-export async function ensureSession(connId) {
-  const conn = store.getConnection(connId ?? store.activeTab)
-  if (!conn) return
-  if (sessionCaps.has(conn.id)) return // 已有会话能力（open 过）
+async function mountSettings(task) {
+  if (sharedPanels.has(task.id)) return
+  const node = el('section', { class: 'page', id: `panel-shared-${task.id}`, role: 'tabpanel', 'data-page-panel': 'settings', 'aria-label': '中间件设置' })
+  const record = { node, alive: true, instance: null }
+  sharedPanels.set(task.id, record); document.getElementById('page-host').append(node)
   try {
-    const info = await api.openConnection(conn)
-    if (info && (info.capabilities || info.messageQueryModes)) {
-      setSessionCaps(conn.id, info.capabilities, info.messageQueryModes)
-      if (store.activeTab === conn.id) renderAll()
-    }
-  } catch (e) {
-    if (e?.code !== 'HOST_LAG') void api.toast(e?.message || '连接失败', 'error')
-  }
+    const module = await import('@mw/pages/settings.js')
+    if (!record.alive) return
+    record.instance = Object.create(module.default)
+    record.instance.render(node, { store, api })
+  } catch (error) { if (record.alive) node.textContent = `无法打开设置：${error.message}` }
 }
 
-/* ———————————————— 子导航 + 页面路由 ———————————————— */
-
-function visiblePages(kind) {
-  return PAGES.filter((p) => !p.kinds || p.kinds.includes(kind))
-}
-
-function currentPageIdFor(conn) {
-  const restored = store.ui.lastPage?.[conn.id]
-  const visible = visiblePages(conn.kind)
-  const fallback = appMode === 'quick' ? 'overview' : (visible[0]?.id ?? 'overview')
-  if (restored && visible.some((p) => p.id === restored)) return restored
-  return fallback
-}
-
-async function loadPageModule(pageId) {
-  if (pageModuleCache.has(pageId)) return pageModuleCache.get(pageId)
-  const reg = PAGES.find((p) => p.id === pageId)
-  if (!reg) return null
-  try {
-    const mod = await reg.page()
-    const resolved = mod?.default ?? mod
-    pageModuleCache.set(pageId, resolved)
-    return resolved
-  } catch (e) {
-    void api.toast(`页面加载失败：${e?.message || e}`, 'error')
-    return null
-  }
-}
-
-async function showPage(conn, pageId) {
-  const { subnav, pageHost } = dom()
-  if (!subnav || !pageHost) return
-
-  // 先销毁旧页（停轮询/断监听）
-  destroyCurrentPage()
-  currentPageId = pageId
-
-  // 子导航
-  const visible = visiblePages(conn.kind)
-  const caps = await getCaps(conn)
-  subnav.innerHTML = ''
-  for (const p of visible) {
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.textContent = p.title
-    if (p.id === pageId) btn.classList.add('on')
-    btn.addEventListener('click', () => showPage(conn, p.id))
-    subnav.appendChild(btn)
-  }
-  const right = document.createElement('div')
-  right.className = 'subnav-right'
-  right.textContent = `${KIND_META[conn.kind]?.label ?? conn.kind} · 子导航按连接类型显隐`
-  subnav.appendChild(right)
-
-  // 页面容器
-  pageHost.innerHTML = ''
-  const pageDiv = document.createElement('div')
-  pageDiv.className = 'page on'
-  pageHost.appendChild(pageDiv)
-
-  const mod = await loadPageModule(pageId)
-  if (!mod || currentPageId !== pageId || store.activeTab !== conn.id) return
-  const ctx = buildCtx(conn, caps)
-  try {
-    currentPageInstance = mod
-    await mod.render(pageDiv, ctx)
-  } catch (e) {
-    void api.toast(`页面渲染失败：${e?.message || e}`, 'error')
-  }
-  refreshStatus()
-}
-
-function destroyCurrentPage() {
-  if (currentPageInstance && typeof currentPageInstance.destroy === 'function') {
-    try {
-      currentPageInstance.destroy()
-    } catch { /* 页面销毁异常不阻断切换 */ }
-  }
-  currentPageInstance = null
-  currentPageId = null
-}
-
-/** caps：session.open 回填优先；未 open 用 kinds.list 静态描述符 */
-async function getCaps(conn) {
-  const cached = sessionCaps.get(conn.id)
-  if (cached) return cached
-  try {
-    const info = await api.session.get(api.sessionInfoKey(conn.id))
-    if (info?.capabilities) {
-      return { caps: info.capabilities, queryModes: info.messageQueryModes || null }
-    }
-  } catch { /* ignore */ }
-  try {
-    const descriptors = await api.kinds()
-    const d = descriptors.find((x) => x.kind === conn.kind)
-    return { caps: d?.capabilities || {}, queryModes: d?.messageQueryModes || null }
-  } catch {
-    return { caps: {}, queryModes: null }
-  }
-}
-
-function buildCtx(conn, { caps, queryModes }) {
-  return {
-    api,
-    store,
-    conn,
-    sessionKey: api.sessionKeyOf(conn.id),
-    caps: caps || {},
-    queryModes: queryModes || null,
-    mode: appMode,
-    switchPage: (pageId) => {
-      if (store.getConnection(conn.id)) void showPage(conn, pageId)
-    },
-    refreshStatus: () => refreshStatus()
-  }
-}
-
-/* ———————————————— 总渲染 ———————————————— */
-
-/** 全量重绘：Tab 条 + 当前内容区（连接页 / 首页）+ 状态栏 */
-export function renderAll() {
-  renderConnTabs()
-  const conn = store.getConnection(store.activeTab)
-  if (!conn) {
-    // 所有 Tab 关闭 → 连接首页
-    destroyCurrentPage()
-    const { subnav, pageHost } = dom()
-    if (subnav) subnav.innerHTML = ''
-    if (pageHost) {
-      pageHost.innerHTML = ''
-      const pageDiv = document.createElement('div')
-      pageDiv.className = 'page on'
-      pageDiv.style.display = 'flex'
-      pageDiv.style.flexDirection = 'column'
-      pageHost.appendChild(pageDiv)
-      import('./connections.js').then(({ renderHome }) => {
-        if (!store.getConnection(store.activeTab)) {
-          currentPageInstance = { id: 'home', destroy() {} }
-          currentPageId = 'home'
-          renderHome(pageDiv, { api, store, conn: null, sessionKey: '', caps: {}, queryModes: null, mode: appMode, switchPage: () => {}, refreshStatus: () => refreshStatus() })
-        }
-      }).catch(() => {})
-    }
-    refreshStatus(null)
+async function mountTask(task, connection) {
+  const key = `${appMode}:${JSON.stringify(connection)}`
+  const existing = panels.get(task.id)
+  if (existing?.key === key && !(existing.placeholder && activatedConnections.has(connection.id))) return
+  if (existing) disposePanel(task.id)
+  const node = el('section', { class: 'page', id: `panel-${appMode}-${task.id}`, role: 'tabpanel', 'data-page-panel': task.pageId, 'aria-label': `${connection.name} · ${task.pageId}` })
+  const record = { node, key, connectionId: connection.id, alive: true, instance: null }
+  panels.set(task.id, record)
+  document.getElementById('page-host').append(node)
+  if (!activatedConnections.has(connection.id)) {
+    record.placeholder = true
+    node.append(el('div', { class: 'workspace-empty' }, [
+      el('h1', {}, '尚未重新读取'),
+      el('p', {}, '标签与布局已恢复。连接后再读取当前页面的数据。'),
+      el('button', { class: 'btn primary', 'data-resume-task': task.id, onclick: () => { activatedConnections.add(connection.id); disposePanel(task.id); renderAll() } }, '连接并读取')
+    ]))
     return
   }
-  const pageId = currentPageId && visiblePages(conn.kind).some((p) => p.id === currentPageId)
-    ? currentPageId
-    : currentPageIdFor(conn)
-  if (store.ui.lastPage[conn.id] !== pageId) {
-    store.ui.lastPage[conn.id] = pageId
-    store.setUi('lastPage', store.ui.lastPage) // 防抖持久化上次页面
+  node.innerHTML = '<div class="empty-cap" role="status">正在连接并读取工作区…</div>'
+  const mode = appMode
+  const sessionKey = sessionKeyFor(connection.id)
+  try {
+    const capabilities = await ensureSession(connection.id)
+    if (!record.alive) return
+    if (!modules.has(task.pageId)) modules.set(task.pageId, PAGES.find(page => page.id === task.pageId).page())
+    const mod = await modules.get(task.pageId)
+    if (!record.alive) return
+    const instance = Object.create(mod.default || mod)
+    record.instance = instance
+    node.replaceChildren()
+    const scopedApi = bindTaskApi(api, sessionKey, { isAlive: () => record.alive, mode, readOnly: connection.readOnly, kind: connection.kind })
+    await instance.render(node, {
+      api: scopedApi, store, conn: { ...connection }, sessionKey, ...capabilities, mode,
+      isActive: () => record.alive && store.activeTask === task.id && appMode === mode,
+      switchPage: pageId => activateWithPage(connection.id, pageId), refreshStatus
+    })
+  } catch (error) {
+    if (!record.alive) return
+    node.innerHTML = `<div class="empty-cap" role="alert"><p>${escapeHtml(error?.message || '工作区读取失败')}</p></div>`
+    node.firstElementChild.append(el('button', { class: 'btn', onclick: () => { disposePanel(task.id); renderAll() } }, '重试连接'))
   }
-  void showPage(conn, pageId)
-  refreshStatus()
 }
 
-/** 外部（workbench.js / tree 右键）触达：激活并跳到指定页 */
-export function activateWithPage(connId, pageId) {
-  if (!store.openTab(connId)) return
-  const conn = store.getConnection(connId)
-  renderConnTabs()
-  if (conn && pageId) {
-    void showPage(conn, pageId)
+export function renderAll() {
+  for (const collection of allPanels()) for (const [id] of collection) if (!store.tasks.some(task => task.id === id)) disposePanel(id, collection)
+  renderTabs()
+  const task = store.tasks.find(task => task.id === store.activeTask)
+  const connection = store.getConnection(task?.connectionId)
+  renderContext(connection, task)
+  for (const collection of allPanels()) for (const [id, panel] of collection) panel.node.hidden = id !== task?.id || collection !== panels && collection !== sharedPanels
+  document.getElementById('workspace-empty')?.remove()
+  if (task?.pageId === 'settings') {
+    void mountSettings(task)
+  } else if (task && connection) {
+    void mountTask(task, connection)
   } else {
-    renderAll()
+    const empty = el('div', { id: 'workspace-empty', class: 'workspace-empty' }, [el('h1', {}, '开始一个中间件任务'), el('p', {}, '从左侧选择连接，浏览 Topic、查看消息或编辑发送内容。'), el('button', { class: 'btn primary', onclick: () => import('./connections.js').then(module => module.openConnectionDrawer()) }, '新建连接')])
+    document.getElementById('page-host').append(empty)
   }
+  notifyNavigation()
+  refreshStatus(connection || null)
 }

@@ -75,6 +75,7 @@
     maskHistory: true,
     /* UI chrome */
     sidebarCollapsed: false,
+    sidebarWidth: 240,
     drawerOpen: false,
     rightOpen: false,
   })
@@ -136,8 +137,11 @@
       state._dirty[key] = false
       try {
         await global.SshApi.storageSet(KEYS[key], clone(payloadFor(key)))
+        return true
       } catch (e) {
+        state._dirty[key] = true
         global.SshApi.toast('持久化失败 ' + KEYS[key] + '：' + global.SshApi.errMessage(e), 'error')
+        return false
       }
     }
     if (state._timers[key]) clearTimeout(state._timers[key])
@@ -312,7 +316,7 @@
 
   function setUi(patch, immediate) {
     Object.assign(state.ui, patch)
-    queueSave('ui', immediate)
+    return queueSave('ui', immediate)
   }
 
   global.SshStore = {

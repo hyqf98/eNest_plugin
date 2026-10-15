@@ -7,18 +7,20 @@
     <!-- 首屏兜底主题（themeAware 注入后覆盖） -->
 
     <link rel="stylesheet" href="src/css/main.css" />
+    <link rel="stylesheet" href="src/css/workbench.css" />
+    <link rel="stylesheet" href="src/css/settings.css" />
 
   </head>
   <body>
     <div class="app" id="app">
-      <!-- 顶部：连接 Tab 条（连接即 Tab） -->
-      <div class="conn-tabs" id="conn-tabs"></div>
+      <div class="workbench-head"><button id="nav-toggle" class="icon-button" aria-label="显示连接导航" aria-controls="tree" title="连接导航">☰</button><span>中间件</span><span class="workbench-head-hint">连接与消息工作台</span><button id="open-shell" class="btn sm" hidden>在桌面打开</button></div>
       <div class="app-body">
         <!-- 左：连接树（按类型分组） -->
         <aside class="tree" id="tree"></aside>
-        <div class="resizer tree-resizer" id="resizer-tree"></div>
+        <div class="resizer tree-resizer" id="resizer-tree" role="separator" aria-label="连接导航宽度" aria-orientation="vertical" tabindex="0"></div>
         <!-- 右：内容区（子导航 + 页面宿主） -->
         <main class="content">
+          <div class="conn-tabs" id="conn-tabs" role="tablist" aria-label="工作标签"></div>
           <div class="subnav" id="subnav"></div>
           <div class="page-host" id="page-host"></div>
         </main>
@@ -26,6 +28,7 @@
       <footer class="status-bar" id="status-bar"></footer>
     </div>
 
+    <button id="nav-scrim" aria-label="收起连接导航" hidden></button>
     <!-- 弹窗 / 抽屉 / 右键菜单 / 本地 toast 的挂载点 -->
     <div id="modal-root"></div>
     <div id="drawer-root"></div>

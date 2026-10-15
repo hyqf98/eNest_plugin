@@ -2,18 +2,19 @@
  * workbench.js — 插件构建入口（vite lib entry → assets/app/workbench.js）
  * 职责：主题注入 / store 恢复 / Tab+树+状态栏首绘 / 生命周期（onEnter/onBeforeClose/onDestroy）
  *       quick 模式（body[data-mode=quick] + 只读约束）/ 全局快捷键（Mod+F 聚焦搜索、Mod+W 关 Tab、Esc 层级退出）
- *       恢复连接会话能力缓存（api.session 的 session.open 回填）
+ *       恢复标签描述，显式打开后建立独立会话
  */
-import { CommandRegistry } from '@enest/plugin-kit/workbench'
+import { commands, isComposing } from './commands.js'
 import api from './api.js'
 import store from './store.js'
-import { renderAll, setMode as setTabsMode, setSessionCaps, ensureSession, closeConnTab } from './tabs.js'
-import { renderTree, applyTreeWidth } from './tree.js'
+import { closeContextMenu } from './components.js'
+import { renderAll, setMode as setTabsMode, closeTaskTab, disposePanels, openSettings } from './tabs.js'
+import { renderTree, applyTreeWidth, initializeNavigation, closeNavigation } from './tree.js'
 import { refreshStatus, setMode as setStatusMode } from './status.js'
 
 let mode = 'shell'
 let booted = false
-const registry = new CommandRegistry()
+const registry = commands
 
 /* ———————————————— quick 模式 ———————————————— */
 
@@ -25,73 +26,54 @@ function applyMode(nextMode) {
   applyTreeWidth(mode)
 }
 
-/* ———————————————— 会话恢复：把 api.session 缓存的会话能力回填 tabs ———————————————— */
-
-async function restoreSessionCaps() {
-  for (const conn of store.connections) {
-    try {
-      const info = await api.session.get(api.sessionInfoKey(conn.id))
-      if (info?.capabilities) setSessionCaps(conn.id, info.capabilities, info.messageQueryModes)
-    } catch { /* ignore */ }
-  }
-}
-
 /* ———————————————— 快捷键 ———————————————— */
 
 function focusSearch() {
-  // 页面里的 .search input（topics/messages 等）优先；没有则聚焦首页
-  const input = document.querySelector('#page-host .search input')
+  const page = document.querySelector('#page-host .page:not([hidden])')
+  const input = page?.querySelector('.search input, input[type="search"]') || page?.querySelector('input[type="text"]')
   if (input) {
     input.focus()
     input.select?.()
-    return
   }
-  const homeSearch = document.querySelector('#page-host input[type="text"]')
-  if (homeSearch) homeSearch.focus()
 }
 
 function makeCommands() {
-  registry.register({ id: 'mw.focusSearch', label: '聚焦搜索', shortcut: 'Mod+F', run: focusSearch })
-  registry.register({
-    id: 'mw.closeTab',
-    label: '关闭当前 Tab',
-    shortcut: 'Mod+W',
-    run: () => {
-      if (store.activeTab) closeConnTab(store.activeTab)
+  registry.configure(store.ui.productivity.shortcuts)
+  registry.register('mw.focusSearch', { element: document, run: focusSearch })
+  registry.register('mw.settings', { element: document, run: openSettings })
+  registry.register('mw.closeTab', {
+    element: document, run: () => {
+      if (store.activeTask) closeTaskTab(store.activeTask)
     },
-    enabled: () => !!store.activeTab
+    isActive: () => !!store.activeTask
   })
-  // Esc 层级退出：先关右键菜单 → 再关抽屉/弹窗（dialog 原生 Esc 已处理一层）
-  registry.register({
-    id: 'mw.escape',
-    label: '退出弹层',
-    shortcut: 'Escape',
-    run: () => {
-      const ctx = document.querySelector('#ctx-root .ctxmenu')
-      if (ctx) {
-        ctx.remove()
-        return
-      }
-      const drawer = document.querySelector('#drawer-root .drawer.on')
-      if (drawer) {
-        import('./connections.js').then(({ closeDrawer }) => closeDrawer()).catch(() => {})
-      }
-    }
-  })
+}
+function escapeLayers() {
+  if (closeNavigation()) return true
+  if (document.querySelector('#ctx-root .ctxmenu')) {
+    closeContextMenu()
+    return true
+  }
+  if (document.querySelector('#drawer-root .drawer.on')) {
+    import('./connections.js').then(({ closeDrawer }) => closeDrawer()).catch(() => {})
+    return true
+  }
+  return false
 }
 
 function bindKeys() {
   document.addEventListener('keydown', (event) => {
     // 弹窗内的键盘事件由 createDialog 自行处理（stopPropagation）
-    if (event.isComposing || event.defaultPrevented) return
+    if (isComposing(event) || event.defaultPrevented) return
     if (document.querySelector('dialog[open]')) return
-    // 输入框内的 Esc/裸键不抢（Mod+F / Mod+W 仍生效）
-    if (event.key === 'Escape' && event.target.closest?.('input, textarea, select')) {
-      event.target.blur?.()
+    if (event.key === 'Escape') {
+      if (escapeLayers()) event.preventDefault()
       return
     }
-    registry.handle(event, { inEditor: true })
-  }, true)
+    if (document.querySelector('#drawer-root .drawer.on')) return
+    registry.handle(event)
+  })
+  window.addEventListener('mw-command-error', event => { void api.toast(event.detail?.message || '操作失败', 'error') })
 }
 
 /* ———————————————— boot ———————————————— */
@@ -103,7 +85,8 @@ async function boot() {
   await api.applyTheme()
   applyMode(await api.mode())
   await store.load()
-  await restoreSessionCaps()
+  // Runtime sessions are opened per surface and per connection.
+  initializeNavigation(mode)
 
   makeCommands()
   bindKeys()
@@ -118,7 +101,7 @@ async function boot() {
   refreshStatus()
 
   void api.setTitle('中间件控制台').catch(() => {})
-  void ensureSession(store.activeTab) // 激活 Tab 懒连接（能力就位后自动重绘）
+  // renderAll lazily opens the active task.
 
   /* —— 生命周期 —— */
   api.onEnter(() => {
@@ -132,6 +115,7 @@ async function boot() {
     } catch { /* ignore */ }
   })
   api.onDestroy(() => {
+    disposePanels()
     try {
       void store.flush()
     } catch { /* ignore */ }

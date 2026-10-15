@@ -13,8 +13,6 @@
   "permissions": [
     "pin.create",
     "clipboard.readImage",
-    "fs.read",
-    "fs.write",
     "clipboard.write"
   ],
   "window": {

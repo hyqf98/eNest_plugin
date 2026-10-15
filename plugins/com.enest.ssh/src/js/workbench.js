@@ -1,5 +1,8 @@
-import { CommandRegistry, createDialog, bindDockResize, loadMonaco, escapeHtml as esc } from '@enest/plugin-kit/workbench'
+import { CommandRegistry, createDialog, bindDockResize, loadMonaco, normalizeShortcut, escapeHtml as esc } from '@enest/plugin-kit/workbench'
 import { RemoteFiles } from './files.js'
+import { createWorkspaceNavigation } from './workspaceNavigation.js'
+import { renderCompletionSettings } from './completionSettings.js'
+import { isReservedSshShortcut, displaySshShortcut } from './shortcutPolicy.js'
 
 const host = window.enest || window.zapi
 const mac = /Mac/.test(navigator.platform)
@@ -7,11 +10,18 @@ const formatBytes = n => n == null ? '—' : n >= 1073741824 ? `${(n / 107374182
 const percentage = n => Number.isFinite(n) ? n.toFixed(1) + '%' : '采样中'
 const PREFERENCES = 'ssh.preferences.v2'
 
+export const isSshCompositionEvent = event => event.isComposing || event.keyCode === 229 || event.key === 'Process'
+
+/** Terminal actions may be invoked from menus, but their keys belong to the focused terminal. */
+export function canRouteSshShortcut(command, target, session) {
+  return !command?.terminalShortcut || !!session?.term?.el?.contains(target)
+}
+
 async function boot() {
   const bridge = window.SshWorkbenchBridge, store = bridge.store, app = document.querySelector('#app'), main = document.querySelector('.main'), workspace = document.querySelector('.workspace')
   if (!bridge || app.dataset.workbench) return
   app.dataset.workbench = 'ready'
-  let mode = host?.getLaunchMode?.() || 'shell', view = 'connections', tool = 'processes', toolRevision = 0, activeKey = '', prefs = { shortcuts: {}, monitorInterval: 5000, ...await host?.storage?.get(PREFERENCES) }, activeEditor = null, toolData = [], sampleBusy = false, lastSample = null, transferTimer = null
+  let mode = host?.getLaunchMode?.() || 'shell', view = 'terminal', tool = 'processes', toolRevision = 0, activeKey = '', prefs = { shortcuts: {}, monitorInterval: 5000, ...await host?.storage?.get(PREFERENCES) }, activeEditor = null, toolData = [], sampleBusy = false, lastSample = null, transferTimer = null
   const editors = new Map(), registry = new CommandRegistry()
   const toast = (message, type = 'info') => bridge.api.toast(message, type)
   const error = e => toast(e?.message || String(e), 'error')
@@ -28,15 +38,42 @@ async function boot() {
   sideActions.querySelector('[data-import]').onclick = safe(() => importConfig())
 
   const header = document.createElement('header'); header.className = 'wb-header'
-  header.innerHTML = `<div class="wb-brand"><span class="wb-brand-mark">⌘</span><strong>SSH</strong><span class="wb-mode-label"></span></div><nav aria-label="工作区"><button data-view="connections">连接</button><button data-view="terminal">终端</button><button data-view="files">文件</button><button data-view="resources">资源</button></nav><div class="wb-header-end"><button data-command="palette" title="快捷命令">命令 <kbd>${mac ? '⌘⇧P' : 'Ctrl⇧P'}</kbd></button><button data-command="settings" title="插件设置">设置</button><button class="wb-open-shell" data-command="desktop">在桌面展开 ↗</button></div>`
+  header.innerHTML = `<div class="wb-brand"><strong>SSH</strong><span class="wb-mode-label"></span></div><nav aria-label="工作区"><button data-view="terminal">终端</button><button data-view="files">文件</button><button data-view="resources">资源</button></nav><div class="wb-header-end"><button data-command="palette" title="快捷命令">命令 <kbd>${mac ? '⌘⇧P' : 'Ctrl⇧P'}</kbd></button><button class="wb-open-shell" data-command="desktop">在桌面展开 ↗</button></div>`
   app.before(header)
   const summary = document.createElement('div'); summary.className = 'wb-resource-strip'; summary.innerHTML = '<span>连接后显示服务器资源</span>'
   main.querySelector('.topbar').replaceWith(summary)
+  const context = document.createElement('div'); context.className = 'wb-session-context'; context.innerHTML = '<span class="status-dot"></span><strong>SSH 工作区</strong><span class="wb-session-target">选择连接后开始</span><span class="wb-session-status"></span><button data-connect>连接</button><button data-hints>命令提示</button>'
+  main.querySelector('.session-tabs').after(context)
+  context.querySelector('[data-connect]').onclick = safe(async () => { const session = bridge.activeSession(); const profile = store.findProfile(session?.profileId || store.state.ui.selectedProfileId); if (profile) await bridge.connectProfile(profile); else navigation.revealConnections() })
+  context.querySelector('[data-hints]').onclick = () => { void settings('completion') }
+  const selectionActions = document.createElement('span'); selectionActions.className = 'wb-selection-actions'; selectionActions.hidden = true
+  selectionActions.innerHTML = '<button data-insert-selection title="选中单行命令后填入，保留当前输入">填入选中</button><button data-execute-selection title="执行选中的单行命令">执行选中</button>'
+  context.querySelector('[data-hints]').before(selectionActions)
+  const selectedCommand = () => bridge.activeSession()?.term?.getSelection?.() || ''
+  const selectionState = () => { selectionActions.hidden = !selectedCommand().trim() }
+  window.addEventListener('ssh-selection-change', selectionState)
+  window.addEventListener('ssh-workspace-change', selectionState)
+  selectionActions.querySelector('[data-insert-selection]').onclick = safe(() => selectionCommand(false))
+  selectionActions.querySelector('[data-execute-selection]').onclick = safe(() => selectionCommand(true))
+  function selectionCommand(execute, commandText = selectedCommand(), target = bridge.activeSession()) { return execute ? bridge.runHint(commandText, target) : bridge.fillHint(commandText, target) }
+  workspace.addEventListener('contextmenu', event => {
+    if (!event.target.closest('.term-host')) return
+    event.preventDefault(); const target = bridge.activeSession(), text = target?.term?.getSelection?.() || ''
+    bridge.showContextMenu(event.clientX, event.clientY, [
+      { label: '填入选中命令', disabled: !text.trim(), onAct: () => selectionCommand(false, text, target) },
+      { label: '执行选中命令', disabled: !text.trim(), onAct: () => selectionCommand(true, text, target) },
+      { label: '复制选中内容', disabled: !text, onAct: () => bridge.api.copyText(text) },
+      { sep: true }, { label: '上一条远端历史 ↑', onAct: () => bridge.navigateHistory(-1, target) }, { label: '下一条远端历史 ↓', onAct: () => bridge.navigateHistory(1, target) },
+      { sep: true }, { label: '显示命令提示', onAct: () => bridge.runCompletion(true) }, { label: '命令提示设置', onAct: () => settings('completion') },
+    ])
+  })
   document.querySelectorAll('#panel-metrics,#panel-sftp,#view-chip').forEach(el => el.classList.add('wb-legacy-hidden'))
   const filesElement = document.createElement('aside'); filesElement.className = 'wb-files'; workspace.append(filesElement)
   const fileResize = document.createElement('div'); fileResize.className = 'wb-file-resize'; workspace.append(fileResize)
-  bindDockResize(fileResize, filesElement, { axis: 'x', min: 250, max: 720, invert: true, onChange: width => { store.setUi({ filesWidth: width }); editorPane.style.right = width + 'px'; fileResize.style.right = (width - 3) + 'px' } })
+  fileResize.setAttribute('aria-label', '远程文件面板宽度')
+  bindDockResize(fileResize, filesElement, { axis: 'x', min: 250, max: 720, invert: true, onChange: width => { store.setUi({ filesWidth: width }); workspace.style.setProperty('--ssh-files-width', width + 'px'); editorPane.style.right = width + 'px'; fileResize.style.right = (width - 3) + 'px' } })
   filesElement.style.width = `${store.state.ui.filesWidth || 300}px`
+  workspace.style.setProperty('--ssh-files-width', `${store.state.ui.filesWidth || 300}px`)
   const editorPane = document.createElement('section'); editorPane.className = 'wb-editor-pane'; workspace.append(editorPane)
   fileResize.style.right = ((store.state.ui.filesWidth || 300) - 3) + 'px'
   const fileObserver = new ResizeObserver(() => { fileResize.style.right = (filesElement.clientWidth - 3) + 'px'; editorPane.style.right = mode === 'quick' ? '0px' : filesElement.clientWidth + 'px' }); fileObserver.observe(filesElement)
@@ -47,20 +84,25 @@ async function boot() {
   const statusbar = document.createElement('footer'); statusbar.className = 'wb-statusbar'; statusbar.innerHTML = '<span class="wb-connection-state">未连接</span><button data-command="transfers">传输任务</button>'; main.append(statusbar)
 
   const files = new RemoteFiles(filesElement, { session: bridge.activeSession, request, error, message: toast, prompt: bridge.promptDialog, confirm: bridge.confirmDialog, menu: bridge.showContextMenu, copy: bridge.api.copyText, edit: path => safe(openFile)(path), inspect, transfers: () => openTool('transfers') })
+  const navigation = createWorkspaceNavigation({ app, bridge, changeView, openSettings: () => void settings(), onLayout: () => requestAnimationFrame(() => bridge.activeSession()?.term?.fit()) })
 
   function changeView(next) {
+    if (next === 'connections') { navigation.revealConnections(); return }
+    const settingsPage = main.querySelector('.wb-settings-page'); if (settingsPage) settingsPage.hidden = true
     view = next; app.dataset.view = view; document.documentElement.dataset.sshView = view
-    header.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === view))
-    if (next === 'files') void files.refresh()
+    navigation.setView(view)
+    header.querySelectorAll('[data-view]').forEach(button => { button.classList.toggle('active', button.dataset.view === view); button.setAttribute('aria-current', button.dataset.view === view ? 'page' : 'false') })
+    if (next === 'files') { if (!files.state.entries.length) void files.refresh(); else files.render(); if (activeEditor) void renderEditor() }
     if (next === 'resources') openTool(tool)
-    if (next === 'terminal') { activeEditor = null; editorPane.classList.remove('open'); document.querySelector('#panel-term').classList.add('active'); requestAnimationFrame(() => { bridge.activeSession()?.term?.fit(); bridge.termFocus(); void host?.ui?.focus?.() }) }
-    if (next === 'connections') requestAnimationFrame(() => document.querySelector('#search-input')?.focus())
+    if (next === 'terminal') { editorPane.classList.remove('open'); document.querySelector('#panel-term').classList.add('active'); requestAnimationFrame(() => { bridge.activeSession()?.term?.fit(); bridge.termFocus(); void host?.ui?.focus?.() }) }
   }
   function setMode(next) {
     mode = next; document.documentElement.dataset.launchMode = mode
+    navigation.setMode(mode)
     header.querySelector('.wb-mode-label').textContent = mode === 'quick' ? '快速连接' : '工作台'
-    if (mode === 'quick') { void host?.ui?.resize?.({ width: 720, height: 420 }); changeView(connected() ? 'terminal' : 'connections') }
-    else { changeView(connected() ? 'terminal' : 'connections'); void files.refresh() }
+    if (mode === 'quick') void host?.ui?.resize?.({ width: 720, height: 420 })
+    changeView(view)
+    if (!connected() && mode === 'quick') navigation.revealConnections()
     bridge.mountActiveTerminal()
     requestAnimationFrame(() => { bridge.activeSession()?.term?.fit(); for (const doc of editors.values()) doc.editor?.layout?.() })
   }
@@ -70,7 +112,7 @@ async function boot() {
   header.querySelectorAll('[data-command]').forEach(button => button.onclick = () => safe(() => registry.run(button.dataset.command))())
   statusbar.querySelector('[data-command]').onclick = () => openTool('transfers')
   dock.querySelectorAll('[data-tool]').forEach(button => button.onclick = () => openTool(button.dataset.tool))
-  dock.querySelector('[data-tool-close]').onclick = () => { dock.classList.remove('open'); if (mode === 'quick') changeView('terminal'); bridge.activeSession()?.term?.fit() }
+  dock.querySelector('[data-tool-close]').onclick = () => { dock.classList.remove('open'); if (view === 'resources') changeView('terminal'); bridge.activeSession()?.term?.fit() }
   dock.querySelector('[data-tool-refresh]').onclick = safe(() => loadTool())
   dock.querySelector('input').oninput = () => renderTool()
 
@@ -85,12 +127,26 @@ async function boot() {
   command('files', '远程文件', () => changeView('files'), 'Mod+Shift+E')
   command('transfers', '传输任务', () => openTool('transfers'))
   command('history', '命令历史', () => palette('history'), 'Mod+Shift+H', { inEditor: true })
-  command('find', '查找终端内容', () => bridge.openTermSearch(), mac ? 'Mod+F' : 'Mod+Shift+F', { inEditor: true })
-  command('completion', '显示命令补全', () => { if (!bridge.activeSession()?.term?.readCommand?.()) return toast('先在空闲的 Bash / Zsh 提示符启用增强提示'); return bridge.runCompletion(true) }, 'Mod+Shift+Space', { inEditor: true })
-  command('integration', '启用临时 Bash / Zsh 提示', async () => {
+  command('find', '查找终端内容', () => bridge.openTermSearch(), mac ? 'Mod+F' : 'Mod+Shift+F', { inEditor: true, terminalShortcut: true })
+  command('completion', '显示命令补全', () => { if (!bridge.activeSession()?.term?.readCommand?.()) return toast('先在空闲的 Bash / Zsh 提示符启用增强提示'); return bridge.runCompletion(true) }, 'Mod+Shift+Space', { inEditor: true, terminalShortcut: true })
+  command('completion-previous', '选择上一条补全候选', () => bridge.completionMove(-1), 'Alt+ArrowUp', { inEditor: true, terminalShortcut: true, enabled: () => bridge.completionVisible() })
+  command('completion-next', '选择下一条补全候选', () => bridge.completionMove(1), 'Alt+ArrowDown', { inEditor: true, terminalShortcut: true, enabled: () => bridge.completionVisible() })
+  command('completion-accept', '填入选中的补全候选', () => bridge.completionAccept(), 'Alt+Enter', { inEditor: true, terminalShortcut: true, enabled: () => bridge.completionVisible() })
+  bridge.completionShortcuts = () => Object.fromEntries([['trigger','completion'],['previous','completion-previous'],['next','completion-next'],['accept','completion-accept']].map(([key, id]) => [key, displaySshShortcut(registry.shortcut(id), mac)]))
+  command('insert-selection', '填入终端选中命令', () => selectionCommand(false), 'Mod+Shift+I', { inEditor: true, terminalShortcut: true, enabled: connected })
+  command('execute-selection', '执行终端选中命令', () => selectionCommand(true), 'Mod+Shift+R', { inEditor: true, terminalShortcut: true, enabled: connected })
+  command('history-previous', '上一条远端历史', () => bridge.navigateHistory(-1), '', { inEditor: true, terminalShortcut: true, enabled: connected })
+  command('history-next', '下一条远端历史', () => bridge.navigateHistory(1), '', { inEditor: true, terminalShortcut: true, enabled: connected })
+  async function enableSessionHints() {
+    const target = bridge.activeSession(), sessionId = target?.sessionId
+    if (!sessionId) throw new Error('请先连接服务器')
     if (!await bridge.confirmDialog('请确认终端停在空闲的 Bash / Zsh 命令提示符。增强提示仅修改本次 shell，不写入服务器配置文件。', { title: '启用命令提示', okText: '启用' })) return
-    await request('shell.integrate'); changeView('terminal'); toast('已启用本次会话的命令提示')
-  }, '', { enabled: connected })
+    if (bridge.activeSession() !== target || target.sessionId !== sessionId) throw new Error('目标会话已变化，请在当前会话重新启用提示')
+    await request('shell.integrate', { sessionId })
+    if (bridge.activeSession() === target && target.sessionId === sessionId) { changeView('terminal'); toast('已启用本次会话的命令提示') }
+    return true
+  }
+  command('integration', '启用临时 Bash / Zsh 提示', enableSessionHints, '', { enabled: connected })
   command('split-session', '同一服务器新会话', async () => { const s = bridge.activeSession(), profile = store.findProfile(s?.profileId); if (profile) await bridge.connectProfile(profile, { newSession: true }) }, '', { enabled: connected })
   command('split-horizontal', '左右分屏终端', () => splitTerminal('horizontal'), 'Mod+Shift+\\', { enabled: connected, inEditor: true })
   command('split-vertical', '上下分屏终端', () => splitTerminal('vertical'), '', { enabled: connected })
@@ -106,12 +162,15 @@ async function boot() {
   command('ports', '查看监听端口', () => openTool('ports'), '', { enabled: connected })
   command('services', '管理服务', () => openTool('services'), '', { enabled: connected })
   command('docker', '管理 Docker 容器', () => openTool('docker'), '', { enabled: connected })
-  for (const [id, key] of Object.entries(prefs.shortcuts || {})) try { registry.setBinding(id, key) } catch { /* report conflicts in settings */ }
+  for (const [id, key] of Object.entries(prefs.shortcuts || {})) try { if (!isReservedSshShortcut(key, mac, id)) registry.setBinding(id, key) } catch { /* invalid saved bindings retain their defaults */ }
+  window.addEventListener('ssh-activate-terminal', () => changeView('terminal'))
   window.addEventListener('ssh-terminal-command', event => { void registry.run(event.detail) })
   document.addEventListener('keydown', event => {
-    if (event.isComposing || event.defaultPrevented || document.querySelector('dialog[open]')) return
+    if (isSshCompositionEvent(event) || event.defaultPrevented || event.target.closest?.('[data-binding]') || document.querySelector('dialog[open],.modal-root.show')) return
     // macOS Control belongs to the remote terminal; Mod shortcuts require Command.
     if (mac && event.ctrlKey && !event.metaKey) return
+    const chord = normalizeShortcut(event), bound = registry.list().find(command => registry.shortcut(command.id) === chord)
+    if (!canRouteSshShortcut(bound, event.target, bridge.activeSession())) return
     const inEditor = !!event.target.closest?.('.xterm,.wb-editor-pane,input,textarea')
     if (registry.handle(event, { inEditor })) event.stopImmediatePropagation()
   }, true)
@@ -164,7 +223,11 @@ async function boot() {
     }
     function choose(index) { const item = items[index]; if (item) { dialog.close(); void safe(item.run)() } }
     input.oninput = () => { current = 0; render() }
-    input.onkeydown = event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); current = (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % (items.length || 1); render() } else if (event.key === 'Enter') { event.preventDefault(); choose(current) } }
+    input.onkeydown = event => {
+      if (isSshCompositionEvent(event)) return
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); current = (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % (items.length || 1); render() }
+      else if (event.key === 'Enter') { event.preventDefault(); choose(current) }
+    }
     render(); input.focus()
   }
   async function fillCommand(text) {
@@ -176,9 +239,7 @@ async function boot() {
       return
     }
     changeView('terminal')
-    const integrated = session.term?.readCommand?.()
-    await host.ssh.write(session.sessionId, (integrated ? '\x01\x0b' : '') + text)
-    toast(integrated ? '已填入，按 Enter 执行' : '已插入终端，请确认当前 shell 输入后再执行')
+    await bridge.fillHint(text)
   }
   async function broadcast() {
     const sessions = [...bridge.sessions.values()].filter(s => s.sessionId && s.status === 'connected')
@@ -196,7 +257,7 @@ async function boot() {
     })
   }
 
-  function openTool(next) { tool = next; dock.classList.add('open'); dock.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool)); if (mode === 'quick' && !['history', 'transfers'].includes(tool)) { view = 'resources'; app.dataset.view = view }; void loadTool(); bridge.activeSession()?.term?.fit() }
+  function openTool(next) { tool = next; dock.classList.add('open'); dock.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool)); if (mode === 'quick' && !['history', 'transfers'].includes(tool) && view !== 'resources') { changeView('resources'); return }; void loadTool(); bridge.activeSession()?.term?.fit() }
   const transferStatuses = new Map()
   async function loadTool(silent = false) {
     const revision = ++toolRevision, selectedTool = tool, sessionId = bridge.activeSession()?.sessionId, body = dock.querySelector('.wb-tool-body'), scroll = body.scrollTop
@@ -219,7 +280,14 @@ async function boot() {
       if (revision === toolRevision) { toolData = data; if (platform) lastSample = platform; renderTool(); if (silent) body.scrollTop = scroll }
     } catch (e) { if (revision === toolRevision) body.innerHTML = `<div class="wb-inline-error">${esc(e.message)}<p>请检查当前账号权限及服务器工具是否可用。</p></div>` }
   }
-  function table(headers, rows) { return `<table class="wb-data-table"><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>` }
+  function table(headers, rows) {
+    const numeric = title => ['PID', 'CPU', '内存', '本地端口', '端口'].includes(title)
+    const widths = headers.map(title => numeric(title) ? 90 : title === '操作' ? 260 : ['命令','来源 → 目标','说明','镜像','指纹'].includes(title) ? 280 : 160)
+    const markup = document.createElement('template')
+    markup.innerHTML = `<table class="wb-data-table" style="--table-width:${widths.reduce((sum, width) => sum + width, 0)}px"><colgroup>${widths.map(width => `<col style="width:${width}px">`).join('')}</colgroup><thead><tr>${headers.map(title => `<th scope="col" class="${numeric(title) ? 'numeric' : ''}">${esc(title)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`
+    for (const row of markup.content.querySelectorAll('tbody tr')) [...row.cells].forEach((cell, index) => { if (numeric(headers[index])) cell.classList.add('numeric'); if (headers[index] === '操作') cell.classList.add('actions'); else if (!cell.title) cell.title = cell.textContent })
+    return markup.innerHTML
+  }
   function renderTool() {
     const body = dock.querySelector('.wb-tool-body'), query = dock.querySelector('input').value.toLowerCase(), data = toolData.filter(x => JSON.stringify(x).toLowerCase().includes(query))
     dock.querySelector('.wb-tool-status').textContent = `${data.length} 项${lastSample?.platform ? ' · ' + ({ linux: 'Linux', darwin: 'macOS', win32: 'Windows' })[lastSample.platform] : ''}`
@@ -257,8 +325,9 @@ async function boot() {
     body.querySelectorAll('[data-cancel-transfer]').forEach(button => button.onclick = safe(async () => { await request('transfer.cancel', { id: button.dataset.cancelTransfer }); await loadTool() }))
   }
   function newTunnel() {
+    const sessionId = bridge.activeSession()?.sessionId
     const dialog = createDialog({ title: '新建 SSH 隧道', content: '<form class="wb-settings-form"><label>方向<select name="direction"><option value="local">本地 → 服务器</option><option value="remote">服务器 → 本地</option></select></label><label>本地端口<input name="localPort" type="number" min="1" max="65535" required value="13306"></label><label>远程目标主机<input name="remoteHost" value="127.0.0.1" required></label><label>远程端口<input name="remotePort" type="number" min="1" max="65535" required value="3306"></label><small>反向转发目标固定为本机 127.0.0.1。若目标拒绝转发，请检查 sshd 配置。</small><button class="btn primary" type="submit">建立隧道</button></form>' })
-    dialog.body.querySelector('form').onsubmit = event => { event.preventDefault(); void safe(async () => { const values = Object.fromEntries(new FormData(event.target)); await request('tunnel.open', { ...values, localPort: Number(values.localPort), remotePort: Number(values.remotePort) }); dialog.close(); await loadTool() })() }
+    dialog.body.querySelector('form').onsubmit = event => { event.preventDefault(); void safe(async () => { const values = Object.fromEntries(new FormData(event.target)); await request('tunnel.open', { sessionId, ...values, localPort: Number(values.localPort), remotePort: Number(values.remotePort) }); dialog.close(); await loadTool() })() }
   }
 
   async function sample() {
@@ -276,12 +345,21 @@ async function boot() {
   }
   function onWorkspaceChange(event) {
     const session = bridge.activeSession(), key = session?.sessionId || session?.tabId || ''
+    const profile = store.findProfile(session?.profileId)
+    context.querySelector('strong').textContent = session?.title || profile?.name || 'SSH 工作区'
+    context.querySelector('.wb-session-target').textContent = profile ? `${profile.username}@${profile.host}:${profile.port || 22}` : '从左侧选择连接'
+    context.querySelector('.wb-session-target').title = context.querySelector('.wb-session-target').textContent
+    context.querySelector('.status-dot').className = `status-dot ${session?.status || ''}`
+    context.querySelector('.wb-session-status').textContent = ({ connected: '已连接', connecting: '连接中', disconnected: '尚未重新连接', exited: '已退出' })[session?.status] || ''
+    context.querySelector('[data-connect]').hidden = !!session?.sessionId || session?.status === 'connecting'
+    context.querySelector('[data-hints]').disabled = !session?.sessionId
     statusbar.querySelector('.wb-connection-state').textContent = session ? `${store.findProfile(session.profileId)?.name || session.profileId} · ${session.status === 'connected' ? '已连接' : session.status === 'connecting' ? '连接中' : '未连接'}` : '未连接'
+    statusbar.querySelector('.wb-connection-state').title = statusbar.querySelector('.wb-connection-state').textContent
     if (key !== activeKey) {
       activeKey = key; lastSample = null; toolRevision++; summary.innerHTML = connected() ? '<span>正在读取服务器资源…</span>' : '<span>连接后显示服务器资源</span>'; void files.refresh(); void sample()
       if (dock.classList.contains('open')) void loadTool()
     }
-    if (event?.detail?.connected) changeView('terminal')
+    if (event?.detail?.connected) { if (app.dataset.compactNavigation === 'true') navigation.closeConnections(false); changeView('terminal') }
   }
   window.addEventListener('ssh-workspace-change', onWorkspaceChange)
   host?.on('ssh.exit', () => setTimeout(onWorkspaceChange, 0))
@@ -289,7 +367,7 @@ async function boot() {
   let sampleTimer = setInterval(() => void sample(), Math.max(2000, Number(prefs.monitorInterval) || 5000))
   transferTimer = setInterval(() => { if (dock.classList.contains('open') && tool === 'transfers') void loadTool(true) }, 1000)
   host?.onOut?.(() => { /* Remote sessions and tasks remain alive; only visible work pauses. */ })
-  host?.onDestroy?.(() => { clearInterval(sampleTimer); clearInterval(transferTimer); for (const doc of editors.values()) doc.editor?.dispose?.() })
+  host?.onDestroy?.(() => { clearInterval(sampleTimer); clearInterval(transferTimer); navigation.dispose(); fileObserver.disconnect(); for (const doc of editors.values()) doc.editor?.dispose?.() })
   host?.onEnter?.(event => { if (event.code === 'settings') void settings(); else if (event.code === 'files') changeView('files'); else onWorkspaceChange() })
 
   async function openFile(path) {
@@ -297,7 +375,7 @@ async function boot() {
     if (!sessionId) throw new Error('请先连接服务器')
     if (!editors.has(key)) { const file = await request('files.read', { path }); editors.set(key, { key, path, sessionId, content: file.content, savedContent: file.content, hash: file.hash, dirty: false, editor: null, element: null }) }
     if (bridge.activeSession()?.sessionId !== sessionId) return
-    activeEditor = key; changeView('files'); renderEditor()
+    activeEditor = key; changeView('files')
   }
   async function renderEditor() {
     const doc = editors.get(activeEditor); if (!doc) return
@@ -323,24 +401,28 @@ async function boot() {
   }
 
   async function settings(section = 'terminal') {
-    let existing = document.querySelector('.wb-settings-page'); if (existing) { existing.remove(); return }
-    const page = document.createElement('section'); page.className = 'wb-settings-page'; app.append(page)
-    page.innerHTML = `<header><button data-back>← 返回工作区</button><strong>SSH 设置</strong><span>仅作用于 SSH 插件</span></header><div class="wb-settings-layout"><nav>${[['terminal','终端与历史'],['shortcuts','快捷键'],['monitor','资源监控'],['trust','可信服务器']].map(([id,label]) => `<button data-section="${id}">${label}</button>`).join('')}</nav><div class="wb-settings-content"></div></div>`
+    let existing = document.querySelector('.wb-settings-page'); if (existing) { existing.hidden = false; navigation.setView('settings'); if (section !== 'terminal') existing.querySelector(`[data-section="${section}"]`)?.click(); existing.querySelector('[data-back]').focus(); return }
+    const returnFocus = document.activeElement
+    const page = document.createElement('section'); page.className = 'wb-settings-page'; page.setAttribute('aria-label', 'SSH 设置'); main.append(page); navigation.setView('settings')
+    page.innerHTML = `<header><button data-back>← 返回工作区</button><strong>SSH 设置</strong><span>仅作用于 SSH 插件</span></header><div class="wb-settings-layout"><nav>${[['terminal','终端与历史'],['completion','命令提示'],['shortcuts','快捷键'],['monitor','资源监控'],['trust','可信服务器']].map(([id,label]) => `<button data-section="${id}">${label}</button>`).join('')}</nav><div class="wb-settings-content"></div></div>`
     const content = page.querySelector('.wb-settings-content')
-    page.querySelector('[data-back]').onclick = () => { page.remove(); bridge.termFocus() }
+    const close = () => { page.hidden = true; navigation.setView(view); if (returnFocus?.isConnected) returnFocus.focus(); else bridge.termFocus() }
+    page.querySelector('[data-back]').onclick = close
+    page.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close() } })
     async function show(next) {
       section = next; page.querySelectorAll('[data-section]').forEach(button => button.classList.toggle('active', button.dataset.section === next))
+      if (next === 'completion') renderCompletionSettings(content, { store, toast, integrate: enableSessionHints, connected, shortcuts: bridge.completionShortcuts })
       if (next === 'terminal') {
         content.innerHTML = `<h2>终端与历史</h2><form class="wb-settings-form"><label>终端字号<input name="fontSize" type="number" min="10" max="28" value="${store.state.ui.fontSize || 13}"></label><label><input type="checkbox" name="selectCopy" ${store.state.ui.selectCopy ? 'checked' : ''}>选中后复制</label><label><input type="checkbox" name="recordHistory" ${store.state.ui.recordHistory ? 'checked' : ''}>记录增强提示识别到的命令历史</label><label><input type="checkbox" name="maskHistory" ${store.state.ui.maskHistory ? 'checked' : ''}>历史中的常见密钥字段脱敏</label><p>历史仅采集明确的 Bash / Zsh 命令提示符。密码提示和全屏程序不参与采集。</p><button class="btn primary" type="submit">保存</button></form>`
         content.querySelector('form').onsubmit = event => { event.preventDefault(); const form = event.target; store.setUi({ fontSize: Math.min(28, Math.max(10, Number(form.fontSize.value))), selectCopy: form.selectCopy.checked, recordHistory: form.recordHistory.checked, maskHistory: form.maskHistory.checked }, true); for (const session of bridge.sessions.values()) session.term?.setFontSize(store.state.ui.fontSize); toast('设置已保存') }
       }
       if (next === 'shortcuts') {
-        content.innerHTML = `<h2>快捷键</h2><p>Mod 表示 ${mac ? '⌘ Command' : 'Ctrl'}。点击输入框后按新组合键；Backspace 清除。系统保留组合与终端原生 Ctrl 键不应覆盖。</p><div class="wb-shortcut-list">${registry.list().map(command => `<label><span>${esc(command.label)}</span><input readonly data-binding="${command.id}" value="${esc(registry.shortcut(command.id))}" placeholder="未设置"></label>`).join('')}</div><button data-reset>恢复默认快捷键</button><h3>远端 shell 常用快捷键</h3><p><kbd>Ctrl+C</kbd> 中断 · <kbd>Ctrl+D</kbd> EOF / 退出 · <kbd>Ctrl+Z</kbd> 挂起 · <kbd>Ctrl+L</kbd> 清屏<br><kbd>Ctrl+A / E</kbd> 行首 / 行尾 · <kbd>Ctrl+U / K</kbd> 删至行首 / 行尾 · <kbd>Ctrl+W</kbd> 删前词 · <kbd>Ctrl+R</kbd> 搜索历史</p><small>这些按键原样发送给服务器；实际行为由远端 shell 决定。</small>`
+        content.innerHTML = `<h2>快捷键</h2><p>当前平台使用 ${mac ? 'Command / Option' : 'Ctrl / Alt'}。点击输入框后按新组合键；Backspace 清除。系统保留组合与终端原生 Ctrl 键不应覆盖。</p><div class="wb-shortcut-list">${registry.list().map(command => `<label><span>${esc(command.label)}</span><input readonly data-binding="${command.id}" value="${esc(displaySshShortcut(registry.shortcut(command.id), mac))}" placeholder="未设置"></label>`).join('')}</div><button data-reset>恢复默认快捷键</button><h3>远端 shell 常用快捷键</h3><p><kbd>Ctrl+C</kbd> 中断 · <kbd>Ctrl+D</kbd> EOF / 退出 · <kbd>Ctrl+Z</kbd> 挂起 · <kbd>Ctrl+L</kbd> 清屏<br><kbd>Ctrl+A / E</kbd> 行首 / 行尾 · <kbd>Ctrl+U / K</kbd> 删至行首 / 行尾 · <kbd>Ctrl+W</kbd> 删前词 · <kbd>Ctrl+R</kbd> 搜索历史</p><small>这些按键原样发送给服务器；实际行为由远端 shell 决定。</small>`
         content.querySelectorAll('[data-binding]').forEach(input => input.onkeydown = event => {
           event.preventDefault(); event.stopPropagation(); if (event.isComposing || ['Meta','Control','Shift','Alt'].includes(event.key)) return
           const value = event.key === 'Backspace' && !event.metaKey && !event.ctrlKey ? '' : [event.metaKey || event.ctrlKey ? 'Mod' : '', event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : '', event.code === 'Space' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key].filter(Boolean).join('+')
-          if (['Mod+Space','Mod+Q','Mod+W','Mod+C','Mod+V'].includes(value) || (!mac && /^Mod\+[A-Z]$/.test(value))) { error(new Error('此组合用于系统或远端终端，请增加 Shift 修饰键')); return }
-          try { registry.setBinding(input.dataset.binding, value); input.value = value; prefs.shortcuts = { ...registry.bindings }; void host.storage.set(PREFERENCES, prefs).catch(error) } catch (e) { error(e) }
+          if (isReservedSshShortcut(value, mac, input.dataset.binding)) { error(new Error(`此组合用于系统、远端终端或提示列表，请使用 ${mac ? 'Command' : 'Ctrl+Shift'} 组合键`)); return }
+          try { registry.setBinding(input.dataset.binding, value); input.value = displaySshShortcut(value, mac); prefs.shortcuts = { ...registry.bindings }; void host.storage.set(PREFERENCES, prefs).catch(error) } catch (e) { error(e) }
         })
         content.querySelector('[data-reset]').onclick = () => { registry.bindings = {}; prefs.shortcuts = {}; void host.storage.set(PREFERENCES, prefs); void show('shortcuts') }
       }
@@ -355,6 +437,7 @@ async function boot() {
     }
     page.querySelectorAll('[data-section]').forEach(button => button.onclick = () => void show(button.dataset.section))
     await show(section)
+    page.querySelector('[data-back]').focus()
   }
   if (host?.getEnterCode?.() === 'settings') void settings()
 }

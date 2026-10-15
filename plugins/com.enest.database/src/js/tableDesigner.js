@@ -1,13 +1,14 @@
 import { createDialog, escapeHtml as esc } from '@enest/plugin-kit/workbench'
 import { DbHost } from './api.js'
+import { runDatabaseTask } from './operationTask.js'
 
 const types = ['integer', 'bigint', 'decimal', 'float', 'varchar', 'text', 'boolean', 'date', 'timestamp', 'json', 'uuid', 'binary']
 const operations = { 'create-table': '新建表', 'add-column': '新增字段', 'rename-column': '重命名字段', 'drop-column': '删除字段', 'create-index': '创建索引', 'drop-index': '删除索引' }
 
 /** Structured design requests are compiled by the host; preview text is never executed as input. */
-export function openTableDesigner({ sessionKey, table = {}, detail, readOnly, onApplied }) {
+export function openTableDesigner({ sessionKey, table = {}, detail, readOnly, taskContext = {}, isCurrent, onApplied }) {
   const existing = !!table.table
-  let columns = [{ name: '', type: 'integer', nullable: false, primaryKey: true }], previewedDesign, revision = 0
+  let columns = [{ name: '', type: 'integer', nullable: false, primaryKey: true }], previewedDesign, revision = 0, applying = false
   const modal = createDialog({ title: existing ? `表设计 · ${table.table}` : '设计新表', className: 'wide wb-table-designer', content: `<p class="muted">先预览数据库实际执行的 DDL，再确认执行。已有事务必须先提交或回滚。</p><div class="form-grid"><label>操作<select data-operation>${Object.entries(operations).filter(([id]) => existing ? id !== 'create-table' : id === 'create-table').map(([id, label]) => `<option value="${id}">${label}</option>`).join('')}</select></label><label>表名<input data-table value="${esc(table.table || '')}" ${existing ? 'readonly' : ''}></label><label>数据库<input data-database value="${esc(table.database || '')}"></label><label>Schema<input data-schema value="${esc(table.schema || '')}"></label></div><div data-design-fields></div><div class="form-actions"><button class="btn" data-preview>预览 DDL</button><span class="spacer"></span><button class="btn primary" data-apply disabled>确认执行</button></div><p data-status role="status"></p><div data-preview-output></div>` })
   const root = modal.body, value = (name) => root.querySelector(`[data-${name}]`)?.value.trim() || '', status = root.querySelector('[data-status]'), apply = root.querySelector('[data-apply]')
   const invalidate = () => { revision++; previewedDesign = null; apply.disabled = true; root.querySelector('[data-preview-output]').innerHTML = '' }
@@ -47,9 +48,15 @@ export function openTableDesigner({ sessionKey, table = {}, detail, readOnly, on
     try { const ticket = revision, design = read(); const preview = await DbHost.workbench('table.design.preview', { sessionKey, design }); if (ticket !== revision) { status.textContent = '设计已变化，请重新预览'; return }; previewedDesign = design; root.querySelector('[data-preview-output]').innerHTML = `<p class="${preview.destructive ? 'wb-form-error' : 'muted'}">${esc((preview.warnings || []).join(' '))}</p><textarea class="wb-sql-preview" readonly aria-label="DDL 预览">${esc(preview.sql)}</textarea>`; status.textContent = readOnly ? '当前控制台只读，可查看 DDL，不能执行。' : '请核对 DDL 后确认执行。'; apply.disabled = !!readOnly } catch (error) { status.textContent = error.message } finally { event.target.disabled = false }
   }
   apply.onclick = async () => {
-    if (!previewedDesign) return
-    apply.disabled = true; status.textContent = '正在执行表设计…'
-    try { await DbHost.workbench('table.design.apply', { sessionKey, design: previewedDesign, confirmed: true }); status.textContent = '表设计已应用'; previewedDesign = null; await onApplied?.() } catch (error) { status.textContent = error.message; apply.disabled = false }
+    if (!previewedDesign || readOnly || applying) return
+    const design = previewedDesign
+    applying = true; root.querySelectorAll('input,select,button').forEach(element => { element.disabled = true }); status.textContent = '正在执行表设计…'
+    try {
+      if (isCurrent?.() === false) throw new Error('来源连接已断开，请重新打开表设计')
+      await runDatabaseTask({ ...taskContext, kind: 'tableDesign', sessionKey }, () => DbHost.workbench('table.design.apply', { sessionKey, design, confirmed: true }))
+      status.textContent = '表设计已应用'; previewedDesign = null; await onApplied?.()
+    } catch (error) { status.textContent = error.message }
+    finally { applying = false; root.querySelectorAll('input,select,button').forEach(element => { element.disabled = false }); apply.disabled = !previewedDesign || !!readOnly }
   }
   renderFields()
   return modal

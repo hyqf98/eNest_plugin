@@ -10,9 +10,7 @@
   "permissions": [
     "screen.capture",
     "clipboard.write",
-    "shell.openExternal",
-    "fs.read",
-    "fs.write"
+    "shell.openExternal"
   ],
   "engines": {
     "enest": ">=0.1.0"

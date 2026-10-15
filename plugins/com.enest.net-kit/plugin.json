@@ -14,8 +14,7 @@
     "net.fetch",
     "net.socket",
     "clipboard.write",
-    "shell.openExternal",
-    "fs.write"
+    "shell.openExternal"
   ],
   "net": {
     "allowInsecure": true

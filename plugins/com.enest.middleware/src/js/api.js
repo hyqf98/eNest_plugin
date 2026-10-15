@@ -140,9 +140,9 @@ export async function testConnection(config) {
 }
 
 /** session.open；成功后把会话信息（capabilities/messageQueryModes）写入会话级缓存供 ctx 组装 */
-export async function openConnection(conn) {
-  const sessionKey = sessionKeyOf(conn.id)
-  const res = await mw('session.open', { sessionKey, config: toMwConfig(conn) })
+export async function openConnection(conn, options = {}) {
+  const sessionKey = options.sessionKey || sessionKeyOf(conn.id)
+  const res = await mw('session.open', { sessionKey, config: toMwConfig(conn, { readOnly: options.readOnly ?? !!conn.readOnly }) })
   const info = res && typeof res === 'object' ? res : {}
   try {
     await session.set(sessionInfoKey(conn.id), {

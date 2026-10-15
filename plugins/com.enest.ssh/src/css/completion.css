@@ -1,0 +1,56 @@
+/* One caret-anchored list; local and remote sources share the same reading surface. */
+.ssh-command-suggestions {
+  position: fixed;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--text);
+  box-shadow: 0 5px 20px #0002, 0 1px 3px #0001;
+  font: var(--ssh-completion-font, 13px)/1.45 var(--font, system-ui, sans-serif);
+  font-optical-sizing: auto;
+  text-align: left;
+  contain: layout;
+}
+.ssh-command-rows { overflow: auto; min-height: 0; overscroll-behavior: contain; scrollbar-width: thin; }
+.ssh-command-option {
+  display: grid;
+  grid-template-columns: 3em minmax(0, auto) minmax(0, auto) minmax(5em, 1fr);
+  align-items: center;
+  gap: .65em;
+  min-height: 2.25em;
+  padding: .3em .6em;
+  box-sizing: border-box;
+  border-radius: 4px;
+  cursor: default;
+  user-select: none;
+}
+.ssh-command-option[aria-selected=true] { background: var(--accent-soft); outline: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); outline-offset: -1px; }
+.ssh-command-option:active { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
+.ssh-command-kind { font-size: .78em; color: var(--text-3); letter-spacing: .02em; }
+.ssh-command-name, .ssh-command-arguments, .ssh-command-description { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ssh-command-name { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-weight: 500; }
+.ssh-command-arguments { color: var(--text-3); font: .85em/1.5 var(--mono, monospace); }
+.ssh-command-description { color: var(--text-2); font-size: .88em; text-align: right; }
+.ssh-command-option.is-destructive .ssh-command-description { color: var(--danger); }
+.ssh-command-keys { flex: 0 0 auto; display: flex; flex-direction: column; gap: .25em; padding: .45em .7em .15em; color: var(--text-3); font-size: .75em; line-height: 1.5; }
+.ssh-command-keys > span { color: var(--text-2); }
+.ssh-command-keys > .ssh-remote-status { color: var(--text-3); }
+.ssh-command-option[data-source] .ssh-command-kind { color: var(--accent); }
+@media (max-width: 520px) {
+  .ssh-command-option { gap: .4em; grid-template-columns: 2.6em minmax(0, 1fr) minmax(0, auto) minmax(4em, .9fr); }
+  .ssh-command-arguments { max-width: 6em; }
+}
+@media (prefers-contrast: more) {
+  .ssh-command-suggestions { border-color: currentColor; --text-3: var(--text-2); }
+  .ssh-command-option[aria-selected=true] { outline: 2px solid var(--accent); outline-offset: -2px; }
+}
+@media (forced-colors: active) {
+  .ssh-command-option[aria-selected=true] { outline-color: Highlight; }
+}

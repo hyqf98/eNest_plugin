@@ -103,6 +103,33 @@
     { cmd: 'unzip', desc: 'zip 解压', category: 'archive', flags: [] },
   ]
 
+  /** Context grammar is intentionally local: operands and remote paths remain the shell's responsibility. */
+  const GRAMMAR = {
+    ls: { usage: '[路径]', flags: [{ name: '-l', desc: '长格式，包含权限和大小' }, { name: '-a', desc: '显示隐藏文件' }, { name: '-h', desc: '以易读单位显示大小' }, { name: '-la', desc: '长格式并显示隐藏文件' }, { name: '-lah', desc: '长格式、隐藏文件和易读大小' }, { name: '--color=auto', desc: '按文件类型着色' }] },
+    cd: { usage: '[目录]' },
+    curl: { usage: '[URL]', flags: [{ name: '-I', desc: '仅请求响应头' }, { name: '-s', desc: '关闭进度输出' }, { name: '-L', desc: '跟随重定向' }, { name: '-v', desc: '显示请求与连接详情' }, { name: '-X', desc: 'HTTP 请求方法', value: '方法', values: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] }, { name: '-H', desc: '添加请求头', value: '请求头' }, { name: '--connect-timeout', desc: '连接超时秒数', value: '秒' }, { name: '-o', desc: '保存到文件', value: '文件' }] },
+    systemctl: { flags: [{ name: '--user', desc: '管理当前用户服务' }, { name: '--failed', desc: '只显示失败的单元' }, { name: '--no-pager', desc: '直接输出，不启动分页器' }], subcommands: [
+      { name: 'status', desc: '查看服务状态', usage: '[服务]', flags: [{ name: '--no-pager', desc: '不启动分页器' }] }, { name: 'start', desc: '启动服务', usage: '[服务]' }, { name: 'stop', desc: '停止服务', usage: '[服务]' }, { name: 'restart', desc: '重启服务', usage: '[服务]' }, { name: 'reload', desc: '重新加载服务配置', usage: '[服务]' }, { name: 'enable', desc: '设置开机启动', usage: '[服务]' }, { name: 'list-units', desc: '列出服务单元' }, { name: 'daemon-reload', desc: '重新加载 systemd 单元配置' },
+    ] },
+    journalctl: { flags: [{ name: '-u', desc: '按服务单元过滤', value: '服务' }, { name: '-f', desc: '持续查看新日志' }, { name: '-n', desc: '显示最近的日志行', value: '行数' }, { name: '--since', desc: '从指定时间开始', value: '时间' }, { name: '-b', desc: '只显示本次启动日志' }, { name: '--no-pager', desc: '不启动分页器' }] },
+    docker: { flags: [{ name: '--context', desc: '选择 Docker 上下文', value: '上下文' }], subcommands: [
+      { name: 'ps', desc: '列出容器', flags: [{ name: '-a', desc: '包括停止的容器' }, { name: '--format', desc: '自定义输出格式', value: '格式' }, { name: '--filter', desc: '按条件筛选', value: '条件' }] },
+      { name: 'logs', desc: '查看容器日志', usage: '[容器]', flags: [{ name: '-f', desc: '跟随新日志' }, { name: '--tail', desc: '显示末尾指定行数', value: '行数' }, { name: '--since', desc: '开始时间', value: '时间' }, { name: '-t', desc: '显示时间戳' }] },
+      { name: 'exec', desc: '在运行中的容器执行命令', usage: '[容器] [命令]', flags: [{ name: '-it', desc: '交互终端' }, { name: '-u', desc: '使用指定用户', value: '用户' }, { name: '-w', desc: '设置工作目录', value: '目录' }] },
+      { name: 'images', desc: '列出镜像' }, { name: 'inspect', desc: '查看容器或镜像详情', usage: '[对象]' }, { name: 'stats', desc: '查看容器资源用量' },
+      { name: 'compose', desc: '管理 Compose 服务', subcommands: [{ name: 'up', desc: '创建并启动服务', flags: [{ name: '-d', desc: '后台运行' }, { name: '--build', desc: '启动前构建镜像' }] }, { name: 'down', desc: '停止并移除服务' }, { name: 'ps', desc: '查看服务状态' }, { name: 'logs', desc: '查看服务日志', flags: [{ name: '-f', desc: '跟随新日志' }] }] },
+    ] },
+    kubectl: { flags: [{ name: '-n', desc: '指定命名空间', value: '命名空间' }, { name: '--context', desc: '指定集群上下文', value: '上下文' }], subcommands: [
+      { name: 'get', desc: '查看 Kubernetes 资源', subcommands: ['pods', 'services', 'deployments', 'nodes', 'namespaces', 'configmaps', 'ingresses'].map(name => ({ name, desc: '查看 ' + name, flags: [{ name: '-A', desc: '所有命名空间' }, { name: '-n', desc: '指定命名空间', value: '命名空间' }, { name: '-o', desc: '输出格式', value: '格式', values: ['wide', 'yaml', 'json', 'name'] }, { name: '-w', desc: '持续观察变更' }] })) },
+      { name: 'describe', desc: '查看资源详情', usage: '[资源] [名称]' }, { name: 'logs', desc: '查看 Pod 日志', usage: '[Pod]', flags: [{ name: '-f', desc: '跟随日志' }, { name: '--tail', desc: '日志行数', value: '行数' }, { name: '-c', desc: '指定容器', value: '容器' }] }, { name: 'exec', desc: '在 Pod 中执行命令', usage: '[Pod] -- [命令]', flags: [{ name: '-it', desc: '交互终端' }] }, { name: 'config', desc: '查看本地集群配置', subcommands: [{ name: 'get-contexts', desc: '列出上下文' }, { name: 'current-context', desc: '当前上下文' }] },
+    ] },
+    git: { flags: [{ name: '-C', desc: '在指定目录执行', value: '目录' }], subcommands: [
+      { name: 'status', desc: '查看工作区状态', flags: [{ name: '--short', desc: '简洁格式' }, { name: '--branch', desc: '显示分支' }] }, { name: 'log', desc: '查看提交记录', flags: [{ name: '--oneline', desc: '每条提交一行' }, { name: '--graph', desc: '显示分支关系' }, { name: '-n', desc: '限制提交数', value: '数量' }] }, { name: 'diff', desc: '查看修改', flags: [{ name: '--stat', desc: '修改统计' }, { name: '--staged', desc: '查看已暂存修改' }] }, { name: 'branch', desc: '查看分支', flags: [{ name: '-a', desc: '包括远程分支' }] }, { name: 'fetch', desc: '获取远程引用' }, { name: 'pull', desc: '拉取远程修改' }, { name: 'show', desc: '查看提交或对象' }, { name: 'stash', desc: '管理暂存工作区', subcommands: [{ name: 'list', desc: '列出暂存记录' }, { name: 'show', desc: '查看暂存修改' }] },
+    ] },
+    tail: { usage: '[文件]', flags: [{ name: '-f', desc: '跟随文件新增内容' }, { name: '-F', desc: '按名称跟随并自动重试' }, { name: '-n', desc: '显示末尾行数', value: '行数' }] },
+  }
+  for (const entry of DICT) if (GRAMMAR[entry.cmd]) Object.assign(entry, GRAMMAR[entry.cmd])
+
   /**
    * 危险规则（SSH-E4）。
    * match(cmd, profileEnv) → { level: 'danger'|'warn', reason: string } | null
@@ -200,95 +227,8 @@
    * 本地合并补全（SSH-E1 本地源）
    * sources: { prefix, history[], snippets[], userDict[] }
    */
-  function localSuggest(prefix, sources) {
-    const p = String(prefix || '').trim()
-    const lower = p.toLowerCase()
-    const items = []
-    const seen = new Set()
-    const push = (it) => {
-      const key = it.kind + '|' + it.text
-      if (seen.has(key)) return
-      seen.add(key)
-      items.push(it)
-    }
-
-    const lastToken = p.split(/\s+/).filter(Boolean).pop() || ''
-    const isPathLike = /^[~./]/.test(lastToken) || p.includes('/')
-    const isFlag = lastToken.startsWith('-')
-    const firstWord = p.trim().split(/\s+/)[0] || ''
-    const afterFirst = p.trim().split(/\s+/).length > 1
-
-    // 静态词典
-    for (const entry of DICT) {
-      if (!afterFirst && !isFlag) {
-        if (!lower || entry.cmd.toLowerCase().startsWith(lower)) {
-          push({
-            kind: 'cmd',
-            text: entry.cmd,
-            detail: entry.desc + ' · ' + (CATEGORY_LABEL[entry.category] || entry.category),
-            sort: 0,
-          })
-        }
-      }
-      if (entry.cmd === firstWord && isFlag) {
-        for (const f of entry.flags || []) {
-          if (!lastToken || f.name.toLowerCase().startsWith(lastToken.toLowerCase())) {
-            push({ kind: 'flag', text: entry.cmd + ' ' + f.name, detail: f.desc, sort: 1, replace: 'last' })
-          }
-        }
-      }
-    }
-
-    // 片段
-    for (const s of sources.snippets || []) {
-      const hay = ((s.title || '') + ' ' + (s.command || '')).toLowerCase()
-      if (!lower || hay.includes(lower) || (s.command || '').toLowerCase().startsWith(lower)) {
-        push({
-          kind: 'snippet',
-          text: s.command,
-          detail: s.title || '常用',
-          sort: 2,
-        })
-      }
-    }
-
-    // 历史：profile 优先
-    const hist = sources.history || []
-    const profileHits = []
-    const globalHits = []
-    for (const h of hist) {
-      const c = h.command || ''
-      if (!c) continue
-      if (!lower || c.toLowerCase().startsWith(lower) || c.toLowerCase().includes(lower)) {
-        if (h.profileId && sources.profileId && h.profileId === sources.profileId) profileHits.push(h)
-        else globalHits.push(h)
-      }
-    }
-    profileHits.sort((a, b) => (b.ts || 0) - (a.ts || 0))
-    globalHits.sort((a, b) => (b.ts || 0) - (a.ts || 0))
-    for (const h of profileHits.slice(0, 8)) {
-      push({ kind: 'history', text: h.command, detail: '本机历史', sort: 3, ts: h.ts })
-    }
-    for (const h of globalHits.slice(0, 6)) {
-      push({ kind: 'history', text: h.command, detail: '全局历史', sort: 4, ts: h.ts })
-    }
-
-    // 用户词典（P1，storage 可选）
-    for (const u of sources.userDict || []) {
-      const text = u.cmd || u.alias || u.text
-      if (!text) continue
-      if (!lower || text.toLowerCase().includes(lower)) {
-        push({ kind: 'cmd', text, detail: u.desc || '用户词典', sort: 5 })
-      }
-    }
-
-    // 路径占位提示（真实路径由宿主 completion.suggest 提供）
-    if (isPathLike && !items.length) {
-      push({ kind: 'path', text: p, detail: '远程路径补全中…', sort: 6 })
-    }
-
-    items.sort((a, b) => (a.sort - b.sort))
-    return items
+  function localSuggest(prefix, sources = {}) {
+    return global.SshCommandCompletion?.suggest(String(prefix || ''), { ...sources, dictionary: DICT }) || []
   }
 
   global.SshDict = {

@@ -5,6 +5,8 @@
  * LIMITS：连接 ≤50、每连接历史 ≤100（内存 Map，供 B/C 页面回显最近操作）。
  */
 import api from './api.js'
+import { taskId, restoreTasks } from './workspace.js'
+import { readProductivity, validateProductivity } from './preferences.js'
 
 export const LIMITS = { connections: 50, historyPerConn: 100 }
 
@@ -26,10 +28,12 @@ const state = {
   connections: [],
   /** 已打开 Tab 的连接 id 列表（顺序即 Tab 顺序） */
   tabs: [],
+  tasks: [],
+  activeTask: null,
   /** 当前激活 Tab 的连接 id | null */
   activeTab: null,
   ui: {
-    treeWidth: 232,
+    treeWidth: 240,
     collapsedGroups: [],
     lastPage: {} // { connId: pageId }
   },
@@ -42,6 +46,19 @@ const state = {
 const timers = new Map()
 const dirty = new Set()
 let saveErrorShown = false
+let uiWrites = Promise.resolve()
+
+// Serialize settings and layout writes. A pending layout save must not overwrite
+// newly saved preferences, and a failed explicit save must leave live settings intact.
+function writeUi(productivity) {
+  const write = uiWrites.catch(() => {}).then(async () => {
+    const value = { ...snapshotUi(), ...(productivity ? { productivity } : {}) }
+    await api.storage.set(KEYS.ui, structuredClone(value))
+    if (productivity) state.ui.productivity = productivity
+  })
+  uiWrites = write
+  return write
+}
 
 function schedule(key, value, delay = 800) {
   dirty.add(key)
@@ -50,7 +67,8 @@ function schedule(key, value, delay = 800) {
     key,
     setTimeout(() => {
       timers.delete(key)
-      api.storage.set(key, value).catch((e) => {
+      const write = key === KEYS.ui ? writeUi() : api.storage.set(key, value)
+      write.catch((e) => {
         if (!saveErrorShown) {
           saveErrorShown = true // 持久化失败只提示一次，避免后台保存刷屏
           void api.toast(e?.message || '本地数据保存失败', 'error')
@@ -62,6 +80,7 @@ function schedule(key, value, delay = 800) {
 
 /** Tab 布局随 mw.ui 落盘，下次启动恢复 */
 function snapshotUi() {
+  state.ui.workspace = { version: 1, tabs: state.tasks.map(({ connectionId, pageId }) => ({ connectionId, pageId })), activeTask: state.activeTask }
   state.ui.openTabs = [...state.tabs]
   state.ui.activeTab = state.activeTab
   return state.ui
@@ -96,7 +115,7 @@ async function flush() {
     timers.delete(key)
     const value = key === KEYS.connections ? state.connections : snapshotUi()
     dirty.delete(key)
-    writes.push(api.storage.set(key, value).catch(() => {}))
+    writes.push((key === KEYS.ui ? writeUi() : api.storage.set(key, value)).catch(() => {}))
   }
   await Promise.all(writes)
 }
@@ -123,6 +142,8 @@ function upsertConnection(conn) {
 }
 
 function removeConnection(id) {
+  state.tasks = state.tasks.filter(task => task.connectionId !== id)
+  if (!state.tasks.some(task => task.id === state.activeTask)) state.activeTask = state.tasks.at(-1)?.id ?? null
   state.connections = state.connections.filter((c) => c.id !== id)
   const idx = state.tabs.indexOf(id)
   if (idx >= 0) state.tabs.splice(idx, 1)
@@ -144,6 +165,8 @@ function openTab(connId) {
 }
 
 function closeTab(connId) {
+  state.tasks = state.tasks.filter(task => task.connectionId !== connId)
+  if (!state.tasks.some(task => task.id === state.activeTask)) state.activeTask = state.tasks.at(-1)?.id ?? null
   const idx = state.tabs.indexOf(connId)
   if (idx < 0) return
   state.tabs.splice(idx, 1)
@@ -158,11 +181,49 @@ function setActiveTab(connId) {
   return true
 }
 
+/** One task per full connection/page identity; drafts and result data remain in memory only. */
+function openTask(connectionId, pageId = 'overview') {
+  if (pageId === 'settings') connectionId = null
+  else if (!getConnection(connectionId)) return null
+  const id = taskId(connectionId, pageId)
+  if (!state.tasks.some(task => task.id === id)) state.tasks.push({ id, connectionId, pageId })
+  state.activeTask = id
+  if (connectionId) { openTab(connectionId); state.ui.lastPage[connectionId] = pageId }
+  else state.activeTab = null
+  persistUi()
+  return id
+}
+function closeTask(id) {
+  const index = state.tasks.findIndex(task => task.id === id)
+  if (index < 0) return
+  state.tasks.splice(index, 1)
+  if (state.activeTask === id) state.activeTask = state.tasks[Math.min(index, state.tasks.length - 1)]?.id ?? null
+  state.activeTab = state.tasks.find(task => task.id === state.activeTask)?.connectionId ?? null
+  state.tabs = [...new Set(state.tasks.map(task => task.connectionId).filter(Boolean))]
+  persistUi()
+}
+function activateTask(id) {
+  const task = state.tasks.find(task => task.id === id)
+  if (!task) return false
+  state.activeTask = id
+  state.activeTab = task.connectionId
+  persistUi(0)
+  return true
+}
+
 /* —— ui 偏好 —— */
 
 function setUi(key, value) {
   state.ui[key] = value
   persistUi(300)
+}
+
+async function saveProductivity(value) {
+  const next = validateProductivity(value)
+  clearTimeout(timers.get(KEYS.ui)); timers.delete(KEYS.ui)
+  dirty.add(KEYS.ui)
+  await writeUi(next)
+  return next
 }
 
 /* —— 每连接历史（内存，≤100）—— */
@@ -187,10 +248,11 @@ export async function load() {
     .filter((c) => c && c.id && KINDS.includes(c.kind))
     .slice(0, LIMITS.connections)
   state.ui = {
-    treeWidth: 232,
+    treeWidth: 240,
     collapsedGroups: [],
     lastPage: {},
     ...savedUi,
+    productivity: readProductivity(savedUi.productivity),
     lastPage: { ...(savedUi.lastPage && typeof savedUi.lastPage === 'object' ? savedUi.lastPage : {}) }
   }
   // 恢复上次打开的 Tab 与激活项
@@ -201,6 +263,10 @@ export async function load() {
   state.activeTab = savedTabs.includes(savedUi.activeTab)
     ? savedUi.activeTab
     : (savedTabs[savedTabs.length - 1] ?? null)
+  state.tasks = restoreTasks(savedUi, state.connections)
+  state.activeTask = state.tasks.some(task => task.id === savedUi.workspace?.activeTask)
+    ? savedUi.workspace.activeTask : state.tasks.find(task => task.connectionId === state.activeTab)?.id ?? state.tasks.at(-1)?.id ?? null
+  state.activeTab = state.tasks.find(task => task.id === state.activeTask)?.connectionId ?? state.activeTab
   return state
 }
 
@@ -209,11 +275,15 @@ export async function load() {
 const store = {
   LIMITS,
   KEYS,
+  openTask, closeTask, activateTask,
+  get tasks() { return state.tasks },
+  get activeTask() { return state.activeTask },
   uid,
   save,
   flush,
   patch,
   setUi,
+  saveProductivity,
   getConnection,
   upsertConnection,
   removeConnection,

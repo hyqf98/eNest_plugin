@@ -12,8 +12,7 @@
   },
   "permissions": [
     "clipboard.write",
-    "clipboard.readImage",
-    "fs.write"
+    "clipboard.readImage"
   ],
   "window": {
     "minWidth": 480,

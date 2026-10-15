@@ -8,8 +8,7 @@
   "category": "其它",
   "icon": "assets/market/icon.svg",
   "permissions": [
-    "fs.rename",
-    "fs.read"
+    "fs.rename"
   ],
   "engines": {
     "enest": ">=0.1.0"

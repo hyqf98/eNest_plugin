@@ -9,7 +9,7 @@ import { KIND_META, kindDot, envChip, chip, escapeHtml, fmt } from './components
 import api from './api.js'
 import store from './store.js'
 import { renderTree } from './tree.js'
-import { renderAll, openConnTab } from './tabs.js'
+import { renderAll, openConnTab, forgetSessionCaps } from './tabs.js'
 import { setLatency } from './status.js'
 
 const KIND_ORDER = ['kafka', 'rabbitmq', 'mqtt', 'rocketmq']
@@ -360,6 +360,7 @@ export function openConnectionDrawer(existing = null) {
       const conn = readForm()
       validate(conn)
       await persistSecrets(conn)
+      forgetSessionCaps(conn.id)
       store.upsertConnection(conn)
       store.flush().catch(() => {})
       invalidateHomeCache(conn.id) // 配置可能已变，首页卡片需重探

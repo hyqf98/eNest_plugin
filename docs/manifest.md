@@ -42,7 +42,7 @@
 | `engines.enest` | 宿主版本范围，支持 `*`、`^x.y.z`、`>=x.y.z` 或精确版本 |
 | `permissions` | 本插件使用的敏感能力；基础存储/UI/设置/主题无需声明，分类见 plugin-permission-policy.json |
 | `features` | `{code,cmds,explain?}` 数组；入口 code 由 `onEnter` 接收 |
-| `window` | Quick 高度建议及最小高度；主窗口由用户控制，不用于写死页面尺寸 |
+| `window` | 兼容旧插件的尺寸建议；Quick 插件态外框固定 720×545px，屏幕不足时缩小；主窗口由用户控制 |
 | `development.main` | 源码开发 HTTP(S) URL，不含凭据、fragment；发行包中禁止 |
 | `ui` | 是否跟随主题、背景与宿主 chrome |
 | `net` | `allowInsecure` 声明；仍受实际网络权限与宿主校验约束 |

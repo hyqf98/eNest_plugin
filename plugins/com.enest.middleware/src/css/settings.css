@@ -1,0 +1,66 @@
+/* Settings share the workbench's solid reading surfaces and host typography. */
+.mw-settings-page { overflow: hidden; font-size: var(--font-size-base, 13px); }
+.mw-settings-header { display: flex; align-items: center; flex-wrap: wrap; gap: .7em; padding: 1em 1.25em; border-bottom: 1px solid var(--border); flex: none; }
+.mw-settings-header > div { margin-right: auto; }
+.mw-settings-header h1 { font-size: 1.15em; font-weight: 600; line-height: 1.5; }
+.mw-settings-header p, .mw-settings-help { color: var(--text-2); font-size: .92em; line-height: 1.65; }
+.mw-settings-status { color: var(--text-2); font-size: .9em; max-width: 34em; }
+.mw-settings-status[data-state=error], .mw-rule-validation[data-state=error] { color: var(--danger); }
+.mw-settings-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.mw-settings-nav { flex: 0 0 10.5em; padding: .75em; border-right: 1px solid var(--border); background: var(--surface); }
+.mw-settings-nav button { display: block; width: 100%; padding: .55em .7em; margin-bottom: .25em; border-radius: 6px; text-align: left; }
+.mw-settings-nav button[aria-current=page] { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.mw-settings-content { flex: 1; min-width: 0; overflow: auto; padding: 1.25em; overscroll-behavior: contain; }
+.mw-settings-content h2 { font-size: 1.08em; font-weight: 600; margin-bottom: .35em; }
+.mw-settings-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .7em; margin: 1em 0; }
+.mw-settings-toolbar input { flex: 1; min-width: 12em; }
+.mw-settings-page input:not([type=checkbox]), .mw-settings-page select, .mw-settings-page textarea { border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg); padding: .45em .65em; font: inherit; line-height: 1.5; min-width: 0; color: var(--text); }
+.mw-settings-page input[type=checkbox] { accent-color: var(--accent); width: 1.1em; height: 1.1em; vertical-align: middle; }
+.mw-settings-page .btn { font-size: .92em; }
+.mw-settings-page button:active:not(:disabled) { background-color: var(--surface-3); }
+.mw-shortcut-list { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+.mw-shortcut-row { display: grid; grid-template-columns: minmax(11em, 1fr) minmax(11em, 16em) auto auto; align-items: center; gap: .6em; padding: .8em 0; border-bottom: 1px solid var(--border); }
+.mw-shortcut-row strong, .mw-rule-item strong { display: block; font-size: .96em; font-weight: 500; }
+.mw-shortcut-row small, .mw-rule-item small { display: block; color: var(--text-2); font-size: .85em; line-height: 1.5; margin-top: .2em; }
+.mw-shortcut-row input { cursor: pointer; font-variant-numeric: tabular-nums; }
+.mw-completion-options { display: flex; gap: 1.5em; flex-wrap: wrap; margin-top: 1em; }
+.mw-rules-layout { display: grid; grid-template-columns: minmax(12em, 30%) minmax(0, 1fr); gap: 1.25em; align-items: start; }
+.mw-rule-list { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.mw-rule-list > p { padding: 1em; }
+.mw-rule-item { display: block; width: 100%; text-align: left; padding: .8em; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.mw-rule-item:last-child { border-bottom: none; }
+.mw-rule-item[aria-pressed=true] { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
+.mw-rule-editor { min-width: 0; }
+.mw-rule-editor-head { display: flex; gap: .6em; align-items: center; justify-content: space-between; margin-bottom: .8em; }
+.mw-rule-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .9em; }
+.mw-rule-form label { display: flex; flex-direction: column; gap: .35em; font-size: .93em; color: var(--text-2); min-width: 0; }
+.mw-rule-form .wide { grid-column: 1 / -1; }
+.mw-rule-form textarea { resize: vertical; min-height: 5em; font-family: var(--mono); }
+.mw-rule-editor .mw-settings-help { margin: .8em 0; overflow-wrap: anywhere; }
+.mw-rule-editor > small { color: var(--text-2); }
+.mw-rule-preview { display: block; padding: .7em .8em; margin-top: .3em; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; font: .92em/1.6 var(--mono); }
+.mw-rule-validation { min-height: 1.6em; margin-top: .5em; font-size: .88em; color: var(--text-2); }
+.tree-foot { display: flex; gap: .4em; }
+.tree-foot .new-btn:first-child { flex: 1; }
+.tree-foot [data-open-settings] { width: auto; white-space: nowrap; }
+@media (max-width: 1050px) {
+  .mw-settings-nav { flex-basis: 8.5em; }
+  .mw-shortcut-row { grid-template-columns: minmax(10em, 1fr) minmax(10em, 1fr) auto; }
+  .mw-shortcut-row [data-reset-shortcut] { grid-column: 3; }
+  .mw-rules-layout { grid-template-columns: minmax(0, 1fr); }
+  .mw-rule-list { display: flex; overflow-x: auto; }
+  .mw-rule-item { min-width: 12em; max-width: 19em; border-bottom: none; border-right: 1px solid var(--border); }
+}
+@media (max-width: 719px), (max-height: 420px) {
+  .mw-settings-header { padding: .55em .75em; }
+  .mw-settings-header p { display: none; }
+  .mw-settings-header .mw-settings-status { width: 100%; order: 5; }
+  .mw-settings-layout { flex-direction: column; }
+  .mw-settings-nav { display: flex; flex: none; border-right: none; border-bottom: 1px solid var(--border); padding: .3em .5em; gap: .4em; }
+  .mw-settings-nav button { width: auto; margin: 0; padding: .3em .6em; }
+  .mw-settings-content { padding: .75em; }
+  .mw-shortcut-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .mw-shortcut-row > div { grid-column: 1 / -1; }
+  .mw-shortcut-row [data-reset-shortcut] { grid-column: auto; }
+}
+@media (prefers-contrast: more) { .mw-shortcut-list, .mw-shortcut-row, .mw-rule-list, .mw-rule-preview { border-color: var(--text-2); } }

@@ -3,6 +3,14 @@ import { escapeHtml, createDialog } from '@enest/plugin-kit/workbench'
 
 export { escapeHtml }
 
+/** Adapt the installed kit's {dialog, body, close} shape once for local form callers. */
+function middlewareDialog(options) {
+  const dialog = createDialog(options)
+  const footer = el('footer', { class: 'mw-dialog-footer' })
+  dialog.dialog.append(footer)
+  return { ...dialog, root: dialog.dialog, footer }
+}
+
 /* —— 格式化 —— */
 export const fmt = {
   num(value) {
@@ -93,9 +101,9 @@ export function chip(text, cls = '', title = '') {
 export function healthChip(lag) {
   const n = Number(lag)
   if (!Number.isFinite(n)) return chip('未知', '')
-  if (n <= 100) return chip('<span class="dot"></span>正常', 'ok')
-  if (n <= 5000) return chip('<span class="dot"></span>轻微堆积', 'warn')
-  return chip('<span class="dot"></span>堆积告警', 'bad')
+  if (n <= 100) return chip('正常', 'ok')
+  if (n <= 5000) return chip('轻微堆积', 'warn')
+  return chip('堆积告警', 'bad')
 }
 export function lagBar(lag) {
   const n = Number(lag)
@@ -111,13 +119,15 @@ export function lagBar(lag) {
  */
 export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClick, emptyText = '暂无数据' }) {
   const tbody = el('tbody')
-  const table = el('table', { class: 'grid' }, [
+  const widths = columns.map(column => Math.max(72, (String(column.width).endsWith('%') ? (column.mono ? 240 : 160) : parseInt(column.width, 10)) || (column.mono ? 240 : 150)))
+  const table = el('table', { class: 'grid', style: `min-width:${widths.reduce((sum, width) => sum + width, 0)}px` }, [
+    el('colgroup', {}, widths.map(width => el('col', { style: `width:${width}px` }))),
     el('thead', {}, [el('tr', {}, columns.map(c => el('th', {
       class: c.num ? 'num' : '', ...(c.width ? { style: `width:${c.width}` } : {})
     }, c.title)))]),
     tbody
   ])
-  const wrap = el('div', { class: 'table-wrap' }, [table])
+  const wrap = el('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': '数据列表，可左右滚动' }, [table])
   let current = []
   let selectedKey = null
   function update(rows) {
@@ -135,13 +145,19 @@ export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClic
         ondblclick: () => onRowDblClick?.(row),
         oncontextmenu: (e) => { e.preventDefault(); setSelected(key); onRowCtx?.(e, row) }
       })
+      tr.tabIndex = onRowClick || onRowDblClick ? 0 : -1
+      tr.addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); setSelected(key); (onRowDblClick || onRowClick)?.(row) }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); (event.key === 'ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling)?.focus() }
+      })
       if (key === selectedKey) tr.classList.add('sel')
       for (const c of columns) {
         const value = c.render ? c.render(row) : row[c.key]
-        tr.appendChild(el('td', { class: `${c.num ? 'num' : ''} ${c.mono ? 'name' : ''}` }).html?.())
+        tr.appendChild(el('td', { class: `${c.num ? 'num' : ''} ${c.mono ? 'name' : ''}` }))
         // 直接 innerHTML 赋值（render 输出已 escapeHtml 或受控片段）
         const td = tr.lastChild
-        td.innerHTML = value === undefined || value === null || value === '' ? '<span style="color:var(--text-3)">—</span>' : String(value)
+        td.innerHTML = value === undefined || value === null || value === '' ? '<span style="color:var(--text-3)">—</span>' : c.render ? String(value) : escapeHtml(String(value))
+        td.title = String(c.tooltip?.(row) ?? (c.key && row[c.key] != null ? row[c.key] : td.textContent))
       }
       tr.dataset.key = key
       tbody.appendChild(tr)
@@ -152,6 +168,7 @@ export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClic
     for (const tr of tbody.children) tr.classList.toggle('sel', tr.dataset.key === key)
   }
   function getSelectedRow() { return current.find(r => String(rowKey(r)) === selectedKey) ?? null }
+  update([])
   return { root: wrap, update, setSelected, getSelectedRow }
 }
 
@@ -161,7 +178,7 @@ export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClic
 export async function confirmDanger({ title, message, requireText, confirmLabel = '确认执行' }) {
   return new Promise(resolve => {
     const body = el('div', {}, [])
-    if (message) body.appendChild(el('p', { style: 'font-size:12.5px;color:var(--text-2);line-height:1.7;margin-bottom:14px' }, message))
+    if (message) body.appendChild(el('p', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.961538);color:var(--text-2);line-height:1.7;margin-bottom:14px' }, message))
     let input = null
     if (requireText) {
       body.appendChild(el('div', { class: 'form-row' }, [
@@ -170,7 +187,7 @@ export async function confirmDanger({ title, message, requireText, confirmLabel 
       ]))
     }
     const footer = el('div', { style: 'display:flex;gap:10px;justify-content:flex-end;padding-top:4px' })
-    const dlg = createDialog({
+    const dlg = middlewareDialog({
       title,
       className: 'mw-danger-dialog',
       onClose: () => resolve(false)
@@ -204,7 +221,7 @@ export async function confirmDanger({ title, message, requireText, confirmLabel 
  * 返回 { close, body, footer }
  */
 export function infoDialog({ title, width = 520 }) {
-  const dlg = createDialog({ title, className: 'mw-info-dialog' })
+  const dlg = middlewareDialog({ title, className: 'mw-info-dialog' })
   if (width) dlg.root.style.maxWidth = `${width}px`
   dlg.footer.innerHTML = ''
   dlg.footer.appendChild(el('div', { style: 'display:flex;gap:10px;justify-content:flex-end;width:100%' }))
@@ -214,14 +231,18 @@ export function infoDialog({ title, width = 520 }) {
 /* —— 右键菜单 ——
  * items: [{ label, icon?, danger?, disabled?, onClick }] 或 'hr'
  */
+let closeCurrentMenu = null
+export function closeContextMenu() { closeCurrentMenu?.() }
 export function showContextMenu(x, y, items) {
+  closeCurrentMenu?.()
+  const previousFocus = document.activeElement
   const root = document.getElementById('ctx-root')
   root.innerHTML = ''
-  const menu = el('div', { class: 'ctxmenu' })
+  const menu = el('div', { class: 'ctxmenu', role: 'menu', 'aria-label': '便捷操作' })
   for (const item of items) {
     if (item === 'hr') { menu.appendChild(el('hr')); continue }
     menu.appendChild(el('button', {
-      class: `mi ${item.danger ? 'danger' : ''}`,
+      class: `mi ${item.danger ? 'danger' : ''}`, role: 'menuitem',
       disabled: item.disabled ? '' : undefined,
       title: item.disabled ? item.reason ?? '不可用' : undefined,
       onclick: () => { hide(); if (!item.disabled) item.onClick?.() }
@@ -231,13 +252,27 @@ export function showContextMenu(x, y, items) {
   const rect = menu.getBoundingClientRect()
   menu.style.left = `${Math.min(x, window.innerWidth - rect.width - 8)}px`
   menu.style.top = `${Math.min(y, window.innerHeight - rect.height - 8)}px`
+  const onKey = event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); hide(); return }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    const buttons = [...menu.querySelectorAll('button:not(:disabled)')]
+    let index = buttons.indexOf(document.activeElement)
+    index = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
+    event.preventDefault(); buttons[index]?.focus()
+  }
+  menu.addEventListener('keydown', onKey)
   function hide(e) {
     if (e && menu.contains(e.target)) return
     root.innerHTML = ''
     document.removeEventListener('mousedown', hide)
     window.removeEventListener('blur', hide)
+    menu.removeEventListener('keydown', onKey)
+    closeCurrentMenu = null
+    if (!e && previousFocus?.isConnected) previousFocus.focus()
   }
-  setTimeout(() => document.addEventListener('mousedown', hide), 0)
+  closeCurrentMenu = hide
+  menu.querySelector('button:not(:disabled)')?.focus()
+  setTimeout(() => { if (menu.isConnected) document.addEventListener('mousedown', hide) }, 0)
   window.addEventListener('blur', hide)
 }
 

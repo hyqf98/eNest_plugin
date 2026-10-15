@@ -27,8 +27,8 @@
   function termThemeFromCss() {
     return {
       background: cssVar('--term-bg', '#0b0f14'),
-      foreground: cssVar('--text', '#e8eef7'),
-      cursor: cssVar('--accent', '#e8ecf4'),
+      foreground: cssVar('--term-fg', '#e8eef7'),
+      cursor: cssVar('--term-cursor', '#e8ecf4'),
       cursorAccent: cssVar('--term-bg', '#0b0f14'),
       selectionBackground: cssVar('--accent-soft', 'rgba(232,236,244,0.22)'),
       black: '#1c2330',
@@ -141,17 +141,20 @@
       // OSC shell integration is session-local. Never infer password/TUI input as commands.
       let prompt = null
       let cwd = ''
+      let commandRevision = 0, promptId = 0, parsing = 0, composing = false, pendingEcho = null, disposed = false
+      const notifyCommandState = reason => handlers?.onCommandState?.({ reason, revision: commandRevision })
       term.parser.registerOscHandler(133, (data) => {
         const kind = data.split(';')[0]
-        if (kind === 'B') prompt = { row: term.buffer.active.baseY + term.buffer.active.cursorY, column: term.buffer.active.cursorX }
-        else if (kind === 'A' || kind === 'C' || kind === 'D') prompt = null
+        commandRevision++
+        if (kind === 'B') { prompt = { row: term.buffer.active.baseY + term.buffer.active.cursorY, column: term.buffer.active.cursorX }; promptId++; pendingEcho = null }
+        else if (kind === 'A' || kind === 'C' || kind === 'D') { prompt = null; pendingEcho = null }
         return true
       })
       term.parser.registerOscHandler(7, (data) => {
         try { cwd = decodeURIComponent(new URL(data).pathname) } catch { /* nonstandard shell */ }
         return true
       })
-      const readCommand = () => {
+      const readBufferCommand = () => {
         const buffer = term.buffer.active
         if (!prompt || buffer.type === 'alternate') return null
         const row = buffer.baseY + buffer.cursorY
@@ -162,12 +165,73 @@
           const line = buffer.getLine(y)
           if (!line) return null
           const start = y === prompt.row ? prompt.column : 0
-          const end = term.cols
+          let end = term.cols
+          if (buffer.getLine(y + 1)?.isWrapped) {
+            // xterm leaves a null-width-one cell when a wide glyph cannot fit at the right edge.
+            // It is layout padding, not a typed space. Keep real spaces and wide-glyph continuation cells.
+            while (end > start) {
+              const cell = line.getCell?.(end - 1)
+              if (!cell || cell.getWidth() !== 1 || cell.getCode() !== 0) break
+              end--
+            }
+          }
           if (y <= row) cursor += line.translateToString(false, start, y === row ? buffer.cursorX : end).length
-          text += line.translateToString(y === endRow, start, end)
+          text += line.translateToString(false, start, end)
         }
-        return { text, cursor: Math.min(cursor, text.length), cwd }
+        // Spaces before the cursor are input, including the space that opens subcommand suggestions.
+        text = text.slice(0, Math.max(cursor, text.trimEnd().length))
+        return { text, cursor: Math.min(cursor, text.length), cwd, promptId, revision: commandRevision }
       }
+      const readCommand = () => !parsing && !composing && !pendingEcho ? readBufferCommand() : null
+      const signature = snapshot => snapshot ? JSON.stringify([snapshot.promptId, snapshot.text, snapshot.cursor]) : ''
+      const invalidateCommand = () => { prompt = null; pendingEcho = null; commandRevision++; notifyCommandState('invalidated') }
+      const graphemes = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
+      const expectEcho = snapshots => {
+        const unique = [...new Map(snapshots.map(snapshot => [signature(snapshot), snapshot])).values()].slice(0, 16)
+        pendingEcho = { expected: unique[0], alternatives: unique.slice(1) }
+      }
+      const noteInput = data => {
+        const before = pendingEcho?.expected || readBufferCommand()
+        const expected = pendingEcho?.expected ? [pendingEcho.expected, ...(pendingEcho.alternatives || [])] : before ? [before] : []
+        commandRevision++
+        // Submission, interrupts and multiline paste retire the prompt before remote output arrives.
+        if (/[\r\n\x03\x04]/.test(data)) { invalidateCommand(); return }
+        if (before && before.cursor === before.text.length && !/[\x00-\x1f\x7f-\x9f]/.test(data)) {
+          expectEcho(expected.map(snapshot => ({ ...snapshot, text: snapshot.text + data, cursor: snapshot.cursor + data.length })))
+        } else if (before && before.cursor === before.text.length && data === '\x7f') {
+          // Readline implementations delete either one code point or one complete grapheme.
+          // Accept only those exact echoed outcomes; never clear the barrier on arbitrary output.
+          expectEcho(expected.flatMap(snapshot => {
+            const endings = [[...snapshot.text].slice(0, -1).join('')]
+            if (graphemes && snapshot.text) {
+              const last = [...graphemes.segment(snapshot.text)].at(-1)
+              endings.push(snapshot.text.slice(0, last.index))
+            }
+            return endings.map(text => ({ ...snapshot, text, cursor: text.length }))
+          }))
+        } else if (pendingEcho) {
+          // A navigation key racing unacknowledged text has no trustworthy append target.
+          invalidateCommand(); return
+        } else pendingEcho = { previous: signature(before) }
+        notifyCommandState('input')
+      }
+      const afterWrite = () => {
+        parsing = Math.max(0, parsing - 1)
+        if (disposed) return
+        const current = readBufferCommand()
+        if (pendingEcho && current) {
+          if (pendingEcho.expected && [pendingEcho.expected, ...(pendingEcho.alternatives || [])].some(expected => signature(current) === signature(expected)) || pendingEcho.previous !== undefined && signature(current) !== pendingEcho.previous) pendingEcho = null
+        }
+        notifyCommandState('output')
+      }
+      const onCompositionStart = () => { composing = true; commandRevision++; notifyCommandState('composition') }
+      const onCompositionEnd = () => { composing = false; commandRevision++; notifyCommandState('composition') }
+      const onPaste = () => { commandRevision++; notifyCommandState('paste') }
+      container.addEventListener('compositionstart', onCompositionStart, true)
+      container.addEventListener('compositionend', onCompositionEnd, true)
+      container.addEventListener('paste', onPaste, true)
+      term.attachCustomKeyEventHandler(event => handlers?.onKeyEvent?.(event) !== false)
+      term.onScroll(() => { commandRevision++; notifyCommandState('scroll') })
 
       /* —— search addon：注入成功后挂载；失败则 search() 返回 { ok:false } 由 UI 降级 —— */
       const searchBox = { addon: null, disposed: false, onResults: null }
@@ -216,11 +280,13 @@
       }
 
       const resizeNow = () => {
+        const previousCols = term.cols
         try {
           if (fit) fit.fit()
         } catch { /* ignore */ }
         const cols = term.cols || 80
         const rows = term.rows || 24
+        if (previousCols !== cols) invalidateCommand()
         if (handlers && handlers.onResize) handlers.onResize(cols, rows)
       }
 
@@ -241,6 +307,7 @@
 
       const selTimer = { t: null }
       term.onSelectionChange(() => {
+        handlers?.onSelectionState?.()
         if (!SshStore?.state?.ui?.selectCopy) return
         clearTimeout(selTimer.t)
         selTimer.t = setTimeout(() => {
@@ -254,7 +321,8 @@
       return {
         kind: 'xterm',
         readCommand,
-        invalidateCommand() { prompt = null },
+        invalidateCommand,
+        noteInput,
         getCwd() { return cwd },
         cursorRect() {
           const screen = container.querySelector('.xterm-screen')
@@ -264,17 +332,26 @@
         },
         el: container,
         write(data) {
+          commandRevision++; parsing++; notifyCommandState('output-pending')
           try {
-            term.write(typeof data === 'string' ? data : new Uint8Array(data))
+            term.write(typeof data === 'string' ? data : new Uint8Array(data), afterWrite)
           } catch {
-            try { term.write(String(data)) } catch { /* ignore */ }
+            try { term.write(String(data), afterWrite) } catch { afterWrite() }
           }
         },
         writeln(data) {
+          invalidateCommand()
           try { term.writeln(String(data)) } catch { /* ignore */ }
         },
         focus() { try { term.focus() } catch { /* ignore */ } },
-        clear() { try { term.clear() } catch { /* ignore */ } },
+        revealCommand() {
+          if (!readCommand()) return false
+          // xterm updates viewportY and fires onScroll synchronously. Callers must
+          // capture the command again afterwards because scrolling changes its revision.
+          term.scrollToBottom()
+          return true
+        },
+        clear() { invalidateCommand(); try { term.clear() } catch { /* ignore */ } },
         fit: resizeNow,
         getSize() {
           return { cols: term.cols || 80, rows: term.rows || 24 }
@@ -339,6 +416,12 @@
           return doSearch(term, String(q), {}) || false
         },
         dispose() {
+          disposed = true; invalidateCommand()
+          container.removeEventListener('compositionstart', onCompositionStart, true)
+          container.removeEventListener('compositionend', onCompositionEnd, true)
+          container.removeEventListener('paste', onPaste, true)
+          window.removeEventListener('resize', resizeNow)
+          clearTimeout(selTimer.t)
           searchBox.disposed = true
           try { ro && ro.disconnect() } catch { /* ignore */ }
           try { term.dispose() } catch { /* ignore */ }

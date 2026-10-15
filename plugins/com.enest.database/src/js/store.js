@@ -50,6 +50,7 @@ export const state = {
 }
 
 const persistTimers = new Map()
+const sessionData = () => state.sessions.map(({ transactionActive: _transaction, ...session }) => session)
 
 function schedulePersist(key, value, delay = 800) {
   clearTimeout(persistTimers.get(key))
@@ -72,7 +73,7 @@ export function persistNow(key, value) {
 export function persistAll() {
   return Promise.all([
     persistNow(StorageKeys.connections, state.connections),
-    persistNow(StorageKeys.sessions, state.sessions),
+    persistNow(StorageKeys.sessions, sessionData()),
     persistNow(StorageKeys.activeSessionId, state.activeSessionId),
     persistNow(StorageKeys.queryHistory, state.queryHistory),
     persistNow(StorageKeys.completionUsage, state.completionUsage),
@@ -159,7 +160,7 @@ export function removeConnection(id) {
     state.activeSessionId = state.sessions[0]?.id || null
   }
   schedulePersist(StorageKeys.connections, state.connections, 100)
-  schedulePersist(StorageKeys.sessions, state.sessions, 100)
+  schedulePersist(StorageKeys.sessions, sessionData(), 100)
   schedulePersist(StorageKeys.activeSessionId, state.activeSessionId, 100)
 }
 
@@ -214,13 +215,8 @@ export function createEditorTab(session, title, sql = '') {
 
 export function createSession({ connectionId, database, schema, name } = {}) {
   if (state.sessions.length >= LIMITS.sessions) {
-    // 淘汰最旧未置顶
-    const idx = state.sessions.findIndex((s) => !s.pinned)
-    if (idx >= 0) state.sessions.splice(idx, 1)
-    else {
-      toast(`会话数量已达上限 ${LIMITS.sessions}`, 'warn')
-      return null
-    }
+    toast(`控制台数量已达 ${LIMITS.sessions} 个，请从文档中删除不再需要的控制台`, 'warn')
+    return null
   }
   const conn = getConnection(connectionId)
   const session = {
@@ -262,11 +258,11 @@ export function updateSessionEditorSql(editor, sql, cursor) {
 }
 
 export function schedulePersistSessions() {
-  schedulePersist(StorageKeys.sessions, state.sessions, 800)
+  schedulePersist(StorageKeys.sessions, sessionData(), 800)
 }
 
 export function saveSessionsImmediate() {
-  return persistNow(StorageKeys.sessions, state.sessions).then(() => persistNow(StorageKeys.activeSessionId, state.activeSessionId))
+  return persistNow(StorageKeys.sessions, sessionData()).then(() => persistNow(StorageKeys.activeSessionId, state.activeSessionId))
 }
 
 export function renameSession(id, name) {
@@ -366,6 +362,14 @@ export function bumpCompletionUsage(kind, owner, label) {
   if (state.ui.learnUsage === false) return
   const key = `${kind}:${owner || ''}.${label}`
   state.completionUsage[key] = (state.completionUsage[key] || 0) + 1
+  schedulePersist(StorageKeys.completionUsage, state.completionUsage, 1200)
+}
+
+/** Scoped engine IDs never collide across connections and learning stays bounded on disk. */
+export function bumpScopedCompletionUsage(key) {
+  state.completionUsage[key] = Math.min(9999, (Number(state.completionUsage[key]) || 0) + 1)
+  const entries = Object.keys(state.completionUsage)
+  for (const expired of entries.slice(0, Math.max(0, entries.length - 2000))) delete state.completionUsage[expired]
   schedulePersist(StorageKeys.completionUsage, state.completionUsage, 1200)
 }
 

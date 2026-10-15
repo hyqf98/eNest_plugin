@@ -1,0 +1,28 @@
+/* Plugin-local editing, shortcut recording and object detail surfaces. */
+#app .db-shortcut-filters { display: flex; gap: 8px; align-items: center; margin: 16px 0 8px; }
+#app .db-shortcut-filters .wb-search { flex: 1; width: auto; min-width: 120px; margin: 0; cursor: text; font-family: inherit; font-size: inherit; }
+#app .db-shortcut-filters select { min-width: 100px; }
+#app .db-shortcut-status { min-height: 2.8em; color: var(--text-2); font-size: .92em; margin: 8px 0; }
+#app .db-shortcut-status.error { color: var(--danger, #c73d3d); }
+#app .db-shortcut-group { margin-bottom: 22px; }
+#app .db-shortcut-group h3 { font-size: 1em; font-weight: 600; margin: 16px 0 6px; }
+#app .db-shortcut-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(135px, 190px) auto; align-items: center; gap: 12px; min-height: 58px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+#app .wb-shortcuts .db-shortcut-row label { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 3px; padding: 0; border: 0; }
+#app .db-shortcut-row label strong { font-weight: 500; }
+#app .db-shortcut-row label span { color: var(--text-3); font-size: .87em; line-height: 1.4; }
+#app .db-shortcut-row input { width: 100%; min-width: 0; box-sizing: border-box; font-family: var(--mono); font-size: .9em; cursor: pointer; border-radius: 6px; }
+#app .db-shortcut-row.recording input { border-color: var(--accent); outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 1px; }
+#app .db-editor-find { position: absolute; z-index: 12; top: 8px; right: 12px; max-width: calc(100% - 24px); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px; border: 1px solid var(--border); background: var(--surface, var(--bg)); box-shadow: 0 5px 20px #0002; border-radius: 8px; }
+#app .db-editor-find[hidden], #app .db-editor-find [hidden] { display: none; }
+#app .db-editor-find label { display: flex; align-items: center; gap: 6px; }
+#app .db-editor-find input { width: 140px; min-width: 80px; border-radius: 6px; }
+#app .db-editor-find [data-find-status] { color: var(--text-2); font-size: .9em; }
+#app .wb-object-definition { max-width: 100%; overflow: auto; white-space: pre; font-family: var(--mono); font-size: .94em; line-height: 1.65; letter-spacing: 0; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; tab-size: 2; }
+@media (max-width: 720px) {
+  #app .db-shortcut-row { grid-template-columns: minmax(110px, 1fr) minmax(100px, 150px) auto; gap: 7px; }
+  #app .db-shortcut-row label span { overflow-wrap: anywhere; }
+}
+@media (prefers-contrast: more) {
+  #app .db-shortcut-row { border-bottom-color: var(--text-2); }
+  #app .db-shortcut-row.recording input { outline-color: var(--accent); }
+}

@@ -24,7 +24,7 @@ test('official PluginKit consumers declare only the sensitive capabilities their
     [/kit\.copy\(/, 'clipboard.write']
   ]
   for (const plugin of plugins) for (const [pattern, permission] of rules) {
-    if (pattern.test(plugin.source)) assert.ok(plugin.manifest.permissions?.includes(permission), `${plugin.id} must declare ${permission}`)
+    if (requiresUserConsent(permission) && pattern.test(plugin.source)) assert.ok(plugin.manifest.permissions?.includes(permission), `${plugin.id} must declare ${permission}`)
   }
   for (const plugin of plugins) for (const permission of plugin.manifest.permissions ?? []) {
     assert.ok(requiresUserConsent(permission), `${plugin.id}: built-in ${permission} does not belong in its consent declaration`)

@@ -1,5 +1,5 @@
 /** 概览页：overview action → 指标卡片 + broker 列表 + 能力说明（手动刷新，不轮询） */
-import { fmt, chip, el, simpleGrid, escapeHtml } from '../components.js'
+import { fmt, chip, el, simpleGrid, escapeHtml } from '@mw/components.js'
 
 /* 指标值智能格式化：key 名提示单位，数值大小决定 num/bytes/ms */
 const NUM_KEYS = /(count|total|topics|queues|groups|consumers|messages|messagesIn|bytesIn|connections|subscriptions|retained|znodes|brokers|partitions|replicas|underReplicated|active|pending|size|depth|lag|rate|tps|qps|latency|duration|uptime|since)/i
@@ -53,7 +53,7 @@ export default {
 
     const loading = el('div', { class: 'loading-bar' })
     const toolbar = el('div', { class: 'toolbar' }, [
-      el('div', { style: 'display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:12px' }, [
+      el('div', { style: 'display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:calc(var(--font-size-base, 13px) * 0.923077)' }, [
         '概览数据每连接会话缓存，手动刷新',
         conn?.readOnly ? chip('只读连接', '') : ''
       ]),
@@ -97,7 +97,7 @@ export default {
       const brokers = Array.isArray(ov?.brokers) ? ov.brokers : []
       if (brokers.length) {
         const section = el('div', { class: 'broker-list' }, [
-          el('div', { style: 'font-size:12.5px;font-weight:600;color:var(--text);margin:4px 0 10px' },
+          el('div', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.961538);font-weight:600;color:var(--text);margin:4px 0 10px' },
             `Broker（${brokers.length}）`)
         ])
         const grid = simpleGrid({
@@ -110,14 +110,15 @@ export default {
               render: (r) => {
                 if (r.alive === undefined || r.alive === null) return '<span style="color:var(--text-3)">—</span>'
                 return r.alive
-                  ? chip('<span class="dot"></span>在线', 'ok')
-                  : chip('<span class="dot"></span>离线', 'bad')
+                  ? chip('在线', 'ok')
+                  : chip('离线', 'bad')
               }
             }
           ],
           rowKey: (r) => `${r.id ?? ''}@${r.host ?? ''}`,
           emptyText: '无 broker 信息'
         })
+        grid.update(brokers)
         section.appendChild(grid.root)
         body.appendChild(section)
       }
@@ -126,7 +127,7 @@ export default {
       const notes = Array.isArray(ov?.notes) ? ov.notes.filter(Boolean) : []
       if (notes.length) {
         body.appendChild(el('div', { class: 'broker-list' }, [
-          el('div', { style: 'font-size:12.5px;font-weight:600;color:var(--text);margin:4px 0 10px' }, '说明'),
+          el('div', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.961538);font-weight:600;color:var(--text);margin:4px 0 10px' }, '说明'),
           ...notes.map((n) => el('div', { class: 'form-note', style: 'margin-bottom:8px' }, [
             el('span', {}, 'ℹ️'),
             el('span', { html: escapeHtml(String(n)) })

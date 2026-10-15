@@ -10,7 +10,6 @@
   "permissions": [
     "lan.share",
     "notify",
-    "fs.read",
     "clipboard.write"
   ],
   "engines": {

@@ -13,8 +13,7 @@
   "permissions": [
     "clipboard.read",
     "clipboard.write",
-    "shell.openExternal",
-    "fs.write"
+    "shell.openExternal"
   ],
   "features": [
     {

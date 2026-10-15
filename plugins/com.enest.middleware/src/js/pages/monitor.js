@@ -1,5 +1,5 @@
 /** 监控页：30s 轮询 overview，指标 sparkline 趋势；采样存 api.session；quick 模式禁自动轮询 */
-import { fmt, chip, el, sparkline, escapeHtml, simpleGrid } from '../components.js'
+import { fmt, chip, el, sparkline, escapeHtml, simpleGrid } from '@mw/components.js'
 
 const POLL_MS = 30_000
 const MAX_SAMPLES = 12
@@ -35,7 +35,6 @@ function fmtMetric(key, value) {
 }
 
 /* 模块级实例清理句柄：路由 destroy() 时回调（清 interval） */
-let activeCleanup = null
 
 export default {
   id: 'monitor',
@@ -49,16 +48,16 @@ export default {
     let series = {} // key → number[]（最近 MAX_SAMPLES 个采样）
 
     const loading = el('div', { class: 'loading-bar' })
-    const statusText = el('span', { style: 'color:var(--text-3);font-size:11.5px' }, '未开始采样')
+    const statusText = el('span', { style: 'color:var(--text-3);font-size:calc(var(--font-size-base, 13px) * 0.884615)' }, '未开始采样')
 
     /* —— 自动刷新开关 + 手动刷新 —— */
     const autoSwitch = el('button', { class: `switch ${autoOn ? 'on' : ''}`, type: 'button', title: '每 30 秒自动采样一次' })
-    const autoLabel = el('span', { class: 'sl', style: 'font-size:12px;color:var(--text-2)' }, '自动刷新')
+    const autoLabel = el('span', { class: 'sl', style: 'font-size:calc(var(--font-size-base, 13px) * 0.923077);color:var(--text-2)' }, '自动刷新')
     const autoWrap = el('div', { class: 'switch-row', style: 'padding:0' }, [autoSwitch, autoLabel])
     if (mode === 'quick') {
       autoSwitch.disabled = true
       autoSwitch.title = 'quick 模式禁用自动轮询，请手动刷新'
-      autoLabel.appendChild(el('span', { style: 'color:var(--text-3);font-size:11px;margin-left:4px' }, '（quick 只读，手动）'))
+      autoLabel.appendChild(el('span', { style: 'color:var(--text-3);font-size:calc(var(--font-size-base, 13px) * 0.846154);margin-left:4px' }, '（quick 只读，手动）'))
     }
     autoSwitch.addEventListener('click', () => {
       if (mode === 'quick') return api.toast('quick 模式禁用自动轮询', 'warn')
@@ -75,6 +74,7 @@ export default {
     root.append(toolbar, loading, body)
 
     function setAuto(on) {
+      if (destroyed) return
       autoOn = on
       autoSwitch.classList.toggle('on', on)
       if (timer) { clearInterval(timer); timer = null }
@@ -98,6 +98,7 @@ export default {
           }
         } else series = {}
         const saved = await api.session.get('monitor.auto')
+        if (destroyed) return
         if (saved === true && mode !== 'quick') setAuto(true)
         else renderData(null) // 先画空态
       } catch {
@@ -107,6 +108,7 @@ export default {
     }
 
     async function sample(manual) {
+      if (destroyed) return
       if (loading.parentNode !== root) root.insertBefore(loading, body)
       try {
         const ov = await api.mw('overview', { sessionKey: ctx.sessionKey })
@@ -161,7 +163,7 @@ export default {
         body.appendChild(el('div', { class: 'empty-cap' }, [
           el('div', { class: 'big' }, '📈'),
           el('div', {}, '尚无监控采样，点击「立即刷新」开始'),
-          mode === 'quick' ? el('div', { style: 'font-size:11.5px;margin-top:6px' }, 'quick 模式仅手动采样') : ''
+          mode === 'quick' ? el('div', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.884615);margin-top:6px' }, 'quick 模式仅手动采样') : ''
         ]))
         return
       }
@@ -175,7 +177,7 @@ export default {
           const spark = sparkline(series[key] ?? [])
           if (spark) card.appendChild(el('div', { class: 'spark', html: spark }))
           else if (Number.isFinite(Number(value))) {
-            card.appendChild(el('div', { class: 'spark', style: 'color:var(--text-3);font-size:10.5px;display:flex;align-items:center' }, '采样中…'))
+            card.appendChild(el('div', { class: 'spark', style: 'color:var(--text-3);font-size:calc(var(--font-size-base, 13px) * 0.807692);display:flex;align-items:center' }, '采样中…'))
           }
           grid.appendChild(card)
         }
@@ -199,7 +201,7 @@ export default {
       const brokers = Array.isArray(ov?.brokers) ? ov.brokers : []
       if (brokers.length) {
         const section = el('div', { class: 'broker-list' }, [
-          el('div', { style: 'font-size:12.5px;font-weight:600;color:var(--text);margin:4px 0 10px' }, `Broker 状态（${brokers.length}）`)
+          el('div', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.961538);font-weight:600;color:var(--text);margin:4px 0 10px' }, `Broker 状态（${brokers.length}）`)
         ])
         const g = simpleGrid({
           columns: [
@@ -210,7 +212,7 @@ export default {
               key: 'alive', title: '状态', width: '110px',
               render: (r) => r.alive === undefined || r.alive === null
                 ? '<span style="color:var(--text-3)">—</span>'
-                : r.alive ? chip('<span class="dot"></span>在线', 'ok') : chip('<span class="dot"></span>离线', 'bad')
+                : r.alive ? chip('在线', 'ok') : chip('离线', 'bad')
             }
           ],
           rowKey: (r) => `${r.id ?? ''}@${r.host ?? ''}`,
@@ -224,7 +226,7 @@ export default {
       const notes = Array.isArray(ov?.notes) ? ov.notes.filter(Boolean) : []
       if (notes.length) {
         body.appendChild(el('div', { class: 'broker-list' }, [
-          el('div', { style: 'font-size:12.5px;font-weight:600;color:var(--text);margin:4px 0 10px' }, '说明'),
+          el('div', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.961538);font-weight:600;color:var(--text);margin:4px 0 10px' }, '说明'),
           ...notes.map((n) => el('div', { class: 'form-note', style: 'margin-bottom:8px' }, [
             el('span', {}, 'ℹ️'),
             el('span', { html: escapeHtml(String(n)) })
@@ -240,10 +242,10 @@ export default {
     }
 
     restore().then(() => { if (!autoOn && !body.childElementCount) sample(false) })
-    activeCleanup = () => {
+    this.__cleanup = () => {
       destroyed = true
       if (timer) { clearInterval(timer); timer = null }
     }
   },
-  destroy() { activeCleanup?.(); activeCleanup = null }
+  destroy() { this.__cleanup?.(); this.__cleanup = null }
 }

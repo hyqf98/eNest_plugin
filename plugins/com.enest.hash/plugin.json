@@ -12,7 +12,6 @@
   },
   "permissions": [
     "clipboard.write",
-    "fs.read",
     "clipboard.read"
   ],
   "window": {

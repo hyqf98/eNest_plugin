@@ -1,3 +1,6 @@
+import { createCommandActions } from './commandActions.js'
+import { decodeTerminalData } from './terminalData.js'
+
 /**
  * com.enest.ssh — minimalist UI shell
  * Storage keys unchanged: ssh.profiles/groups/history/snippets/ui
@@ -11,14 +14,25 @@
   const $ = (id) => document.getElementById(id)
 
   const sessions = new Map()
+  const commandActions = createCommandActions({
+    getSession: activeSession,
+    send: (sessionId, data) => api.sshWrite(sessionId, data),
+    beforeExecute: async (command, session) => {
+      const danger = dict.matchDanger(command, store.findProfile(session.profileId)?.env)
+      if (!danger) return true
+      return confirmDialog(danger.reason + '\n\n' + command, { title: '危险命令', okText: '仍要执行', danger: true })
+    },
+    onExecuted: (command, session) => { store.pushHistory({ profileId: session.profileId, command, ts: Date.now() }); session.lastCommand = ''; getCompletion().hide(); if ($('drawer')?.classList.contains('open')) renderRight() },
+    onInserted: () => { getCompletion().hide(); renderHintMeta() },
+    onError: error => toast(api.errMessage(error), 'warn'),
+  })
   let activeSessionId = null
   let terminalLayout = 'single', splitTabs = []
-  let completionState = { items: [], index: 0, open: false }
-  let completionTimer = null
-  const pathCache = new Map()
+  let completionController = null
   let hostSshReady = false
   let followShellTheme = true
   let ctxCloseHandler = null
+  let ctxReturnFocus = null
 
   /* ========== utils ========== */
   function toast(msg, type) {
@@ -83,7 +97,7 @@
   }
 
   /* ========== context menu ========== */
-  function closeContextMenu() {
+  function closeContextMenu(restoreFocus = false) {
     const menu = $('ctx-menu')
     if (menu) {
       menu.classList.remove('show')
@@ -96,12 +110,14 @@
       document.removeEventListener('contextmenu', ctxCloseHandler, true)
       ctxCloseHandler = null
     }
+    if (restoreFocus && ctxReturnFocus?.isConnected) ctxReturnFocus.focus()
   }
 
   function showContextMenu(x, y, items) {
     const menu = $('ctx-menu')
     if (!menu || !items || !items.length) return
     closeContextMenu()
+    ctxReturnFocus = document.activeElement
 
     const html = items
       .map((it, i) => {
@@ -138,6 +154,13 @@
     if (top + rect.height > vh - 8) top = Math.max(8, vh - rect.height - 8)
     menu.style.left = left + 'px'
     menu.style.top = top + 'px'
+    menu.onkeydown = event => {
+      const buttons = [...menu.querySelectorAll('[role="menuitem"]:not(:disabled)')], index = buttons.indexOf(document.activeElement)
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeContextMenu(true); return }
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : event.key === 'ArrowDown' ? (index + 1) % buttons.length : event.key === 'ArrowUp' ? (index + buttons.length - 1) % buttons.length : -1
+      if (next >= 0) { event.preventDefault(); buttons[next]?.focus() }
+    }
+    menu.querySelector('[role="menuitem"]:not(:disabled)')?.focus()
 
     menu.onclick = (ev) => {
       const btn = ev.target.closest('.ctx-item')
@@ -206,6 +229,7 @@
     if (drawer) {
       drawer.classList.toggle('open', isOpen)
       drawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true')
+      drawer.inert = !isOpen
     }
     if (scrim) scrim.hidden = !isOpen
     // 抽屉盖在终端区之上（z-index:40 > term-search 所在层）；
@@ -215,6 +239,12 @@
       if (b) b.classList.toggle('active', isOpen)
     })
     if (persist !== false) store.setUi({ drawerOpen: isOpen })
+  }
+
+  function openCollection(tab) {
+    const open = $('drawer').classList.contains('open') && store.state.ui.rightTab === tab
+    store.setUi({ rightTab: tab }); renderRight(); setDrawerOpen(!open)
+    if (!open) $('right-search')?.focus()
   }
 
   function toggleDrawer() {
@@ -644,10 +674,11 @@
 
   function historyItemMenuItems(histId) {
     const h = store.state.history.find((x) => x.id === histId)
+    const target = activeSession()
     if (!h) return null
     return [
-      { primary: true, label: '填入', onAct: () => void fillHint(h.command) },
-      { label: '执行', onAct: () => void runHint(h.command) },
+      { primary: true, label: '填入', onAct: () => void fillHint(h.command, target) },
+      { label: '执行', onAct: () => void runHint(h.command, target) },
       {
         label: '复制',
         onAct: async () => {
@@ -673,10 +704,11 @@
 
   function snippetMenuItems(snipId) {
     const s = store.state.snippets.find((x) => x.id === snipId)
+    const target = activeSession()
     if (!s) return null
     return [
-      { primary: true, label: '填入', onAct: () => void fillHint(s.command) },
-      { label: '执行', onAct: () => void runHint(s.command) },
+      { primary: true, label: '填入', onAct: () => void fillHint(s.command, target) },
+      { label: '执行', onAct: () => void runHint(s.command, target) },
       { sep: true },
       {
         label: '编辑',
@@ -1100,12 +1132,7 @@
     updateFab()
   }
 
-  /**
-   * term-wrap 重建（wrap.innerHTML=''）后补全浮层元素会被一并销毁。
-   * 这里在每次挂载后确保 #completion-list / #hint-meta 存在：
-   * 已连接且父节点就是 wrap 则不动；缺失则按 index.html 的静态结构补建。
-   * （原 #hint-input 隐藏输入为死代码，已随本轮清理移除）
-   */
+  /** Keep legacy layers mounted; workbench hints belong to the footer, never over terminal output. */
   function ensureCompletionLayer(wrap) {
     let box = document.getElementById('completion-list')
     if (!box) {
@@ -1120,7 +1147,9 @@
       meta.id = 'hint-meta'
       meta.className = 'hint-meta'
     }
-    if (meta.parentElement !== wrap) wrap.appendChild(meta)
+    const statusbar = document.querySelector('.wb-statusbar')
+    const parent = statusbar || wrap
+    if (meta.parentElement !== parent) parent.insertBefore(meta, statusbar?.querySelector('button') || null)
   }
 
   function setTerminalLayout(layout, tabIds) {
@@ -1163,8 +1192,11 @@
         if (!session.term) {
           session.term = Term.createTerminal(host, {
             onData(data) { if (activeSessionId !== id) setActiveTab(id); void sendInput(data) },
+            onKeyEvent(event) { return getCompletion().keydown(event, session) },
+            onCommandState(event) { getCompletion().terminalState(session, event) },
             onResize(cols, rows) { if (session.sessionId) void api.sshResize(session.sessionId, cols, rows).catch(() => {}) },
             onSelection(text) { if (text && store.state.ui.selectCopy) void api.copyText(text).catch(() => {}) },
+            onSelectionState() { if (activeSessionId === id) window.dispatchEvent(new Event('ssh-selection-change')) },
           })
           if (session.buffer) session.term.write(session.buffer)
         } else host.replaceWith(session.term.el)
@@ -1192,27 +1224,16 @@
   async function sendInput(data) {
     const s = activeSession()
     if (!s || !s.sessionId) return
-    if (completionState.open && completionState.items.length) {
-      if (data === '\t' || data === '\r') { applyCompletion(completionState.index); return }
-      if (data === '\x1b[A' || data === '\x1b[B') {
-        const n = Math.min(40, completionState.items.length)
-        completionState.index = (completionState.index + (data === '\x1b[A' ? -1 : 1) + n) % n
-        renderCompletion(); return
-      }
-      if (data === '\x1b') { completionState.open = false; renderCompletion(); return }
-    }
+    const snapshot = s.term?.readCommand?.()
+    getCompletion().input(data, s)
+    s.term?.noteInput?.(data)
     try {
-      const snapshot = s.term?.readCommand?.()
-      if (data === '\r' || data === '\n' || data === '\x03') s.term?.invalidateCommand?.()
       await api.sshWrite(s.sessionId, data)
       if (data === '\r' || data === '\n') {
         if (snapshot?.text.trim() && store.state.ui.recordHistory) store.pushHistory({ profileId: s.profileId, command: snapshot.text, ts: Date.now() })
-        s.lastCommand = ''; completionState.open = false; renderCompletion()
-      } else if (snapshot && data !== '\x1b[A' && data !== '\x1b[B') {
-        // Wait for remote echo; never build an input line from raw keystrokes.
-        scheduleCompletion()
-      } else { completionState.open = false; renderCompletion() }
-    } catch (e) { toast(api.errMessage(e), 'error') }
+        s.lastCommand = ''
+      }
+    } catch (e) { s.term?.invalidateCommand?.(); toast(api.errMessage(e), 'error') }
   }
 
   function termFocus() {
@@ -1281,20 +1302,28 @@
     }
 
     if (s.status === 'connecting') return s
+    const revision = (s.connectRevision || 0) + 1
+    s.connectRevision = revision
+    const ownsConnection = () => sessions.get(s.tabId) === s && s.connectRevision === revision
     const payload = buildConnectPayload(profile, opts?.ephemeralPassword, opts?.jumpPassword)
-    if (!(await completePayloadCredentials(payload))) { toast('已取消连接', 'warn'); return s }
     s.status = 'connecting'
     s.error = ''
     renderSessionTabs()
     mountActiveTerminal()
     renderTopStatus()
-    s.term && s.term.writeln('\r\n\x1b[33m…\x1b[0m ' + profile.username + '@' + profile.host + '\r\n')
+    window.dispatchEvent(new Event('ssh-workspace-change'))
 
     try {
+      const hasCredentials = await completePayloadCredentials(payload)
+      if (!ownsConnection()) return null
+      if (!hasCredentials) { s.status = 'disconnected'; renderSessionTabs(); mountActiveTerminal(); window.dispatchEvent(new Event('ssh-workspace-change')); toast('已取消连接', 'warn'); return s }
+      s.term && s.term.writeln('\r\n\x1b[33m…\x1b[0m ' + profile.username + '@' + profile.host + '\r\n')
       const res = await api.sshConnect(payload)
       const sessionId = res && (res.sessionId || res.id || res.sessionID)
       if (!sessionId) throw new Error('ssh.connect 未返回 sessionId')
+      if (!ownsConnection()) { await api.sshDisconnect(sessionId).catch(() => {}); return null }
       s.sessionId = sessionId
+      s.outputDecoder = null
       s.status = 'connected'
       s.restored = false
       s.error = ''
@@ -1304,15 +1333,19 @@
       if (s.term) {
         const size = s.term.getSize()
         void api.sshResize(sessionId, size.cols, size.rows).catch(() => {})
-        // 连接成功后焦点进终端，直接打字执行
-        setTimeout(() => termFocus(), 50)
+        // Allow layout to settle, but never take focus back from a control the user chose meanwhile.
+        const focusBeforeConnect = document.activeElement
+        setTimeout(() => {
+          if (ownsConnection() && activeSessionId === s.tabId && document.activeElement === focusBeforeConnect) s.term?.focus()
+        }, 50)
       }
       if (store.state.ui.monitorOn) void startMetrics(s)
-      window.dispatchEvent(new CustomEvent('ssh-workspace-change', { detail: { connected: true } }))
+      window.dispatchEvent(new CustomEvent('ssh-workspace-change', { detail: { connected: activeSessionId === s.tabId, tabId: s.tabId } }))
       toast('已连接', 'success')
       renderLeft()
       renderHintMeta()
     } catch (e) {
+      if (!ownsConnection()) return null
       s.status = 'disconnected'
       s.error = api.friendlyConnectError(e)
       s.term && s.term.writeln('\x1b[31m[SSH]\x1b[0m ' + s.error + '\r\n')
@@ -1334,6 +1367,7 @@
       return
     }
     if (reconnect) {
+      s.connectRevision = (s.connectRevision || 0) + 1
       if (s.sessionId) {
         try {
           await api.sshDisconnect(s.sessionId)
@@ -1342,12 +1376,15 @@
         }
       }
       s.sessionId = null
+      s.status = 'disconnected'
     }
+    if (sessions.get(s.tabId) !== s) return
     await connectProfile(profile, { tabId: s.tabId })
   }
 
   async function disconnectSession(s, silent) {
     if (!s) return
+    s.connectRevision = (s.connectRevision || 0) + 1
     if (s.metricsOn) await stopMetrics(s)
     if (s.sessionId) {
       try {
@@ -1360,6 +1397,7 @@
       }
     }
     s.sessionId = null
+    s.outputDecoder = null
     s.status = 'disconnected'
     renderSessionTabs()
     mountActiveTerminal()
@@ -1422,7 +1460,7 @@
       if (!sid || data == null) return
       for (const s of sessions.values()) {
         if (s.sessionId === sid) {
-          const text = typeof data === 'string' ? data : utf8(data)
+          const text = decodeTerminalData(s, data)
           s.buffer += text
           if (s.buffer.length > 400000) s.buffer = s.buffer.slice(-400000)
           if (s.term) s.term.write(text)
@@ -1441,6 +1479,7 @@
           if (s.term) s.term.writeln('\r\n\x1b[31m[SSH]\x1b[0m ' + s.error + '\r\n')
           if (s.metricsOn) void stopMetrics(s)
           s.sessionId = null
+          s.outputDecoder = null
         }
       }
       renderSessionTabs()
@@ -1477,18 +1516,6 @@
 
     // 传输进度：宿主推送 { sessionId, direction, path, transferred, total, done?, error? }
     api.onSshTransfer((payload) => onTransferEvent(payload))
-  }
-
-  function utf8(data) {
-    if (typeof data === 'string') return data
-    try {
-      if (data instanceof ArrayBuffer) return new TextDecoder().decode(new Uint8Array(data))
-      if (ArrayBuffer.isView(data)) return new TextDecoder().decode(data)
-      if (Array.isArray(data)) return new TextDecoder().decode(new Uint8Array(data))
-    } catch {
-      /* ignore */
-    }
-    return String(data)
   }
 
   function normalizeMetrics(m) {
@@ -2423,164 +2450,30 @@
     return s?.term?.readCommand?.()?.text || ''
   }
 
-  function scheduleCompletion() {
-    clearTimeout(completionTimer)
-    completionTimer = setTimeout(() => void runCompletion(), 120)
+  function getCompletion() {
+    if (!completionController) completionController = window.SshCompletion.create({
+      getSession: activeSession,
+      getSources: () => ({
+        shortcuts: window.SshWorkbenchBridge?.completionShortcuts?.(),
+        hasCommandRegistry: !!window.SshWorkbenchBridge?.completionShortcuts,
+        profileId: activeSession()?.profileId,
+        environment: store.findProfile(activeSession()?.profileId)?.env,
+        history: store.state.history,
+        snippets: store.state.snippets,
+        fontSize: store.state.ui.fontSize,
+        preferences: store.state.ui.completion,
+      }),
+      send: (session, data) => api.sshWrite(session.sessionId, data),
+      readDirectory: input => api.sftpList(input.sessionId, input.path),
+      readCommands: input => api.sshExec(input),
+      onStatus: renderHintMeta,
+      onError: error => toast(api.errMessage(error), 'error'),
+    })
+    return completionController
   }
 
-  let completionRevision = 0
-  async function runCompletion(force) {
-    const revision = ++completionRevision
-    const snapshot = activeSession()?.term?.readCommand?.()
-    if (!snapshot) { completionState.open = false; renderCompletion(); return }
-    const prefix = snapshot.text.slice(0, snapshot.cursor)
-    if (!prefix && !force) {
-      completionState = { items: [], index: 0, open: false }
-      renderCompletion()
-      return
-    }
-    const s = activeSession()
-    const sources = {
-      prefix,
-      profileId: s?.profileId,
-      history: store.state.history,
-      snippets: store.state.snippets,
-      userDict: [],
-    }
-
-    let items = dict.localSuggest(prefix, sources)
-
-    if (s && s.sessionId) {
-      const cacheKey = s.sessionId + '|' + snapshot.cwd + '|' + prefix
-      const cached = pathCache.get(cacheKey)
-      if (!force && cached && Date.now() - cached.ts < 3000) {
-        items = mergeItems(items, cached.items)
-      } else {
-        try {
-          const profileHist = store.state.history
-            .filter((h) => h.command && (!h.profileId || !s.profileId || h.profileId === s.profileId))
-            .slice(0, 40)
-            .map((h) => h.command)
-          const globalHist = store.state.history.slice(0, 40).map((h) => h.command).filter(Boolean)
-          const res = await api.completionSuggest(s.sessionId, prefix, {
-            line: prefix,
-            cursor: prefix.length,
-            cwd: snapshot.cwd,
-            history: Array.from(new Set(profileHist.concat(globalHist))).slice(0, 50),
-            snippets: (store.state.snippets || []).map((sn) => ({
-              title: sn.title || '',
-              command: sn.command || '',
-            })),
-          })
-          const mapped = api.mapHostCompletionItems(res)
-          pathCache.set(cacheKey, { ts: Date.now(), items: mapped })
-          items = mergeItems(items, mapped)
-        } catch {
-          /* silent local fallback */
-        }
-      }
-    }
-
-    if (revision !== completionRevision || activeSession()?.term?.readCommand?.()?.text.slice(0, snapshot.cursor) !== prefix) return
-    completionState = { items, index: 0, open: items.length > 0 }
-    renderCompletion()
-    renderHintMeta()
-  }
-
-  function mergeItems(base, extra) {
-    const seen = new Set(base.map((i) => i.kind + '|' + i.text))
-    const out = base.slice()
-    for (const it of extra || []) {
-      const k = it.kind + '|' + it.text
-      if (seen.has(k)) continue
-      seen.add(k)
-      out.unshift(it)
-    }
-    return out
-  }
-
-  function itemDanger(it, env) {
-    if (it.dangerous) {
-      return {
-        id: 'host',
-        level: 'danger',
-        reason: it.dangerDetail || '危险命令',
-      }
-    }
-    return dict.matchDanger(it.text, env)
-  }
-
-  function renderCompletion() {
-    const box = $('completion-list')
-    if (!box) return
-    // 浮层打开时隐藏右下 FAB（fixed z-index:40 会压在浮层末条目/滚动条上，且点击冲突）
-    const fabEl = $('fab')
-    if (fabEl) fabEl.classList.toggle('completion-over', !!(completionState.open && completionState.items.length))
-    if (!completionState.open || !completionState.items.length) {
-      box.classList.remove('show')
-      box.innerHTML = ''
-      renderHintMeta()
-      return
-    }
-    const profile = activeSession() ? store.findProfile(activeSession().profileId) : null
-    const env = profile?.env
-    box.innerHTML = completionState.items
-      .slice(0, 40)
-      .map((it, i) => {
-        const danger = itemDanger(it, env)
-        return (
-          '<div class="completion-item ' +
-          (i === completionState.index ? 'selected ' : '') +
-          (danger ? 'danger-item' : '') +
-          '" data-i="' +
-          i +
-          '"><span class="kind ' +
-          escapeHtml(it.kind) +
-          '">' +
-          escapeHtml(it.kind) +
-          '</span><span class="label">' +
-          escapeHtml(it.text) +
-          (danger ? ' 危险' : '') +
-          '</span><span class="detail">' +
-          escapeHtml(it.detail || (danger ? danger.reason : it.ts ? fmtRelTime(it.ts) : '')) +
-          '</span></div>'
-        )
-      })
-      .join('')
-    box.classList.add('show')
-    const cursor = activeSession()?.term?.cursorRect?.()
-    if (cursor) {
-      const width = Math.min(430, window.innerWidth - 20)
-      box.style.width = width + 'px'; box.style.left = Math.max(8, Math.min(cursor.left, window.innerWidth - width - 8)) + 'px'
-      box.style.top = (cursor.top + box.offsetHeight < window.innerHeight - 8 ? cursor.top : Math.max(8, cursor.top - cursor.cellHeight - box.offsetHeight)) + 'px'
-    }
-    box.querySelector('.selected')?.scrollIntoView({ block: 'nearest' })
-    box.onclick = (ev) => {
-      const el = ev.target.closest('.completion-item')
-      if (!el) return
-      applyCompletion(Number(el.dataset.i))
-    }
-    renderHintMeta()
-  }
-
-  function applyCompletion(index) {
-    const item = completionState.items[index], s = activeSession(), snapshot = s?.term?.readCommand?.()
-    if (!item || !s?.sessionId || !snapshot) return
-    if (/[\x00-\x1f\x7f]/.test(item.text)) { toast('多行命令请从快捷命令面板复制后检查', 'warn'); return }
-    let start = 0, end = snapshot.text.length, quote = '', escaped = false
-    for (let i = 0; i < snapshot.text.length; i++) {
-      const char = snapshot.text[i]
-      if (escaped) { escaped = false; continue }
-      if (char === '\\' && quote !== "'") { escaped = true; continue }
-      if (quote) { if (char === quote) quote = ''; continue }
-      if (char === "'" || char === '"') quote = char
-      else if (/[\s|;&]/.test(char)) { if (i < snapshot.cursor) start = i + 1; else { end = i; break } }
-    }
-    const wholeLine = ['history', 'snippet'].includes(item.kind), after = snapshot.text.slice(end)
-    const next = wholeLine ? item.text : snapshot.text.slice(0, start) + item.text + after
-    completionState.open = false; renderCompletion()
-    // Prompt-integrated Bash/Zsh only; Ctrl-A/K are never sent to an arbitrary TUI.
-    void api.sshWrite(s.sessionId, '\x01\x0b' + next + (wholeLine ? '' : '\x1b[D'.repeat([...after].length))).then(() => { termFocus(); renderHintMeta() }).catch(e => toast(err(e), 'error'))
+  function runCompletion(force = false) {
+    return getCompletion().run(force)
   }
 
   function renderHintMeta() {
@@ -2594,56 +2487,14 @@
     if (danger) bits.push('<span class="badge danger">' + escapeHtml(danger.reason) + '</span>')
     if (!hostSshReady && api.raw) bits.push('<span>功能未就绪</span>')
     if (s && s.status !== 'connected' && cmd.trim()) bits.push('<span>未连接</span>')
+    meta.dataset.state = bits.length ? 'warning' : 'hint'
     if (s && s.status === 'connected') bits.push('<span>直接在终端输入，回车执行</span>')
     meta.innerHTML = bits.join(' ')
+    meta.title = meta.textContent.replace(/\s+/g, ' ').trim()
   }
 
-  async function submitHint(cmdOverride) {
-    const s = activeSession()
-    if (!s || !s.sessionId) {
-      toast('请先连接', 'warn')
-      return
-    }
-    if (!api.hasHostSsh()) {
-      toast('功能未就绪', 'error')
-      return
-    }
-    const cmd = String(cmdOverride ?? terminalCommand()).trim()
-    if (!cmd) {
-      termFocus()
-      return
-    }
-    const profile = store.findProfile(s.profileId)
-    const danger = dict.matchDanger(cmd, profile?.env)
-    if (danger) {
-      const exempt = store.state.ui.dangerExempt || {}
-      const key = (s.profileId || '') + ':' + danger.id
-      if (!exempt[key]) {
-        const ok = await confirmDialog(danger.reason + '\n\n' + cmd, {
-          title: '危险命令',
-          okText: '仍要执行',
-          danger: true,
-        })
-        if (!ok) return
-        exempt[key] = Date.now()
-        store.setUi({ dangerExempt: exempt })
-      }
-    }
-    // 回车执行：远端 shell 自己回显
-    if (cmdOverride != null && cmdOverride !== terminalCommand()) {
-      // 从历史「执行」：清空当前输入再整条写入
-      const cur = terminalCommand()
-      if (cur) await sendInput('\x7f'.repeat(cur.length))
-      await sendInput(cmd)
-    }
-    await sendInput('\r')
-    store.pushHistory({ profileId: s.profileId, command: cmd, ts: Date.now() })
-    s.lastCommand = ''
-    completionState.open = false
-    renderCompletion()
-    renderHintMeta()
-    if ($('drawer')?.classList.contains('open')) renderRight()
-    termFocus()
+  async function submitHint(cmdOverride, target = activeSession()) {
+    return commandActions.execute(cmdOverride ?? terminalCommand(), target)
   }
 
   /* ========== left tree ========== */
@@ -2709,6 +2560,14 @@
     }
 
     tree.onclick = onTreeClick
+    tree.ondblclick = event => { const card = event.target.closest('[data-profile]'); if (card) void connectProfile(store.findProfile(card.dataset.profile)) }
+    tree.onkeydown = event => {
+      const card = event.target.closest('[data-profile]'); if (!card) return
+      if (event.key === 'Enter') { event.preventDefault(); void connectProfile(store.findProfile(card.dataset.profile)); return }
+      const cards = [...tree.querySelectorAll('[data-profile]')], index = cards.indexOf(card)
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? cards.length - 1 : event.key === 'ArrowDown' ? Math.min(cards.length - 1, index + 1) : event.key === 'ArrowUp' ? Math.max(0, index - 1) : -1
+      if (next >= 0) { event.preventDefault(); cards[next].focus(); cards[next].scrollIntoView({ block: 'nearest' }) }
+    }
 
     bindCtx(tree, (ev) => {
       const profileEl = ev.target.closest('[data-profile]')
@@ -2781,7 +2640,7 @@
       (selected ? 'selected' : '') +
       '" data-profile="' +
       escapeHtml(p.id) +
-      '" style="margin-left:' +
+      '" tabindex="0" role="button" aria-label="' + escapeHtml(profileTitle(p) + '，按 Enter 连接') + '" title="' + escapeHtml((p.username || '') + '@' + p.host + ':' + (p.port || 22)) + '" style="margin-left:' +
       (6 + depth * 6) +
       'px"><div class="row1">' +
       colorDot +
@@ -2829,7 +2688,8 @@
 
     if (card) {
       store.setUi({ selectedProfileId: card.dataset.profile })
-      renderLeft()
+      document.querySelectorAll('#tree [data-profile]').forEach(row => row.classList.toggle('selected', row.dataset.profile === card.dataset.profile))
+      renderSelBar()
       renderTopStatus()
       updateFab()
     }
@@ -3621,24 +3481,16 @@
     }
   }
 
-  async function fillHint(cmd) {
-    if (/[\x00-\x1f\x7f]/.test(String(cmd || ''))) { toast('多行命令请从快捷命令面板复制后检查', 'warn'); return }
+  async function fillHint(cmd, target = activeSession()) {
     store.setUi({ centerTab: 'term' })
     renderCenterTabs()
-    const s = activeSession()
-    if (!s || !s.sessionId) {
-      toast('请先连接后再填入终端', 'warn')
-      return
-    }
-    const snapshot = s.term?.readCommand?.()
-    await sendInput((snapshot ? '\x01\x0b' : '') + String(cmd || ''))
-    termFocus()
-    scheduleCompletion()
-    renderHintMeta()
+    window.dispatchEvent(new Event('ssh-activate-terminal'))
+    return commandActions.insert(cmd, target)
   }
 
-  async function runHint(cmd) {
-    await submitHint(cmd)
+  async function runHint(cmd, target = activeSession()) {
+    window.dispatchEvent(new Event('ssh-activate-terminal'))
+    return submitHint(cmd, target)
   }
 
   /* ========== center views ========== */
@@ -3669,6 +3521,7 @@
   function renderSessionTabs() {
     const el = $('session-tabs')
     if (!el) return
+    el.setAttribute('role', 'tablist'); el.setAttribute('aria-label', 'SSH 会话')
     let html = ''
     for (const s of sessions.values()) {
       const p = store.findProfile(s.profileId)
@@ -3678,7 +3531,7 @@
         (s.tabId === activeSessionId ? 'active' : '') +
         '" draggable="true" data-tab="' +
         escapeHtml(s.tabId) +
-        '"><span class="status-dot ' +
+        '" role="tab" tabindex="' + (s.tabId === activeSessionId ? '0' : '-1') + '" aria-selected="' + (s.tabId === activeSessionId) + '" title="' + escapeHtml(title + ' · ' + (p ? p.username + '@' + p.host : s.profileId) + ' · ' + statusLabel(s.status)) + '"><span class="status-dot ' +
         escapeHtml(s.status) +
         '"></span><span class="title">' +
         escapeHtml(title) +
@@ -3689,6 +3542,13 @@
     html += '<div class="wb-session-actions"><button data-terminal-command="split-horizontal" title="左右分屏">左右分屏</button><button data-terminal-command="split-vertical" title="上下分屏">上下</button><button data-terminal-command="unsplit" title="合并分屏">合并</button></div>'
     el.innerHTML = html
     el.querySelectorAll('[data-tab]').forEach(tab => {
+      tab.onkeydown = event => {
+        if (event.target !== tab) return
+        const tabs = [...el.querySelectorAll('[data-tab]')], index = tabs.indexOf(tab)
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : -1
+        if (next >= 0) { event.preventDefault(); setActiveTab(tabs[next].dataset.tab); el.querySelector('[aria-selected="true"]')?.focus() }
+        else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setActiveTab(tab.dataset.tab) }
+      }
       tab.ondragstart = event => { event.dataTransfer.setData('application/x-enest-ssh-tab', tab.dataset.tab); event.dataTransfer.effectAllowed = 'move' }
       tab.ondragover = event => { if (event.dataTransfer.types.includes('application/x-enest-ssh-tab')) event.preventDefault() }
       tab.ondrop = event => { event.preventDefault(); const from = event.dataTransfer.getData('application/x-enest-ssh-tab'), target = tab.dataset.tab; if (!sessions.has(from) || from === target) return; const order = [...sessions.keys()].filter(id => id !== from); order.splice(order.indexOf(target), 0, from); const values = order.map(id => sessions.get(id)); sessions.clear(); for (const value of values) sessions.set(value.tabId, value); orderPinnedTabs(); persistWorkspace(); renderSessionTabs() }
@@ -4059,6 +3919,7 @@
 
     try {
       api.raw?.onBeforeClose?.(() => store.flushAll())
+      api.raw?.onDestroy?.(() => completionController?.dispose())
     } catch {
       /* ignore */
     }
@@ -4102,7 +3963,7 @@
     if (!api.raw) toast('预览模式：功能未就绪', 'warn')
     else if (!hostSshReady) toast('功能未就绪', 'warn')
 
-    window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, toggleDrawer, setSidebarCollapsed, api, store }
+    window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, runHint, navigateHistory: (direction, target) => { getCompletion().hide(); return commandActions.history(direction, target) }, completionVisible: () => getCompletion().isOpen(), completionMove: delta => getCompletion().move(delta), completionAccept: () => getCompletion().accept(), openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, toggleDrawer, openCollection, setDrawerOpen, setSidebarCollapsed, api, store }
     window.dispatchEvent(new Event('ssh-workbench-ready'))
     setInterval(renderTopStatus, 30000)
   }

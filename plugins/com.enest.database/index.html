@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="src/css/main.css" />
 
     <link rel="stylesheet" href="src/css/workbench.css" />
+    <link rel="stylesheet" href="src/css/workspace.css" />
+    <link rel="stylesheet" href="src/css/productivity.css" />
+    <link rel="stylesheet" href="src/css/gridProductivity.css" />
+    <link rel="stylesheet" href="src/css/dataOperations.css" />
+    <link rel="stylesheet" href="src/css/sqlIntelligence.css" />
   </head>
   <body>
     <div class="app" id="app">
@@ -18,11 +23,16 @@
         <div class="mid-col">
           <div class="mid-chrome">
             <button type="button" class="btn icon" id="side-toggle" title="展开/收起侧栏" aria-label="展开/收起侧栏" data-tip="展开/收起侧栏">≡</button>
-            <div class="sql-tabs" id="editor-tabs"></div>
+            <div class="sql-tabs" id="editor-tabs" hidden></div>
+            <div class="workspace-tabs" id="workspace-tabs" role="tablist" aria-label="工作标签"></div>
+            <button type="button" class="btn icon" data-wb="newQuery" aria-label="新建查询" title="新建查询">＋</button>
+            <button type="button" class="btn icon" data-wb="tabs" aria-label="所有标签" title="所有标签">⌄</button>
+            <button type="button" class="btn" data-wb="openShell" hidden>桌面继续</button>
             <div class="mid-chip" id="toolbar"></div>
             <div class="spacer"></div>
             <button type="button" class="btn icon" id="top-more" title="更多操作" aria-label="更多操作" data-tip="更多操作">⋯</button>
           </div>
+          <div class="query-surface" id="query-surface" role="tabpanel">
           <div class="editor-pane">
             <div class="editor-host" id="editor-host"></div>
             <div class="fab-dock" id="fab-dock">
@@ -31,6 +41,7 @@
           </div>
           <div class="resizer bottom" id="resizer-bottom" hidden></div>
           <div class="results" id="results" hidden></div>
+          </div>
         </div>
 
         <div class="resizer right" id="resizer-right"></div>

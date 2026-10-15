@@ -1,0 +1,169 @@
+.app .sql-completion-settings { min-width: 0; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); font-size: var(--db-type-unit, 13px); line-height: 1.5; }
+.app .sql-completion-settings :is(h2, h3, h4, p) { margin: 0; }
+.app .sql-completion-settings h2 { font-size: 1.2em; font-weight: 650; }
+.app .sql-completion-settings h3 { font-size: 1em; font-weight: 600; }
+.app .sql-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.app .sql-section-heading .muted { margin-top: 4px; }
+.app .sql-completion-settings .muted { color: var(--text-2); font-size: .92em; line-height: 1.6; }
+.app .sql-save-state { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }
+.app .sql-save-state[data-error=true], .app .sql-config-issues { color: var(--danger); }
+.app .sql-config-section { padding: 18px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+.app .sql-config-section > :is(p, .sql-form-grid, .sql-item-layout, .sql-inline-actions, textarea, label, pre) { margin-top: 10px; }
+.app .sql-config-section > summary { cursor: pointer; font-weight: 600; padding-block: 3px; }
+.app .sql-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px 20px; }
+.app .sql-check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px 20px; margin: 14px 0; }
+.app .sql-completion-settings label { display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: .94em; color: var(--text-2); }
+.app .sql-completion-settings label.sql-setting-check { flex-direction: row; align-items: center; gap: 7px; color: var(--text); }
+.app .sql-completion-settings :is(input:not([type=checkbox]), select, textarea) { width: 100%; min-width: 0; box-sizing: border-box; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong, var(--border)); border-radius: 6px; padding: 6px 8px; font: inherit; line-height: 1.5; }
+.app .sql-completion-settings input[type=checkbox] { accent-color: var(--accent); margin: 0; flex-shrink: 0; }
+.app .sql-completion-settings textarea { font-family: var(--mono, ui-monospace, monospace); resize: vertical; tab-size: 2; }
+.app .sql-completion-settings :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app .sql-completion-settings button:active:not(:disabled) { background: var(--accent-soft); }
+.app .sql-completion-settings .btn { border-radius: 6px; white-space: nowrap; font-size: .92em; }
+.app .sql-completion-settings fieldset { min-width: 0; margin: 10px 0 0; padding: 0; border: 0; }
+.app .sql-completion-settings fieldset:disabled { opacity: .7; }
+.app .sql-inline-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.app .sql-item-layout { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(0, 2fr); gap: 16px; }
+.app .sql-item-list { display: flex; flex-direction: column; gap: 3px; min-width: 0; align-self: start; max-height: 420px; overflow: auto; }
+.app .sql-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; text-align: left; font: inherit; }
+.app .sql-item :is(strong, small) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app .sql-item strong { font-size: .94em; font-weight: 500; }
+.app .sql-item small { font-size: .82em; color: var(--text-2); }
+.app .sql-item.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.app .sql-item-editor { min-width: 0; }
+.app .sql-item-editor > :is(p, .sql-inline-actions, label, .sql-column-picker) { margin-top: 10px; }
+.app .sql-column-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 8px; max-height: 200px; overflow: auto; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.app .sql-column-picker label { display: flex; flex-direction: row; gap: 6px; align-items: center; min-width: 0; }
+.app .sql-column-picker span { display: flex; flex-direction: column; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.app .sql-column-picker small { font-size: .85em; overflow: hidden; text-overflow: ellipsis; color: var(--text-3, var(--text-2)); }
+.app .sql-column-order { list-style: none; padding: 0; margin: 10px 0; max-height: 240px; overflow: auto; border-top: 1px solid var(--border); }
+.app .sql-column-order li { display: flex; align-items: center; gap: 4px; padding: 4px 2px; border-bottom: 1px solid var(--border); }
+.app .sql-column-order li > span { flex: 1; min-width: 0; padding-inline: 4px; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono, ui-monospace, monospace); }
+.app .sql-column-order button { min-width: 28px; min-height: 26px; }
+.app .sql-empty { padding: 14px 0; color: var(--text-2); }
+.app .sql-preview-results { min-height: 46px; margin-top: 10px; }
+.app .sql-preview-candidates { max-height: 270px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+.app .sql-preview-candidates button { display: flex; align-items: baseline; gap: 12px; width: 100%; border: 0; border-bottom: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 7px 10px; text-align: left; font: inherit; cursor: pointer; }
+.app .sql-preview-candidates button:last-child { border-bottom: 0; }
+.app .sql-preview-candidates button:hover { background: var(--accent-soft); }
+.app .sql-preview-candidates strong { font-family: var(--mono, ui-monospace, monospace); font-weight: 500; flex: 0 1 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app .sql-preview-candidates span { color: var(--text-2); font-size: .86em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app :is(.sql-edit-preview, .sql-example) { padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--text); font: .92em/1.6 var(--mono, ui-monospace, monospace); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.app .sql-edit-preview { margin: 10px 0; }
+.app .sql-config-sources { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, .7fr); gap: 5px 15px; font-size: .86em; }
+.app .sql-config-sources dt { font-family: var(--mono, ui-monospace, monospace); overflow-wrap: anywhere; }
+.app .sql-config-sources dd { margin: 0; color: var(--text-2); }
+.app .sql-config-issues { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 8px; }
+.app [data-import-preview] { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+.app [data-import-preview] > :is(label, p, .sql-inline-actions) { margin-top: 10px; }
+@media(max-width: 760px) { .app .sql-item-layout { grid-template-columns: 1fr; } .app .sql-item-list { max-height: 170px; } }
+@media(prefers-contrast: more) { .app .sql-item.active { border-color: var(--accent); } .app .sql-completion-settings .muted { color: var(--text); } }
+
+/* Completion widgets stay attached to the caret. Monaco overflow widgets live
+   outside .app; body:has scopes these rules to this database document. */
+body:has(.app) .monaco-editor .suggest-widget,
+.app .completion-popup {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  box-shadow: 0 3px 8px #0000000a, 0 12px 28px #00000018;
+  max-width: min(480px, calc(100vw - 16px));
+  overflow: hidden;
+  font-family: var(--mono);
+  --vscode-editorSuggestWidget-background: var(--surface);
+  --vscode-editorSuggestWidget-foreground: var(--text);
+  --vscode-editorSuggestWidget-selectedForeground: var(--text);
+  --vscode-editorSuggestWidget-selectedBackground: var(--accent-soft);
+  --vscode-editorSuggestWidget-highlightForeground: var(--accent);
+  --vscode-editorSuggestWidget-focusHighlightForeground: var(--accent);
+  --vscode-editorSuggestWidget-focusOutline: transparent;
+}
+body:has(.app) .monaco-editor .suggest-widget .monaco-list { border-radius: 6px; }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row { padding-inline: 7px 10px; }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row.focused,
+.app .comp-item.active { background: var(--accent-soft) !important; color: var(--text); outline: none; box-shadow: inset 2px 0 var(--accent); }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row:not(.focused):hover,
+.app .comp-item:not(.active):hover { background: var(--row-hover); }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row .suggest-icon { color: var(--text-2); opacity: .8; padding-right: 6px; }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row.focused .suggest-icon { color: var(--accent); }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row > .contents > .main > .left { min-width: 0; }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row > .contents > .main > .left > .signature-label { color: var(--text-2); opacity: 1; font-size: .85em; }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row > .contents > .main > .right { max-width: 52%; }
+body:has(.app) .monaco-editor .suggest-widget .monaco-list-row > .contents > .main > .right > .details-label { color: var(--text-2); margin-left: 16px; font-family: var(--font); }
+body:has(.app) .monaco-editor .suggest-widget .monaco-highlighted-label .highlight { font-weight: 600; }
+/* Details are already in the row; no second floating pane or read-more button. */
+body:has(.app) .monaco-editor :is(.suggest-details-container, .suggest-widget .readMore) { display: none !important; }
+.app .completion-popup { min-width: min(340px, calc(100vw - 16px)); max-height: 300px; overflow-y: auto; padding: 3px 0; z-index: 40; }
+.app .comp-item { grid-template-columns: 18px minmax(0, 1fr) auto; gap: 6px; min-height: 28px; padding: 4px 10px 4px 7px; border-radius: 0; font-size: var(--db-type-unit, 13px); line-height: 1.5; }
+.app .comp-kind { display: grid; place-items: center; width: 16px; height: 16px; border: 1px solid var(--border-strong); border-radius: 3px; color: var(--text-2); font: 10px/1 var(--mono); }
+.app .comp-label { white-space: nowrap; }
+.app .comp-type { margin-left: 8px; color: var(--text-2); font-size: .85em; }
+.app .comp-detail { max-width: 220px; color: var(--text-2); font: .85em/1.5 var(--font); }
+.app .comp-empty { text-align: left; padding: 7px 12px; color: var(--text-2); }
+@media (prefers-contrast: more) {
+  body:has(.app) .monaco-editor .suggest-widget, .app .completion-popup { border-color: var(--text-2); box-shadow: none; }
+  body:has(.app) .monaco-editor .suggest-widget .monaco-list-row.focused, .app .comp-item.active { outline: 1px solid var(--accent); outline-offset: -1px; }
+}
+@media (forced-colors: active) {
+  /* Monaco opts its editor out of forced colors; the candidate list must still
+     follow the user's system palette and expose a visible selected row. */
+  body:has(.app) .monaco-editor .suggest-widget,
+  body:has(.app) .monaco-editor .suggest-widget *,
+  .app .completion-popup { forced-color-adjust: auto; }
+  body:has(.app) .monaco-editor .suggest-widget,
+  .app .completion-popup {
+    color: CanvasText; background: Canvas; border-color: CanvasText; box-shadow: none;
+    --vscode-editorSuggestWidget-background: Canvas;
+    --vscode-editorSuggestWidget-foreground: CanvasText;
+    --vscode-editorSuggestWidget-selectedForeground: HighlightText;
+    --vscode-editorSuggestWidget-selectedBackground: Highlight;
+    --vscode-editorSuggestWidget-highlightForeground: LinkText;
+    --vscode-editorSuggestWidget-focusHighlightForeground: HighlightText;
+    --vscode-editorSuggestWidget-selectedIconForeground: HighlightText;
+  }
+  body:has(.app) .monaco-editor .suggest-widget .monaco-list-row.focused,
+  .app .comp-item.active {
+    /* Keep this system-color pair together. Automatic text backplates can otherwise
+       paint Canvas behind HighlightText, producing blank white label rectangles. */
+    forced-color-adjust: none;
+    background: Highlight !important; color: HighlightText; outline: 1px solid Highlight; box-shadow: none;
+  }
+  body:has(.app) .monaco-editor .suggest-widget .monaco-list-row.focused *,
+  .app .comp-item.active * {
+    forced-color-adjust: none;
+    color: HighlightText !important; background-color: transparent !important; opacity: 1;
+  }
+}
+@media (max-width: 540px) { .app .comp-detail { max-width: 140px; } }
+
+/* Structured rule editors share the existing settings grid and host tokens. */
+.app .sql-rule-scope, .app .sql-rule-dialects { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); }
+.app :is(.sql-rule-scope, .sql-rule-dialects) > summary { cursor: pointer; font-size: .94em; color: var(--text); overflow-wrap: anywhere; }
+.app :is(.sql-rule-scope, .sql-rule-dialects) > :is(.sql-form-grid, p, .sql-rule-checks) { margin-top: 10px; }
+.app .sql-rule-scope-value { display: grid; grid-template-columns: minmax(70px, .65fr) minmax(0, 1fr); gap: 6px; }
+.app .sql-rule-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(125px, 100%), 1fr)); gap: 7px 12px; }
+.app .sql-rule-values-heading { align-items: center; margin-top: 14px; }
+.app .sql-rule-values { max-height: 340px; overflow: auto; padding: 6px 2px; margin-top: 6px; }
+.app .sql-rule-value-row { display: grid; grid-template-columns: minmax(78px, .45fr) minmax(0, 1fr) auto; align-items: end; gap: 8px; padding-block: 5px; }
+.app .sql-rule-small-label { font-size: .88em; color: var(--text-2); }
+.app .sql-rule-value-row .btn { min-height: 32px; }
+.app .sql-rule-override-group { margin-top: 18px; }
+.app .sql-rule-override-group h4 { margin-bottom: 8px; }
+.app .sql-rule-override-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(110px, .7fr); align-items: center; gap: 4px 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.app .sql-rule-override-row small { grid-column: 1 / -1; color: var(--text-2); font-size: .83em; padding-left: 21px; overflow-wrap: anywhere; }
+.app .sql-rule-override-row :disabled, .app .sql-rule-scope-value :disabled { opacity: .6; }
+.app .sql-completion-settings fieldset > .sql-form-grid + .sql-form-grid { margin-top: 12px; }
+.app .sql-completion-settings fieldset > :is(label, p) { margin-top: 8px; }
+.app [data-enum-preview] { overflow-wrap: anywhere; font-family: var(--mono, ui-monospace, monospace); font-size: .84em; }
+@media (max-width: 480px) { .app .sql-rule-override-row { grid-template-columns: 1fr; } .app .sql-rule-override-row small { padding-left: 0; } }
+@media (prefers-contrast: more) { .app .sql-rule-override-row small, .app .sql-rule-small-label { color: var(--text); } }
+
+/* Field groups use the same order for pointer, keyboard and generated SQL. */
+.app .sql-column-drag { cursor: grab; touch-action: none; color: var(--text-2); letter-spacing: -2px; }
+.app .sql-column-drag:active { cursor: grabbing; }
+.app .sql-column-order li { position: relative; background: var(--surface); }
+.app .sql-column-order li.dragging { z-index: 1; background: var(--surface-2); box-shadow: var(--shadow-soft); opacity: .9; }
+.app .sql-column-order li.drop-before { box-shadow: inset 0 2px var(--accent); }
+.app .sql-column-order li.drop-after { box-shadow: inset 0 -2px var(--accent); }
+.app [data-query-set-state]:empty { display: none; }

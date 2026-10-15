@@ -74,6 +74,8 @@
 
   function applyTip(el) {
     if (!el || el.nodeType !== 1) return
+    // Command descriptions already belong to the caret list; retain only their native overflow title.
+    if (el.closest('.ssh-command-suggestions')) return
     var text = tipText(el)
     if (text) el.setAttribute('data-tip', text)
   }
@@ -88,6 +90,7 @@
   }
 
   function onOver(ev) {
+    if (ev.target?.closest?.('.ssh-command-suggestions')) return
     var el = ev.target && ev.target.closest ? ev.target.closest('[data-tip], button[title], [role="button"][title]') : null
     if (!el || !document.contains(el)) return
     var text = tipText(el)

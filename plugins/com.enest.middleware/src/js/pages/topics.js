@@ -2,7 +2,7 @@
 import {
   fmt, chip, el, gate, capTitle, lagBar, healthChip, escapeHtml,
   simpleGrid, confirmDanger, infoDialog, showContextMenu
-} from '../components.js'
+} from '@mw/components.js'
 
 /* —— 类型 chip 样式 —— */
 function typeChip(type, internal) {
@@ -384,7 +384,7 @@ export default {
         else if (raw && typeof raw === 'object') entries = Object.entries(raw)
         const dlg = infoDialog({ title: `编辑配置 · ${row.name}`, width: 560 })
         if (!entries.length) {
-          dlg.body.appendChild(el('p', { style: 'font-size:12.5px;color:var(--text-3)' }, '该 Topic 未返回可编辑配置'))
+          dlg.body.appendChild(el('p', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.961538);color:var(--text-3)' }, '该 Topic 未返回可编辑配置'))
         }
         const inputs = {}
         for (const [key, value] of entries) {

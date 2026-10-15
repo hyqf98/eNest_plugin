@@ -1,11 +1,6 @@
-/**
- * completion.js — IDEA 式 SQL 补全（DB-E）
- * 优先 db.completion.suggest；300ms 超时 / HOST_LAG 时本地关键字+catalog+别名列回退
- * qualified：replace 只覆盖光标处标识符，避免抹掉 alias.
- */
-import { DbHost, hostLag } from './api.js'
-import { keywordsFor, functionsFor, snippets, parseAliases } from './tokenizer.js'
-import { state, bumpCompletionUsage, usageScore } from './store.js'
+/** Editor/store adapter. SQL syntax, providers, metadata and configuration live in sql-intelligence/. */
+import { DbHost } from './api.js'
+import { state, bumpCompletionUsage, bumpScopedCompletionUsage } from './store.js'
 
 const KIND_META = {
   keyword: { color: '#c792ea', label: '关键字', mark: 'K' },
@@ -24,442 +19,62 @@ export function kindMeta(kind) {
   return KIND_META[kind] || { color: '#9aa7b8', label: kind || '其它' }
 }
 
-/** driver → 方言词表 key */
-export function dialectOf(driverOrDialect) {
-  const d = String(driverOrDialect || 'mysql').toLowerCase()
-  if (d === 'timescale' || d === 'postgres' || d === 'postgresql') return 'postgres'
-  return d
+// Thin compatibility facade. Engines and metadata stay independent of the store/editor.
+let runtimePromise, runtimeOptions = {}, configResolver
+let behaviorConfig, behaviorCache = new Map()
+const runtime = () => runtimePromise ||= import('./sql-intelligence/index.js').then(({ CompletionRuntime }) => { const service = new CompletionRuntime(runtimeOptions); configResolver = service.config.bind(service); return service })
+export function configureCompletionRuntime(options) { runtimeOptions = options; return runtime().then(service => service.configure(options)) }
+export const getCompletionCatalog = scope => runtime().then(service => service.catalog(scope))
+export const ensureCompletionColumns = (scope, refs) => runtime().then(service => service.metadata.ensureColumns(service.scope(scope), refs))
+export const warmCompletionCatalog = scope => runtime().then(service => service.metadata.ensureObjects(service.scope(scope)))
+export const captureCompletionMetadataRead = scope => runtime().then(service => service.captureMetadataRead(scope))
+export const validateCompletionMetadataRead = (scope, ticket) => runtime().then(service => service.metadataReadCurrent(scope, ticket))
+export const publishCompletionTable = (scope, ref, detail, ticket) => runtime().then(service => service.publishMetadataTable(scope, ref, detail, ticket))
+export const invalidateCompletionContext = (scope, reason) => runtime().then(service => service.invalidate(scope, reason))
+export const recordCompletionExecution = (scope, execution) => runtime().then(service => service.record(scope, execution))
+export const disposeCompletionRuntime = () => runtimePromise?.then(service => service.dispose())
+export const validateCompletionItem = (item, scope, options = {}) => runtime().then(service => service.validateItem(item, scope, { ...options, rawConfig: state.ui.completion, legacy: state.ui }))
+let configGeneration = 0, lastConfiguration
+export function completionContextKey(scope) {
+  if (lastConfiguration !== state.ui.completion) { lastConfiguration = state.ui.completion; configGeneration++ }
+  return JSON.stringify([configGeneration,scope.dialect, scope.searchPath, scope.configRevision, scope.sessionKey, scope.connectionId, scope.consoleId, scope.documentId, scope.database, scope.schema, scope.surface, scope.generation, scope.contextRevision, scope.sessionContextRevision, scope.contextKnown])
 }
-
-/** 光标前标识符范围；replaceFrom 仅在 insertText 自带 qualifier 时使用 */
-export function identifierRangeAt(text, cursor) {
-  let i = cursor
-  while (i > 0 && /[A-Za-z0-9_$\u4e00-\u9fff]/.test(text[i - 1])) i--
-  const start = i
-  const prefix = text.slice(start, cursor)
-  let qStart = start
-  let qualifier = ''
-  if (start > 0 && text[start - 1] === '.') {
-    let j = start - 2
-    while (j >= 0 && /[A-Za-z0-9_$\u4e00-\u9fff]/.test(text[j])) j--
-    qStart = j + 1
-    qualifier = text.slice(qStart, start - 1)
-  }
-  return { from: start, to: cursor, prefix, qualifier, replaceFrom: qualifier ? qStart : start }
+export function getCompletionBehavior(scope = {}) {
+  if (behaviorConfig !== state.ui.completion) { behaviorConfig = state.ui.completion; behaviorCache.clear() }
+  const key = JSON.stringify([scope.connectionId, scope.dialect, scope.database, scope.schema, scope.table, state.ui.autoAliasAfterTable, state.ui.learnUsage])
+  if (behaviorCache.has(key)) return behaviorCache.get(key)
+  const behavior = configResolver?.(scope, state.ui.completion, state.ui).behavior || { automatic: true, delayMs: 70, minPrefixLength: 1, acceptOnEnter: false, acceptOnTab: true, ...(state.ui.completion?.behavior || {}) }
+  if (behaviorCache.size >= 32) behaviorCache.clear()
+  behaviorCache.set(key, behavior)
+  return behavior
 }
-
-/** 从完整 SQL + 光标提取语句上下文 */
-export function analyzeContext(sql, cursor) {
-  const before = sql.slice(0, cursor)
-  const idRange = identifierRangeAt(sql, cursor)
-  const stmtStart = Math.max(0, before.lastIndexOf(';') + 1)
-  return {
-    before,
-    idRange,
-    prefix: idRange.prefix.toLowerCase(),
-    qualifier: idRange.qualifier,
-    cursor,
-    stmtSql: before.slice(stmtStart),
-    stmtStart
+export async function requestCompletion(request, options = {}) {
+  const service = await runtime()
+  const scope = service.scope(request)
+  if (/mongo|redis|elasticsearch|opensearch|influx|neo4j/.test(request.dialect || '')) {
+    if (options.method === 'signature') return null
+    // Native languages keep their existing driver provider on an isolated read-only session.
+    if (scope.connected !== true || scope.contextKnown === false) return { items: [], isIncomplete: false }
+    const result = await service.metadata.withMetadataSession(scope, ({ sessionKey }) => DbHost.completion({ sessionKey, sql: request.sql, cursor: request.cursor, database: scope.database, schema: scope.schema }))
+    return service.ticketedResult(result, scope, service.catalog(scope), service.config(scope, state.ui.completion, state.ui))
   }
+  const usagePrefix = JSON.stringify([scope.connectionId, scope.dialect, scope.database || '', scope.schema || '']) + ':'
+  const usage = Object.fromEntries(Object.entries(state.completionUsage).filter(([key]) => key.startsWith(usagePrefix)).map(([key, count]) => [key.slice(usagePrefix.length), count]))
+  const result = await service.complete(request, { rawConfig: state.ui.completion, legacy: state.ui, usage, ...options })
+  if (!result?.items) return result
+  return { ...result, items: result.items.map(item => ({ ...item, _usageKey: usagePrefix + item.id, _learnUsage: result.config?.learnUsage !== false })) }
 }
-
-/** 默认 replace：只替换当前标识符（与宿主 identifierAtCursor 对齐） */
-function replaceRangeOf(ctx) {
-  return { from: ctx.idRange.from, to: ctx.idRange.to }
-}
-
-function catalogOf(sessionKey) {
-  const hit = state.runtime.catalogs.get(sessionKey)
-  if (!hit) return null
-  return hit.catalog
-}
-
-export function setCatalog(sessionKey, catalog) {
-  if (!catalog) return
-  const prev = state.runtime.catalogs.get(sessionKey)?.catalog
-  state.runtime.catalogs.set(sessionKey, {
-    catalog: prev ? { ...prev, ...catalog } : catalog,
-    ts: Date.now()
-  })
-}
-
-/** 合并补丁（列懒加载后只更新单表） */
-export function patchCatalogTable(sessionKey, tableName, patch) {
-  if (!tableName || !patch) return
-  const hit = state.runtime.catalogs.get(sessionKey)
-  if (!hit?.catalog) return
-  const tables = (hit.catalog.tables || []).map((t) =>
-    t.name.toLowerCase() === String(tableName).toLowerCase() ? { ...t, ...patch } : t
-  )
-  if (!tables.some((t) => t.name.toLowerCase() === String(tableName).toLowerCase()) && patch.name) {
-    tables.push({ columns: [], type: 'table', ...patch })
-  }
-  hit.catalog = { ...hit.catalog, tables }
-  hit.ts = Date.now()
-}
-
-export function invalidateCatalog(sessionKey) {
-  state.runtime.catalogs.delete(sessionKey)
-}
-
-function collectCatalogItems(catalog, { ctx, aliases, tables }) {
-  const items = []
-  const q = ctx.qualifier
-  const bare = ctx.stmtSql.replace(/--[^\n]*/g, '')
-  const inFrom = /\b(from|join)\s+[A-Za-z0-9_`.]*$/i.test(ctx.before.trim())
-  const lastSelect = bare.toUpperCase().lastIndexOf('SELECT')
-  const inSelectList = lastSelect >= 0 && !/\bfrom\b/i.test(bare.slice(lastSelect))
-
-  if (!catalog) return items
-
-  if (q) {
-    const ql = q.toLowerCase()
-    const aliasRec = aliases.get(ql)
-    const tableName = aliasRec?.name || q
-    const table = (catalog.tables || []).find((t) => t.name.toLowerCase() === tableName.toLowerCase())
-    if (table) {
-      for (const col of table.columns || []) {
-        items.push({
-          label: col.name,
-          kind: 'column',
-          detail: `${col.type || ''}${col.pk ? ' · PK' : ''}${col.comment ? ' · ' + col.comment : ''}`.trim(),
-          doc: col.comment || `${tableName}.${col.name}`,
-          insertText: col.name,
-          owner: table.name,
-          sortText: `1_${col.name}`,
-          filterText: col.name
-        })
-      }
-    } else {
-      for (const t of catalog.tables || []) {
-        const schemaL = (t.schema || '').toLowerCase()
-        if (schemaL === ql || ql === 'public') {
-          items.push({
-            label: t.name,
-            kind: t.type === 'view' ? 'view' : 'table',
-            detail: t.comment || t.type || 'table',
-            doc: t.comment,
-            insertText: t.name,
-            owner: t.schema,
-            sortText: `2_${t.name}`
-          })
-        }
-      }
-      for (const db of catalog.databases || []) {
-        if (db.toLowerCase() === ql) {
-          for (const t of catalog.tables || []) {
-            items.push({
-              label: t.name,
-              kind: 'table',
-              detail: t.type || 'table',
-              insertText: t.name,
-              sortText: `2_${t.name}`
-            })
-          }
-        }
-      }
-    }
-  } else if (inFrom) {
-    for (const t of catalog.tables || []) {
-      const kind = t.type === 'view' ? 'view' : t.type === 'measurement' ? 'measurement' : 'table'
-      items.push({
-        label: t.name,
-        kind,
-        detail: t.comment || t.schema || t.type || '',
-        doc: t.comment,
-        insertText: t.name,
-        owner: t.schema,
-        sortText: `0_${t.name}`
-      })
-    }
-    for (const db of catalog.databases || []) {
-      items.push({ label: db, kind: 'database', detail: '数据库', insertText: db, sortText: `3_${db}` })
-    }
-  } else if (inSelectList || tables.length || aliases.size) {
-    const fromTables = tables.length ? tables : [...aliases.values()]
-    if (fromTables.length) {
-      const multi = fromTables.length > 1
-      for (const tb of fromTables) {
-        const table = (catalog.tables || []).find((t) => t.name.toLowerCase() === tb.name.toLowerCase())
-        for (const col of table?.columns || []) {
-          const prefixLabel = multi ? `${tb.alias || tb.name}.${col.name}` : col.name
-          items.push({
-            label: prefixLabel,
-            kind: 'column',
-            detail: `${table?.name || tb.name}.${col.name}${col.type ? ' · ' + col.type : ''}`,
-            doc: col.comment,
-            insertText: prefixLabel,
-            owner: table?.name || tb.name,
-            sortText: `0_${prefixLabel}`,
-            filterText: `${tb.alias || ''} ${col.name}`.trim()
-          })
-        }
-      }
-    } else {
-      for (const t of catalog.tables || []) {
-        items.push({
-          label: t.name,
-          kind: t.type === 'view' ? 'view' : 'table',
-          detail: t.type || '',
-          insertText: t.name,
-          sortText: `2_${t.name}`
-        })
-        for (const col of (t.columns || []).slice(0, 40)) {
-          items.push({
-            label: col.name,
-            kind: 'column',
-            detail: `${t.name}.${col.type || ''}`,
-            insertText: col.name,
-            owner: t.name,
-            sortText: `4_${col.name}`
-          })
-        }
-      }
-    }
-  } else {
-    for (const t of catalog.tables || []) {
-      items.push({
-        label: t.name,
-        kind: t.type === 'view' ? 'view' : 'table',
-        detail: t.comment || t.type || '',
-        insertText: t.name,
-        sortText: `2_${t.name}`
-      })
-    }
-    for (const f of catalog.functions || []) {
-      items.push({
-        label: f.name,
-        kind: 'function',
-        detail: f.signature || '',
-        doc: f.doc,
-        insertText: f.name + '(',
-        sortText: `5_${f.name}`
-      })
-    }
-    for (const kw of catalog.keywords || []) {
-      items.push({
-        label: kw,
-        kind: 'keyword',
-        detail: '关键字',
-        insertText: kw,
-        sortText: `9_${kw}`
-      })
-    }
-  }
-
-  // FROM t / JOIN t 后建议别名
-  if (/\b(from|join)\s+[`A-Za-z0-9_.]+\s+(as\s+)?$/i.test(ctx.before)) {
-    for (const [a, rec] of aliases) {
-      if (!a) continue
-      items.push({ label: a, kind: 'alias', detail: rec?.name || '别名', insertText: a, sortText: `0_${a}` })
-    }
-    items.push({ label: 't1', kind: 'alias', detail: '别名', insertText: 't1', sortText: `1_t1` })
-    items.push({ label: 'a', kind: 'alias', detail: '别名', insertText: 'a', sortText: `1_a` })
-  }
-  return items
-}
-
-function localItems(req) {
-  const { sql, cursor, sessionKey, dialect } = req
-  const ctx = analyzeContext(sql, cursor)
-  const stmt = { sql: req.statementSql || ctx.stmtSql, start: ctx.stmtStart, end: cursor }
-  const { aliases, tables } = parseAliases(stmt.sql)
-  const catalog = catalogOf(sessionKey)
-  const items = []
-  const d = dialectOf(dialect)
-  const before = ctx.before
-
-  // —— 本地上下文补齐（对齐宿主增强）：INSERT 列清单 / UPDATE SET / JOIN ON ——
-  const insM = /\bINSERT\s+INTO\s+([\w$#`".]+)\s*\(([^()]*)$/i.exec(before)
-  const updM = /\bUPDATE\s+([\w$#`".]+)\s+SET\s+(.*)$/is.exec(before)
-  const isJoinOn = /\bON\s+[\w.\s]*$/i.test(before) && /\bJOIN\b/i.test(before)
-
-  const writtenCols = (text) =>
-    text
-      .split(',')
-      .map((s) => s.replace(/["`]/g, '').trim().toLowerCase())
-      .filter(Boolean)
-
-  const tableByName = (name) =>
-    (catalog?.tables || []).find((t) => t.name.toLowerCase() === String(name).toLowerCase())
-
-  if (insM) {
-    const t = tableByName(insM[1])
-    const written = new Set(writtenCols(insM[2] || ''))
-    for (const col of t?.columns || []) {
-      if (written.has(col.name.toLowerCase())) continue
-      items.push({
-        label: col.name,
-        kind: 'column',
-        detail: `${col.type || ''}${col.pk ? ' · PK' : ''}`,
-        doc: col.comment,
-        insertText: col.name,
-        owner: t.name,
-        sortText: `0_${col.name}`
-      })
-    }
-  } else if (updM) {
-    const t = tableByName(updM[1])
-    const assignText = (updM[2] || '').replace(/\((?:[^()]|\([^()]*\))*\)/g, '()')
-    const written = new Set(writtenCols(assignText))
-    for (const col of t?.columns || []) {
-      if (written.has(col.name.toLowerCase())) continue
-      items.push({
-        label: col.name,
-        kind: 'column',
-        detail: `${col.type || ''} = `,
-        insertText: `${col.name} = `,
-        owner: t.name,
-        sortText: `0_${col.name}`
-      })
-    }
-  }
-
-  if (isJoinOn && aliases.length >= 2) {
-    // JOIN ON：同名列 / user_id↔id 后缀 → 完整等值条件
-    const newA = aliases[aliases.length - 1]
-    let pushed = 0
-    for (let j = aliases.length - 2; j >= 0 && pushed < 6; j--) {
-      const other = aliases[j]
-      const newT = tableByName(newA.table)
-      const otherT = tableByName(other.table)
-      for (const c of newT?.columns || []) {
-        if (pushed >= 6) break
-        const hit = (otherT?.columns || []).find(
-          (oc) =>
-            oc.name.toLowerCase() === c.name.toLowerCase() ||
-            c.name.toLowerCase().endsWith(`_${oc.name.toLowerCase()}`) ||
-            oc.name.toLowerCase().endsWith(`_${c.name.toLowerCase()}`)
-        )
-        if (hit) {
-          items.push({
-            label: `${newA.alias}.${c.name} = ${other.alias}.${hit.name}`,
-            kind: 'column',
-            detail: 'JOIN 条件',
-            insertText: `${newA.alias}.${c.name} = ${other.alias}.${hit.name}`,
-            sortText: `0_join_${pushed}_${c.name}`
-          })
-          pushed++
-        }
-      }
-    }
-  }
-
-  items.push(...collectCatalogItems(catalog, { ctx, aliases, tables }))
-
-  const isStmtStart = !ctx.before.trim() || /;\s*$/.test(ctx.before)
-  const showKeywords = !ctx.qualifier || isStmtStart
-  if (showKeywords) {
-    for (const kw of keywordsFor(d)) {
-      items.push({
-        label: kw,
-        kind: 'keyword',
-        detail: '关键字',
-        insertText: kw,
-        sortText: isStmtStart ? `0_${kw}` : `8_${kw}`
-      })
-    }
-    for (const fn of functionsFor(d)) {
-      items.push({
-        label: fn,
-        kind: 'function',
-        detail: '内置函数',
-        insertText: fn + '(',
-        sortText: `6_${fn}`
-      })
-    }
-    for (const sn of snippets()) {
-      items.push({
-        label: sn.trigger,
-        kind: 'snippet',
-        detail: sn.doc,
-        doc: sn.insert,
-        insertText: sn.insert,
-        sortText: `0_snip_${sn.trigger}`
-      })
-    }
-  }
-
-  return {
-    replace: replaceRangeOf(ctx),
-    items,
-    isIncomplete: false,
-    _local: true,
-    _aliases: aliases,
-    _tables: tables
-  }
-}
-
-function withUsageSort(items) {
-  return [...items].sort((a, b) => {
-    const ua = usageScore(a.kind, a.owner, a.label) || 0
-    const ub = usageScore(b.kind, b.owner, b.label) || 0
-    if (ua !== ub) return ub - ua
-    return String(a.sortText || a.label).localeCompare(String(b.sortText || b.label))
-  })
-}
-
-/** 请求补全（DB-E2 / E7.10） */
-export async function requestCompletion({
-  sessionKey,
-  sql,
-  cursor,
-  dialect,
-  statementSql,
-  database,
-  schema,
-  usageBoost
-}) {
-  const req = {
-    sessionKey,
-    sql,
-    cursor,
-    database,
-    schema,
-    usageBoost: usageBoost && Object.keys(usageBoost).length ? usageBoost : undefined
-  }
-  let hostRes = null
-  try {
-    hostRes = await Promise.race([
-      DbHost.completion(req),
-      new Promise((_, reject) =>
-        setTimeout(() => {
-          const e = new Error('completion timeout')
-          e.code = 'TIMEOUT'
-          reject(e)
-        }, 300)
-      )
-    ])
-  } catch (e) {
-    if (!hostLag(e) && e?.code !== 'TIMEOUT' && !/session not found|not open/i.test(String(e?.message || e))) {
-      console.warn('completion error', e)
-    }
-    hostRes = null
-  }
-
-  const ctx = analyzeContext(sql, cursor)
-  const replace = replaceRangeOf(ctx)
-
-  if (hostRes && Array.isArray(hostRes.items) && hostRes.items.length) {
-    // 宿主 replace 仅覆盖标识符；若缺失则用本地范围
-    const hostReplace = hostRes.replace || replace
-    const items = withUsageSort(hostRes.items)
-    return { replace: hostReplace, items, isIncomplete: !!hostRes.isIncomplete, _local: false }
-  }
-
-  const local = localItems({ sql, cursor, sessionKey, dialect, statementSql })
-  local.items = withUsageSort(local.items)
-  local.replace = replace
-  return local
+export const requestSignatureHelp = request => requestCompletion(request, { method: 'signature' })
+export async function previewSqlCompletion({ text, cursorOffset, scope, config, catalog }) {
+  const service = await runtime()
+  const { engineRequest } = await import('./sql-intelligence/index.js')
+  return service.engine.run('complete', engineRequest({ ...scope, dialect: scope.dialect || scope.dialectId, sql: text, cursor: cursorOffset }), { catalog, config: service.config(scope, config, state.ui), usage: {} })
 }
 
 export function applyCompletionItem(item) {
-  try {
-    bumpCompletionUsage(item.kind, item.owner, item.label)
-  } catch {
-    /* ignore */
-  }
+  if (item._learnUsage === false || item._learnUsage === undefined && getCompletionBehavior().learnUsage === false) return
+  if (item._usageKey) bumpScopedCompletionUsage(item._usageKey)
+  else bumpCompletionUsage(item.kind, item.owner, item.label)
 }
 
 /**
@@ -517,93 +132,4 @@ export function filterItems(items, prefix, limit = 80) {
     }
   }
   return [...exact, ...start, ...sub].slice(0, limit)
-}
-
-/** 将 catalog 写入运行时缓存（打开连接 / 执行 DDL 后刷新） */
-export function warmCatalogFromSchema(sessionKey, schemaData) {
-  if (!schemaData) return
-  const catalog = {
-    dialect: schemaData.dialect,
-    databases: schemaData.databases || [],
-    schemas: schemaData.schemas || [],
-    tables: schemaData.tables || [],
-    functions: schemaData.functions || [],
-    keywords: schemaData.keywords || keywordsFor(dialectOf(schemaData.dialect || 'mysql')),
-    usageBoost: state.completionUsage
-  }
-  setCatalog(sessionKey, catalog)
-}
-
-/** 从宿主表列表 + describe 预热本地 catalog（离线/超时回退仍可用） */
-export async function warmCatalogFromHost(sessionKey, { driver, database, schema, describeFn, tablesFn }) {
-  if (!sessionKey || !tablesFn) return null
-  try {
-    const raw = await tablesFn({ sessionKey, database, schema })
-    let list = []
-    if (Array.isArray(raw)) list = raw
-    else if (Array.isArray(raw?.tables)) list = raw.tables
-    else if (Array.isArray(raw?.children)) list = raw.children
-    else if (Array.isArray(raw?.items)) list = raw.items
-    else if (raw && typeof raw === 'object') {
-      for (const v of Object.values(raw)) {
-        if (Array.isArray(v) && v.length && typeof v[0] === 'object') {
-          list = v
-          break
-        }
-      }
-    }
-    const tables = list
-      .map((t) => ({
-        name: t.name || t.table || t.label,
-        schema: t.schema,
-        type: t.type || 'table',
-        columns: t.columns || [],
-        comment: t.comment
-      }))
-      .filter((t) => t.name)
-
-    if (describeFn) {
-      await Promise.all(
-        tables.slice(0, 40).map(async (tb) => {
-          if (tb.columns?.length) return
-          try {
-            const detail = await describeFn({
-              sessionKey,
-              database,
-              schema: tb.schema || schema,
-              table: tb.name
-            })
-            const cols = detail?.columns || []
-            tb.columns = cols.map((c) => ({
-              name: c.name,
-              type: c.type || c.dataType,
-              comment: c.comment,
-              pk: !!(c.pk || c.primaryKey)
-            }))
-          } catch {
-            /* 懒加载 */
-          }
-        })
-      )
-    }
-
-    const d = dialectOf(driver)
-    const catalog = {
-      dialect: d,
-      databases: database ? [database] : [],
-      schemas: [...new Set(tables.map((t) => t.schema).filter(Boolean))],
-      tables,
-      functions: functionsFor(d).map((n) => ({ name: n, kind: 'native' })),
-      keywords: keywordsFor(d),
-      usageBoost: state.completionUsage
-    }
-    setCatalog(sessionKey, catalog)
-    return catalog
-  } catch {
-    return null
-  }
-}
-
-export function detectDdl(sql) {
-  return /\b(create|alter|drop|truncate)\b/i.test(sql || '')
 }

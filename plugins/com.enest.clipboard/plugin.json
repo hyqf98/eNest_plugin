@@ -16,8 +16,7 @@
     "clipboard.readImage",
     "clipboard.writeImage",
     "clipboard.history",
-    "clipboard.paste",
-    "fs.read"
+    "clipboard.paste"
   ],
   "window": {
     "minWidth": 420,

@@ -1,5 +1,9 @@
 /** 消息浏览器：过滤查询 / 详情面板 / 重发 / 实时监听（视觉基准 = design/concept.html 页面 ③） */
-import { fmt, el, chip, simpleGrid, infoDialog, payloadHighlight, escapeHtml, showContextMenu } from '../components.js'
+import { fmt, el, chip, simpleGrid, infoDialog, payloadHighlight, escapeHtml, showContextMenu } from '@mw/components.js'
+import { attachSuggestions } from '@mw/editorAssist.js'
+import { commands } from '@mw/commands.js'
+import { namedSuggestions } from '@mw/completionRules.js'
+import { normalizeQueryMode } from '@mw/protocol.js'
 
 const TOPIC_LABEL = { kafka: 'Topic', rabbitmq: '队列', mqtt: 'Topic 过滤', rocketmq: 'Topic' }
 const MODE_LABEL = { offset: '按 Offset', timestamp: '按时间', key: '按 Key', id: '按 MsgId' }
@@ -27,10 +31,15 @@ export default {
   render(root, ctx) {
     const { api, conn } = ctx
     const kind = conn.kind
-    const modes = ctx.queryModes?.length ? ctx.queryModes : (DEFAULT_MODES[kind] ?? [])
+    const modes = (ctx.queryModes?.length ? ctx.queryModes : (DEFAULT_MODES[kind] ?? [])).map(normalizeQueryMode)
     let locate = modes[0] ?? null // 'offset' | 'timestamp' | 'key' | 'id' | null(rmq/mqtt 无定位)
     let rows = []
     let selected = null
+    let destroyed = false
+    let queryGeneration = 0
+    let queryPending = false
+    let partitionGeneration = 0
+    let topicNames = []
     let tail = null // { tailId, unsub, paused, count }
 
     /* —— LIVE 条（未监听时隐藏）—— */
@@ -47,9 +56,9 @@ export default {
     ])
 
     /* —— 过滤栏 —— */
-    const topicList = el('datalist', { id: 'mw-topic-list' })
+    const requestState = el('div', { class: 'request-status', role: 'status', hidden: true })
     const topicInput = el('input', {
-      type: 'text', list: 'mw-topic-list', placeholder: TOPIC_LABEL[kind] + '，可手输',
+      type: 'text', 'aria-label': '消息查询目标', placeholder: TOPIC_LABEL[kind] + '，可手输',
       style: 'width:200px', autocomplete: 'off',
       onchange: () => { if (kind === 'kafka') loadPartitions(topicInput.value.trim()) }
     })
@@ -68,38 +77,55 @@ export default {
     const timeIn = el('input', { type: 'datetime-local', value: localInputValue(Date.now() - 15 * 60 * 1000), style: 'width:194px' })
     const textIn = el('input', { type: 'text', placeholder: '匹配 Key', style: 'width:150px', autocomplete: 'off' })
     const maxSel = el('select', {}, ['50', '100', '200'].map((n) => el('option', { value: n }, n)))
-    const countSpan = el('span', { style: 'color:var(--text-3);font-size:12px' }, '')
+    const queryButton = el('button', { class: 'btn primary', onclick: doQuery }, '查询')
+    const countSpan = el('span', { style: 'color:var(--text-3);font-size:calc(var(--font-size-base, 13px) * 0.923077)' }, '')
     const tailBtn = el('button', { class: 'btn ghost', style: 'margin-left:auto', onclick: startTail }, '📥 从查询结果转入监听')
 
     const kindChips = []
     if (kind === 'rabbitmq') kindChips.push(el('span', { html: chip('peek 模式：消息将被 requeue', 'warn', 'RabbitMQ 经管理面取队头消息，取出后 requeue 回队列') }))
     if (kind === 'mqtt') kindChips.push(el('span', { html: chip('retained：仅保留消息快照', '', '通用 MQTT 无历史消息，只能读取 retained 消息') }))
 
-    const filterBar = el('div', { class: 'filter-bar' }, [
-      el('span', { class: 'fld' }, [TOPIC_LABEL[kind] + ' ', topicInput]),
-      ...kindChips,
-      seg,
+    const shortWindow = window.matchMedia('(max-height: 420px)')
+    let optionsTouched = false
+    const detailButton = el('button', { class: 'btn ghost sm', disabled: true, 'aria-label': '显示消息详情', 'aria-expanded': 'false', onclick: () => setDetailVisible(viewer.hidden) }, '详情')
+    const optionsButton = el('button', { class: 'btn ghost sm', 'aria-expanded': String(ctx.mode !== 'quick' && !shortWindow.matches), onclick: () => {
+      optionsTouched = true
+      options.hidden = !options.hidden
+      optionsButton.setAttribute('aria-expanded', String(!options.hidden))
+    } }, '筛选')
+    const options = el('div', { class: 'query-options', hidden: ctx.mode === 'quick' || shortWindow.matches }, [
+      ...kindChips, seg,
       ...(kind === 'kafka' ? [el('span', { class: 'fld' }, ['分区 ', partsSel])] : []),
       el('span', { class: 'fld' }, ['起点 ', offsetIn]),
       el('span', { class: 'fld' }, ['起点 ', timeIn]),
       el('span', { class: 'fld' }, ['匹配 ', textIn]),
-      el('span', { class: 'fld' }, ['条数 ', maxSel]),
-      el('button', { class: 'btn primary', onclick: doQuery }, '查询'),
-      countSpan,
-      tailBtn
+      el('span', { class: 'fld' }, ['条数 ', maxSel]), tailBtn
     ])
+    const syncOptions = () => {
+      if (optionsTouched) return
+      options.hidden = ctx.mode === 'quick' || shortWindow.matches
+      optionsButton.setAttribute('aria-expanded', String(!options.hidden))
+    }
+    shortWindow.addEventListener('change', syncOptions)
+    const filterBar = el('div', { class: 'filter-bar query-toolbar' }, [
+      el('div', { class: 'query-primary' }, [
+        el('span', { class: 'fld query-target' }, [TOPIC_LABEL[kind] + ' ', topicInput]),
+        queryButton, optionsButton, detailButton, countSpan
+      ]), options
+    ])
+    queryButton.title = kind === 'rabbitmq' ? '只读取队头快照，读取后消息会 requeue' : kind === 'mqtt' ? '读取 retained 保留消息快照' : '按当前条件读取消息'
 
     /* —— 左表 + 右详情 —— */
     const columns = [
       { key: 'offset', title: 'OFFSET', num: true, width: '96px', render: (m) => m.offset != null ? fmt.num(m.offset) : escapeHtml(short(m.messageId ?? '—', 18)) },
-      { title: '时间', width: '158px', render: (m) => `<span style="font-family:var(--mono);font-size:12px">${escapeHtml(fmt.datetimeMs(m.timestamp))}</span>` },
-      { title: 'KEY', width: '108px', render: (m) => escapeHtml(short(m.key ?? '', 16)) },
-      { title: 'PAYLOAD 预览', mono: true, render: (m) => escapeHtml(preview80(m)) }
+      { title: '时间', width: '158px', render: (m) => `<span style="font-family:var(--mono);font-size:calc(var(--font-size-base, 13px) * 0.923077)">${escapeHtml(fmt.datetimeMs(m.timestamp))}</span>` },
+      { key: 'key', title: 'KEY', width: '140px', render: (m) => escapeHtml(short(m.key ?? '', 16)) },
+      { key: 'payload', title: 'PAYLOAD 预览', mono: true, width: '320px', render: (m) => escapeHtml(preview80(m)) }
     ]
     const grid = simpleGrid({
       columns,
       rowKey: (m) => m.__rid,
-      onRowClick: (m) => { selected = m; renderDetail(m) },
+      onRowClick: (m) => { selected = m; renderDetail(m); setDetailVisible(true) },
       onRowCtx: (e, m) => {
         selected = m; renderDetail(m)
         showMsgMenu(e, m)
@@ -116,15 +142,18 @@ export default {
     const resendBtn = el('button', { class: 'btn accent sm write', onclick: () => selected && openResend(selected) }, '↪ 重发…')
     const metaDiv = el('div', { class: 'meta' })
     const payloadPane = el('div', { class: 'payload-pane' })
-    const viewer = el('aside', { class: 'msg-viewer' }, [
-      el('div', { class: 'vh' }, ['消息详情', el('span', { class: 'grow' }), copyBtn, resendBtn]),
+    const viewer = el('aside', { class: 'msg-viewer', hidden: true }, [
+      el('div', { class: 'vh' }, ['消息详情', el('span', { class: 'grow' }), copyBtn, resendBtn, el('button', { class: 'btn ghost sm', 'aria-label': '关闭消息详情', onclick: () => { setDetailVisible(false); detailButton.focus() } }, '×')]),
       metaDiv,
       payloadPane
     ])
 
     const loading = el('div', { class: 'loading-bar', style: 'display:none' })
-    root.append(liveBar, filterBar, loading, el('div', { class: 'msg-split' }, [tablePane, viewer]))
-    root.appendChild(topicList)
+    root.append(liveBar, filterBar, requestState, loading, el('div', { class: 'msg-split' }, [tablePane, viewer]))
+    const getPreferences = () => ctx.store.ui.productivity.completion
+    const topicAssist = attachSuggestions(topicInput, { label: '消息目标建议', isActive: ctx.isActive, getPreferences, getItems: (value, caret) => namedSuggestions(value, caret, { names: topicNames, connection: conn, preferences: getPreferences() }) })
+    const removeQueryCommand = commands.register('mw.queryMessages', { element: root, isActive: () => !destroyed && !queryPending && ctx.isActive(), run: doQuery })
+    api.session.get('messages.topic').then(topic => { if (topic && !destroyed) { topicInput.value = topic; if (kind === 'kafka') loadPartitions(topic) } })
     renderEmptyDetail()
     syncLocate()
 
@@ -134,19 +163,22 @@ export default {
       try {
         const res = await api.mw('topics.list', {})
         const list = Array.isArray(res) ? res : (res?.topics ?? res?.items ?? [])
-        topicList.innerHTML = ''
+        if (destroyed) return
+        topicNames = []
         for (const t of list) {
           const name = typeof t === 'string' ? t : t?.name
-          if (name) topicList.appendChild(el('option', { value: name }))
+          if (name) topicNames.push(name)
         }
-      } catch (e) { api.toast(`Topic 列表加载失败：${e.message}`, 'error') }
+      } catch (e) { if (!destroyed) { requestState.hidden = false; requestState.textContent = `目标列表暂不可用，可直接输入：${e.message}` } }
     }
     async function loadPartitions(topic) {
+      const generation = ++partitionGeneration
       partsSel.innerHTML = ''
       partsSel.appendChild(el('option', { value: 'all' }, '全部'))
       if (!topic) return
       try {
         const res = await api.mw('topic.describe', { topic })
+        if (destroyed || generation !== partitionGeneration) return
         const n = Number(res?.partitions ?? res?.topic?.partitions ?? res?.partitionCount ?? 0)
         for (let i = 0; i < n; i++) partsSel.appendChild(el('option', { value: String(i) }, String(i)))
       } catch { /* 分区信息缺失不阻塞查询，保持「全部」 */ }
@@ -163,6 +195,7 @@ export default {
 
     /* —— 查询 —— */
     async function doQuery() {
+      if (destroyed || queryPending) return
       const topic = topicInput.value.trim()
       if (!topic) { api.toast(`请先填写 ${TOPIC_LABEL[kind]}`, 'warn'); return }
       const input = { topic, max: Number(maxSel.value), surface: ctx.mode }
@@ -179,32 +212,49 @@ export default {
         if (!textIn.value.trim()) { api.toast('请输入 MsgId', 'warn'); return }
         input.from = 'id'; input.messageId = textIn.value.trim()
       }
+      const generation = ++queryGeneration
+      queryPending = true
       loading.style.display = ''
+      queryButton.disabled = true
+      requestState.hidden = false
+      requestState.dataset.state = 'loading'
+      requestState.textContent = `正在读取 ${topic}…`
       try {
         const res = await api.mw('messages.query', input)
+        if (destroyed || generation !== queryGeneration) return
         const list = Array.isArray(res) ? res : (res?.messages ?? res?.items ?? [])
         rows = list.slice(0, MAX_ROWS)
         stampRids(rows)
         grid.update(rows)
+        requestState.textContent = rows.length ? `${topic} · 已读取 ${rows.length} 条` : `${topic} · 没有符合条件的消息`
+        requestState.dataset.state = 'complete'
         countSpan.textContent = rows.length ? `共 ${rows.length} 条` : ''
         if (rows.length) { selected = rows[0]; grid.setSelected(rows[0].__rid); renderDetail(rows[0]) }
         else { selected = null; renderEmptyDetail() }
       } catch (e) {
-        api.toast(e.message, 'error')
-        rows = []; grid.update([]); countSpan.textContent = ''; selected = null; renderEmptyDetail()
-      } finally { loading.style.display = 'none' }
+        if (destroyed || generation !== queryGeneration) return
+        requestState.textContent = `读取失败：${e.message}。已有结果已保留，可重新查询。`
+        requestState.dataset.state = 'error'
+      } finally { if (generation === queryGeneration) { queryPending = false; loading.style.display = 'none'; queryButton.disabled = false } }
     }
     function stampRids(list) {
       list.forEach((m, i) => { m.__rid = `${m.messageId ?? ''}|${m.offset ?? ''}|${m.timestamp ?? ''}|${i}` })
     }
 
     /* —— 详情面板 —— */
+    function setDetailVisible(visible) {
+      viewer.hidden = !visible
+      detailButton.setAttribute('aria-expanded', String(visible))
+    }
     function renderEmptyDetail() {
       selected = null
+      detailButton.disabled = true
+      setDetailVisible(false)
       metaDiv.innerHTML = '<span class="k">提示</span><span class="v" style="font-family:var(--font)">选择左侧消息查看详情</span>'
       payloadPane.innerHTML = ''
     }
     function renderDetail(m) {
+      detailButton.disabled = false
       metaDiv.innerHTML = ''
       const row = (k, vHtml) => { metaDiv.insertAdjacentHTML('beforeend', `<span class="k">${escapeHtml(k)}</span><span class="v">${vHtml}</span>`) }
       row('topic / partition', escapeHtml(String(m.topic ?? '—')) + (m.partition != null ? ` / ${escapeHtml(String(m.partition))}` : ''))
@@ -214,7 +264,7 @@ export default {
       if (m.key != null && m.key !== '') row('key', escapeHtml(String(m.key)))
       if (m.redelivered != null) row('redelivered', m.redelivered ? '是' : '否')
       if (m.payloadBytes != null) row('大小', escapeHtml(fmt.bytes(m.payloadBytes)))
-      const kvChips = (obj) => Object.entries(obj ?? {}).map(([k, v]) => chip(`${k}=${short(v, 36)}`)).join('') || '—'
+      const kvChips = (obj) => Object.entries(obj ?? {}).map(([k, v]) => chip(`${k}=${short(v, 36)}`, '', `${k}=${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)).join('') || '—'
       row('headers', kvChips(m.headers))
       row('properties', kvChips(m.properties))
       for (const [k, v] of Object.entries(m.extras ?? {})) row(k, escapeHtml(short(v, 80)))
@@ -238,7 +288,7 @@ export default {
       if (kind === 'rabbitmq') {
         bodyRows.push(el('div', { class: 'form-row' }, [
           el('label', {}, 'Routing Key'),
-          el('input', { type: 'text', value: String(m.key ?? ''), autocomplete: 'off' }),
+          el('input', { type: 'text', value: '', placeholder: '留空按目标队列名投递', autocomplete: 'off' }),
           el('div', { class: 'tip' }, '经默认交换机按队列名路由，routing key 留空则按目标队列名投递')
         ]))
       }
@@ -256,8 +306,7 @@ export default {
           if (!target) { api.toast('请填写目标', 'warn'); return }
           ok.disabled = true
           try {
-            const input = { topic: target, payload: payloadIn.value, headers: m.headers ?? undefined, properties: m.properties ?? undefined }
-            if (m.key != null && m.key !== '') input.key = String(m.key)
+            const input = { message: { ...m, payload: payloadIn.value }, targetTopic: target }
             if (kind === 'rabbitmq') input.routingKey = dlg.body.querySelectorAll('input')[1]?.value?.trim() ?? ''
             await api.mw('messages.resend', input)
             api.toast(`已重发到 ${target}`, 'success')
@@ -273,22 +322,26 @@ export default {
       if (tail) return
       const topic = topicInput.value.trim()
       if (!topic) { api.toast(`请先填写 ${TOPIC_LABEL[kind]}`, 'warn'); return }
-      const tailId = `tail-${Date.now()}`
+      const tailId = `tail-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       // 订阅必须先于 tail.start 建立，否则早期事件丢失
       const unsub = api.onMwData((data) => {
         if (!tail || data?.sessionKey !== ctx.sessionKey || data?.tailId !== tailId) return
         onTailMessage(data.message)
       })
-      tail = { tailId, unsub, paused: false, count: 0 }
+      tail = { tailId, unsub, paused: false, count: 0, topic }
+      const currentTail = tail
+      tailBtn.disabled = true
       try {
         const filter = (locate === 'key' && textIn.value.trim()) ? textIn.value.trim() : undefined
         await api.mw('tail.start', { sessionKey: ctx.sessionKey, tailId, topic, filter })
+        if (destroyed || tail !== currentTail) { await api.mw('tail.stop', { tailId }).catch(() => {}); return }
         liveBar.style.display = ''
         tailBtn.disabled = true
         updateLiveInfo(topic)
       } catch (e) {
-        unsub(); tail = null
-        api.toast(e.message, 'error')
+        unsub(); if (tail === currentTail) tail = null
+        tailBtn.disabled = false
+        if (!destroyed) { requestState.hidden = false; requestState.textContent = `监听失败：${e.message}`; requestState.dataset.state = 'error' }
       }
     }
     function onTailMessage(m) {
@@ -298,7 +351,7 @@ export default {
       if (rows.length > MAX_ROWS) rows.length = MAX_ROWS
       stampRids(rows)
       if (!tail.paused) grid.update(rows) // 暂停=只停渲染不清流
-      updateLiveInfo(topicInput.value.trim())
+      updateLiveInfo(tail.topic)
     }
     function updateLiveInfo(topic) {
       liveInfo.innerHTML = `正在实时监听 <b>${escapeHtml(topic)}</b> · 已接收 ${fmt.num(tail.count)} 条`
@@ -322,7 +375,7 @@ export default {
       }
     }
 
-    this.__stop = () => stopTail(true)
+    this.__stop = () => { destroyed = true; queryGeneration++; partitionGeneration++; removeQueryCommand(); topicAssist.destroy(); shortWindow.removeEventListener('change', syncOptions); return stopTail(true) }
   },
 
   destroy() {

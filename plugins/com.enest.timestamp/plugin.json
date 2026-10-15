@@ -12,8 +12,7 @@
   },
   "permissions": [
     "clipboard.write",
-    "shell.openExternal",
-    "fs.write"
+    "shell.openExternal"
   ],
   "window": {
     "width": 760,

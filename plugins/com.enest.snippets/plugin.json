@@ -13,8 +13,6 @@
   "permissions": [
     "clipboard.write",
     "hotkey",
-    "fs.read",
-    "fs.write",
     "contribute"
   ],
   "window": {

@@ -70,6 +70,15 @@ export async function runMarketScenario(page, id) {
     case 'com.enest.snippets':
       await click('.snippet')
       return '打开内置示例片段'
+    case 'com.enest.codex-pets':
+      await wait(() => document.querySelectorAll('.cp-card').length >= 3)
+      await fill('#g-q', '像素')
+      await page.locator('#g-search button[type=submit]').click()
+      await wait(() => document.querySelector('#g-count').textContent.includes('1'))
+      await fill('#g-q', '')
+      await page.locator('#g-search button[type=submit]').click()
+      await wait(() => document.querySelectorAll('.cp-card').length >= 3)
+      return '隔离演示数据画廊：搜索过滤后恢复三只演示宠物'
     default:
       return '真实初始界面；如有外部服务数据，仅使用隔离模拟数据'
   }

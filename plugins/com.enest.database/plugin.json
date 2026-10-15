@@ -16,9 +16,7 @@
     "db.schema",
     "notify",
     "clipboard.write",
-    "shell.openExternal",
-    "fs.read",
-    "fs.write"
+    "shell.openExternal"
   ],
   "contributes": {
     "settings": [

@@ -27,3 +27,28 @@ export function queryTemplates(driver, connection = {}) {
   if (driver === 'tdengine') return [{ label: '超级表按时间窗口聚合', text: 'SELECT _wstart, AVG(value)\nFROM stable_name\nWHERE ts >= NOW - 1h\nINTERVAL(1m);' }, { label: '查看超级表', text: 'SHOW STABLES;' }, { label: '查看子表与标签', text: 'SHOW TAGS FROM table_name;' }]
   return [{ label: '查询表数据', text: objectQuery(driver, { table: 'table_name', database: connection.database }) }, { label: '分组统计', text: 'SELECT category, COUNT(*) AS total\nFROM table_name\nGROUP BY category\nORDER BY total DESC;' }, { label: '关联查询', text: 'SELECT a.id, b.name\nFROM table_a AS a\nLEFT JOIN table_b AS b ON b.id = a.related_id\nWHERE a.id = 1;' }]
 }
+
+/** Review-only routine templates. Every line is commented; nothing can run as generated. */
+export function objectInvocationTemplate(driver, object, parameters) {
+  const type = String(object.type || object.objectType || '').toLowerCase()
+  if (!['procedure', 'function'].includes(type)) return '-- 此对象不是可调用的存储过程或函数；请查看其定义与属性。'
+  if (!['mysql', 'mariadb'].includes(driver)) return `-- 当前 ${String(driver).replace(/[\r\n]/g, ' ')} 驱动未提供此类对象的调用模板。`
+  if (!Array.isArray(parameters) || object.parametersKnown === false) return '-- 参数元数据未完整读取，无法安全生成调用模板。请先检查查看权限。'
+  if (!(object.name || object.objectName || object.table)) return '-- 对象名称缺失，请从连接树重新打开后再生成调用模板。'
+  const name = qualifiedName(driver, { database: object.database, schema: object.schema, table: object.name || object.objectName || object.table })
+  const args = parameters.filter(parameter => Number(parameter.position) !== 0).sort((a, b) => Number(a.position) - Number(b.position))
+  const lines = ['仅生成调用草稿，不会自动执行。', '过程和函数可能写入数据或产生外部副作用；先检查定义、参数、连接和事务。', '填写所有 <…> 占位符并逐行取消注释后，再由你决定执行。', '']
+  const bindings = args.map((parameter, index) => {
+    const direction = String(parameter.mode || 'IN').toUpperCase(), label = String(parameter.name || `参数${index + 1}`).replace(/[\r\n]/g, ' '), dataType = String(parameter.dataType || '未知类型').replace(/[\r\n]/g, ' ')
+    if (type === 'procedure' && ['OUT', 'INOUT'].includes(direction)) {
+      const variable = `@enest_arg_${index + 1}`
+      lines.push(`SET ${variable} = ${direction === 'OUT' ? 'NULL' : `<${label}: ${dataType}>`};  /* ${direction} ${label} */`)
+      return variable
+    }
+    return `<${label}: ${dataType}>`
+  })
+  lines.push(type === 'procedure' ? `CALL ${name}(${bindings.join(', ')});` : `SELECT ${name}(${bindings.join(', ')}) AS result;`)
+  const outputs = args.flatMap((parameter, index) => ['OUT', 'INOUT'].includes(String(parameter.mode).toUpperCase()) ? [`@enest_arg_${index + 1}`] : [])
+  if (type === 'procedure' && outputs.length) lines.push(`SELECT ${outputs.join(', ')};`)
+  return lines.flatMap(line => line.split(/\r?\n/)).map(line => `-- ${line}`).join('\n')
+}

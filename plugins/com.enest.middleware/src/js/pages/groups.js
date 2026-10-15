@@ -2,7 +2,7 @@
 import {
   fmt, chip, el, gate, lagBar, escapeHtml,
   simpleGrid, confirmDanger, infoDialog, showContextMenu
-} from '../components.js'
+} from '@mw/components.js'
 
 /* —— 表单原子（与 topics.js 同风格）—— */
 function fieldRow(label, input, tip) {
@@ -26,7 +26,6 @@ function stateChip(state) {
 }
 
 /* 模块级实例清理句柄：路由 destroy() 时回调（避免 this 绑定歧义） */
-let activeCleanup = null
 
 export default {
   id: 'groups',
@@ -73,11 +72,11 @@ export default {
         el('div', { class: 'big' }, '◐'),
         el('div', { style: 'max-width:420px;line-height:1.8;margin-bottom:6px' },
           '该 MQTT 连接未启用 EMQX 管理适配，无法列出客户端与订阅关系。'),
-        el('div', { style: 'color:var(--text-3);font-size:11.5px;margin-bottom:14px' },
+        el('div', { style: 'color:var(--text-3);font-size:calc(var(--font-size-base, 13px) * 0.884615);margin-bottom:14px' },
           clientsCap.reason || '编辑连接并填写 EMQX 管理端点后可获得客户端管理能力'),
         el('button', { class: 'btn', onclick: () => load() }, '⟳ 重试')
       ]))
-      activeCleanup = () => { destroyed = true }
+      this.__cleanup = () => { destroyed = true }
       return
     }
 
@@ -371,7 +370,7 @@ export default {
 
     buildGrid()
     load()
-    activeCleanup = () => { destroyed = true }
+    this.__cleanup = () => { destroyed = true }
   },
-  destroy() { activeCleanup?.(); activeCleanup = null }
+  destroy() { this.__cleanup?.(); this.__cleanup = null }
 }

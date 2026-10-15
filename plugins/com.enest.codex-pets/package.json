@@ -1,0 +1,18 @@
+{
+  "name": "com.enest.codex-pets",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.enest.codex-pets",
+    "pack": "node ../../scripts/pack-plugin.mjs com.enest.codex-pets"
+  },
+  "dependencies": {
+    "@enest/plugin-kit": "1.0.0",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

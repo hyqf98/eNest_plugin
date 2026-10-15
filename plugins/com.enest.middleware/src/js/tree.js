@@ -5,19 +5,23 @@
  * 底部 ⊕ 新建连接；#resizer-tree 拖宽持久化 store.ui.treeWidth
  */
 import { KIND_META, kindDot, envChip, showContextMenu, confirmDanger, escapeHtml } from './components.js'
-import { bindDockResize } from '@enest/plugin-kit/workbench'
 import api from './api.js'
 import store from './store.js'
-import { renderAll, activateWithPage, closeConnTab } from './tabs.js'
+import { renderAll, activateWithPage, closeConnTab, forgetSessionCaps, openSettings } from './tabs.js'
 import { forgetStatus } from './status.js'
 
 const KIND_ORDER = ['kafka', 'rabbitmq', 'mqtt', 'rocketmq']
 
 let resizeBound = false
+let searchText = ''
+let navigationMode = 'shell'
+let drawerOpen = false
 
 export function renderTree() {
   const root = document.getElementById('tree')
   if (!root) return
+  const focused = document.activeElement?.id === 'connection-search'
+  const selection = focused ? document.activeElement.selectionStart : null
   root.innerHTML = ''
 
   const head = document.createElement('div')
@@ -33,6 +37,15 @@ export function renderTree() {
   })
   head.append(headLabel, headAdd)
   root.appendChild(head)
+  const search = document.createElement('input')
+  search.id = 'connection-search'
+  search.type = 'search'
+  search.className = 'connection-search'
+  search.placeholder = '搜索连接、环境或类型'
+  search.setAttribute('aria-label', '搜索连接')
+  search.value = searchText
+  search.addEventListener('input', () => { searchText = search.value; renderTree() })
+  root.append(search)
 
   const scroll = document.createElement('div')
   scroll.className = 'tree-scroll'
@@ -44,12 +57,15 @@ export function renderTree() {
   }
 
   for (const kind of KIND_ORDER) {
-    const conns = groups.get(kind) || []
+    const conns = (groups.get(kind) || []).filter(conn => `${conn.name} ${conn.env || ''} ${conn.note || ''} ${kind}`.toLowerCase().includes(searchText.trim().toLowerCase()))
+    if (!conns.length) continue
     const collapsed = store.ui.collapsedGroups?.includes(kind)
     const group = document.createElement('div')
     group.className = 'tree-group'
 
-    const label = document.createElement('div')
+    const label = document.createElement('button')
+    label.type = 'button'
+    label.setAttribute('aria-expanded', String(!collapsed))
     label.className = 'g-label'
     label.style.cursor = 'pointer'
     label.title = collapsed ? '展开分组' : '折叠分组'
@@ -72,9 +88,10 @@ export function renderTree() {
   if (!store.connections.length) {
     const empty = document.createElement('div')
     empty.className = 'tree-group'
-    empty.innerHTML = '<div class="g-label" style="padding-left:8px">暂无连接 · 左下角新建</div>'
+    empty.innerHTML = '<div class="g-label" style="padding-left:8px">尚无连接，点击 ＋ 创建</div>'
     scroll.appendChild(empty)
   }
+  if (store.connections.length && !scroll.childElementCount) scroll.textContent = '没有匹配的连接'
   root.appendChild(scroll)
 
   const foot = document.createElement('div')
@@ -87,15 +104,22 @@ export function renderTree() {
     import('./connections.js').then(({ openConnectionDrawer }) => openConnectionDrawer())
   })
   foot.appendChild(newBtn)
+  const settings = document.createElement('button')
+  settings.className = 'new-btn'; settings.textContent = '⚙ 设置'; settings.dataset.openSettings = ''
+  settings.onclick = () => { closeNavigation(); openSettings() }
+  foot.append(settings)
   root.appendChild(foot)
 
   bindTreeResize()
+  if (focused) { search.focus(); search.setSelectionRange(selection, selection) }
 }
 
 function renderTreeItem(conn) {
   const item = document.createElement('button')
   item.type = 'button'
   item.className = 'tree-item' + (store.activeTab === conn.id ? ' on' : '')
+  item.dataset.connection = conn.id
+  item.setAttribute('aria-current', store.activeTab === conn.id ? 'true' : 'false')
   item.title = conn.note ? `${conn.name || conn.id} · ${conn.note}` : (conn.name || conn.id)
 
   const name = document.createElement('span')
@@ -122,7 +146,8 @@ function renderTreeItem(conn) {
   }
 
   item.addEventListener('click', () => {
-    if (store.openTab(conn.id)) renderAll()
+    activateWithPage(conn.id)
+    if (isCompact()) closeNavigation()
   })
   item.addEventListener('contextmenu', (e) => {
     e.preventDefault()
@@ -172,6 +197,7 @@ async function toggleReadOnly(conn) {
   const fresh = store.getConnection(conn.id)
   if (!fresh) return
   try {
+    forgetSessionCaps(conn.id)
     store.upsertConnection({ ...fresh, readOnly: !fresh.readOnly })
     renderTree()
     renderAll()
@@ -214,28 +240,89 @@ async function removeConnectionFlow(conn) {
   void api.toast(`已删除连接「${name}」`, 'success')
 }
 
-/** 树宽拖拽（#resizer-tree）持久化 store.ui.treeWidth；quick 模式固定窄树不拖 */
+/** Pointer capture keeps the splitter under the pointer; Escape restores its start width. */
 function bindTreeResize() {
   if (resizeBound) return
   const handle = document.getElementById('resizer-tree')
   const tree = document.getElementById('tree')
   if (!handle || !tree) return
   resizeBound = true
-  bindDockResize(handle, tree, {
-    min: 176,
-    max: 420,
-    onChange: (width) => store.setUi('treeWidth', Math.round(width))
+  let drag = null
+  const apply = width => {
+    const value = Math.min(360, Math.max(220, Math.round(width)))
+    tree.style.width = `${value}px`
+    handle.setAttribute('aria-valuenow', String(value))
+    return value
+  }
+  handle.setAttribute('aria-valuemin', '220')
+  handle.setAttribute('aria-valuemax', '360')
+  handle.addEventListener('pointerdown', event => {
+    if (isCompact() || event.button !== 0) return
+    drag = { x: event.clientX, width: tree.getBoundingClientRect().width, id: event.pointerId }
+    handle.setPointerCapture(event.pointerId)
+    handle.classList.add('active')
+    event.preventDefault()
+  })
+  handle.addEventListener('pointermove', event => { if (drag) apply(drag.width + event.clientX - drag.x) })
+  const end = cancelled => {
+    if (!drag) return
+    const current = drag
+    drag = null
+    if (cancelled) apply(current.width)
+    else store.setUi('treeWidth', tree.getBoundingClientRect().width)
+    handle.classList.remove('active')
+    if (handle.hasPointerCapture(current.id)) handle.releasePointerCapture(current.id)
+  }
+  handle.addEventListener('pointerup', () => end(false))
+  handle.addEventListener('pointercancel', () => end(true))
+  handle.addEventListener('lostpointercapture', () => end(true))
+  document.addEventListener('keydown', event => { if (drag && event.key === 'Escape') { event.preventDefault(); end(true) } })
+  handle.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const width = event.key === 'Home' ? 220 : event.key === 'End' ? 360 : tree.getBoundingClientRect().width + (event.key === 'ArrowRight' ? 10 : -10)
+    store.setUi('treeWidth', apply(width))
   })
 }
-
-/** 启动时应用持久化宽度（quick 模式交给 CSS 覆盖，不写 inline width） */
+function isCompact() { return navigationMode === 'quick' || window.innerWidth < 720 }
+function updateNavigation() {
+  const compact = isCompact()
+  const hidden = compact ? !drawerOpen : !!store.ui.navigationCollapsed
+  document.getElementById('app').classList.toggle('navigation-compact', compact)
+  document.getElementById('app').classList.toggle('navigation-hidden', hidden)
+  document.getElementById('app').classList.toggle('navigation-open', compact && !hidden)
+  const tree = document.getElementById('tree')
+  tree.inert = hidden
+  tree.setAttribute('aria-hidden', String(hidden))
+  document.getElementById('nav-toggle').setAttribute('aria-expanded', String(!hidden))
+  document.getElementById('nav-scrim').hidden = !compact || hidden
+}
+export function closeNavigation() {
+  if (!drawerOpen) return false
+  drawerOpen = false
+  updateNavigation()
+  document.getElementById('nav-toggle').focus()
+  return true
+}
+export function initializeNavigation(mode) {
+  navigationMode = mode
+  document.getElementById('nav-toggle').addEventListener('click', () => {
+    if (isCompact()) drawerOpen = !drawerOpen
+    else store.setUi('navigationCollapsed', !store.ui.navigationCollapsed)
+    updateNavigation()
+    if (drawerOpen) document.getElementById('connection-search')?.focus()
+  })
+  document.getElementById('nav-scrim').addEventListener('click', closeNavigation)
+  document.addEventListener('mw-navigation-changed', () => { renderTree(); updateNavigation() })
+  window.addEventListener('resize', updateNavigation)
+  document.getElementById('open-shell').addEventListener('click', () => api.openInShell())
+  updateNavigation()
+}
 export function applyTreeWidth(mode) {
+  navigationMode = mode
   const tree = document.getElementById('tree')
   if (!tree) return
-  if (mode === 'quick') {
-    tree.style.width = ''
-    return
-  }
-  const w = Number(store.ui.treeWidth)
-  if (Number.isFinite(w) && w >= 176 && w <= 420) tree.style.width = `${w}px`
+  tree.style.width = `${Math.max(220, Math.min(360, Number(store.ui.treeWidth) || 240))}px`
+  document.getElementById('open-shell').hidden = mode !== 'quick'
+  updateNavigation()
 }

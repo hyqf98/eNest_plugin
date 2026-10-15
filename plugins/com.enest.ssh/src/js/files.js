@@ -41,13 +41,14 @@ export class RemoteFiles {
     if (!session?.sessionId) { this.render(); return }
     if (path !== undefined && path !== state.path) { state.history.push(state.path); state.path = path; state.scrollTop = 0; state.filter = ''; state.expanded.clear(); state.children.clear(); state.selection.clear() }
     state.loading = true; state.error = ''; this.render()
+    state.requestSequence = sequence
     try {
       const result = await window.enest.ssh.sftp.list({ sessionId: session.sessionId, path: state.path })
-      if (sequence !== this.sequence) return
+      if (sequence !== state.requestSequence) return
       state.entries = result.map(x => ({ ...x, path: x.path || join(state.path, x.name) }))
       state.children.clear(); state.expanded.clear(); state.selection.retain(state.entries.map(x => x.path))
-    } catch (error) { state.error = error.message }
-    finally { if (sequence === this.sequence) { state.loading = false; this.render() } }
+    } catch (error) { if (sequence === state.requestSequence) state.error = error.message }
+    finally { if (sequence === state.requestSequence) { state.loading = false; if (this.state === state) this.render() } }
   }
   rows(entries = this.state.entries, depth = 0) {
     const out = []
@@ -71,8 +72,9 @@ export class RemoteFiles {
       ${this.exportId ? '<div class="wb-export" draggable="true">文件已准备好 · 从这里拖到桌面<button data-act="export-dismiss">×</button></div>' : ''}
       ${this.local ? `<div class="wb-local-title"><strong>本地目录</strong><button data-act="local">更换</button><button data-act="local-close">×</button></div><div class="wb-local-path">${escape(this.local.displayPath)}</div><div class="wb-local-list" tabindex="0"><span>将远程所选文件拖到这里下载</span></div>` : ''}`
     this.el.querySelectorAll('[data-act]').forEach(button => button.onclick = () => void this.action(button.dataset.act).catch(error => this.ctx.error(error)))
-    const list = this.el.querySelector('.wb-file-list'); list.scrollTop = state.scrollTop || 0
-    list.onscroll = () => { state.scrollTop = list.scrollTop; if (rows.length > 250 && Math.abs(Math.max(0, Math.floor(list.scrollTop / 29) - 12) - start) > 8) this.render() }
+    const list = this.el.querySelector('.wb-file-list'); list.scrollTop = state.scrollTop || 0; list.scrollLeft = state.scrollLeft || 0
+    list.querySelectorAll('[data-path]').forEach(row => { row.title = row.dataset.path })
+    list.onscroll = () => { state.scrollTop = list.scrollTop; state.scrollLeft = list.scrollLeft; if (rows.length > 250 && Math.abs(Math.max(0, Math.floor(list.scrollTop / 29) - 12) - start) > 8) this.render() }
     const filter = this.el.querySelector('[data-file-filter]'); filter.oninput = () => { const position = filter.selectionStart; state.filter = filter.value; state.scrollTop = 0; this.render(); const next = this.el.querySelector('[data-file-filter]'); next.focus(); next.setSelectionRange(position, position) }
     this.el.querySelector('.wb-file-path input').onkeydown = event => { if (event.key === 'Enter') { event.stopPropagation(); void this.refresh(event.target.value.trim() || '.') } }
     for (const row of this.el.querySelectorAll('[data-path]')) {
@@ -122,7 +124,7 @@ export class RemoteFiles {
     if (action === 'local-close') { this.local = null; this.render(); return }
     if (action === 'local') { const handles = await window.enest.localFiles.pick({ kind: 'directory', access: 'write' }); if (handles?.[0]) { this.local = handles[0]; this.render() } return }
     if (action === 'export-dismiss') { this.exportId = null; this.render(); return }
-    if (action === 'upload') { const handles = await window.enest.localFiles.pick({ kind: 'any', multiple: true }); return this.upload(handles || [], state.path) }
+    if (action === 'upload') { const destination = state.path; const handles = await window.enest.localFiles.pick({ kind: 'any', multiple: true }); return this.upload(handles || [], destination, sessionId) }
     if (action === 'download') return this.download(selected.map(x => x.path))
     if (action === 'drag') { this.ctx.message('正在准备拖出，下载进度见传输面板'); const result = await request('files.prepareDrag', { paths: selected.map(x => x.path) }); this.exportId = result.exportId; this.render(); return }
     if (action === 'new' || action === 'new-file') {
@@ -162,7 +164,7 @@ export class RemoteFiles {
       return this.refresh()
     }
     if (action === 'properties') {
-      const items = await Promise.all(selected.map(x => this.request('files.stat', { path: x.path })))
+      const items = await Promise.all(selected.map(x => request('files.stat', { path: x.path })))
       this.ctx.inspect('文件属性', items.map(x => `${x.path}\n${x.type} · ${size(x.size)} · ${new Date(x.mtime).toLocaleString()}\n权限 ${(x.mode & 0o7777).toString(8)} · uid ${x.uid ?? '—'} · gid ${x.gid ?? '—'}`).join('\n\n')); return
     }
   }
@@ -185,8 +187,7 @@ export class RemoteFiles {
     for (const path of paths) await this.request('transfer.remoteCopy', { sessionId, sourceSessionId, path, destination: join(destination, path.split('/').filter(Boolean).at(-1)) })
     this.ctx.transfers(); this.ctx.message(`已添加 ${paths.length} 项跨服务器复制任务，源文件保留`)
   }
-  async upload(handles, destination) {
-    const sessionId = this.session?.sessionId
+  async upload(handles, destination, sessionId = this.session?.sessionId) {
     if (!sessionId || !handles.length) return
     for (const handle of handles) await this.request('transfer.upload', { sessionId, localHandleId: handle.id, destination: join(destination, handle.name) })
     this.ctx.transfers(); this.ctx.message(`已添加 ${handles.length} 项上传任务`)
@@ -201,6 +202,7 @@ export class RemoteFiles {
   }
   async drop(event) {
     if (!this.session?.sessionId) throw new Error('请先连接服务器')
+    const sessionId = this.session.sessionId
     const row = event.target.closest('[data-path]'), entry = row ? this.rows().find(x => x.path === row.dataset.path) : null
     const destination = entry?.type === 'dir' ? entry.path : this.state.path
     const remote = event.dataTransfer.getData('application/x-enest-remote')
@@ -212,7 +214,7 @@ export class RemoteFiles {
     const local = event.dataTransfer.getData('application/x-enest-local')
     if (local) { const handle = JSON.parse(local); return this.upload([handle], destination) }
     const handles = await window.enest.localFiles.fromDrop(Array.from(event.dataTransfer.files || []))
-    return this.upload(handles, destination)
+    return this.upload(handles, destination, sessionId)
   }
   menu(event) {
     const row = event.target.closest('[data-path]'), ordered = this.rows().map(x => x.path)

@@ -8,8 +8,7 @@
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "permissions": [
-    "notify",
-    "timer.background"
+    "notify"
   ],
   "engines": {
     "enest": ">=0.1.0"

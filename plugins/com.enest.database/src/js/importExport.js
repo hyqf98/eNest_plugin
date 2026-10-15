@@ -1,113 +1,41 @@
+import { runDatabaseTask } from './operationTask.js'
 /**
  * importExport.js — 结果导出 CSV/JSON/SQL/Markdown + CSV 导入向导（DB-G）
  */
 import { saveTextFile, clipboardWrite, toast, DbHost } from './api.js'
-import { escape, sqlLiteral, quoteIdent } from './resultGrid.js'
+import { escape } from './resultGrid.js'
 import { enhanceSelect } from './dropdown.js'
+import { createDialog } from '@enest/plugin-kit/workbench'
 
-export function toCsv(cols, rows, { bom = true, delimiter = ',' } = {}) {
-  const esc = (v) => {
-    if (v === null || v === undefined) return ''
-    const s = typeof v === 'object' ? JSON.stringify(v) : String(v)
-    if (s.includes(delimiter) || s.includes('"') || s.includes('\n')) {
-      return '"' + s.replace(/"/g, '""') + '"'
-    }
-    return s
-  }
-  const lines = [cols.map(esc).join(delimiter)]
-  for (const r of rows) lines.push(r.map(esc).join(delimiter))
-  return (bom ? '\uFEFF' : '') + lines.join('\n')
-}
+import { toCsv, toJson, toSql, toMarkdown, toTsv, buildExport } from './exportFormats.js'
+export { toCsv, toJson, toSql, toMarkdown, toTsv, buildExport } from './exportFormats.js'
 
-export function toJson(cols, rows, { nullAsNull = true } = {}) {
-  const arr = rows.map((r) => {
-    const o = {}
-    cols.forEach((c, i) => {
-      let v = r[i]
-      if (v === undefined) v = null
-      if (!nullAsNull && v === null) v = ''
-      o[c] = v
-    })
-    return o
-  })
-  return JSON.stringify(arr, null, 2)
-}
-
-export function toSql(cols, rows, tableRef, { transaction = true, batchSize = 100 } = {}) {
-  const parts = [tableRef?.database, tableRef?.schema, tableRef?.table].filter(Boolean)
-  const t = parts.length ? parts.map((p) => quoteIdent(p)).join('.') : quoteIdent('exported_table')
-  const lines = []
-  if (transaction) lines.push('BEGIN;')
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const chunk = rows.slice(i, i + batchSize)
-    const values = chunk
-      .map((r) => `(${r.map((v) => sqlLiteral(v)).join(', ')})`)
-      .join(',\n  ')
-    lines.push(`INSERT INTO ${t} (${cols.map(quoteIdent).join(', ')}) VALUES\n  ${values};`)
-  }
-  if (transaction) lines.push('COMMIT;')
-  return lines.join('\n')
-}
-
-export function toMarkdown(cols, rows) {
-  const cell = (v) => {
-    if (v === null || v === undefined) return 'NULL'
-    return String(v).replace(/\|/g, '\\|').replace(/\n/g, ' ')
-  }
-  const head = `| ${cols.map(cell).join(' | ')} |`
-  const sep = `| ${cols.map(() => '---').join(' | ')} |`
-  const body = rows.map((r) => `| ${r.map(cell).join(' | ')} |`).join('\n')
-  return [head, sep, body].join('\n')
-}
-
-export function toTsv(cols, rows) {
-  return toCsv(cols, rows, { bom: false, delimiter: '\t' })
-}
-
-export function buildExport(format, cols, rows, tableRef, uiPrefs = {}) {
-  switch (format) {
-    case 'csv':
-      return { filename: `result-${Date.now()}.csv`, content: toCsv(cols, rows, { bom: uiPrefs.exportBom !== false }) }
-    case 'json':
-      return { filename: `result-${Date.now()}.json`, content: toJson(cols, rows) }
-    case 'sql':
-      return { filename: `result-${Date.now()}.sql`, content: toSql(cols, rows, tableRef) }
-    case 'md':
-    case 'markdown':
-      return { filename: `result-${Date.now()}.md`, content: toMarkdown(cols, rows) }
-    case 'tsv':
-      return { filename: `result-${Date.now()}.tsv`, content: toTsv(cols, rows) }
-    default:
-      return { filename: 'result.txt', content: toCsv(cols, rows) }
-  }
-}
-
-export async function exportResult(format, cols, rows, tableRef, uiPrefs) {
+export async function exportResult(format, cols, rows, tableRef, uiPrefs, { file = false } = {}) {
   if (!cols?.length && !rows?.length) {
     await toast('没有可导出的数据', 'warn')
     return { ok: false }
   }
   const { filename, content } = buildExport(format, cols, rows, tableRef, uiPrefs)
-  if (format === 'tsv') {
-    await clipboardWrite(content)
+  if (format === 'tsv' && !file) {
+    if (await clipboardWrite(content) === false) throw new Error('复制失败，请检查剪贴板权限后重试')
     await toast('已复制 TSV', 'success')
     return { ok: true, via: 'clipboard' }
   }
   return saveTextFile(filename, content)
 }
 
-export async function copyResult(format, cols, rows) {
+export async function copyResult(format, cols, rows, tableRef, options = {}) {
   if (!cols?.length && !rows?.length) {
     await toast('没有可复制的数据', 'warn')
     return
   }
   let text
-  if (format === 'tsv') text = toTsv(cols, rows)
+  if (format === 'tsv') text = toTsv(cols, rows, { headers: options.headers !== false })
   else if (format === 'json') text = toJson(cols, rows)
-  else if (format === 'sql') text = toSql(cols, rows, null)
+  else if (format === 'sql') text = toSql(cols, rows, tableRef, options)
   else if (format === 'md') text = toMarkdown(cols, rows)
   else text = toCsv(cols, rows, { bom: false })
-  await clipboardWrite(text)
+  if (await clipboardWrite(text) === false) throw new Error('复制失败，请检查剪贴板权限后重试')
   await toast(`已复制 ${format.toUpperCase()}`, 'success')
 }
 
@@ -161,188 +89,90 @@ export function parseCsv(text, { delimiter = ',', hasHeader = true } = {}) {
   return { header, rows: rows.filter((r) => r.some((c) => c !== '')) }
 }
 
-/** CSV 导入向导（G2.1 最小：粘贴 / 选文件 → 预览 → 执行） */
-export function createImportWizard(root, ctx = {}) {
-  const prefillTable = ctx.defaultTable || ''
-  root.innerHTML = `
-    <div class="modal-mask">
-      <div class="modal">
-        <div class="modal-head">
-          <strong>CSV 导入</strong>
-          <button type="button" class="btn ghost" data-act="close">关闭</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-row">
-            <label>目标表</label>
-            <input data-el="table" placeholder="库名.表名" value="${escape(prefillTable)}" />
-          </div>
-          <div class="form-row">
-            <label>分隔符</label>
-            <select data-el="delim">
-              <option value=",">逗号 ,</option>
-              <option value=";">分号 ;</option>
-              <option value="\\t">制表符 Tab</option>
-            </select>
-            <label class="check"><input type="checkbox" data-el="hasHeader" checked /> 首行是表头</label>
-            <label class="check"><input type="checkbox" data-el="upsert" /> 存在即更新</label>
-          </div>
-          <div class="form-row">
-            <label>CSV 文本 / 预览</label>
-            <div class="row">
-              <button type="button" class="btn" data-act="pick-csv" title="选择 CSV 文件">选择文件…</button>
-              <span class="muted sm" data-el="fileName"></span>
-            </div>
-            <textarea data-el="csv" rows="8" placeholder="粘贴 CSV 或选择文件"></textarea>
-            <input type="hidden" data-el="fileHandleId" value="" />
-          </div>
-          <div class="form-row">
-            <button type="button" class="btn" data-act="preview">预览</button>
-            <button type="button" class="btn primary" data-act="run">执行导入</button>
-            <span class="hint" data-el="hint"></span>
-          </div>
-          <pre class="preview" data-el="preview"></pre>
-        </div>
-      </div>
+/** CSV 导入：选择来源、确认预览，再执行固定目标的导入任务。 */
+export function createImportWizard(_root, ctx = {}) {
+  const modal = createDialog({ title: 'CSV 导入', className: 'wb-import-dialog', content: `
+    <p class="muted">选择来源并预览数据，确认目标表后执行导入。</p>
+    <div class="form-grid">
+      <label>目标表<input data-el="table" placeholder="Schema.表名" value="${escape(ctx.defaultTable || '')}" /></label>
+      <label>分隔符<select data-el="delim"><option value=",">逗号 ,</option><option value=";">分号 ;</option><option value="tab">制表符 Tab</option></select></label>
     </div>
-  `
-  const $ = (n) => root.querySelector(`[data-el=${n}]`)
-  const hint = $('hint')
+    <div class="form-row row">
+      <label class="check"><input type="checkbox" data-el="hasHeader" checked /> 首行是表头</label>
+      <label class="check"><input type="checkbox" data-el="upsert" /> 存在即更新</label>
+    </div>
+    <div class="form-row"><label for="db-import-csv">CSV 文本</label>
+      <div class="row"><button type="button" class="btn" data-act="pick-csv">选择文件…</button><span class="muted sm" data-el="fileName"></span></div>
+      <textarea id="db-import-csv" data-el="csv" rows="7" placeholder="粘贴 CSV 或选择文件"></textarea>
+      <input type="hidden" data-el="fileHandleId" value="" />
+    </div>
+    <div class="form-actions"><button type="button" class="btn" data-act="preview">预览数据</button><span class="spacer"></span><button type="button" class="btn primary" data-act="run" disabled>确认导入</button></div>
+    <p class="hint" data-el="hint" role="status">尚未预览</p><pre class="preview" data-el="preview" aria-label="导入预览"></pre>` })
+  const root = modal.body, $ = (name) => root.querySelector(`[data-el=${name}]`)
+  const hint = $('hint'), run = root.querySelector('[data-act=run]')
+  const close = () => modal.close()
+  let previewSignature = '', busy = false
   enhanceSelect($('delim'))
-  const close = () => {
-    root.innerHTML = ''
-  }
-  root.querySelector('[data-act=close]')?.addEventListener('click', close)
-
-  const readDelim = () => ($('delim').value === '\\t' ? '\t' : $('delim').value)
-
-  root.querySelector('[data-act=pick-csv]')?.addEventListener('click', async () => {
+  const read = () => ({ table: $('table').value.trim(), csvText: $('csv').value, fileHandleId: $('fileHandleId').value.trim(), delimiter: $('delim').value === 'tab' ? '\t' : $('delim').value, hasHeader: $('hasHeader').checked, conflict: $('upsert').checked ? 'upsert' : 'insert' })
+  const invalidate = () => { previewSignature = ''; run.disabled = true; hint.textContent = '来源或选项已修改，请重新预览' }
+  const available = () => { if (!ctx.sessionKey || ctx.isCurrent?.() === false) throw new Error('连接已断开，请重新连接后打开导入') }
+  const payloadFor = (input) => ({ sessionKey: ctx.sessionKey, table: parseTableRef(input.table), options: { delimiter: input.delimiter, hasHeader: input.hasHeader, conflict: input.conflict }, ...(input.csvText ? { csvText: input.csvText } : { fileHandleId: input.fileHandleId }) })
+  const setBusy = (value) => { busy = value; root.querySelectorAll('input,textarea,select,button').forEach(element => { element.disabled = value }); run.disabled = value || !previewSignature }
+  root.addEventListener('input', invalidate)
+  root.addEventListener('change', invalidate)
+  root.querySelector('[data-act=pick-csv]').onclick = async () => {
+    if (busy) return
     try {
       const picked = await DbHost.pickImportFile()
-      const handleId = picked?.id
-      if (!handleId) {
-        hint.textContent = '未选择文件'
-        return
-      }
-      $('fileHandleId').value = handleId
-      $('fileName').textContent = picked.name
-      hint.textContent = '文件已选'
-    } catch (e) {
-      hint.textContent = String(e.message || e).slice(0, 80)
-    }
-  })
-
-  root.querySelector('[data-act=preview]')?.addEventListener('click', async () => {
+      if (!picked?.id || !modal.dialog.open) return
+      $('fileHandleId').value = picked.id; $('fileName').textContent = picked.name
+      $('csv').value = ''; invalidate()
+    } catch (error) { hint.textContent = String(error.message || error) }
+  }
+  root.querySelector('[data-act=preview]').onclick = async () => {
+    if (busy) return
+    const input = read(), signature = JSON.stringify(input)
+    previewSignature = ''; run.disabled = true
+    if (!input.table || (!input.csvText && !input.fileHandleId)) { hint.textContent = '请填写目标表，并粘贴 CSV 或选择文件'; return }
+    setBusy(true); hint.textContent = '正在预览…'; $('preview').textContent = ''
     try {
-      const text = $('csv').value
-      const fileHandleId = $('fileHandleId').value.trim()
-      const delim = readDelim()
-      const tableName = $('table').value.trim()
-      const hasHeader = $('hasHeader').checked
-      if (!text && !fileHandleId) {
-        hint.textContent = '请粘贴 CSV 或选择文件'
-        return
+      available()
+      const payload = payloadFor(input); payload.options.sampleRows = 20
+      const result = await DbHost.importPreview(payload)
+      if (!modal.dialog.open || JSON.stringify(read()) !== signature) return
+      available()
+      const lines = []
+      if (result?.columns?.length) lines.push(result.columns.join(' | '))
+      if (result?.sampleRows?.length) lines.push(...result.sampleRows.slice(0, 20).map(row => row.map(value => value == null ? 'NULL' : String(value)).join(' | ')))
+      if (result?.sqlPreview?.length) lines.push('', ...result.sqlPreview.slice(0, 3))
+      if (!lines.length && input.csvText) {
+        const parsed = parseCsv(input.csvText, input)
+        lines.push(parsed.header.join(' | '), ...parsed.rows.slice(0, 20).map(row => row.join(' | ')))
       }
-      if (text) {
-        const parsed = parseCsv(text, { delimiter: delim, hasHeader })
-        const sample = parsed.rows.slice(0, 20)
-        $('preview').textContent =
-          parsed.header.join(' | ') + '\n' + sample.map((r) => r.join(' | ')).join('\n')
-        hint.textContent = `${parsed.rows.length} 行 · ${parsed.header.length} 列`
-      }
-      if (!tableName) {
-        hint.textContent = (hint.textContent ? hint.textContent + ' · ' : '') + '请填写目标表'
-        return
-      }
-      if (ctx.sessionKey && ctx.hostReady) {
-        try {
-          const payload = {
-            sessionKey: ctx.sessionKey,
-            table: parseTableRef(tableName),
-            options: { delimiter: delim, hasHeader, sampleRows: 20 }
-          }
-          if (text) payload.csvText = text
-          else if (fileHandleId) payload.fileHandleId = fileHandleId
-          const res = await DbHost.importPreview(payload)
-          if (res) {
-            const lines = []
-            if (res.columns?.length) lines.push(res.columns.join(' | '))
-            if (res.sampleRows?.length) {
-              lines.push(...res.sampleRows.slice(0, 8).map((r) => (r || []).join(' | ')))
-            }
-            if (res.sqlPreview?.length) lines.push('', ...res.sqlPreview.slice(0, 3))
-            if (lines.length) {
-              $('preview').textContent =
-                ($('preview').textContent ? $('preview').textContent + '\n\n' : '') + lines.join('\n')
-            }
-            hint.textContent = `${res.totalRowsEstimate ?? '?'} 行 · 预览就绪`
-          }
-        } catch (e) {
-          hint.textContent += ` · ${String(e.message || e).slice(0, 80)}`
-        }
-      }
-    } catch (e) {
-      toast(String(e.message || e).slice(0, 120), 'error')
-    }
-  })
-
-  root.querySelector('[data-act=run]')?.addEventListener('click', async () => {
-    const tableName = $('table').value.trim()
-    if (!tableName) {
-      toast('请填写目标表', 'warn')
-      return
-    }
-    const text = $('csv').value
-    const fileHandleId = $('fileHandleId').value.trim()
-    if (!text && !fileHandleId) {
-      toast('请粘贴 CSV 或选择文件', 'warn')
-      return
-    }
-    const delim = readDelim()
-    const options = {
-      delimiter: delim,
-      hasHeader: $('hasHeader').checked,
-      conflict: $('upsert').checked ? 'upsert' : 'insert'
-    }
+      $('preview').textContent = lines.join('\n')
+      previewSignature = signature
+      hint.textContent = `${result?.totalRowsEstimate ?? '?'} 行 · 预览就绪 · 目标 ${input.table}`
+    } catch (error) { hint.textContent = `预览失败：${String(error.message || error).slice(0, 160)}` }
+    finally { setBusy(false) }
+  }
+  run.onclick = async () => {
+    if (busy) return
+    const input = read()
+    if (!previewSignature || previewSignature !== JSON.stringify(input)) { invalidate(); return }
+    setBusy(true); hint.textContent = '正在导入…'
     try {
-      if (!ctx.sessionKey) {
-        toast('请先连接数据库', 'warn')
-        return
-      }
-      const payload = {
-        sessionKey: ctx.sessionKey,
-        table: parseTableRef(tableName),
-        options,
-        confirmed: true
-      }
-      if (text) payload.csvText = text
-      else payload.fileHandleId = fileHandleId
-      const res = await DbHost.importRun(payload)
-      const failed = res?.failed || 0
-      toast(
-        res
-          ? `导入完成 · 成功 ${res.inserted ?? 0}${failed ? ` · 失败 ${failed}` : ''}`
-          : '导入完成',
-        failed ? 'warn' : 'success'
-      )
-      if (failed && res?.errors?.length) {
-        $('preview').textContent = res.errors.slice(0, 5).join('\n')
-        return
-      }
-      close()
-    } catch (e) {
-      const msg = String(e.message || e)
-      const lag = /尚未就绪|功能未就绪|unknown method|permission denied/i.test(msg)
-      toast(lag ? '导入暂不可用' : msg.slice(0, 120), lag ? 'warn' : 'error')
-      // 本地预览兜底（粘贴文本时）
-      if (text) {
-        const parsed = parseCsv(text, { delimiter: delim, hasHeader: options.hasHeader })
-        $('preview').textContent =
-          '（仅本地预览）\n' +
-          toSql(parsed.header, parsed.rows, parseTableRef(tableName)).slice(0, 4000)
-      }
-    }
-  })
-
+      available()
+      const result = await runDatabaseTask({ kind: 'import', sessionKey: ctx.sessionKey, consoleId: ctx.consoleId, editorId: ctx.editorId, tabId: ctx.tabId }, () => DbHost.importRun({ ...payloadFor(input), confirmed: true }))
+      const failed = result?.failed || 0
+      await toast(`导入完成 · 成功 ${result?.inserted ?? 0}${failed ? ` · 失败 ${failed}` : ''}`, failed ? 'warn' : 'success')
+      previewSignature = ''
+      if (failed) {
+        hint.textContent = '部分数据导入失败，请检查后重新预览'
+        $('preview').textContent = (result.errors || []).slice(0, 5).join('\n')
+      } else close()
+    } catch (error) { hint.textContent = `导入失败：${String(error.message || error).slice(0, 160)}` }
+    finally { setBusy(false) }
+  }
   return { close, open: () => {} }
 }
 

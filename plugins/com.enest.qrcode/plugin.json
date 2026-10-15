@@ -12,9 +12,7 @@
     "clipboard.write",
     "clipboard.readImage",
     "clipboard.writeImage",
-    "shell.openExternal",
-    "fs.read",
-    "fs.write"
+    "shell.openExternal"
   ],
   "engines": {
     "enest": ">=0.1.0"

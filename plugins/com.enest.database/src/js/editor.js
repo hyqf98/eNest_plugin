@@ -3,14 +3,31 @@
  * textarea + 高亮层叠加；补全浮层；快捷键
  */
 import { highlightHtml, statementAtCursor } from './tokenizer.js'
+import { resolveExecutionRange } from './executionRange.js'
 import {
   requestCompletion,
+  ensureCompletionColumns,
+  validateCompletionItem,
   filterItems,
   applyCompletionItem,
-  kindMeta
+  kindMeta, completionContextKey, getCompletionBehavior
 } from './completion.js'
 import { state, activeSession, activeEditor, updateSessionEditorSql } from './store.js'
 import { toast } from './api.js'
+
+export const projectionSources = ['projection', 'columnSet']
+export const completionTriggerCharacters = ['.', ' ', '*', ',', '(', '=']
+export const filterCompletionSources = (items = [], sources) => sources?.length ? items.filter(item => sources.some(source => source === 'queryTemplate' ? item.id?.startsWith('template:') : source === item.source)) : items
+
+/** Keep the candidate's name, type and description inside the same compact row. */
+export function completionPresentation(item) {
+  if (item.presentation) return item.presentation
+  if (projectionSources.includes(item.source) || item.kind === 'snippet') {
+    const sql = item.editPlan?.text || item.insertText || ''
+    return { type: '', description: sql.replace(/\s+/g, ' ').trim() || item.detail || '' }
+  }
+  return { type: '', description: item.detail || item.doc || '' }
+}
 
 /** 补全列表 label 渲染：按 _matchRanges 高亮模糊命中的字符 */
 function highlightLabel(it) {
@@ -25,6 +42,36 @@ function highlightLabel(it) {
   return out
 }
 
+export function newlineEdit(value, start, end = start) {
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1, before = value.slice(lineStart, start)
+  const indent = before.match(/^[\t ]*/)[0], opening = /[([{]\s*$/.test(before)
+  const closing = /^\s*[)\]}]/.test(value.slice(end))
+  const nextIndent = indent + (opening ? '  ' : '')
+  const text = '\n' + nextIndent + (opening && closing ? '\n' + indent : '')
+  return { start, end, text, cursor: start + 1 + nextIndent.length }
+}
+
+export function indentEdit(value, start, end, direction = 1) {
+  if (start === end && direction > 0) return { start, end, text: '  ', selectionStart: start + 2, selectionEnd: start + 2 }
+  const from = value.lastIndexOf('\n', start - 1) + 1
+  const last = end > start && value[end - 1] === '\n' ? end - 1 : end
+  let to = value.indexOf('\n', last); if (to < 0) to = value.length
+  const lines = value.slice(from, to).split('\n'), offsets = []
+  const text = lines.map(line => { const removed = direction < 0 ? (line.match(/^(?: {1,2}|\t)/)?.[0].length || 0) : 0; offsets.push(direction > 0 ? 2 : -removed); return direction > 0 ? '  ' + line : line.slice(removed) }).join('\n')
+  const shiftStart = Math.max(from, start + offsets[0]), shiftEnd = Math.max(shiftStart, end + offsets.reduce((a, b) => a + b, 0))
+  return { start: from, end: to, text, selectionStart: shiftStart, selectionEnd: shiftEnd }
+}
+
+export function commentEdit(value, start, end, prefix = '--') {
+  const from = value.lastIndexOf('\n', start - 1) + 1
+  const last = end > start && value[end - 1] === '\n' ? end - 1 : end
+  let to = value.indexOf('\n', last); if (to < 0) to = value.length
+  const lines = value.slice(from, to).split('\n'), remove = lines.every(line => !line.trim() || line.trimStart().startsWith(prefix))
+  const updated = lines.map(line => { if (!line.trim()) return line; const indentation = line.match(/^[\t ]*/)[0], content = line.slice(indentation.length); return remove ? indentation + content.slice(prefix.length).replace(/^ /, '') : indentation + prefix + ' ' + content })
+  const text = updated.join('\n'), firstDelta = updated[0].length - lines[0].length
+  return { start: from, end: to, text, selectionStart: Math.max(from, start + firstDelta), selectionEnd: Math.max(from, end + text.length - (to - from)) }
+}
+
 export class SqlEditor {
   constructor(root, opts = {}) {
     this.root = root
@@ -35,8 +82,10 @@ export class SqlEditor {
     this.getSessionKey = opts.getSessionKey || (() => '')
     this.getDialect = opts.getDialect || (() => 'mysql')
     this.getCompletionScope = opts.getCompletionScope || (() => ({}))
+    this.completionSequence = 0
     this.completionTimer = null
     this.completionState = null
+    this.completionAcceptanceSequence = 0
     this.dialect = 'mysql'
     this.perfMode = false
     this._build()
@@ -54,8 +103,7 @@ export class SqlEditor {
           </div>
           <div class="current-line" data-el="curline"></div>
         </div>
-        <div class="completion-popup" data-el="popup" hidden></div>
-        <div class="completion-doc" data-el="doc" hidden></div>
+        <div class="completion-popup" data-el="popup" role="listbox" aria-label="SQL 补全" hidden></div>
       </div>
     `
     this.el = {
@@ -63,8 +111,7 @@ export class SqlEditor {
       hl: this.root.querySelector('[data-el=hl]'),
       ta: this.root.querySelector('[data-el=ta]'),
       curline: this.root.querySelector('[data-el=curline]'),
-      popup: this.root.querySelector('[data-el=popup]'),
-      doc: this.root.querySelector('[data-el=doc]')
+      popup: this.root.querySelector('[data-el=popup]')
     }
   }
 
@@ -74,7 +121,9 @@ export class SqlEditor {
 
   _bind() {
     const ta = this.el.ta
-    ta.addEventListener('input', () => this._handleInput())
+    ta.addEventListener('input', event => this._handleInput(event))
+    ta.addEventListener('compositionstart', () => { this.composing = true; this.closeCompletion() })
+    ta.addEventListener('compositionend', () => { this.composing = false; this._scheduleCompletion(false) })
     ta.addEventListener('scroll', () => this._syncScroll())
     ta.addEventListener('keyup', (e) => {
       if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
@@ -101,7 +150,7 @@ export class SqlEditor {
       const item = e.target.closest('[data-idx]')
       if (!item) return
       e.preventDefault()
-      this.acceptCompletion(Number(item.dataset.idx))
+      void this.acceptCompletion(Number(item.dataset.idx)).catch(error => toast(error.message, 'warn'))
     })
     this.el.popup.addEventListener('mousemove', (e) => {
       const item = e.target.closest('[data-idx]')
@@ -121,6 +170,7 @@ export class SqlEditor {
   }
 
   setValue(sql, { cursor, silent } = {}) {
+    this.closeCompletion()
     this.el.ta.value = sql || ''
     if (cursor) {
       const pos = this._offsetFromLineCh(cursor)
@@ -160,19 +210,28 @@ export class SqlEditor {
     this.el.ta.focus()
   }
 
-  _handleInput() {
+  _handleInput(event) {
+    this.invalidateCompletionAcceptance()
     const sql = this.getValue()
     this.perfMode = sql.length > 200_000
     this._highlight()
     this.onChange(sql, this.getCursor())
-    this._scheduleCompletion(false)
+    if (!this.composing && !event?.isComposing) this._scheduleCompletion(false)
   }
 
   _handleKeydown(e) {
+    if (e.defaultPrevented || e.isComposing) return
     const mod = e.metaKey || e.ctrlKey
+    if (e.key === 'Escape') {
+      const wasOpen = this.completionState?.open
+      this.closeCompletion()
+      if (wasOpen) e.preventDefault()
+      return
+    }
     // 补全导航
     if (this.completionState?.open) {
       const st = this.completionState
+      if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) this.closeCompletion()
       if (e.key === 'Escape') {
         e.preventDefault()
         this.closeCompletion()
@@ -202,82 +261,115 @@ export class SqlEditor {
         this._renderCompletion()
         return
       }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+      const behavior = st.behavior || getCompletionBehavior(this.completionScope())
+      if (!mod && !e.altKey && !e.shiftKey && (e.key === 'Enter' && behavior.acceptOnEnter || e.key === 'Tab' && behavior.acceptOnTab)) {
         e.preventDefault()
-        this.acceptCompletion(st.index)
+        void this.acceptCompletion(st.index).catch(error => toast(error.message, 'warn'))
         return
       }
     }
 
-    if (mod && e.code === 'Space') {
+    if (!this.commandRegistry && mod && e.code === 'Space') {
       e.preventDefault()
       this.triggerCompletion(true)
       return
     }
-    if (mod && e.key === 'Enter') {
+    if (!this.commandRegistry && mod && e.key === 'Enter') {
       e.preventDefault()
       if (e.shiftKey) this.onExecuteAll()
       else this.onExecute({ mode: 'current' })
       return
     }
-    if (mod && (e.key === 's' || e.key === 'S')) {
+    if (!this.commandRegistry && mod && (e.key === 's' || e.key === 'S')) {
       e.preventDefault()
       this.onSave()
       return
     }
-    if (mod && e.key === '/') {
+    if (!this.commandRegistry && mod && e.key === '/') {
       e.preventDefault()
       this.toggleComment()
       return
     }
-    if (e.key === 'F5') {
+    if (!this.commandRegistry && e.key === 'F5') {
       e.preventDefault()
       this.onExecute({ mode: 'current' })
       return
     }
-    if (e.key === 'Tab' && !mod) {
+    if (e.key === 'Enter' && !mod && !e.altKey) { e.preventDefault(); this._newline(); return }
+    if (e.key === 'Tab' && !mod && !e.altKey) {
       e.preventDefault()
       this._indent(e.shiftKey ? -1 : 1)
       return
     }
   }
 
+  _replaceRange(start, end, text, selectionStart = start + text.length, selectionEnd = selectionStart) {
+    const ta = this.el.ta, scrollTop = ta.scrollTop, scrollLeft = ta.scrollLeft
+    ta.focus(); ta.setSelectionRange(start, end)
+    // insertText joins the browser's native undo history; setRangeText is the fallback.
+    const previous = ta.value
+    try { document.execCommand('insertText', false, text) } catch { /* unsupported browser */ }
+    if (ta.value === previous && previous.slice(start, end) !== text) ta.setRangeText(text, start, end, 'end')
+    ta.setSelectionRange(selectionStart, selectionEnd)
+    ta.scrollTop = scrollTop; ta.scrollLeft = scrollLeft
+    this._highlight(); this.onChange(ta.value, this.getCursor())
+  }
+
   _indent(dir) {
-    const ta = this.el.ta
-    const { selectionStart, selectionEnd, value } = ta
-    const startLine = value.slice(0, selectionStart).split('\n').length - 1
-    const endLine = value.slice(0, selectionEnd).split('\n').length - 1
-    const lines = value.split('\n')
-    if (startLine === endLine && dir > 0) {
-      const pos = selectionStart
-      ta.value = value.slice(0, pos) + '  ' + value.slice(selectionEnd)
-      ta.setSelectionRange(pos + 2, pos + 2)
-    } else {
-      for (let i = startLine; i <= endLine && i < lines.length; i++) {
-        if (dir > 0) lines[i] = '  ' + lines[i]
-        else lines[i] = lines[i].replace(/^ {1,2}/, '')
-      }
-      ta.value = lines.join('\n')
-    }
-    this._highlight()
-    this.onChange(ta.value, this.getCursor())
+    const ta = this.el.ta, edit = indentEdit(ta.value, ta.selectionStart, ta.selectionEnd, dir)
+    this._replaceRange(edit.start, edit.end, edit.text, edit.selectionStart, edit.selectionEnd)
+  }
+
+  indentSelection(direction = 1) { this._indent(direction) }
+
+  _newline() {
+    const ta = this.el.ta, edit = newlineEdit(ta.value, ta.selectionStart, ta.selectionEnd)
+    this._replaceRange(edit.start, edit.end, edit.text, edit.cursor)
   }
 
   toggleComment() {
-    const ta = this.el.ta
-    const { selectionStart, selectionEnd, value } = ta
-    const lines = value.split('\n')
-    const startLine = value.slice(0, selectionStart).split('\n').length - 1
-    const endLine = value.slice(0, selectionEnd).split('\n').length - 1
-    const slice = lines.slice(startLine, endLine + 1)
-    const allCommented = slice.every((l) => !l.trim() || l.trimStart().startsWith('--'))
-    for (let i = startLine; i <= endLine && i < lines.length; i++) {
-      if (allCommented) lines[i] = lines[i].replace(/^(\s*)--\s?/, '$1')
-      else if (lines[i].trim()) lines[i] = '-- ' + lines[i]
+    const ta = this.el.ta, prefix = /^(flux|influxdb2?|cypher|neo4j)$/.test(this.getDialect()) ? '//' : '--'
+    const edit = commentEdit(ta.value, ta.selectionStart, ta.selectionEnd, prefix)
+    this._replaceRange(edit.start, edit.end, edit.text, edit.selectionStart, edit.selectionEnd)
+  }
+
+  openFind(replace = false) {
+    this.closeCompletion()
+    let panel = this.root.querySelector('.db-editor-find')
+    if (!panel) {
+      panel = document.createElement('div'); panel.className = 'db-editor-find'; panel.setAttribute('role', 'search')
+      panel.innerHTML = '<label>查找<input data-find-query aria-label="查找查询文本"></label><label data-replace-row>替换<input data-find-replacement aria-label="替换为"></label><button type="button" data-find-next>下一处</button><button type="button" data-find-replace>替换</button><button type="button" data-find-all>全部替换</button><span data-find-status role="status"></span><button type="button" data-find-close aria-label="关闭查找">×</button>'
+      this.root.append(panel)
+      const query = panel.querySelector('[data-find-query]'), replacement = panel.querySelector('[data-find-replacement]'), status = panel.querySelector('[data-find-status]')
+      const next = () => {
+        if (!query.value) { status.textContent = ''; return false }
+        const value = this.el.ta.value, offset = this.el.ta.selectionEnd
+        const at = value.indexOf(query.value, offset), start = at < 0 ? value.indexOf(query.value) : at
+        status.textContent = start < 0 ? '没有匹配项' : at < 0 ? '已回到开头' : '已找到'
+        if (start < 0) return false
+        this.el.ta.setSelectionRange(start, start + query.value.length); this._highlightCurrentLine(); return true
+      }
+      panel.querySelector('[data-find-next]').onclick = next
+      panel.querySelector('[data-find-replace]').onclick = () => {
+        const ta = this.el.ta
+        if (query.value && ta.value.slice(ta.selectionStart, ta.selectionEnd) === query.value) this._replaceRange(ta.selectionStart, ta.selectionEnd, replacement.value)
+        next(); replacement.focus()
+      }
+      panel.querySelector('[data-find-all]').onclick = () => {
+        if (!query.value) return
+        const source = this.el.ta.value, matches = source.split(query.value), count = matches.length - 1
+        if (count) this._replaceRange(0, source.length, matches.join(replacement.value), 0)
+        status.textContent = `已替换 ${count} 处`; replacement.focus()
+      }
+      const close = () => { panel.hidden = true; this.focus() }
+      panel.querySelector('[data-find-close]').onclick = close
+      panel.addEventListener('keydown', event => { event.stopPropagation(); if (event.key === 'Escape') { event.preventDefault(); close() } else if (event.key === 'Enter') { event.preventDefault(); next() } })
     }
-    ta.value = lines.join('\n')
-    this._highlight()
-    this.onChange(ta.value, this.getCursor())
+    panel.hidden = false
+    panel.querySelector('[data-replace-row]').hidden = !replace; panel.querySelector('[data-find-replace]').hidden = !replace; panel.querySelector('[data-find-all]').hidden = !replace
+    const input = panel.querySelector('[data-find-query]'), ta = this.el.ta
+    if (ta.selectionEnd > ta.selectionStart) input.value = ta.value.slice(ta.selectionStart, ta.selectionEnd)
+    input.focus(); input.select()
   }
 
   _syncScroll() {
@@ -289,6 +381,7 @@ export class SqlEditor {
     this.el.hl.scrollTop = scrollTop
     this.el.hl.scrollLeft = scrollLeft
     this.el.gutter.scrollTop = scrollTop
+    if (this.completionState?.open) this._placePopup()
   }
 
   _highlight() {
@@ -321,24 +414,33 @@ export class SqlEditor {
 
   _scheduleCompletion(isManual) {
     clearTimeout(this.completionTimer)
-    this.completionTimer = setTimeout(() => this.triggerCompletion(isManual), isManual ? 0 : 70)
+    if (this.composing) return
+    const behavior = getCompletionBehavior(this.completionScope())
+    // Table profiles are resolved by the engine, after parsing the current SQL.
+    // Keep scheduling enabled so leaving a manual-only table can restore suggestions.
+    this.completionTimer = setTimeout(() => this.triggerCompletion(isManual), isManual ? 0 : behavior.delayMs)
   }
 
-  async triggerCompletion(force) {
+  async triggerCompletion(force, { sources } = {}) {
+    if (this.composing) return
     const ta = this.el.ta
     const sql = ta.value
     const cursor = ta.selectionStart
     const ch = cursor > 0 ? sql[cursor - 1] : ''
     const isWord = /[A-Za-z0-9_$\u4e00-\u9fff]/.test(ch)
-    const isDot = ch === '.'
-    if (!force && !isWord && !isDot) {
+    const isTrigger = completionTriggerCharacters.includes(ch)
+    const behavior = getCompletionBehavior(this.completionScope())
+    if (!force && !isTrigger && !isWord) {
       this.closeCompletion()
       return
     }
     const stmt = statementAtCursor(sql, cursor)
     const sessionKey = this.getSessionKey()
     const dialect = this.getDialect() || this.dialect
-    const scope = this.getCompletionScope() || {}
+    const scope = this.completionScope(), key = completionContextKey(scope), sequence = ++this.completionSequence
+    this.completionAbortController?.abort()
+    const controller = new AbortController()
+    this.completionAbortController = controller
     try {
       const res = await requestCompletion({
         sessionKey,
@@ -346,30 +448,40 @@ export class SqlEditor {
         cursor,
         dialect,
         statementSql: stmt.sql,
-        database: scope.database,
-        schema: scope.schema,
-        usageBoost: scope.usageBoost
-      })
+        ...scope
+      }, { waitForMetadata: true, signal: controller.signal })
+      if (sequence !== this.completionSequence || ta.value !== sql || ta.selectionStart !== cursor || key !== completionContextKey(this.completionScope())) return
       const prefix = this._prefixAt(sql, cursor)
-      const items =
-        force && !prefix ? res.items || [] : filterItems(res.items || [], prefix)
+      const resolvedBehavior = res.config || behavior
+      if (!force && (resolvedBehavior.automatic === false || !isTrigger && prefix.length < resolvedBehavior.minPrefixLength)) return this.closeCompletion()
+      const available = filterCompletionSources(res.items, sources)
+      const items = sources?.length || res._unified || force && !prefix ? available : filterItems(available, prefix)
       this.completionState = {
         open: true,
         items,
-        index: 0,
+        index: Math.max(0, items.findIndex(item => !item.nonInsert)),
         replace: res.replace || { from: cursor, to: cursor },
         local: !!res._local,
         source: sql,
-        cursor
+        contextKey: key,
+        cursor,
+        sources,
+        behavior: resolvedBehavior,
+        emptyMessage: res.reason || (sources?.length ? '将光标放在 SELECT 的星号或字段处' : '无建议')
       }
       this._renderCompletion()
     } catch (e) {
+      if (sequence !== this.completionSequence || ta.value !== sql || key !== completionContextKey(this.completionScope())) return
       // 自动触发静默；手动 Ctrl+Space 才提示
       if (force) {
         const msg = e?.code === 'HOST_LAG' || e?.code === 'NO_API' ? '补全暂不可用' : String(e.message || e)
-        toast(msg, 'warn')
+        this.completionState = { open: true, items: [], emptyMessage: msg, source: sql, contextKey: key, cursor }
+        this._renderCompletion()
+        return
       }
       this.closeCompletion()
+    } finally {
+      if (this.completionAbortController === controller) this.completionAbortController = null
     }
   }
 
@@ -382,16 +494,13 @@ export class SqlEditor {
   _renderCompletion() {
     const st = this.completionState
     const popup = this.el.popup
-    const doc = this.el.doc
     if (!st?.open || !st.items?.length) {
       if (st?.open) {
         popup.hidden = false
-        popup.innerHTML = '<div class="comp-empty">无建议</div>'
-        doc.hidden = true
+        popup.innerHTML = `<div class="comp-empty">${escape(st.emptyMessage || '无建议')}</div>`
         this._placePopup()
       } else {
         popup.hidden = true
-        doc.hidden = true
       }
       return
     }
@@ -400,11 +509,11 @@ export class SqlEditor {
       .map((it, idx) => {
         const meta = kindMeta(it.kind)
         const active = idx === st.index ? ' active' : ''
-        const detail = it.detail ? `<span class="comp-detail">${escape(it.detail)}</span>` : ''
-        return `<div class="comp-item${active}" data-idx="${idx}">
-          <span class="comp-kind" style="background:${meta.color}">${escape(meta.mark || '')}</span>
-          <span class="comp-label">${highlightLabel(it)}</span>
-          ${detail}
+        const { type, description } = completionPresentation(it)
+        return `<div class="comp-item${active}${it.nonInsert ? ' comp-info' : ''}" data-idx="${idx}" role="option" aria-disabled="${!!it.nonInsert}" aria-selected="${idx === st.index}" title="${escape([it.label, it.detail, description].filter(Boolean).join(' · '))}">
+          <span class="comp-kind" data-kind="${escape(it.kind)}" aria-hidden="true">${escape(meta.mark || '')}</span>
+          <span class="comp-label">${highlightLabel(it)}${type ? `<span class="comp-type">${escape(type)}</span>` : ''}</span>
+          ${description ? `<span class="comp-detail">${escape(description)}</span>` : ''}
         </div>`
       })
       .join('')
@@ -413,95 +522,115 @@ export class SqlEditor {
     const active = popup.querySelector('.comp-item.active')
     active?.scrollIntoView({ block: 'nearest' })
 
-    const item = st.items[st.index]
-    if (item?.doc || item?.detail || item?.owner) {
-      doc.hidden = false
-      doc.innerHTML = `
-        <div class="doc-kind">${kindMeta(item.kind).label}${item.owner ? ' · ' + escape(item.owner) : ''}</div>
-        <div class="doc-label">${escape(item.label)}</div>
-        ${item.detail ? `<div class="doc-detail">${escape(item.detail)}</div>` : ''}
-        ${item.doc ? `<div class="doc-body">${escape(item.doc)}</div>` : ''}
-        ${item.insertText && item.insertText !== item.label ? `<div class="doc-insert"><code>${escape(item.insertText)}</code></div>` : ''}
-        ${st.local ? '<div class="doc-note">本地回退词库</div>' : ''}
-      `
-    } else {
-      doc.hidden = true
-    }
   }
 
   _placePopup() {
     const ta = this.el.ta
     const popup = this.el.popup
     const cursor = ta.selectionStart
-    // 估算光标像素
     const before = ta.value.slice(0, cursor)
     const lines = before.split('\n')
     const line = lines.length - 1
-    const col = lines[lines.length - 1].length
     const taStyle = getComputedStyle(ta)
     const lh = parseFloat(taStyle.lineHeight) || 20
-    const chW = parseFloat(taStyle.fontSize) * 0.6
     const padT = parseFloat(taStyle.paddingTop) || 8
     const padL = parseFloat(taStyle.paddingLeft) || 8
-    const x = padL + col * chW - ta.scrollLeft
-    const y = padT + (line + 1) * lh - ta.scrollTop
-    const wrap = this.root.querySelector('.editor-wrap')
-    const wr = wrap.getBoundingClientRect()
-    const er = this.root.getBoundingClientRect()
-    const left = x + (wrap.offsetLeft || 40)
-    const top = y + (wrap.offsetTop || 0)
-    popup.style.left = `${Math.min(left, er.width - 280)}px`
-    popup.style.top = `${Math.min(top, er.height - 200)}px`
-    void wr
+    this.completionMeasure ||= document.createElement('canvas').getContext('2d')
+    this.completionMeasure.font = `${taStyle.fontStyle} ${taStyle.fontWeight} ${taStyle.fontSize} ${taStyle.fontFamily}`
+    const tabSize = parseInt(taStyle.tabSize, 10) || 2
+    let column = 0
+    const text = [...lines.at(-1)].map(char => { const width = char === '\t' ? tabSize - column % tabSize : 1; column += width; return char === '\t' ? ' '.repeat(width) : char }).join('')
+    const rect = ta.getBoundingClientRect()
+    const textWidth = this.completionMeasure.measureText(text).width + (parseFloat(taStyle.letterSpacing) || 0) * [...text].length
+    const left = rect.left + padL + textWidth - ta.scrollLeft
+    const caretTop = rect.top + padT + line * lh - ta.scrollTop
+    const below = Math.max(0, innerHeight - caretTop - lh - 12), above = Math.max(0, caretTop - 12)
+    const preferred = Math.min(300, popup.scrollHeight)
+    const placeBelow = below >= Math.min(preferred, 112) || below >= above
+    const height = Math.min(preferred, placeBelow ? below : above)
+    popup.style.position = 'fixed'
+    popup.style.maxHeight = `${height}px`
+    popup.style.maxWidth = `${Math.min(480, innerWidth - 16)}px`
+    popup.style.left = `${Math.max(8, Math.min(left, innerWidth - popup.offsetWidth - 8))}px`
+    popup.style.top = `${Math.max(8, placeBelow ? caretTop + lh + 4 : caretTop - height - 4)}px`
   }
 
-  acceptCompletion(idx) {
-    const st = this.completionState
-    if (!st?.open || !st.items?.length) return
-    const item = st.items[idx]
-    if (!item) return
-    const ta = this.el.ta
-    const from = st.replace?.from ?? st.cursor
-    const to = st.replace?.to ?? st.cursor
-    let text = item.insertText || item.label
-    // 表名应用后可选默认别名（设置 autoAliasAfterTable）
-    const scope = this.getCompletionScope?.() || {}
-    if (
-      (item.kind === 'table' || item.kind === 'view' || item.kind === 'measurement') &&
-      scope.autoAliasAfterTable
-    ) {
-      const base = String(item.label || text).split('.').pop().replace(/["`]/g, '')
-      const alias = base.slice(0, 1) || 't'
-      if (!/^\s+as\s+/i.test(text)) text = `${text} AS ${alias}`
-    }
-    const value = ta.value
-    ta.value = value.slice(0, from) + text + value.slice(to)
-    const pos = from + text.length
-    ta.setSelectionRange(pos, pos)
-    applyCompletionItem(item)
+  completionScope() { return { ...this.getCompletionScope(), sessionKey: this.getSessionKey(), documentId: this.documentId, dialect: this.getDialect() } }
+  refreshCompletion(scope) {
+    // Active requests already wait for their metadata. Never reopen a dismissed list.
+  }
+  async acceptCompletion(idx) {
+    const st = this.completionState, item = st?.items?.[idx]
+    if (!st?.open || !item || item.nonInsert) return
+    if (this.el.ta.selectionStart !== st.cursor) { this.closeCompletion(); return }
     this.closeCompletion()
-    this._highlight()
-    this.onChange(ta.value, this.getCursor())
-    ta.focus()
+    await this.acceptCandidate(item, st.source, st.contextKey, st.replace)
   }
-
+  invalidateCompletionAcceptance() {
+    this.completionAcceptanceSequence++
+    this.completionNotice = null
+    this.completionAbortController?.abort()
+    this.completionAbortController = null
+    this.acceptanceAbortController?.abort()
+    this.acceptanceAbortController = null
+  }
+  showCompletionStatus(message) {
+    this.completionState = { open: true, index: 0, items: [{ kind: 'info', nonInsert: true, label: message, presentation: { type: '', description: '' } }], cursor: this.el.ta.selectionStart }
+    this._renderCompletion()
+  }
+  async acceptCandidate(item, source, contextKey, replace, snapshot = {}) {
+    if (item.nonInsert) return
+    this.acceptanceAbortController?.abort()
+    const controller = new AbortController()
+    this.acceptanceAbortController = controller
+    const sequence = ++this.completionAcceptanceSequence, scope = this.completionScope()
+    const model = this.instance?.getModel(), version = model?.getVersionId()
+    const cursor = model ? model.getOffsetAt(this.instance.getPosition()) : this.el.ta.selectionStart
+    const modelVersion = snapshot.modelVersion ?? version
+    const current = () => !controller.signal.aborted && sequence === this.completionAcceptanceSequence && source === this.getValue() && contextKey === completionContextKey(this.completionScope()) && (model ? model === this.instance.getModel() && model.getVersionId() === version && model.getOffsetAt(this.instance.getPosition()) === cursor : this.el.ta.selectionStart === cursor)
+    const valid = async candidate => current() && await validateCompletionItem(candidate, scope, { modelVersion, documentId: this.documentId }) && current()
+    if (!await valid(item)) return
+    if (item.resolve?.kind === 'templateColumns') {
+      this.showCompletionStatus(`正在读取 ${item.resolve.table.name} 的字段…`)
+      await ensureCompletionColumns(scope, [item.resolve.table])
+      if (!current()) return
+      const response = await requestCompletion({ ...scope, sql: source, cursor: snapshot.cursor ?? cursor, modelVersion }, { waitForMetadata: true, channel: 'accept', signal: controller.signal })
+      if (!current()) return
+      const resolved = response.items?.find(candidate => candidate.id === item.id)
+      if (!resolved || resolved.resolve) { this.showCompletionStatus(response.reason || '字段暂不可用，请稍后重新选择'); return }
+      item = resolved
+    }
+    const { prepareEdits } = await import('@db/sql-intelligence/runtime/editorEdits.js')
+    if (!await valid(item)) { if (current()) this.showCompletionStatus('查询上下文已变化，请重新选择补全'); return }
+    const prepared = prepareEdits(source, item, replace)
+    if (!current()) return
+    this.applyPreparedCompletion(prepared)
+    applyCompletionItem(item)
+  }
+  applyPreparedCompletion(prepared) {
+    // One native replacement keeps compound edits in one undo step.
+    this._replaceRange(0, this.getValue().length, prepared.result, prepared.selection.from, prepared.selection.to)
+    this.closeCompletion()
+  }
+  expandColumns() {
+    this.focus()
+    return this.triggerCompletion(true, { sources: projectionSources })
+  }
+  showTemplates() {
+    this.focus()
+    return this.triggerCompletion(true, { sources: ['queryTemplate'] })
+  }
   closeCompletion() {
+    this.invalidateCompletionAcceptance()
+    this.completionSequence++
+    clearTimeout(this.completionTimer)
     if (this.completionState) this.completionState.open = false
     this.el.popup.hidden = true
-    this.el.doc.hidden = true
   }
 
   getSelectionOrStatement(mode) {
     const ta = this.el.ta
-    const sql = ta.value
-    const selStart = ta.selectionStart
-    const selEnd = ta.selectionEnd
-    if (mode === 'all') return { sql, start: 0, end: sql.length }
-    if (mode === 'selection' || (selStart !== selEnd && mode !== 'current')) {
-      return { sql: sql.slice(selStart, selEnd), start: selStart, end: selEnd }
-    }
-    const stmt = statementAtCursor(sql, selStart)
-    return stmt
+    return resolveExecutionRange(ta.value, { start: ta.selectionStart, end: ta.selectionEnd, cursor: ta.selectionDirection === 'backward' ? ta.selectionStart : ta.selectionEnd, mode, dialect: this.getDialect?.() || this.dialect })
   }
 }
 

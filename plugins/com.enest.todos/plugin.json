@@ -10,9 +10,7 @@
   "engines": {
     "enest": ">=0.1.0"
   },
-  "permissions": [
-    "fs.read"
-  ],
+  "permissions": [],
   "features": [
     {
       "code": "main",

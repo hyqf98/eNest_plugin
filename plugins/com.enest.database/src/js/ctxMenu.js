@@ -1,23 +1,22 @@
 /**
- * ctxMenu.js — 自定义右键菜单（Esc + 点击外部关闭）
+ * ctxMenu.js — 自定义右键菜单（键盘导航、Esc / 点击外部关闭）
  */
 
 let activeMenu = null
 let activeCleanup = null
+let returnFocus = null
 
-export function closeCtxMenu() {
-  if (activeCleanup) {
-    try {
-      activeCleanup()
-    } catch {
-      /* ignore */
-    }
-    activeCleanup = null
-  }
-  if (activeMenu) {
-    activeMenu.remove()
-    activeMenu = null
-  }
+export function closeCtxMenu({ restoreFocus = true } = {}) {
+  const menu = activeMenu, target = returnFocus
+  const ownedFocus = menu?.contains(document.activeElement) || document.activeElement === document.body
+  activeMenu = null
+  returnFocus = null
+  const cleanup = activeCleanup
+  activeCleanup = null
+  cleanup?.()
+  menu?.remove()
+  // Restore before a selection callback opens its next surface, never after it.
+  if (restoreFocus && ownedFocus && target?.isConnected) target.focus({ preventScroll: true })
 }
 
 /**
@@ -28,9 +27,12 @@ export function closeCtxMenu() {
  */
 export function openCtxMenu(ev, items, onPick) {
   closeCtxMenu()
+  const trigger = ev.target?.closest?.('button, [href], input, select, textarea, [tabindex]')
+  returnFocus = trigger || document.activeElement
   const menu = document.createElement('div')
   menu.className = 'ctx-menu'
   menu.setAttribute('role', 'menu')
+  menu.tabIndex = -1
 
   const list = (items || []).map((it) => {
     if (it === 'sep' || it?.sep) return { sep: true }
@@ -43,8 +45,8 @@ export function openCtxMenu(ev, items, onPick) {
   menu.innerHTML = list
     .map((it) =>
       it.sep
-        ? `<div class="menu-sep" role="separator"></div>`
-        : `<button type="button" role="menuitem" data-k="${it.key}" class="${it.danger ? 'danger' : ''}">${escapeHtml(it.label)}</button>`
+        ? '<div class="menu-sep" role="separator"></div>'
+        : `<button type="button" role="menuitem" tabindex="-1" data-k="${escapeHtml(it.key)}" class="${it.danger ? 'danger' : ''}">${escapeHtml(it.label)}</button>`
     )
     .join('')
 
@@ -56,33 +58,54 @@ export function openCtxMenu(ev, items, onPick) {
   menu.style.top = `${Math.max(4, y)}px`
   activeMenu = menu
 
-  const onDocPointer = (e) => {
-    if (!menu.contains(e.target)) closeCtxMenu()
+  const buttons = [...menu.querySelectorAll('button[data-k]')]
+  const enabledButtons = () => buttons.filter((button) => !button.disabled)
+  const focusItem = (index) => {
+    const target = enabledButtons()[index] || menu
+    buttons.forEach((button) => { button.tabIndex = button === target ? 0 : -1 })
+    target.focus({ preventScroll: true })
   }
-  const onKey = (e) => {
-    if (e.key === 'Escape') {
-      e.stopPropagation()
-      closeCtxMenu()
+  const onDocPointer = (event) => {
+    // The pointer's destination owns focus; restoring here would steal it.
+    if (!menu.contains(event.target)) closeCtxMenu({ restoreFocus: false })
+  }
+  const onKey = (event) => {
+    if (activeMenu !== menu) return
+    if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation(); closeCtxMenu(); return
     }
+    if (!menu.contains(event.target)) return
+    if (event.key === 'Tab') { closeCtxMenu(); return }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault(); event.stopPropagation()
+    const enabled = enabledButtons(), index = enabled.indexOf(document.activeElement)
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1 : event.key === 'ArrowDown' ? (index + 1) % enabled.length : (index - 1 + enabled.length) % enabled.length
+    focusItem(next)
   }
-  // 下一帧再绑，避免打开手势立刻关闭
-  setTimeout(() => {
-    document.addEventListener('pointerdown', onDocPointer, true)
-    document.addEventListener('keydown', onKey, true)
+  // Delay only pointer binding so the opening gesture cannot dismiss the menu.
+  const pointerTimer = setTimeout(() => {
+    if (activeMenu === menu) document.addEventListener('pointerdown', onDocPointer, true)
   }, 0)
+  document.addEventListener('keydown', onKey, true)
   activeCleanup = () => {
+    clearTimeout(pointerTimer)
     document.removeEventListener('pointerdown', onDocPointer, true)
     document.removeEventListener('keydown', onKey, true)
   }
 
-  menu.querySelectorAll('button[data-k]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const k = btn.dataset.k
+  for (const button of buttons) {
+    button.addEventListener('focus', () => buttons.forEach((item) => { item.tabIndex = item === button ? 0 : -1 }))
+    button.addEventListener('click', () => {
+      const key = button.dataset.k
       closeCtxMenu()
-      onPick?.(k)
+      onPick?.(key)
     })
+  }
+  focusItem(0)
+  // Callers may disable capability-dependent actions immediately after opening.
+  queueMicrotask(() => {
+    if (activeMenu === menu && (document.activeElement === document.body || document.activeElement === menu || buttons.includes(document.activeElement) && document.activeElement.disabled)) focusItem(0)
   })
-
   return menu
 }
 
@@ -93,12 +116,3 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 }
-
-// 全局 Esc 兜底
-document.addEventListener(
-  'keydown',
-  (e) => {
-    if (e.key === 'Escape') closeCtxMenu()
-  },
-  true
-)

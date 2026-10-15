@@ -1,0 +1,81 @@
+import { test, expect } from '@playwright/test'
+import { fixture, connect, navigate, setQuery } from './database-fixture.js'
+
+async function editorState(page, action, selection) {
+  return page.evaluate(async ({ action, selection }) => {
+    const { monaco } = await import(performance.getEntriesByType('resource').find(entry => /\/assets\/app\/monaco-[^/]+\.js$/.test(entry.name)).name)
+    const editor = monaco.editor.getEditors()[0]
+    if (selection) editor.setSelection(new monaco.Selection(...selection))
+    if (action === 'undo') await editor.getModel().undo()
+    if (action === 'focus') editor.focus()
+    return { value: editor.getValue(), position: editor.getPosition() }
+  }, { action, selection })
+}
+
+test('SQL formatting changes the selection only, preserves undo, and Enter aligns paired brackets', async ({ page }) => {
+  await fixture(page); await connect(page)
+  const source = 'select id,name from customers;\nselect untouched;'
+  await setQuery(page, source)
+  await editorState(page, 'focus', [1, 1, 1, source.indexOf('\n') + 1])
+  await page.keyboard.press('Control+Alt+Shift+F')
+  await expect.poll(async () => (await editorState(page)).value).toContain('SELECT\n  id,')
+  expect((await editorState(page)).value).toMatch(/\nselect untouched;$/)
+  expect((await editorState(page, 'undo')).value).toBe(source)
+  await setQuery(page, 'SELECT ()')
+  await editorState(page, 'focus', [1, 9, 1, 9])
+  await page.keyboard.press('Enter')
+  await expect.poll(async () => (await editorState(page)).value).toBe('SELECT (\n  \n)')
+  await page.keyboard.press('Tab')
+  expect((await editorState(page)).position.column).toBe(5)
+  await page.keyboard.press('Shift+Tab')
+  expect((await editorState(page)).position.column).toBe(3)
+  await setQuery(page, 'select name from customers;')
+  await page.keyboard.press('Control+/')
+  expect((await editorState(page)).value).toContain('--')
+  await page.keyboard.press('Control+/')
+  expect((await editorState(page)).value).toBe('select name from customers;')
+  await page.keyboard.press('Control+f')
+  await expect(page.locator('.monaco-editor .find-widget')).toBeVisible()
+})
+
+test('shortcut settings search, record, reject conflicts, persist and restore one binding', async ({ page }) => {
+  await fixture(page); await connect(page); await setQuery(page, 'SELECT id FROM customers;')
+  await navigate(page, 'settings')
+  await page.locator('.wb-shortcuts').evaluate(element => element.scrollIntoView({ block: 'start' }))
+  await page.screenshot({ path: 'test-results-db/database-shortcuts-settings.png' })
+  const search = page.locator('[data-shortcut-search]')
+  await search.fill('执行选区')
+  await expect(page.locator('.db-shortcut-row')).toHaveCount(1)
+  const binding = page.locator('[data-key=run]')
+  await binding.focus(); await binding.press('Control+Alt+r')
+  await expect(binding).toHaveValue('Mod+Alt+R')
+  await expect(page.locator('[data-shortcut-status]')).toContainText('已保存')
+  await search.fill('格式化整篇')
+  await page.locator('[data-key=format]').press('Control+Alt+r')
+  await expect(page.locator('[data-shortcut-status]')).toContainText('冲突')
+  await expect(page.locator('[data-key=format]')).toHaveValue('Mod+Shift+F')
+  await expect.poll(() => page.evaluate(() => window.__data['db.ui']?.shortcuts?.run)).toBe('Mod+Alt+R')
+  await page.reload(); await navigate(page, 'settings')
+  await page.locator('[data-shortcut-search]').fill('执行选区')
+  await expect(page.locator('[data-key=run]')).toHaveValue('Mod+Alt+R')
+  await page.locator('[data-reset-key=run]').click()
+  await expect(page.locator('[data-key=run]')).toHaveValue('Mod+Enter')
+  await expect.poll(() => page.evaluate(() => Object.hasOwn(window.__data['db.ui']?.shortcuts || {}, 'run'))).toBe(false)
+})
+
+test('rebound execute runs only from its query and ordinary form inputs never execute SQL', async ({ page }) => {
+  await fixture(page); await connect(page); await setQuery(page, 'SELECT id FROM customers;')
+  await navigate(page, 'settings')
+  await page.locator('[data-shortcut-search]').fill('执行选区')
+  await page.locator('[data-key=run]').press('Control+Alt+r')
+  await page.locator('[data-back]').click()
+  await editorState(page, 'focus')
+  const executions = () => page.evaluate(() => window.__calls.filter(call => call[0] === 'execute').length)
+  const before = await executions()
+  await page.keyboard.press('Control+Enter'); expect(await executions()).toBe(before)
+  await page.keyboard.press('Control+Alt+r'); await expect.poll(executions).toBe(before + 1)
+  await navigate(page, 'settings')
+  await page.locator('[data-shortcut-search]').focus()
+  await page.keyboard.press('Control+Alt+r')
+  expect(await executions()).toBe(before + 1)
+})

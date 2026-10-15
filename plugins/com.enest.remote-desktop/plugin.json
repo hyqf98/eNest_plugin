@@ -19,8 +19,7 @@
     "clipboard.writeImage",
     "pin.create",
     "shell.openExternal",
-    "notify",
-    "fs.write"
+    "notify"
   ],
   "contributes": {
     "settings": [

@@ -1,5 +1,5 @@
 /** RocketMQ 消息轨迹：按 Key / MsgId 查询链路，produced → stored → consume-attempt*n 时间线 */
-import { el, fmt, gate, escapeHtml } from '../components.js'
+import { el, fmt, gate, escapeHtml } from '@mw/components.js'
 
 const PHASE_LABEL = { produced: '生产', stored: '存储', 'consume-attempt': '消费尝试' }
 const STATUS_LABEL = { ok: '成功', success: '成功', failed: '失败', error: '失败', retry: '重试中', timeout: '超时' }
@@ -26,21 +26,12 @@ export default {
     const { api } = ctx
 
     /* —— 检索条：Key / MsgId 二选一 —— */
-    let mode = 'key' // 'key' | 'id'
+    const mode = 'id' // Existing RocketMQ host driver resolves a MsgId.
     const input = el('input', {
-      type: 'text', placeholder: '输入消息 Key', style: 'width:280px', autocomplete: 'off',
+      type: 'text', placeholder: '输入 MsgId', style: 'width:280px', autocomplete: 'off',
       onkeydown: (e) => { if (e.key === 'Enter') doQuery() }
     })
-    const seg = el('div', { class: 'seg' }, [
-      el('button', { class: 'on', onclick: (e) => setMode('key', e.currentTarget) }, '按 Key'),
-      el('button', { onclick: (e) => setMode('id', e.currentTarget) }, '按 MsgId')
-    ])
-    function setMode(m, btn) {
-      mode = m
-      seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn))
-      input.placeholder = m === 'key' ? '输入消息 Key' : '输入 MsgId'
-      input.focus()
-    }
+    const seg = el('span', { class: 'fld' }, 'MsgId')
     const queryBtn = el('button', { class: 'btn primary', onclick: doQuery }, '查询')
     const loading = el('div', { class: 'loading-bar', style: 'display:none;position:absolute;left:0;right:0;top:0' })
 
@@ -49,7 +40,7 @@ export default {
 
     root.style.position = 'relative'
     root.append(search, loading, wrap)
-    renderEmpty('输入消息 Key 查询链路（需 broker 开启 trace）')
+    renderEmpty('输入 MsgId 查询链路（需 broker 开启 trace）。按业务 Key 查找消息请使用消息页。')
 
     /* —— caps gate：trace 能力降级 —— */
     const g = gate(ctx.caps, 'trace')
@@ -92,11 +83,11 @@ export default {
 
       // 头部摘要：key / messageId
       wrap.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px' }, [
-        el('span', { style: 'font-size:12.5px;font-weight:600' }, '消息链路'),
-        trace?.key ? el('span', { style: 'font-family:var(--mono);font-size:11.5px;color:var(--text-2)' }, `Key: ${trace.key}`) : null,
+        el('span', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.961538);font-weight:600' }, '消息链路'),
+        trace?.key ? el('span', { style: 'font-family:var(--mono);font-size:calc(var(--font-size-base, 13px) * 0.884615);color:var(--text-2)' }, `Key: ${trace.key}`) : null,
         trace?.messageId ? el('span', { class: 'chip', title: trace.messageId }, shortId(trace.messageId)) : null,
         el('span', { style: 'flex:1' }),
-        el('span', { style: 'color:var(--text-3);font-size:11.5px' }, `共 ${steps.length} 步`)
+        el('span', { style: 'color:var(--text-3);font-size:calc(var(--font-size-base, 13px) * 0.884615)' }, `共 ${steps.length} 步`)
       ]))
 
       const timeline = el('div', { class: 'trace-timeline' })
@@ -111,7 +102,7 @@ export default {
               el('span', {}, step.actor || ''),
               el('span', { html: statusChip(step.status) }),
               el('span', { class: 'when' }, fmt.datetimeMs(step.timestamp))
-            ]),            ...(step.costMs != null ? [el('div', { style: 'margin-top:5px;font-size:11.5px;color:var(--text-3)' }, `耗时 ${fmt.ms(step.costMs)}`)] : []),
+            ]),            ...(step.costMs != null ? [el('div', { style: 'margin-top:5px;font-size:calc(var(--font-size-base, 13px) * 0.884615);color:var(--text-3)' }, `耗时 ${fmt.ms(step.costMs)}`)] : []),
             ...(Object.keys(step.detail ?? {}).length ? [el('div', { class: 'kv', html: kvChips(step.detail) })] : [])
           ])
         ]))

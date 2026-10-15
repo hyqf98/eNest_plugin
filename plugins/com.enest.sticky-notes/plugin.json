@@ -14,8 +14,7 @@
     "preferredColorScheme": "auto"
   },
   "permissions": [
-    "clipboard.write",
-    "fs.read"
+    "clipboard.write"
   ],
   "engines": {
     "enest": ">=0.1.0"

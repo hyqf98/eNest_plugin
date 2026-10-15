@@ -83,6 +83,9 @@ function hideTip() {
 
 function applyTip(el) {
   if (!el || el.nodeType !== 1) return
+  // Editors own caret suggestions and native row titles. Accessibility labels
+  // describe their input; they must not become a second floating tooltip.
+  if (el.closest('.monaco-editor, .sql-editor')) { el.removeAttribute('data-tip'); return }
   const text = tipText(el)
   if (text) el.setAttribute('data-tip', text)
 }
@@ -97,6 +100,7 @@ function scanTips(root) {
 }
 
 function onOver(ev) {
+  if (ev.target?.closest?.('.monaco-editor, .sql-editor')) { clearTimeout(hideTimer); hideTip(); return }
   const el = ev.target?.closest?.('[data-tip], button[title], [role="button"][title]')
   if (!el || !document.contains(el)) return
   const text = tipText(el)
