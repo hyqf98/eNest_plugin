@@ -1,5 +1,7 @@
 import '@enest/plugin-kit/responsive.css'
+import '@enest/plugin-kit/style.css'
 import '@enest/plugin-kit/workbench.css'
+import '@enest/plugin-kit'
 import '@ssh/js/tips-global.js'
 import '@ssh/js/api.js'
 import '@ssh/js/dict.js'

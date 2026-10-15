@@ -236,3 +236,99 @@ export function unescapeText(text) {
     throw new Error("请输入转义文本或 JSON 字符串");
   return value;
 }
+
+/* ── 文本视图：语法高亮与结构折叠 ── */
+const HTML_ESCAPE = (value) =>
+  value.replace(/[&<>"']/g, (ch) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch],
+  );
+const JSON_STRING_RE = /"(?:\\.|[^"\\])*"/y;
+const JSON_NUMBER_RE = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+const JSON_WORD_RE = /[A-Za-z]+/y;
+/** 高亮与折叠的降级阈值：超过即回退纯文本 textarea，避免大文档卡顿 */
+export const HIGHLIGHT_CHAR_LIMIT = 400000;
+export const HIGHLIGHT_LINE_LIMIT = 3000;
+
+/** JSON 文本 → 着色 HTML（tk-key/tk-str/tk-num/tk-lit/tk-punct）；超限返回 null 由调用方降级 */
+export function highlightJsonHtml(text) {
+  const s = String(text ?? "");
+  if (s.length > HIGHLIGHT_CHAR_LIMIT) return null;
+  const out = [];
+  let plainStart = 0;
+  const flush = (end) => {
+    if (end > plainStart) out.push(HTML_ESCAPE(s.slice(plainStart, end)));
+    plainStart = end;
+  };
+  const emit = (cls, token) => {
+    out.push(
+      cls
+        ? `<span class="tk-${cls}">${HTML_ESCAPE(token)}</span>`
+        : HTML_ESCAPE(token),
+    );
+  };
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === '"') {
+      JSON_STRING_RE.lastIndex = i;
+      const m = JSON_STRING_RE.exec(s);
+      const token = m ? m[0] : s.slice(i); // 未闭合字符串兜底（有效 JSON 不会出现）
+      let j = i + token.length;
+      while (j < s.length && (s[j] === " " || s[j] === "\t" || s[j] === "\n" || s[j] === "\r")) j++;
+      flush(i);
+      emit(s[j] === ":" ? "key" : "str", token);
+      i += token.length;
+      plainStart = i;
+    } else if (ch === "-" || (ch >= "0" && ch <= "9")) {
+      JSON_NUMBER_RE.lastIndex = i;
+      const m = JSON_NUMBER_RE.exec(s);
+      const token = m ? m[0] : ch;
+      flush(i);
+      emit("num", token);
+      i += token.length;
+      plainStart = i;
+    } else if (ch >= "a" && ch <= "z") {
+      JSON_WORD_RE.lastIndex = i;
+      const m = JSON_WORD_RE.exec(s);
+      const token = m ? m[0] : ch;
+      flush(i);
+      emit(token === "true" || token === "false" || token === "null" ? "lit" : null, token);
+      i += token.length;
+      plainStart = i;
+    } else if ("{}[]:,".includes(ch)) {
+      flush(i);
+      emit("punct", ch);
+      i++;
+      plainStart = i;
+    } else i++;
+  }
+  flush(s.length);
+  return out.join("");
+}
+
+/** 跳过字符串内容后按括号配对扫描 → 折叠区间 [{start,end,depth}]（0 起行号、含首尾）；超限返回 null */
+export function computeJsonFolds(text) {
+  const s = String(text ?? "");
+  if (s.length > HIGHLIGHT_CHAR_LIMIT) return null;
+  const folds = [];
+  const stack = [];
+  let line = 0;
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === "\n") line++;
+    else if (ch === '"') {
+      JSON_STRING_RE.lastIndex = i;
+      const m = JSON_STRING_RE.exec(s);
+      i += m ? m[0].length : 1;
+      continue;
+    } else if (ch === "{" || ch === "[") stack.push({ line, depth: stack.length });
+    else if (ch === "}" || ch === "]") {
+      const open = stack.pop();
+      // 起始行与结束行相同的块（单行对象/数组）不产生折叠
+      if (open && open.line < line) folds.push({ start: open.line, end: line, depth: open.depth });
+    }
+    i++;
+  }
+  return folds;
+}

@@ -67,3 +67,36 @@ test("regex default snippets all compile and cover required categories", () => {
   const mail = core.collectMatches(core.compilePattern("[\\w.+-]+@[\\w-]+\\.[\\w.]+", "g"), "a@b.co");
   assert.equal(mail[0].text, "a@b.co");
 });
+
+test("regex matches carry line numbers for list positioning", () => {
+  const re = core.compilePattern("\\d+", "g");
+  const text = "第一行 1\n第二行 22\n第三行 333";
+  const matches = core.collectMatches(re, text);
+  assert.deepEqual(matches.map((m) => m.line), [1, 2, 3]);
+  assert.equal(core.lineOfIndex(text, 0), 1);
+  assert.equal(core.lineOfIndex(text, text.indexOf("333")), 3);
+  assert.equal(core.lineOfIndex("", 0), 1);
+});
+
+test("template library groups by category and every template compiles", () => {
+  const groups = core.templateGroups();
+  assert.ok(groups.length >= 3);
+  for (const group of groups) {
+    assert.ok(group.name && group.items.length > 0, group.name);
+    for (const tpl of group.items) {
+      assert.doesNotThrow(() => core.compilePattern(tpl.body, "g"), tpl.name);
+      assert.ok(typeof tpl.sample === "string" && tpl.sample.length > 0, `${tpl.name} 缺示例`);
+    }
+  }
+  const categories = groups.map((g) => g.name);
+  for (const required of ["常用", "网络", "数字", "文本"]) assert.ok(categories.includes(required), required);
+  // 邮箱模板对其示例至少命中 1 处
+  const mail = groups.flatMap((g) => g.items).find((t) => t.name === "邮箱地址");
+  const hits = core.collectMatches(core.compilePattern(mail.body, "g"), mail.sample);
+  assert.ok(hits.length >= 1);
+});
+
+test("flag definitions expose detail explanations", () => {
+  assert.equal(core.FLAG_DEFS.length, 6);
+  for (const f of core.FLAG_DEFS) assert.ok(f.key && f.label && f.detail, f.key);
+});

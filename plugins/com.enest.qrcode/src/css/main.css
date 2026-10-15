@@ -36,20 +36,31 @@ textarea {
   font: inherit;
   color: inherit;
   border: 1px solid var(--line);
-  background: transparent;
-  border-radius: 7px;
-  padding: 8px 10px;
+  background: var(--surface, #fff);
+  border-radius: calc(var(--pk-radius, 8px) - 2px);
+  padding: 6px 10px;
 }
 button {
   cursor: pointer;
+  min-height: 28px;
+  font-size: 12.5px;
+  transition: background-color var(--pk-speed, 0.12s) ease,
+    border-color var(--pk-speed, 0.12s) ease,
+    color var(--pk-speed, 0.12s) ease, transform 0.1s ease;
 }
-button:hover,
+button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
 button[aria-pressed="true"] {
-  background: var(--wash);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   color: var(--accent);
 }
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
 button:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: default;
 }
 :focus-visible {
@@ -83,6 +94,21 @@ header > span {
   font-size: 11px;
   color: var(--muted);
 }
+header nav button {
+  background: color-mix(in srgb, var(--text, #303b4b) 5%, transparent);
+  border-color: transparent;
+  color: var(--muted);
+  padding: 4px 12px;
+}
+header nav button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text, #303b4b);
+}
+header nav button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent);
+}
 .pages {
   min-height: 0;
   overflow: auto;
@@ -104,9 +130,13 @@ header > span {
   font-size: 11px;
   color: var(--muted);
 }
-.template-tabs select {
+/* select 已由 PluginKit.upgradeSelects 接管：原 select 规则迁移到触发器 */
+.template-tabs .pk-select {
   flex: 1;
   min-width: 0;
+}
+.template-tabs .pk-select-trigger {
+  width: 100%;
 }
 #input {
   height: 180px;
@@ -162,13 +192,116 @@ header > span {
   height: 31px;
   padding: 3px;
 }
+/* 样式定制：点样式 / 中心 logo */
+.style-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.field-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mode-seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 7px;
+  background: var(--wash);
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.mode-seg button {
+  border: 0;
+  background: transparent;
+  min-height: 26px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 3px 10px;
+  border-radius: calc(var(--pk-radius, 8px) - 4px);
+}
+.mode-seg button:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--accent);
+}
+.mode-seg button[aria-pressed="true"] {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.logo-row button {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--text, #303b4b) 5%, transparent);
+  border-color: transparent;
+  color: var(--muted);
+}
+.logo-row button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text, #303b4b);
+}
+.logo-scale-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  flex: 1;
+  min-width: 150px;
+}
+.logo-scale-label input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+.style-hint {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.png-size-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.png-size-label .pk-select {
+  min-width: 0;
+}
+.png-size-label .pk-select-trigger {
+  min-height: 28px;
+  padding: 3px 8px;
+}
+.history-empty {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 4px 0 10px;
+  line-height: 1.7;
+}
 .actions {
   flex-wrap: wrap;
 }
+/* primary 主按钮：accent 填充（kit 同款），免受全局 hover 边框影响 */
 .primary {
   background: var(--accent) !important;
-  color: white !important;
+  color: #fff !important;
   border-color: var(--accent) !important;
+}
+.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, #fff) !important;
+  border-color: color-mix(in srgb, var(--accent) 88%, #fff) !important;
 }
 .preview-column {
   padding: 24px;
@@ -219,6 +352,15 @@ header > span {
   white-space: nowrap;
   margin-top: 5px;
   font-size: 11px;
+  min-height: 24px;
+  background: color-mix(in srgb, var(--text, #303b4b) 5%, transparent);
+  border-color: transparent;
+  color: var(--muted);
+  padding: 3px 9px;
+}
+.history button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text, #303b4b);
 }
 #error {
   margin: 12px 0;
@@ -343,8 +485,16 @@ header > span {
   overflow: auto;
 }
 .batch-card button {
-  font-size: 10px;
-  padding: 5px 7px;
+  font-size: 11px;
+  padding: 4px 9px;
+  min-height: 24px;
+  background: color-mix(in srgb, var(--text, #303b4b) 5%, transparent);
+  border-color: transparent;
+  color: var(--muted);
+}
+.batch-card button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--text, #303b4b);
 }
 footer {
   padding: 9px 16px;
@@ -410,7 +560,11 @@ html[data-mode="quick"] .actions {
 }
 html[data-mode="quick"] .actions button {
   font-size: 11px;
-  padding: 7px;
+  padding: 4px 8px;
+  min-height: 24px;
+}
+html[data-mode="quick"] .actions button.primary {
+  min-height: 24px;
 }
 html[data-mode="quick"] .decode-page {
   padding: 12px 16px;

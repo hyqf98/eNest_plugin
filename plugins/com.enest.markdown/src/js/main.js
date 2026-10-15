@@ -14,6 +14,7 @@ let dirty = false
 let saveTimer = 0
 let ready = false
 let confirmTimer = 0
+let view = 'split' // edit | split | preview
 
 const kit = PluginKit.create({
   title: 'Markdown 笔记',
@@ -100,6 +101,7 @@ function renderEditor() {
     $('editor').disabled = true
     $('preview').innerHTML = '<div class="empty">选择或新建一条笔记</div>'
     $('editor-stats').textContent = ''
+    renderOutline('')
     return
   }
   if ($('editor').value !== note.content && document.activeElement !== $('editor')) {
@@ -107,20 +109,78 @@ function renderEditor() {
   }
   $('editor').disabled = false
   if (!$('preview').hidden) $('preview').innerHTML = core.renderMarkdown(note.content)
-  const s = core.stats(note.content)
-  $('editor-stats').textContent = `${s.words} 字 · ${s.lines} 行`
+  renderStats(note.content)
+  renderOutline(note.content)
 }
 
-function selectNote(id) {
-  if (currentId && dirty) void flushSave()
-  currentId = id
-  const note = notes.find((n) => n.id === currentId)
-  if (note) {
-    $('editor').value = note.content
-    if (kit.mode === 'quick') $('preview').hidden = true
-  }
-  render()
+function renderStats(text) {
+  const s = core.stats(text)
+  const mins = core.readingTime(text)
+  $('editor-stats').textContent = `${s.words} 字 · ${s.lines} 行 · 约 ${mins} 分钟阅读`
 }
+
+/* 大纲：标题树 + 源码行定位 */
+function renderOutline(text) {
+  const items = core.outlineDepth(core.outline(text))
+  $('outline-status').textContent = items.length ? `${items.length} 个标题` : ''
+  if (!items.length) {
+    $('outline-tree').innerHTML = '<div class="outline-empty">用 # 起个标题，大纲会出现在这里</div>'
+    return
+  }
+  $('outline-tree').innerHTML = items
+    .map(
+      (it, i) =>
+        `<button type="button" class="outline-item" data-line="${it.line}" style="padding-left:${8 + it.depth * 14}px" title="跳转到第 ${it.line + 1} 行"><span class="oh mono">h${it.level}</span><span class="ot">${esc(it.text)}</span></button>`,
+    )
+    .join('')
+}
+$('outline-tree').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-line]')
+  if (!btn) return
+  const line = Number(btn.dataset.line)
+  const el = $('editor')
+  const lines = el.value.split('\n')
+  let pos = 0
+  for (let i = 0; i < line && i < lines.length; i++) pos += lines[i].length + 1
+  el.focus()
+  el.selectionStart = el.selectionEnd = pos
+  // 让目标行滚进视野：用临时 textarea 度量近似行高
+  const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 22
+  el.scrollTop = Math.max(0, line * lineHeight - el.clientHeight / 2)
+  if (view === 'preview') setView('split')
+})
+
+// —— 视图模式：编辑 / 双栏 / 预览 —— //
+function setView(next) {
+  view = next
+  const body = $('editor-body')
+  body.dataset.view = next
+  $('editor').hidden = next === 'preview'
+  $('preview').hidden = next === 'edit'
+  $('outline').hidden = next === 'preview'
+  for (const [id, mode] of [['mode-edit', 'edit'], ['mode-split', 'split'], ['mode-preview', 'preview']]) {
+    $(id).setAttribute('aria-selected', String(mode === next))
+  }
+  if (next !== 'edit') void hydratePreview()
+  else renderOutline($('editor').value)
+}
+$('mode-edit').onclick = () => setView('edit')
+$('mode-split').onclick = () => setView('split')
+$('mode-preview').onclick = () => setView('preview')
+document.addEventListener('keydown', (e) => {
+  if (e.isComposing || e.defaultPrevented) return
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
+  if (e.key === '1') {
+    e.preventDefault()
+    setView('edit')
+  } else if (e.key === '2') {
+    e.preventDefault()
+    setView('split')
+  } else if (e.key === '3') {
+    e.preventDefault()
+    setView('preview')
+  }
+})
 
 // —— 编辑与工具条 —— //
 $('editor').addEventListener('input', () => {
@@ -130,8 +190,8 @@ $('editor').addEventListener('input', () => {
   note.updatedAt = Date.now()
   scheduleSave()
   if (!$('preview').hidden) $('preview').innerHTML = core.renderMarkdown(note.content)
-  const s = core.stats(note.content)
-  $('editor-stats').textContent = `${s.words} 字 · ${s.lines} 行`
+  renderStats(note.content)
+  renderOutline(note.content)
 })
 
 function insertAt(transform) {
@@ -208,18 +268,6 @@ async function hydratePreview() {
     } catch {}
   }
   $('preview').innerHTML = html
-}
-const _origRenderEditor = renderEditor
-renderEditor = function () {
-  _origRenderEditor()
-  if (!$('preview').hidden) void hydratePreview()
-}
-
-$('toggle-preview').onclick = () => {
-  const p = $('preview')
-  p.hidden = !p.hidden
-  $('toggle-preview').setAttribute('aria-pressed', String(!p.hidden))
-  if (!p.hidden) void hydratePreview()
 }
 
 // —— 分组与笔记管理 —— //
@@ -365,7 +413,7 @@ $('export-html').onclick = async () => {
   }
 }
 
-// —— 模板（设置里选择插入） —— //
+// —— 模板 —— //
 function applyTemplate(key) {
   const tpl = core.TEMPLATES[key]
   if (!tpl) return
@@ -415,24 +463,20 @@ const booted = (async () => {
   ready = true
   currentGroup = groups[0] || '收件箱'
   currentId = notes[0]?.id || ''
-  if (kit.settings.autoPreview !== false && kit.mode === 'shell') {
-    $('preview').hidden = false
-    $('toggle-preview').setAttribute('aria-pressed', 'true')
-  }
+  const defaultView = kit.settings.autoPreview === false ? 'edit' : 'split'
+  setView(kit.mode === 'quick' ? 'edit' : defaultView)
   render()
   // 空态引导：预置欢迎笔记
   if (!notes.length && kit.mode === 'shell') {
     createNote(
       '欢迎使用 Markdown 笔记',
-      '# 欢迎\n\n这是一条示例笔记，可以直接改写或删除。\n\n## 语法速览\n\n- **加粗** 与 *斜体*\n- `行内代码`\n\n```js\nconsole.log("代码块")\n```\n\n| 表格 | 示例 |\n| --- | --- |\n| A | B |\n\n- [ ] 任务清单\n\n> 引用与[链接](https://example.com)\n',
+      '# 欢迎\n\n这是一条示例笔记，可以直接改写或删除。\n\n## 语法速览\n\n- **加粗** 与 *斜体*\n- `行内代码`\n- ==高亮== 与 ~~删除线~~\n\n```js\nconst x = 42 // 代码块自带高亮\n```\n\n| 表格 | 示例 |\n| --- | --- |\n| A | B |\n\n- [ ] 任务清单\n\n> 引用与[链接](https://example.com)\n',
       '收件箱',
     )
   }
-  // 设置里暴露模板入口说明
-  kit.onSettings?.(() => {})
 })()
 
-// 模板经右键菜单过于隐蔽，这里给编辑器空态快捷：输入 /template 自动提示
+// 模板快捷：F2 唤起
 $('editor').addEventListener('keydown', (e) => {
   if (e.key === 'F2') {
     e.preventDefault()
@@ -459,9 +503,6 @@ api?.onBeforeClose?.(async () => {
 
 kit.onMode(() => {
   if (!ready) return
-  if (kit.mode === 'quick') {
-    $('preview').hidden = true
-    $('toggle-preview').setAttribute('aria-pressed', 'false')
-  }
+  if (kit.mode === 'quick') setView('edit')
   render()
 })

@@ -8,7 +8,7 @@
   </head>
   <body>
     <div class="app" id="app">
-      <!-- 左导航：应用列表 + 功能页 -->
+      <!-- 三区之一：左导航（应用列表 + 功能页） -->
       <aside class="nav" id="nav">
         <div class="nav-head">
           <div class="nav-logo">⇄</div>
@@ -19,6 +19,7 @@
             <div class="nav-loading">加载中…</div>
           </div>
           <div class="nav-group" data-label="功能">
+            <button class="nav-item" data-page="history"><span class="glyph">◷</span><span class="t">切换历史</span></button>
             <button class="nav-item" data-page="mcp"><span class="glyph">⌗</span><span class="t">MCP</span></button>
             <button class="nav-item" data-page="sessions"><span class="glyph">❯</span><span class="t">会话</span></button>
             <button class="nav-item" data-page="usage"><span class="glyph">▤</span><span class="t">用量</span></button>
@@ -32,24 +33,42 @@
         </div>
       </aside>
 
-      <!-- 右侧内容 -->
+      <!-- 三区之二：内容区 -->
       <main class="main">
-        <!-- 供应商页 -->
+        <!-- 供应商页：顶部状态摘要 + 应用内搜索/标签过滤 + 卡片列表 -->
         <section class="page" id="page-providers">
           <header class="page-head">
-            <div class="page-title" id="providers-title">供应商</div>
-            <div class="page-sub" id="providers-sub"></div>
+            <div class="page-titles">
+              <div class="page-title" id="providers-title">供应商</div>
+              <div class="page-sub" id="providers-sub"></div>
+            </div>
             <div class="spacer"></div>
-            <button class="btn ghost" id="btn-preset-lib">预设库</button>
             <button class="btn ghost" id="btn-import">导入</button>
             <button class="btn ghost" id="btn-export">导出</button>
             <button class="btn primary" id="btn-new-provider">＋ 新建</button>
           </header>
+          <div class="summary-strip" id="summary-strip" hidden></div>
           <div class="toolbar">
             <input id="provider-search" type="search" placeholder="搜索名称 / 端点 / 模型" aria-label="搜索供应商" />
-            <div class="chips" id="provider-tags"></div>
+            <div class="chips" id="provider-tags" aria-label="按标签过滤"></div>
           </div>
           <div class="content" id="providers-body">
+            <div class="empty">加载中…</div>
+          </div>
+        </section>
+
+        <!-- 切换历史页 -->
+        <section class="page" id="page-history" hidden>
+          <header class="page-head">
+            <div class="page-titles">
+              <div class="page-title">切换历史</div>
+              <div class="page-sub" id="history-sub">最近 50 次切换记录，可一键回退</div>
+            </div>
+            <div class="spacer"></div>
+            <button class="btn ghost" id="btn-history-refresh">↻ 刷新</button>
+            <button class="btn ghost danger" id="btn-history-clear">清空</button>
+          </header>
+          <div class="content" id="history-body">
             <div class="empty">加载中…</div>
           </div>
         </section>
@@ -57,8 +76,10 @@
         <!-- MCP 页 -->
         <section class="page" id="page-mcp" hidden>
           <header class="page-head">
-            <div class="page-title">MCP 服务器</div>
-            <div class="page-sub">统一定义，按应用投射</div>
+            <div class="page-titles">
+              <div class="page-title">MCP 服务器</div>
+              <div class="page-sub">统一定义，按应用投射</div>
+            </div>
             <div class="spacer"></div>
             <button class="btn ghost" id="btn-mcp-import">导入现有</button>
             <button class="btn ghost" id="btn-mcp-template">从模板添加</button>
@@ -73,8 +94,10 @@
         <section class="page" id="page-sessions" hidden>
           <header class="page-head">
             <button class="btn ghost back" id="btn-session-back" hidden>← 返回</button>
-            <div class="page-title" id="sessions-title">会话</div>
-            <div class="page-sub" id="sessions-sub"></div>
+            <div class="page-titles">
+              <div class="page-title" id="sessions-title">会话</div>
+              <div class="page-sub" id="sessions-sub"></div>
+            </div>
             <div class="spacer"></div>
             <input id="session-search" type="search" placeholder="搜索会话" aria-label="搜索会话" />
             <button class="btn ghost" id="btn-session-export" hidden>导出 Markdown</button>
@@ -87,8 +110,10 @@
         <!-- 用量页 -->
         <section class="page" id="page-usage" hidden>
           <header class="page-head">
-            <div class="page-title">用量统计</div>
-            <div class="page-sub" id="usage-sub">token / 请求 / 按日趋势 / 热力图</div>
+            <div class="page-titles">
+              <div class="page-title">用量统计</div>
+              <div class="page-sub" id="usage-sub">token / 请求 / 按日趋势 / 热力图</div>
+            </div>
             <div class="spacer"></div>
             <div class="chips" id="usage-range"></div>
           </header>
@@ -97,12 +122,16 @@
           </div>
         </section>
 
-        <!-- 备份页 -->
+        <!-- 备份页（宿主快照 + 全量导出/恢复） -->
         <section class="page" id="page-backups" hidden>
           <header class="page-head">
-            <div class="page-title">配置快照</div>
-            <div class="page-sub">切换前自动备份，保留最近 20 份</div>
+            <div class="page-titles">
+              <div class="page-title">配置快照</div>
+              <div class="page-sub" id="backups-sub">切换前自动备份，保留最近 20 份</div>
+            </div>
             <div class="spacer"></div>
+            <button class="btn ghost" id="btn-snapshot-export">导出全量 JSON</button>
+            <button class="btn ghost" id="btn-snapshot-import">从 JSON 恢复</button>
             <button class="btn ghost" id="btn-backups-refresh">↻ 刷新</button>
           </header>
           <div class="content" id="backups-body">
@@ -113,8 +142,10 @@
         <!-- 项目预设页 -->
         <section class="page" id="page-projects" hidden>
           <header class="page-head">
-            <div class="page-title">项目预设</div>
-            <div class="page-sub">供应商 + MCP + 提示词整套保存 / 应用</div>
+            <div class="page-titles">
+              <div class="page-title">项目预设</div>
+              <div class="page-sub">供应商 + MCP 整套保存 / 应用</div>
+            </div>
             <div class="spacer"></div>
             <button class="btn primary" id="btn-project-save">＋ 保存当前为项目</button>
           </header>
@@ -126,57 +157,71 @@
         <!-- 设置页 -->
         <section class="page" id="page-settings" hidden>
           <header class="page-head">
-            <div class="page-title">设置</div>
+            <div class="page-titles">
+              <div class="page-title">设置</div>
+            </div>
           </header>
           <div class="content settings" id="settings-body">
             <div class="settings-loading">加载中…</div>
           </div>
         </section>
       </main>
-    </div>
 
-    <!-- 弹层：新建/编辑供应商 -->
-    <div class="modal" id="modal-provider" hidden>
-      <div class="modal-card">
-        <div class="modal-head">
-          <div class="modal-title" id="provider-modal-title">新建供应商</div>
-          <button class="icon-btn modal-close" data-close="modal-provider">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="form-tabs" id="provider-form-tabs">
-            <button class="active" data-tab="form">表单</button>
-            <button data-tab="json">JSON 源码</button>
-          </div>
-          <div class="form-pane" id="provider-form-pane">
-            <label class="field"><span>名称</span><input id="pf-name" type="text" placeholder="如 DeepSeek" /></label>
-            <label class="field"><span>分类标签</span><input id="pf-tag" type="text" placeholder="如 中转 / 官方 / 自建" /></label>
-            <label class="field"><span>Base URL</span><input id="pf-baseurl" type="text" class="mono" placeholder="https://api.example.com" /></label>
-            <label class="field"><span>API Key</span>
-              <div class="key-row">
-                <input id="pf-apikey" type="password" class="mono" placeholder="sk-…（存入保险库，不落配置导出）" />
-                <button class="btn ghost sm" id="pf-key-view" type="button">显示</button>
+      <!-- 三区之三：详情编辑抽屉（右侧滑入，Esc 关闭） -->
+      <aside class="drawer" id="drawer-provider" hidden aria-hidden="true">
+        <div class="drawer-scrim" data-drawer-close></div>
+        <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="provider-modal-title">
+          <header class="drawer-head">
+            <div>
+              <div class="drawer-title" id="provider-modal-title">新建供应商</div>
+              <div class="drawer-sub">保存后写入插件存储，切换时才落到应用配置</div>
+            </div>
+            <button class="icon-btn" data-drawer-close title="关闭（Esc）">×</button>
+          </header>
+          <div class="drawer-body">
+            <div class="form-tabs" id="provider-form-tabs" role="tablist">
+              <button class="active" data-tab="form" role="tab">表单</button>
+              <button data-tab="json" role="tab">JSON 源码</button>
+            </div>
+            <div class="form-pane" id="provider-form-pane">
+              <div class="preset-quick" id="pf-preset-quick">
+                <span class="preset-quick-label">从模板开始</span>
+                <div class="chips" id="pf-preset-chips"></div>
               </div>
-              <div class="field-hint" id="pf-key-hint"></div>
-            </label>
-            <label class="field"><span>模型</span><input id="pf-model" type="text" class="mono" placeholder="如 deepseek-chat / gpt-5" /></label>
-            <div class="field"><span>目标应用</span><div class="chips" id="pf-apps"></div></div>
-            <details class="advanced">
-              <summary>高级（env / toml 片段）</summary>
-              <div id="pf-advanced"></div>
-            </details>
+              <label class="field"><span>名称</span><input id="pf-name" type="text" placeholder="如 DeepSeek" /></label>
+              <label class="field"><span>分组标签（逗号分隔）</span><input id="pf-tags" type="text" placeholder="如 官方, 常用" /></label>
+              <label class="field"><span>Base URL</span><input id="pf-baseurl" type="text" class="mono" placeholder="https://api.example.com" /></label>
+              <label class="field"><span>API Key</span>
+                <div class="key-row">
+                  <input id="pf-apikey" type="password" class="mono" placeholder="sk-…（存入保险库，不落配置导出）" />
+                  <button class="btn ghost sm" id="pf-key-view" type="button">显示</button>
+                </div>
+                <div class="field-hint" id="pf-key-hint"></div>
+              </label>
+              <label class="field"><span>模型</span><input id="pf-model" type="text" class="mono" placeholder="如 deepseek-chat / gpt-5" /></label>
+              <div class="field"><span>目标应用</span><div class="chips" id="pf-apps"></div></div>
+              <div class="field-actions">
+                <button class="btn ghost sm" id="btn-provider-test" type="button">测速</button>
+                <span class="field-hint" id="pf-test-result" aria-live="polite"></span>
+              </div>
+              <details class="advanced">
+                <summary>高级（env / toml 片段）</summary>
+                <div id="pf-advanced"></div>
+              </details>
+            </div>
+            <div class="form-pane" id="provider-json-pane" hidden>
+              <textarea id="pf-json" class="mono" rows="14" spellcheck="false" placeholder='{"name":"…","settingsConfig":{…}}'></textarea>
+              <div class="field-hint">直接编辑 JSON 源；保存时与表单字段合并校验</div>
+            </div>
           </div>
-          <div class="form-pane" id="provider-json-pane" hidden>
-            <textarea id="pf-json" class="mono" rows="14" spellcheck="false" placeholder='{"name":"…","settingsConfig":{…}}'></textarea>
-            <div class="field-hint">直接编辑 JSON 源；保存时与表单字段合并校验</div>
-          </div>
+          <footer class="drawer-foot">
+            <div class="field-hint" id="pf-form-hint"></div>
+            <div class="spacer"></div>
+            <button class="btn ghost" data-drawer-close>取消</button>
+            <button class="btn primary" id="btn-provider-save">保存</button>
+          </footer>
         </div>
-        <div class="modal-foot">
-          <button class="btn ghost" id="btn-provider-test">测试连接</button>
-          <div class="spacer"></div>
-          <button class="btn ghost" data-close="modal-provider">取消</button>
-          <button class="btn primary" id="btn-provider-save">保存</button>
-        </div>
-      </div>
+      </aside>
     </div>
 
     <!-- 弹层：预设库 -->
@@ -188,6 +233,7 @@
           <button class="icon-btn modal-close" data-close="modal-presets">×</button>
         </div>
         <div class="modal-body">
+          <div class="chips preset-tag-filter" id="preset-tag-filter"></div>
           <div class="preset-grid" id="preset-grid"><div class="empty">加载中…</div></div>
         </div>
         <div class="modal-foot">
@@ -245,7 +291,7 @@
         <div class="modal-body">
           <div class="diff-app" id="diff-app"></div>
           <div class="diff-table" id="diff-table"></div>
-          <div class="field-hint">写入前宿主自动快照当前配置（可在「备份」页恢复）</div>
+          <div class="field-hint">写入前宿主自动快照当前配置（可在「备份」页恢复），本次切换会记入「切换历史」</div>
         </div>
         <div class="modal-foot">
           <div class="spacer"></div>
@@ -268,15 +314,27 @@
       </div>
     </div>
 
+    <!-- 通用确认弹层（替代 window.confirm，可撤销动作由此发起） -->
+    <div class="modal" id="modal-confirm" hidden>
+      <div class="modal-card sm">
+        <div class="modal-head">
+          <div class="modal-title" id="confirm-title">确认</div>
+          <button class="icon-btn modal-close" data-close="modal-confirm">×</button>
+        </div>
+        <div class="modal-body">
+          <div id="confirm-text"></div>
+          <div class="field-hint" id="confirm-hint"></div>
+        </div>
+        <div class="modal-foot">
+          <div class="spacer"></div>
+          <button class="btn ghost" data-close="modal-confirm">取消</button>
+          <button class="btn primary" id="btn-confirm-ok">确认</button>
+        </div>
+      </div>
+    </div>
+
     <!-- toast 容器 -->
     <div class="toasts" id="toasts"></div>
     <script type="module" src="./src/entry.js"></script>
   </body>
-
-
-
-
-
-
-
 </html>

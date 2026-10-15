@@ -79,21 +79,34 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .nk-modes button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
 .nk-env { display: flex; gap: 4px; align-items: center; }
-.nk-env select {
-  padding: 4px 8px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
-  background: var(--surface-2); color: var(--text);
-}
+/* 原生 select 已由 kit 升级为 .pk-select（类名迁移到 wrapper），宽度约束迁到 wrapper */
+.nk-env .pk-select { max-width: 160px; }
 .nk-spacer { flex: 1; }
 .nk-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 28px; padding: 4px 12px;
   border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
-  padding: 4px 12px; background: var(--surface-2); color: var(--text);
+  background: var(--surface); color: var(--text);
+  font-size: 12.5px; line-height: 1.4;
+  transition: background-color var(--speed), border-color var(--speed), color var(--speed), opacity var(--speed), transform 0.1s ease;
 }
-.nk-btn:hover:not(:disabled) { border-color: var(--border-strong); }
-.nk-btn.ghost { background: transparent; }
-.nk-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.nk-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.nk-btn:active:not(:disabled) { transform: scale(0.97); }
+.nk-btn.ghost {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border-color: transparent; color: var(--text-2);
+}
+.nk-btn.ghost:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  color: var(--text);
+}
+.nk-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+.nk-btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 86%, #fff); border-color: color-mix(in srgb, var(--accent) 86%, #fff); }
 .nk-btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 .nk-btn.danger:hover:not(:disabled) { background: var(--danger-soft); }
-.nk-btn.tiny { padding: 2px 8px; font-size: 12px; }
+/* 紧凑按钮：24px，全插件一致 */
+.nk-btn.tiny { min-height: 24px; padding: 2px 10px; font-size: 12px; }
 
 /* ———— 会话 Tab ———— */
 .nk-tabs {
@@ -105,15 +118,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 10px; border: 0; border-right: 1px solid var(--border);
   background: transparent; color: var(--text-2); white-space: nowrap; font-size: 12px;
+  transition: background-color var(--speed), color var(--speed);
 }
+.nk-tab:hover:not(.active) { background: var(--surface-2); color: var(--text); }
 .nk-tab.active { color: var(--text); background: var(--bg); box-shadow: inset 0 -2px 0 var(--accent); }
-.nk-tab .nk-tab-x {
+.nk-tab-x {
   border: 0; padding: 0 2px; background: transparent; color: var(--text-3);
-  border-radius: 3px; font-size: 12px; line-height: 1;
+  border-radius: 3px; font-size: 12px; line-height: 1; min-width: 18px; min-height: 18px;
 }
 .nk-tab .nk-tab-x:hover { color: var(--danger); background: var(--danger-soft); }
-.nk-tab-add { border: 0; padding: 6px 12px; background: transparent; color: var(--text-2); }
-.nk-tab-add:hover { color: var(--accent); }
+.nk-tab-add { border: 0; padding: 6px 12px; background: transparent; color: var(--text-2); transition: color var(--speed), background-color var(--speed); }
+.nk-tab-add:hover { color: var(--accent); background: var(--surface-2); }
 
 /* ———— 主体三栏（桌面）/ 单列（Quick 与窄容器）———— */
 .nk-body { min-height: 0; min-width: 0; container-type: inline-size; }
@@ -161,8 +176,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .nk-tree-item:hover { background: var(--surface-2); color: var(--text); }
 .nk-tree-item.active { background: var(--accent-soft); color: var(--accent); }
-.nk-tree-item .del { margin-left: auto; color: var(--text-3); border: 0; background: transparent; padding: 0 2px; }
-.nk-tree-item .del:hover { color: var(--danger); }
+.nk-tree-item .del { margin-left: auto; color: var(--text-3); border: 0; background: transparent; padding: 0 2px; border-radius: 3px; min-width: 18px; min-height: 18px; transition: color var(--speed), background-color var(--speed); }
+.nk-tree-item .del:hover { color: var(--danger); background: var(--danger-soft); }
 .nk-tree-empty { padding: 16px 8px; color: var(--text-3); text-align: center; font-size: 12px; line-height: 1.7; }
 
 /* ———— 表单 ———— */
@@ -174,23 +189,28 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   width: 100%; min-width: 0; padding: 5px 8px;
   border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
   background: var(--bg); color: var(--text);
+  min-height: 28px;
 }
-.nk-input:focus, .nk-area:focus { border-color: var(--accent); }
+.nk-input:focus, .nk-area:focus { border-color: var(--accent); outline: none; }
+.nk-input:focus-visible, .nk-area:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.nk-input:disabled, .nk-area:disabled { opacity: 0.45; cursor: default; }
 .nk-area { resize: vertical; font-family: var(--mono); font-size: 12px; line-height: 1.55; word-break: break-word; }
 .nk-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .nk-input[type='number'] { font-family: var(--mono); }
-.nk-select {
-  padding: 5px 8px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
-  background: var(--bg); color: var(--text);
-}
+/* select 已由 kit 升级为 .pk-select/.pk-select-trigger（外观走 kit），此处只管布局与宽度 */
+.nk-select { max-width: 100%; min-width: 0; }
+.nk-row > .nk-select { flex: none; }
+.nk-assert .pk-select { min-width: 0; max-width: 100%; }
+.nk-assert .pk-select-trigger { width: 100%; }
+.nk-loop .pk-select { max-width: 200px; }
 .nk-check { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; color: var(--text-2); white-space: nowrap; }
 
 /* KV 编辑行 */
 .nk-kv { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto auto; gap: 4px; align-items: center; }
 .nk-kv + .nk-kv { margin-top: 4px; }
 .nk-kv input { padding: 4px 6px; font-size: 12px; }
-.nk-kv .del { border: 0; background: transparent; color: var(--text-3); padding: 2px 6px; }
-.nk-kv .del:hover { color: var(--danger); }
+.nk-kv .del { border: 0; background: transparent; color: var(--text-3); padding: 2px 6px; border-radius: 3px; min-width: 22px; min-height: 22px; transition: color var(--speed), background-color var(--speed); }
+.nk-kv .del:hover { color: var(--danger); background: var(--danger-soft); }
 
 /* ———— 徽章行 / 状态 ———— */
 .nk-badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -225,7 +245,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* ———— 响应区 / 字节流 ———— */
 .nk-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--surface-2); }
-.nk-seg button { border: 0; padding: 2px 8px; border-radius: 3px; background: transparent; color: var(--text-2); font-size: 12px; }
+.nk-seg button { border: 0; padding: 2px 8px; border-radius: 3px; background: transparent; color: var(--text-2); font-size: 12px; transition: background-color var(--speed), color var(--speed); }
+.nk-seg button:hover:not(.active) { background: var(--surface-3); color: var(--text); }
 .nk-seg button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
 
 .nk-viewer {
@@ -244,7 +265,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* JSON 树 */
 .nk-json { font-family: var(--mono); font-size: 12px; line-height: 1.65; user-select: text; }
 .nk-json-row { display: flex; gap: 6px; align-items: baseline; padding-left: calc(var(--depth, 0) * 16px); }
-.nk-json-caret { border: 0; background: transparent; color: var(--text-3); padding: 0 4px; font-size: 10px; cursor: pointer; }
+.nk-json-caret { border: 0; background: transparent; color: var(--text-3); padding: 0 4px; font-size: 10px; cursor: pointer; border-radius: 3px; }
+.nk-json-caret:hover { color: var(--accent); background: var(--accent-soft); }
 .nk-json-key { color: var(--accent); }
 .nk-json-val { color: var(--text); word-break: break-word; }
 .nk-json-val.t-num { color: var(--ok); }
@@ -280,6 +302,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   gap: 4px; align-items: center;
 }
 .nk-assert .res { width: 52px; text-align: center; font-size: 11px; padding: 1px 0; border-radius: 999px; }
+.nk-assert .del { border: 0; background: transparent; color: var(--text-3); padding: 2px 6px; border-radius: 3px; min-width: 22px; min-height: 22px; transition: color var(--speed), background-color var(--speed); }
+.nk-assert .del:hover { color: var(--danger); background: var(--danger-soft); }
 .nk-assert .res.pass { color: var(--ok); background: var(--ok-soft); }
 .nk-assert .res.fail { color: var(--danger); background: var(--danger-soft); }
 .nk-assert .res.idle { color: var(--text-3); background: var(--surface-2); }
@@ -316,8 +340,11 @@ dialog#dlg::backdrop { background: rgba(16, 24, 36, 0.4); }
   display: flex; align-items: center; gap: 8px;
   padding: 10px 14px; border-bottom: 1px solid var(--border); font-weight: 600;
 }
-.nk-dlg-head .x { margin-left: auto; border: 0; background: transparent; color: var(--text-2); font-size: 14px; }
+.nk-dlg-head .x { margin-left: auto; border: 0; background: transparent; color: var(--text-2); font-size: 14px; min-width: 26px; min-height: 26px; border-radius: 5px; transition: color var(--speed), background-color var(--speed); }
+.nk-dlg-head .x:hover { color: var(--text); background: var(--surface-2); }
 .nk-dlg-body { padding: 12px 14px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+/* dialog 内下拉：菜单弹出期间放开裁切，避免 pk-select-menu 被切掉 */
+dialog#dlg:has(.pk-select-menu:not([hidden])) { overflow: visible; }
 
 /* ———— 响应式：≤740px 单列（容器查询） ———— */
 @container (max-width: 740px) {

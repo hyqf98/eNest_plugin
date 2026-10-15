@@ -1,8 +1,8 @@
 {
   "id": "com.enest.password-kit",
   "name": "密码工具箱",
-  "version": "1.1.0",
-  "description": "随机密码与 UUID v4 批量生成，字符排除、结果遮罩和复制格式。",
+  "version": "1.2.0",
+  "description": "随机密码、密码短语与 PIN 生成，强度检查（熵 + 破解时间估算），UUID v4 批量与本地生成历史。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
@@ -27,6 +27,14 @@
       "explain": "UUID v4 生成",
       "cmds": [
         "uuid"
+      ]
+    },
+    {
+      "code": "inspect",
+      "explain": "密码强度检查",
+      "cmds": [
+        "强度",
+        "strength"
       ]
     }
   ],
@@ -87,6 +95,12 @@
             "key": "uuidHyphens",
             "type": "switch",
             "label": "UUID 保留连字符",
+            "default": true
+          },
+          {
+            "key": "keepHistory",
+            "type": "switch",
+            "label": "保留生成历史（仅本地存储）",
             "default": true
           }
         ]

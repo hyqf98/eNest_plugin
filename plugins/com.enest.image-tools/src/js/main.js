@@ -306,6 +306,29 @@ import { bindFileInput, readDroppedFiles } from '@enest/plugin-kit/file-inputs'
     $('resize-value').value = $('resize-range').value
   }
   $('resize-range').oninput = () => { $('resize-value').value = $('resize-range').value }
+  // 导出尺寸预设：一键落到滑条并预览
+  for (const preset of core.EXPORT_PRESETS) {
+    const button = document.createElement('button')
+    button.type = 'button'; button.className = 'preset-chip'; button.textContent = preset.label
+    button.onclick = () => {
+      const item = currentItem()
+      if (!item) { kit.toast('请先选择图片', 'error'); return }
+      if (preset.id === 'original') {
+        resizeMode = 'long'
+        document.querySelectorAll('[data-resize]').forEach(entry => entry.setAttribute('aria-pressed', String(entry.dataset.resize === resizeMode)))
+        syncResizeRange()
+        $('resize-range').value = String(Math.max(item.width, item.height))
+      } else {
+        resizeMode = 'long'
+        document.querySelectorAll('[data-resize]').forEach(entry => entry.setAttribute('aria-pressed', String(entry.dataset.resize === resizeMode)))
+        syncResizeRange()
+        $('resize-range').value = String(preset.id === 'icon' ? 256 : preset.id === 'cover' ? 1200 : preset.id === 'hd' ? 1280 : 1920)
+      }
+      $('resize-value').value = $('resize-range').value
+      $('preview-resize').click()
+    }
+    $('preset-row').append(button)
+  }
   $('preview-resize').onclick = () => {
     const item = currentItem(); if (!item) { kit.toast('请先选择图片', 'error'); return }
     try {
@@ -584,11 +607,14 @@ import { bindFileInput, readDroppedFiles } from '@enest/plugin-kit/file-inputs'
     status('已创建贴图')
   })
 
-  // ---------- 批量 ----------
+  // ---------- 批量（带进度反馈与逐项状态） ----------
+  function progressText(text) { $('bulk-progress').textContent = text }
   $('bulk-shrink').onclick = () => void run(async () => {
     const targetBytes = Number($('target-range').value) * 1024
+    const total = items.length
     let done = 0
-    for (const item of items) {
+    progressText(core.batchProgress(0, total).text)
+    for (const [index, item] of items.entries()) {
       item.busy = true; render()
       try {
         const image = await loadImage(await itemData(item))
@@ -596,37 +622,54 @@ import { bindFileInput, readDroppedFiles } from '@enest/plugin-kit/file-inputs'
         const canvas = drawScaled(image, item.width, item.height)
         const result = await core.compressToTarget({ encode: q => canvasToBlob(canvas, mime, q).then(blob => blob ? { blob, bytes: blob.size } : null), targetBytes })
         if (result) {
-          await importDataUrl(await blobToDataUrl(result.blob), `${stripExt(item.name)} · 压缩`, result.bytes)
+          await importDataUrl(await blobToDataUrl(result.blob), core.batchName(item.name, '压缩', mime === 'image/webp' ? 'webp' : 'jpg'), result.bytes)
           done += 1
         }
       } catch (error) { kit.toast(`${item.name}：${error.message}`, 'error') }
       item.busy = false
+      progressText(core.batchProgress(index + 1, total).text)
+      render()
       await core.yieldFrame()
     }
-    status(`批量压缩完成 ${done}/${items.length} 张`)
+    status(`批量压缩完成 ${done}/${total} 张`)
+    kit.toast(done === total ? `批量压缩完成（${done} 张）` : `批量压缩完成 ${done}/${total} 张`, done ? 'success' : 'info')
+    setTimeout(() => progressText(''), 2400)
   })
   $('bulk-convert').onclick = () => void run(async () => {
+    const total = items.length
     let done = 0
-    for (const item of items) {
+    progressText(core.batchProgress(0, total).text)
+    for (const [index, item] of items.entries()) {
       item.busy = true; render()
       try {
         const image = await loadImage(await itemData(item))
         const canvas = drawScaled(image, item.width, item.height)
         const blob = await canvasToBlob(canvas, 'image/webp', 0.9)
-        await importDataUrl(await blobToDataUrl(blob), `${stripExt(item.name)}.webp`, blob.size)
+        await importDataUrl(await blobToDataUrl(blob), core.batchName(item.name, '', 'webp'), blob.size)
         done += 1
       } catch (error) { kit.toast(`${item.name}：${error.message}`, 'error') }
       item.busy = false
+      progressText(core.batchProgress(index + 1, total).text)
+      render()
       await core.yieldFrame()
     }
     status(`已批量转换 ${done} 张为 WebP`)
+    kit.toast(done ? `已转换 ${done} 张为 WebP` : '没有可转换的图片', done ? 'success' : 'info')
+    setTimeout(() => progressText(''), 2400)
   })
   const stripExt = name => String(name || '图片').replace(/\.[^.]+$/, '')
   $('export-all').onclick = () => void run(async () => {
-    for (const item of items) {
+    const total = items.length
+    progressText(core.batchProgress(0, total).text)
+    let done = 0
+    for (const [index, item] of items.entries()) {
       const ext = item.mime === 'image/webp' ? 'webp' : item.mime === 'image/jpeg' ? 'jpg' : 'png'
-      await kit.saveFile(`${stripExt(item.name)}.${ext}`, await itemData(item))
+      try { await kit.saveFile(`${stripExt(item.name)}.${ext}`, await itemData(item)); done += 1 } catch (error) { kit.toast(`${item.name}：${error.message}`, 'error') }
+      progressText(core.batchProgress(index + 1, total).text)
+      await core.yieldFrame()
     }
+    status(`已依次另存 ${done}/${total} 张`)
+    setTimeout(() => progressText(''), 2400)
   })
   $('clear-queue').onclick = () => {
     items = []; activeId = ''; thumbs.clear()

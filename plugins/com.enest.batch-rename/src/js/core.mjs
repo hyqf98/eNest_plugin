@@ -1,7 +1,9 @@
 /* batch-rename 规则引擎（纯函数，node 可直接自测）：
    applyRules(entries, rules) → 预览行（新名/非法/冲突标注）。
    规则类型：replace（查找替换，可正则/大小写）、number（序号）、date（日期）、
-   case（大小写转换）、ext（扩展名替换）。链式按序应用，作用于「基础名」与扩展名分离处理。 */
+   case（大小写转换）、ext（扩展名替换）、insert（插入片段，支持位置锚点）、
+   remove（删除片段：按位置删除 N 个字符）。
+   链式按序应用，作用于「基础名」与扩展名分离处理。 */
 
 const INVALID_NAME = /[\\/:*?"<>|\u0000-\u001f]/
 
@@ -78,6 +80,31 @@ function applyOne(part, rule, index, mtime) {
       if (rule.mode === 'title') return part.base.replace(/\b\w/g, (c) => c.toUpperCase())
       return part.base
     }
+    case 'insert': {
+      // 在指定锚点插入片段：head / tail / 按序数定位（第 n 个字符前，负数从尾部计）
+      const text = String(rule.text ?? '')
+      if (!text) return part.base
+      const pos = Number(rule.at ?? 0)
+      if (rule.position === 'head') return text + part.base
+      if (rule.position === 'tail') return part.base + text
+      const anchor = Math.trunc(pos)
+      if (anchor < 0) {
+        const cut = Math.max(0, part.base.length + anchor)
+        return part.base.slice(0, cut) + text + part.base.slice(cut)
+      }
+      const cut = Math.min(part.base.length, anchor)
+      return part.base.slice(0, cut) + text + part.base.slice(cut)
+    }
+    case 'remove': {
+      // 删除片段：position 为 start 时从第 start 个字符起删 length 个；position 为 end 时从尾部起算
+      const length = Math.max(0, Math.trunc(Number(rule.length ?? 1)))
+      if (!length) return part.base
+      const from = Math.trunc(Number(rule.start ?? 0))
+      const begin = rule.position === 'end'
+        ? Math.max(0, part.base.length + from)
+        : Math.min(part.base.length, Math.max(0, from))
+      return part.base.slice(0, begin) + part.base.slice(begin + length)
+    }
     default:
       return part.base
   }
@@ -86,8 +113,9 @@ function applyOne(part, rule, index, mtime) {
 /**
  * 应用规则链到条目列表。
  * entries: [{ id, name, mtime?, dir? }]（dir 用于冲突分组：同名仅在同目录冲突）
- * 返回 [{ id, oldName, newName, error }]；error = 非法名 / 与现存文件冲突 /
- * 与队列内其他条目冲突（后写标注，先到者胜）。规则参数非法整体抛错。
+ * 返回 [{ id, oldName, newName, dir, changed, error }]：
+ *   changed = 新旧名不同；error = 非法名 / 与现存文件冲突（含撞上批内未改名条目）/
+ *   与队列内其他改名条目冲突（后写标注，先到者胜）。规则参数非法整体抛错。
  */
 export function applyRules(entries, rules) {
   const list = Array.isArray(entries) ? entries : []
@@ -102,26 +130,24 @@ export function applyRules(entries, rules) {
       }
       base = applyOne({ base, ext }, rule, index, entry.mtime)
     }
-    return { id: entry.id, oldName: entry.name, newName: joinName(base, ext), dir: entry.dir ?? '', error: null }
+    const newName = joinName(base, ext)
+    return { id: entry.id, oldName: entry.name, newName, dir: entry.dir ?? '', changed: newName !== entry.name, error: null }
   })
 
-  // 冲突检测：批内同目录同名（后出现者标注）；改名后仍是原名的条目不算冲突
+  // 冲突检测（同目录内）：
+  //   1) 目标撞「批内保持原名」的条目 → 与现有文件同名（宿主必拒）
+  //   2) 目标撞「批内另一条改名结果」→ 批内同名目标（后者标注，先到者胜）
   const seen = new Map()
-  const byDir = new Map()
   for (const d of drafts) {
     const key = `${d.dir}\u0000${d.newName}`
-    if (seen.has(key)) {
-      const holder = seen.get(key)
-      if (d.oldName !== d.newName) {
-        // 先占者若保持原名 → 撞现有文件；先占者也是改名结果 → 批内同名
-        d.error = holder.oldName === holder.newName ? '冲突：与现有文件同名' : '冲突：同名目标'
+    const holder = seen.get(key)
+    if (holder) {
+      if (d.changed) {
+        d.error = holder.changed ? '冲突：同名目标' : '冲突：与现有文件同名'
       }
     } else {
       seen.set(key, d)
     }
-    const dirSet = byDir.get(d.dir) ?? new Set()
-    dirSet.add(d.oldName)
-    byDir.set(d.dir, dirSet)
   }
 
   // 非法名校验（结果名含非法字符 / 点开头 / 保留名）

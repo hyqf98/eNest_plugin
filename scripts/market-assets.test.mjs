@@ -42,6 +42,7 @@ test('registry metadata is extracted from final archives, independent of source 
   assert.equal(item.icon, 'com.example.test%401.0.0/assets/market/icon.svg')
   assert.match(readFileSync(join(f.repositoryRoot, 'dist/com.example.test@1.0.0/assets/market/README.md'), 'utf8'), /Package description/)
   assert.ok(item.asset.size > 0); assert.match(item.asset.sha256, /^[0-9a-f]{64}$/)
+  assert.equal(Object.hasOwn(item, 'installs'), false, 'archive bytes cannot establish an installation count')
 })
 test('package paths reject traversal, hidden names, schemes and encoded separators', () => {
   for (const path of ['../a', '/a', 'a//b', 'a/./b', 'a/.secret', 'https:x', 'a\\b', 'a%2fb', 'a?x', 'a#x']) assert.equal(validPath(path), false, path)

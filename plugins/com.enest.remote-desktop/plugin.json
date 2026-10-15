@@ -1,14 +1,14 @@
 {
   "id": "com.enest.remote-desktop",
   "name": "远程桌面",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "VNC / RDP 远程桌面：资产管理、SSH 隧道、多会话画布、剪贴板互通与连接诊断",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.2.0"
   },
   "permissions": [
     "net.socket",
@@ -19,7 +19,8 @@
     "clipboard.writeImage",
     "pin.create",
     "shell.openExternal",
-    "notify"
+    "notify",
+    "backend.node"
   ],
   "contributes": {
     "settings": [
@@ -100,5 +101,8 @@
   },
   "development": {
     "main": "http://127.0.0.1:5173/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
   }
 }

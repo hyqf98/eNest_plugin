@@ -307,10 +307,39 @@
     return new Promise(resolve => setTimeout(resolve, 0))
   }
 
+  // ---------- 导出尺寸预设 ----------
+
+  /** 常用导出尺寸预设（最长边）。cover: 封面图 1200；hd: 1280；fhd: 1920；icon: 256 方图标。 */
+  const EXPORT_PRESETS = [
+    { id: 'original', label: '原始尺寸' },
+    { id: 'icon', label: '图标 256' },
+    { id: 'cover', label: '封面 1200' },
+    { id: 'hd', label: '高清 1280' },
+    { id: 'fhd', label: '全高清 1920' }
+  ]
+
+  /**
+   * 批量任务进度聚合：completed / total 与文案。
+   * onStep 逐项回调（index, name）；任务通过 returned token 取消。
+   */
+  function batchProgress(completed, total) {
+    const done = Math.max(0, Number(completed) || 0)
+    const all = Math.max(0, Number(total) || 0)
+    return { done, total: all, ratio: all ? done / all : 0, text: `${done}/${all}` }
+  }
+
+  /** 文件名去扩展名 + 追加后缀，保证批量输出命名可读且不覆盖原名。 */
+  function batchName(name, suffix, ext) {
+    const base = String(name || '图片').replace(/\.[^.]+$/, '').slice(0, 60)
+    const target = String(ext || '').replace(/^\./, '')
+    return `${base}${suffix ? ` · ${suffix}` : ''}${target ? `.${target}` : ''}`
+  }
+
   root.ImageCore = {
-    SUPPORTED_MIME, FORMAT_LABEL, WATERMARK_SLOTS,
+    SUPPORTED_MIME, FORMAT_LABEL, WATERMARK_SLOTS, EXPORT_PRESETS,
     mimeOf, formatBytes, ratioText, compressToTarget, scaleSize,
     transformPlan, applyTransform, watermarkAnchor, watermarkStyle,
-    parseExif, exifSummary, paletteFromPixels, medianCut, toHex, yieldFrame
+    parseExif, exifSummary, paletteFromPixels, medianCut, toHex, yieldFrame,
+    batchProgress, batchName
   }
 })(globalThis)

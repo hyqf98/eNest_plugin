@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { createHash } from 'node:crypto'
+import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { buildPlugin } from './build-plugin.mjs'
 import { repositoryRoot, pluginIds, readManifest, DSH_ID, DSH_VERSION } from './plugin-contract.mjs'
@@ -25,7 +27,7 @@ export async function packPlugin(id, { outDir = join(repositoryRoot, 'dist'), bu
   }
   return { name, path: output, size: data.length, sha256: createHash('sha256').update(data).digest('hex') }
 }
-if (process.argv[1] && resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const input = process.argv.slice(2), ids = input[0] === '--all' ? pluginIds() : input.filter(value => !value.startsWith('--'))
   if (!ids.length) throw new Error('usage: pack-plugin.mjs <id>|--all [--no-build]')
   for (const id of ids) console.log(JSON.stringify(await packPlugin(id, { build: !input.includes('--no-build') })))

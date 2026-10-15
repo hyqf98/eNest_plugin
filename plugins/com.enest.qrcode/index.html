@@ -46,7 +46,7 @@
                   type="password"
                   autocomplete="off" /></label
               ><label
-                >加密<select id="wifi-security">
+                >加密<select id="wifi-security" aria-label="加密方式">
                   <option value="WPA">WPA / WPA2</option>
                   <option value="WEP">WEP</option>
                   <option value="nopass">开放网络</option>
@@ -70,14 +70,14 @@
               <summary>图像选项</summary>
               <div class="options-grid">
                 <label
-                  >尺寸<select id="size">
+                  >尺寸<select id="size" aria-label="尺寸">
                     <option>128</option>
                     <option selected>256</option>
                     <option>512</option>
                     <option>1024</option>
                   </select></label
                 ><label
-                  >纠错<select id="ecc">
+                  >纠错<select id="ecc" aria-label="纠错级别">
                     <option value="L">L · 7%</option>
                     <option value="M" selected>M · 15%</option>
                     <option value="Q">Q · 25%</option>
@@ -89,10 +89,28 @@
                   >背景<input id="bg" type="color" value="#ffffff"
                 /></label>
               </div>
+              <div class="style-block">
+                <span class="field-label">点样式</span>
+                <div id="dot-style-seg" class="mode-seg" role="radiogroup" aria-label="点样式"></div>
+                <span class="field-label">中心 logo</span>
+                <div class="logo-row">
+                  <button id="logo-file-btn" type="button" onclick="document.getElementById('logo-file').click()">选择图片</button>
+                  <input id="logo-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden />
+                  <label class="logo-scale-label">占码宽 <output id="logo-scale-value">20%</output><input id="logo-scale" type="range" min="8" max="28" step="2" value="20" /></label>
+                  <button id="logo-clear" type="button" disabled>移除</button>
+                </div>
+                <p class="style-hint"><span id="logo-status">未设置</span> · logo 叠加后自动留白，与定位角冲突时会跳过并提示</p>
+              </div>
             </details>
             <p id="error" role="alert"></p>
             <div class="actions">
               <button id="copy-image" class="primary" disabled>复制图片</button
+              ><label class="png-size-label">导出尺寸<select id="png-size" aria-label="PNG 导出尺寸">
+                <option value="256">256</option>
+                <option value="512">512</option>
+                <option value="1024">1024</option>
+                <option value="2048">2048</option>
+              </select></label
               ><button id="save-png" disabled>保存 PNG</button
               ><button id="save-svg" disabled>保存 SVG</button>
             </div>

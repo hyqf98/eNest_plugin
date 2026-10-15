@@ -1,8 +1,8 @@
 {
   "id": "com.enest.totp",
   "name": "验证器",
-  "version": "1.0.0",
-  "description": "TOTP 两步验证：otpauth 导入、倒计时环出码、点击复制、分组搜索与口令加密备份。",
+  "version": "1.1.0",
+  "description": "TOTP 两步验证：otpauth 批量导入、连续倒计时环、下码预生成、点击复制、排序编辑与口令加密备份。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",

@@ -7,7 +7,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   formatKb, formatPct, isSystemProc, searchProc, searchPort,
-  linkPortsToProc, SampleRing, shortName
+  linkPortsToProc, SampleRing, shortName,
+  thresholdLevel, summarize, topProcesses
 } from '../src/js/core.js'
 
 // ———— 格式化 ————
@@ -162,4 +163,84 @@ WindowSer 376 _windowserver 6u IPv4 0x3c4d5e6f7a8b      0t0  TCP [::1]:49155 (LI
   // 端口直达：7000 → node #8080（Quick 场景核心链路）
   const hit = searchPort(rows, '7000')
   assert.equal(hit[0].pid, 8080)
+})
+
+// ———— 阈值分级（v1.1 仪表盘告警）———
+
+test('thresholdLevel：ok / warn / danger 与非法值', () => {
+  assert.equal(thresholdLevel(10), 'ok')
+  assert.equal(thresholdLevel(70), 'warn')
+  assert.equal(thresholdLevel(85, 70, 90), 'warn')
+  assert.equal(thresholdLevel(90, 70, 90), 'danger')
+  assert.equal(thresholdLevel(99.5), 'danger')
+  assert.equal(thresholdLevel(NaN), 'ok')
+  assert.equal(thresholdLevel(undefined), 'ok')
+  // 自定义阈值
+  assert.equal(thresholdLevel(50, 40, 60), 'warn')
+  assert.equal(thresholdLevel(60, 40, 60), 'danger')
+})
+
+// ———— summarize（仪表盘指标派生）———
+
+test('summarize：总 CPU / 总内存 / pmem / Top 引用 / 端口去重', () => {
+  const procs = [
+    { pid: 1, pcpu: 10, pmem: 1, rss: 1024 * 1024, user: 'root', command: '/usr/sbin/kerneltask' },
+    { pid: 2, pcpu: 45.5, pmem: 6.5, rss: 2 * 1024 * 1024, user: 'haijun', command: '/Applications/Chromium.app/Contents/MacOS/Chromium' },
+    { pid: 3, pcpu: 0, pmem: 0.2, rss: 64000, user: 'haijun', command: 'node server.mjs' }
+  ]
+  const ports = [
+    { pid: 3, port: 7000 }, { pid: 3, port: 7001 }, { pid: 99, port: 9000 }
+  ]
+  const s = summarize(procs, ports)
+  assert.equal(s.procCount, 3)
+  assert.equal(s.totalCpu, 55.5)
+  assert.equal(s.totalMemKb, 1024 * 1024 + 2 * 1024 * 1024 + 64000)
+  assert.ok(Math.abs(s.memPct - 7.7) < 0.001)
+  assert.equal(s.cpuTop.pid, 2)
+  assert.equal(s.memTop.pid, 2)
+  assert.equal(s.portCount, 3)
+  assert.equal(s.listenCount, 2)
+})
+
+test('summarize：空输入与异常裁剪', () => {
+  const s = summarize([], [])
+  assert.equal(s.procCount, 0)
+  assert.equal(s.totalCpu, 0)
+  assert.equal(s.memTop, null)
+  // pcpu 总和超 100 时 clamp（防御异常样本）
+  const s2 = summarize([{ pid: 1, pcpu: 80, rss: 1, pmem: 1 }, { pid: 2, pcpu: 80, rss: 1, pmem: 1 }], [])
+  assert.equal(s2.totalCpu, 100)
+})
+
+// ———— topProcesses ————
+
+test('topProcesses：降序截取与短名', () => {
+  const procs = [
+    { pid: 1, pcpu: 2, rss: 100, command: '/usr/lib/systemd/a' },
+    { pid: 2, pcpu: 50, rss: 500000, command: '/Applications/Chromium.app/Contents/MacOS/Chromium' },
+    { pid: 3, pcpu: 12, rss: 300000, command: 'node server.mjs' }
+  ]
+  const cpu = topProcesses(procs, 'pcpu', 2)
+  assert.deepEqual(cpu.map((p) => p.pid), [2, 3])
+  assert.equal(cpu[0].name, 'Chromium')
+  assert.equal(cpu[0].value, 50)
+  const mem = topProcesses(procs, 'rss', 5)
+  assert.equal(mem[0].pid, 2)
+  assert.equal(mem.length, 3)
+  assert.deepEqual(topProcesses([], 'pcpu', 5), [])
+})
+
+// ———— SampleRing.setCapacity（刷新频率切换保留样本）———
+
+test('SampleRing.setCapacity：缩容保留末尾、扩容不变', () => {
+  const r = new SampleRing(64)
+  for (let i = 0; i < 40; i++) r.push(i)
+  r.setCapacity(20)
+  assert.equal(r.length, 20)
+  assert.equal(r.items[0], 20)
+  assert.equal(r.items.at(-1), 39)
+  r.setCapacity(64)
+  r.push(40)
+  assert.equal(r.length, 21)
+  assert.equal(r.items.at(-1), 40)
 })

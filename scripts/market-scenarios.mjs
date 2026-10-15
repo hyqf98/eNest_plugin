@@ -70,6 +70,11 @@ export async function runMarketScenario(page, id) {
     case 'com.enest.snippets':
       await click('.snippet')
       return '打开内置示例片段'
+    case 'com.enest.anything':
+      await fill('#query', 'md')
+      await wait(() => document.querySelectorAll('#list .row').length >= 2)
+      await page.locator('#list .row').nth(1).click()
+      return '在演示索引中搜索并选中一条结果，展示命中高亮与预览'
     case 'com.enest.codex-pets':
       await wait(() => document.querySelectorAll('.cp-card').length >= 3)
       await fill('#g-q', '像素')

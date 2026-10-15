@@ -1,12 +1,50 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>剪贴板</title><link rel="stylesheet" href="./src/style.css"></head>
 <body><main class="app">
-<header class="shell-only"><div><h1>剪贴板</h1><span class="muted">留住刚刚复制的内容</span></div><input id="search" type="search" placeholder="搜索内容、文件或来源应用" aria-label="搜索历史"><button data-open-settings>偏好设置</button></header>
-<nav class="filters" aria-label="历史分类"><div id="types"><button data-type="all" class="active">全部</button><button data-type="text">文本</button><button data-type="image">图片</button><button data-type="files">文件</button><button data-type="pinned">收藏</button></div><button id="manage" aria-label="管理剪贴板">管理</button></nav>
+<header class="shell-only">
+  <div><h1>剪贴板</h1><span class="muted">留住刚刚复制的内容</span></div>
+  <input id="search" type="search" placeholder="搜索内容、文件或来源应用" aria-label="搜索历史">
+  <button data-open-settings>偏好设置</button>
+</header>
+<nav class="filters" aria-label="历史分类"><div id="types"><button data-type="all" class="active">全部</button><button data-type="text">文本</button><button data-type="image">图片</button><button data-type="files">文件</button><button data-type="pinned">收藏</button></div><span class="grow"></span><button id="open-tools" class="tool-toggle" aria-expanded="false" aria-controls="tools-panel">工具</button><button id="manage" aria-label="管理剪贴板">管理</button></nav>
+<section id="tools-panel" class="tools" hidden aria-label="文本工具与暂存片段">
+  <div class="tools-block">
+    <div class="tools-label">变换当前选中的文本</div>
+    <div class="tools-grid">
+      <button data-xfmt="json">格式化 JSON</button>
+      <button data-xfmt="json-min">压缩 JSON</button>
+      <button data-xfmt="unique">行去重</button>
+      <button data-xfmt="sort">行排序</button>
+      <button data-xfmt="strip">去格式化</button>
+      <button data-xfmt="upper">全部大写</button>
+      <button data-xfmt="lower">全部小写</button>
+      <button data-xfmt="camel">camelCase</button>
+      <button data-xfmt="snake">snake_case</button>
+      <button data-xfmt="kebab">kebab-case</button>
+    </div>
+    <details class="tools-advanced">
+      <summary>正则替换</summary>
+      <div class="regex-row">
+        <input id="regex-pattern" placeholder="正则，例如 \d+" aria-label="正则表达式" spellcheck="false">
+        <input id="regex-replacement" placeholder="替换为（可用 $1）" aria-label="替换文本" spellcheck="false">
+        <button id="regex-apply">应用并复制</button>
+      </div>
+    </details>
+  </div>
+  <div class="tools-block">
+    <div class="tools-label">暂存片段 <span class="muted">（临时，本地保存，最多 20 条）</span></div>
+    <div class="snippet-row">
+      <button id="snippet-save" title="把当前选中的文本存为暂存片段">存入选中</button>
+      <button id="snippet-new" title="新建空白片段">新建</button>
+    </div>
+    <div id="snippets" class="snippets"></div>
+  </div>
+</section>
 <div class="workspace"><section class="history"><div class="list-info"><span id="count" role="status">正在读取…</span><select id="collection-filter" class="shell-only" aria-label="筛选分类"><option value="">所有分类</option></select><button id="refresh" title="刷新历史">刷新</button></div><div id="list" role="listbox" tabindex="0" aria-label="剪贴板历史"></div><button id="more" hidden>载入更多</button></section><aside id="detail" class="shell-only"><div class="empty">选择一条记录，查看完整内容</div></aside></div>
 <footer><div class="selection"><span id="selected-label">请选择记录</span><button id="select-all" class="shell-only">全选已载入</button></div><div class="actions"><button id="pin">收藏</button><button id="delete" class="danger">删除</button><button id="copy">复制</button><button id="paste" class="primary">回贴 <kbd>↵</kbd></button></div></footer>
 <div id="capability" class="capability" hidden><span></span><button id="authorize" hidden>开启权限</button></div>
 <dialog id="manager"><form method="dialog" class="dialog-title"><h2>历史管理</h2><button aria-label="关闭管理">关闭</button></form><label>排除来源应用<textarea id="excluded" rows="3" placeholder="每行一个应用名称或应用 ID"></textarea></label><p class="muted">仅在系统能可靠识别来源时生效。未知来源会明确显示为“未知来源”。</p><label>自定义分类<textarea id="collections" rows="3" placeholder="每行一个分类，例如工作、资料、常用"></textarea></label><div class="dialog-actions"><button id="clear" class="danger">清理未收藏历史</button><button id="save-management" class="primary">保存管理设置</button></div><button data-open-settings class="settings-link">在壳设置中调整监控、容量、保留期限和密度</button></dialog>
 <dialog id="confirm"><h2 id="confirm-title">删除记录</h2><p id="confirm-text"></p><div class="dialog-actions"><button id="confirm-cancel">取消</button><button id="confirm-ok" class="danger">确认删除</button></div></dialog>
+<dialog id="snippet-dialog"><form id="snippet-form" method="dialog"><h2 id="snippet-title">暂存片段</h2><label>标题<input id="snippet-name" maxlength="60" placeholder="可留空，自动取首行"></label><label>内容<textarea id="snippet-body" rows="6" required placeholder="片段内容"></textarea></label><p class="form-error" id="snippet-error" hidden></p><div class="dialog-actions"><button type="button" id="snippet-cancel">取消</button><button type="submit" class="primary">保存片段</button></div></form></dialog>
 </main>  <script type="module" src="./src/entry.js"></script>
   </body></html>

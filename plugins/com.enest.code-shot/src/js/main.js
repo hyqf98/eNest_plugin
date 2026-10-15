@@ -1,5 +1,6 @@
-/* 代码截图：粘贴代码 → 轻量 tokenizer 高亮 → canvas 渲染 mac 窗口栏卡片。
-   配色全部派生自主题 token（getThemeTokens / onThemeChange）；配置记忆在 storage.local。 */
+/* 代码截图：粘贴代码 → 轻量 tokenizer 高亮 → canvas 渲染窗口卡片。
+   配色由语法主题（跟随宿主或独立选择）派生；窗口样式 mac/windows/none；渐变或纯色背景；
+   配置记忆在 storage.local（codeshot_config_v1，向后兼容旧字段）。 */
 ;(function () {
   const api = window.enest || window.zapi
   const core = window.CodeCore
@@ -18,6 +19,7 @@
 
   const PREF_KEY = 'codeshot_config_v1'
   let language = 'javascript', themeMode = 'dark', themeTokens = {}
+  let syntaxTheme = 'auto', windowStyle = 'mac', gradientBg = true
   let lastDataUrl = null, saveQueue = Promise.resolve(), dirtyTimer = 0, initialized = false
 
   // ---------- 设置持久化 ----------
@@ -26,6 +28,7 @@
       language, code: $('code').value,
       title: $('card-title').value,
       background: document.querySelector('[data-bg][aria-pressed="true"]')?.dataset.bg || 'surface',
+      windowStyle, syntaxTheme, gradientBg,
       padding: Number($('padding').value), radius: Number($('radius').value),
       shadow: Number($('shadow').value), fontSize: Number($('font-size').value),
       showLines: $('show-lines').checked, scale2x: $('scale2x').checked
@@ -42,12 +45,16 @@
     if (config.title) $('card-title').value = String(config.title).slice(0, 60)
     if (core.LANGUAGES.some(entry => entry.id === config.language)) language = config.language
     if (['surface', 'plain', 'transparent'].includes(config.background)) setBackground(config.background)
+    if (core.WINDOW_STYLES.some(entry => entry.id === config.windowStyle)) windowStyle = config.windowStyle
+    if (core.CODE_THEMES.some(entry => entry.id === config.syntaxTheme)) syntaxTheme = config.syntaxTheme
+    if (typeof config.gradientBg === 'boolean') gradientBg = config.gradientBg
     for (const [id, key] of [['padding', 'padding'], ['radius', 'radius'], ['shadow', 'shadow'], ['font-size', 'fontSize']]) {
       if (Number.isFinite(config[key])) { $(id).value = String(config[key]); syncRangeOutput(id) }
     }
     if (typeof config.showLines === 'boolean') $('show-lines').checked = config.showLines
     $('scale2x').checked = typeof config.scale2x === 'boolean' ? config.scale2x : Boolean(kit.settings.scale2x)
     $('language').value = language
+    PluginKit.upgradeSelects()
   }
 
   // ---------- 语言下拉与识别 ----------
@@ -64,10 +71,27 @@
     if (found !== 'plaintext' && found !== language) {
       language = found
       $('language').value = found
+      PluginKit.upgradeSelects() // 程序化改值不触发 change，手动同步下拉触发器标签
       $('detect-hint').textContent = `已识别 ${core.LANGUAGES.find(entry => entry.id === found)?.label || found}`
     } else {
       $('detect-hint').textContent = ''
     }
+  }
+
+  // ---------- 窗口样式 / 语法主题 / 渐变 ----------
+  document.querySelectorAll('[data-window]').forEach(button => {
+    button.onclick = () => { windowStyle = button.dataset.window; syncSeg(); scheduleRender(); persist() }
+  })
+  for (const entry of core.CODE_THEMES) {
+    const option = document.createElement('option')
+    option.value = entry.id; option.textContent = entry.label
+    $('syntax-theme').append(option)
+  }
+  $('syntax-theme').onchange = () => { syntaxTheme = $('syntax-theme').value; scheduleRender(); persist() }
+  $('gradient-bg').onchange = () => { gradientBg = $('gradient-bg').checked; scheduleRender(); persist() }
+  function syncSeg() {
+    document.querySelectorAll('[data-window]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.window === windowStyle)))
+    document.querySelectorAll('[data-bg]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.bg === currentBackground())))
   }
 
   // ---------- 主题 token ----------
@@ -92,7 +116,7 @@
     document.querySelectorAll('[data-bg]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.bg === value)))
   }
   document.querySelectorAll('[data-bg]').forEach(button => {
-    button.onclick = () => { setBackground(button.dataset.bg); scheduleRender(); persist() }
+    button.onclick = () => { setBackground(button.dataset.bg); syncSeg(); scheduleRender(); persist() }
   })
   function currentBackground() {
     return document.querySelector('[data-bg][aria-pressed="true"]')?.dataset.bg || 'surface'
@@ -116,19 +140,22 @@
   function mixOver(base, overlay, alpha) {
     return `rgb(${base.map((channel, index) => Math.round(channel * (1 - alpha) + overlay[index] * alpha)).join(', ')})`
   }
+  function shift(rgb, amount) {
+    return `rgb(${rgb.map(channel => Math.max(0, Math.min(255, Math.round(channel + amount)))).join(', ')})`
+  }
 
   function renderShot() {
     const code = $('code').value.replace(/\s+$/, '')
     const empty = !code.trim()
-    const palette = core.syntaxPalette(themeTokens, themeMode)
+    const style = core.resolveTheme(syntaxTheme, themeMode)
     const bgMode = currentBackground()
     const fontSize = Number($('font-size').value)
     const padding = Number($('padding').value)
     const radius = Number($('radius').value)
     const shadowAlpha = Number($('shadow').value) / 100 * 0.45
-    const dpr = 2
+    const dpr = $('scale2x').checked ? 2 : 1
     const lineHeight = Math.round(fontSize * 1.6)
-    const headerHeight = 40
+    const headerHeight = windowStyle === 'none' ? 12 : 40
     const gutterWidth = $('show-lines').checked ? Math.round(fontSize * 1.1) * (core.gutterWidth(code.split('\n').length) + 1.5) : 0
 
     const tokens = core.tokenize(code, language)
@@ -146,35 +173,58 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, width, height)
 
-    // 卡片底与阴影
-    const pageBg = hexToRgb(parseColor(themeTokens['--bg'], themeMode === 'dark' ? '#17191b' : '#f6f6f4'))
-    const surfaceRgb = hexToRgb(palette.background)
+    // 卡片底：主题面 / 纯色 / 透明（surface 模式可选柔和渐变，纵深随主题）
+    const shellBg = hexToRgb(parseColor(themeTokens['--bg'], themeMode === 'dark' ? '#17191b' : '#f6f6f4'))
+    const surfaceRgb = hexToRgb(style.background)
+    const darkBase = syntaxTheme === 'auto' ? themeMode === 'dark' : ['dark', 'midnight', 'forest'].includes(syntaxTheme)
     ctx.save()
     ctx.shadowColor = `rgba(8, 12, 20, ${shadowAlpha.toFixed(3)})`
     ctx.shadowBlur = 28; ctx.shadowOffsetY = 12
-    ctx.fillStyle = bgMode === 'transparent' ? 'transparent' : bgMode === 'plain' ? mixOver(surfaceRgb, [18, 22, 28], themeMode === 'dark' ? 0.18 : 0.03) : palette.background
+    ctx.fillStyle = bgMode === 'transparent' ? 'transparent' : bgMode === 'plain' ? mixOver(surfaceRgb, [18, 22, 28], darkBase ? 0.18 : 0.03) : style.background
     roundRect(ctx, 0, 0, width, height, radius)
     if (bgMode !== 'transparent') { ctx.fill(); ctx.shadowColor = 'transparent' }
     ctx.restore()
+    if (bgMode === 'surface' && gradientBg && height > headerHeight + 40) {
+      // 大表面积低对比渐变：同一色相内 4% 明度差，避免均匀渐变的塑料感
+      const top = shift(surfaceRgb, darkBase ? 7 : -5)
+      const bottom = shift(surfaceRgb, darkBase ? -7 : 4)
+      ctx.save(); roundRect(ctx, 0, 0, width, height, radius); ctx.clip()
+      const gradient = ctx.createLinearGradient(0, 0, width * 0.36, height)
+      gradient.addColorStop(0, top); gradient.addColorStop(1, bottom)
+      ctx.fillStyle = gradient; ctx.fillRect(0, 0, width, height)
+      ctx.restore()
+    }
     if (bgMode === 'transparent') {
-      // 透明模式：仅窗口栏有底，代码区透明
-      ctx.save(); ctx.fillStyle = palette.header; roundRect(ctx, 0, 0, width, headerHeight, radius); ctx.fill(); ctx.fillRect(0, headerHeight - radius, width, radius); ctx.restore()
+      ctx.save(); ctx.fillStyle = style.header; roundRect(ctx, 0, 0, width, headerHeight, radius); ctx.fill(); ctx.fillRect(0, headerHeight - radius, width, radius); ctx.restore()
     }
     if (bgMode !== 'transparent' && radius > 0) {
-      ctx.strokeStyle = palette.border; ctx.lineWidth = 1
+      ctx.strokeStyle = style.border; ctx.lineWidth = 1
       roundRect(ctx, 0.5, 0.5, width - 1, height - 1, radius); ctx.stroke()
     }
 
-    // 窗口栏：mac 三点（中性色）+ 标题
+    // 窗口栏
     const dotY = headerHeight / 2
-    const dotRadius = 5.5
-    paletteDot(palette.dot)
-    ;[20, 20 + dotRadius * 3, 20 + dotRadius * 6].forEach(x => { ctx.beginPath(); ctx.arc(x, dotY, dotRadius, 0, Math.PI * 2); ctx.fill() })
-    const title = $('card-title').value.trim() || (core.LANGUAGES.find(entry => entry.id === language)?.label || '代码')
-    ctx.fillStyle = palette.title
-    ctx.font = `500 12px ${monoFont()}`
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(title, width / 2, dotY, Math.min(width / 2, 280))
+    if (windowStyle === 'mac') {
+      ctx.fillStyle = style.dot
+      const dotRadius = 5.5
+      ;[20, 20 + dotRadius * 3, 20 + dotRadius * 6].forEach(x => { ctx.beginPath(); ctx.arc(x, dotY, dotRadius, 0, Math.PI * 2); ctx.fill() })
+    } else if (windowStyle === 'windows') {
+      ctx.strokeStyle = style.dot; ctx.lineWidth = 1.6; ctx.lineCap = 'round'
+      const cy = dotY, size = 5
+      ;[-16, 16].forEach(offset => {
+        const cx = width / 2 + offset
+        ctx.beginPath(); ctx.moveTo(cx - size, cy - size); ctx.lineTo(cx + size, cy + size)
+        ctx.moveTo(cx + size, cy - size); ctx.lineTo(cx - size, cy + size); ctx.stroke()
+      })
+      ctx.lineCap = 'butt'
+    }
+    if (headerHeight > 12) {
+      const title = $('card-title').value.trim() || (core.LANGUAGES.find(entry => entry.id === language)?.label || '代码')
+      ctx.fillStyle = style.title
+      ctx.font = `500 12px ${monoFont()}`
+      ctx.fillText(title, width / 2, dotY, Math.min(width / 2, 280))
+    }
 
     // 代码体
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'
@@ -183,31 +233,28 @@
     rows.forEach((row, index) => {
       const y = baseline + index * lineHeight
       if ($('show-lines').checked && row.number) {
-        ctx.fillStyle = palette.gutter
-        const label = String(row.number)
-        ctx.fillText(label, padding, y)
+        ctx.fillStyle = style.gutter
+        ctx.fillText(String(row.number), padding, y)
       }
       let x = padding + gutterWidth
       for (const token of row.tokens) {
-        ctx.fillStyle = token.kind === 'plain' ? palette.plain : palette[token.kind] || palette.plain
+        ctx.fillStyle = token.kind === 'plain' ? style.plain : style[token.kind] || style.plain
         ctx.fillText(token.text, x, y)
         x += token.text.length * charWidth
       }
     })
 
     if (empty) {
-      ctx.fillStyle = palette.gutter
+      ctx.fillStyle = style.gutter
       ctx.font = `400 ${fontSize}px ${monoFont()}`
       ctx.fillText('// 在左侧粘贴代码，这里会实时渲染截图卡片', padding + gutterWidth, baseline)
     }
 
     try { lastDataUrl = canvas.toDataURL('image/png') } catch { lastDataUrl = null }
     for (const id of ['copy-shot', 'save-shot', 'copy-again', 'save-again', 'pin-shot']) $(id).disabled = !lastDataUrl
-    status(empty ? '粘贴代码即刻生成' : `已生成 ${width}×${height} 卡片 · ${language}`)
+    const size1x = dpr === 2 ? `${width * 2}×${height * 2} (2x)` : `${width}×${height}`
+    status(empty ? '粘贴代码即刻生成' : `已生成 ${size1x} 卡片 · ${language}`)
     if (kit.mode === 'quick') syncHeight()
-  }
-  function paletteDot(value) {
-    ctx.fillStyle = parseColor(value, 'rgba(140,146,152,.5)')
   }
   function monoFont() {
     const mono = String(themeTokens['--mono'] || getComputedStyle(document.documentElement).getPropertyValue('--mono') || '').trim()
@@ -240,7 +287,7 @@
   $('card-title').oninput = () => { scheduleRender() }
   $('card-title').onchange = () => persist()
   $('show-lines').onchange = () => { scheduleRender(); persist() }
-  $('scale2x').onchange = () => persist()
+  $('scale2x').onchange = () => { scheduleRender(); persist() }
   $('code').addEventListener('input', () => { detect(); renderGutter(); scheduleRender(); queuePersist() })
   function queuePersist() { clearTimeout(dirtyTimer); dirtyTimer = setTimeout(persist, 800) }
 
@@ -249,7 +296,7 @@
     $('line-gutter').textContent = Array.from({ length: lines }, (_, index) => index + 1).join('\n')
   }
 
-  // ---------- 导出 ----------
+  // ---------- 导出（2x 由画布 DPR 决定，尺寸状态栏实时显示） ----------
   function exportDataUrl() {
     if (!lastDataUrl) renderShot()
     return lastDataUrl
@@ -324,6 +371,10 @@
       applyConfig(saved)
     } catch { /* 首次运行 */ }
     $('language').value = language
+    $('syntax-theme').value = syntaxTheme
+    PluginKit.upgradeSelects() // 恢复配置后同步两个自定义下拉的选中标签
+    $('gradient-bg').checked = gradientBg
+    syncSeg()
     renderGutter()
     run(renderShot)
   }

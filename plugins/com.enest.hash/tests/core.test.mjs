@@ -63,3 +63,47 @@ test("jwt decodes three-part tokens and annotates times", () => {
   assert.throws(() => jwtmod.decodeJwt("!!!.eyJhIjoxfQ.sig"), /header/);
   assert.throws(() => jwtmod.decodeJwt("eyJhbGciOiJIUzI1NiJ9.###.sig"), /payload/);
 });
+
+test("normalizeDigest tolerates case, separators and 0x prefix", () => {
+  assert.equal(md5mod.normalizeDigest("BA7816BF-8F:01 CF EA 41 41 40 DE 5D AE 22 23").value, "ba7816bf8f01cfea414140de5dae2223");
+  assert.equal(md5mod.normalizeDigest('"0XBa7816bf"').value, "ba7816bf");
+  assert.equal(md5mod.normalizeDigest("ba7816bf").ok, true);
+  assert.equal(md5mod.normalizeDigest("xyz").ok, false);
+  assert.equal(md5mod.normalizeDigest("").ok, false);
+  assert.equal(md5mod.normalizeDigest("  ").value, "");
+});
+
+test("compareDigest verdicts and first-mismatch index", () => {
+  const actual = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+  // 完全一致（含大小写与分隔符容忍）
+  assert.equal(md5mod.compareDigest(actual, actual.toUpperCase()).equal, true);
+  assert.equal(md5mod.compareDigest(actual, "BA78-16BF 8F01 CFEA").equal, false); // 长度不同，不算一致
+  assert.equal(md5mod.compareDigest(actual, "0x" + actual).equal, true);
+  // 逐字符定位
+  const hit = md5mod.compareDigest(actual, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ae");
+  assert.equal(hit.equal, false);
+  assert.equal(hit.mismatch, 63);
+  const lead = md5mod.compareDigest(actual, "ba7800" + actual.slice(6));
+  assert.equal(lead.mismatch, 4);
+  // 非法期望值
+  assert.equal(md5mod.compareDigest(actual, "not-hex!").invalid, true);
+  assert.equal(md5mod.compareDigest(actual, "").invalid, true);
+});
+
+test("diffSegments marks only the tail after first mismatch", () => {
+  const actual = "aabbcc";
+  const same = md5mod.diffSegments(actual, "AABBCC");
+  assert.equal(same.equal, true);
+  assert.deepEqual(same.segments, [{ text: "aabbcc", same: true }]);
+  const diff = md5mod.diffSegments(actual, "aabbcd");
+  assert.equal(diff.equal, false);
+  assert.deepEqual(diff.segments, [
+    { text: "aabbc", same: true },
+    { text: "d", same: false },
+  ]);
+  // 首位即不同：无相同前缀，整体标红（期望须为合法 hex）
+  const lead = md5mod.diffSegments(actual, "00bbcc");
+  assert.deepEqual(lead.segments, [{ text: "00bbcc", same: false }]);
+  assert.equal(md5mod.diffSegments(actual, "zz!").invalid, true);
+  assert.deepEqual(md5mod.diffSegments(actual, "zz!").segments, []);
+});

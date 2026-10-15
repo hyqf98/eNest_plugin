@@ -1,8 +1,8 @@
 {
   "id": "com.enest.pomodoro",
   "name": "番茄钟",
-  "version": "1.1.0",
-  "description": "主进程后台专注计时，长短休息、阶段记录与本地统计。",
+  "version": "1.2.0",
+  "description": "主进程后台专注计时，长短休息、时长预设、完成提示音与本地统计。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
@@ -81,6 +81,36 @@
             "min": 2,
             "max": 12,
             "step": 1
+          },
+          {
+            "key": "preset",
+            "type": "select",
+            "label": "时长预设",
+            "default": "25,5",
+            "options": [
+              {
+                "label": "25 / 5 经典",
+                "value": "25,5"
+              },
+              {
+                "label": "50 / 10 深度",
+                "value": "50,10"
+              },
+              {
+                "label": "15 / 3 短冲刺",
+                "value": "15,3"
+              },
+              {
+                "label": "自定义",
+                "value": ""
+              }
+            ]
+          },
+          {
+            "key": "sound",
+            "type": "switch",
+            "label": "阶段完成播放提示音",
+            "default": true
           },
           {
             "key": "autoStart",

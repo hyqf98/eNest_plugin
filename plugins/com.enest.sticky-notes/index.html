@@ -9,22 +9,63 @@
       :root {
         --line: var(--border, #e4e1db);
         --paper: var(--surface, #fffdfa);
+        --paper-2: var(--surface-2, #f1ede7);
         --muted: var(--text-2, #81796f);
         --ink: var(--text, #35332f);
         --warm: var(--accent, #a16b3c);
+        --warm-soft: color-mix(in srgb, var(--warm) 10%, transparent);
+        --shadow-1: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent);
+        --shadow-2: 0 6px 22px color-mix(in srgb, var(--ink) 9%, transparent);
+        --chrome-blur: saturate(150%) blur(16px);
+        --chrome-bg: color-mix(in srgb, var(--paper) 74%, transparent);
+        --speed: 130ms;
+      }
+      :root[data-anim='low'] {
+        --speed: 0ms;
       }
       body {
         overflow: hidden;
+        font-variant-numeric: tabular-nums;
       }
       button {
-        padding: 7px 10px;
-        border: 0;
-        border-radius: 6px;
-        background: transparent;
+        padding: 5px 10px;
+        border: 1px solid var(--line);
+        border-radius: calc(var(--pk-radius, 8px) - 2px);
+        background: var(--paper);
         color: inherit;
+        min-height: 28px;
+        font-size: 12.5px;
+        transition: background-color var(--speed) ease,
+          border-color var(--speed) ease, color var(--speed) ease,
+          transform 100ms ease-out, opacity var(--speed) ease;
       }
-      button:hover {
-        background: var(--surface-2, #eee9e2);
+      button:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--warm) 45%, var(--line));
+      }
+      button:active:not(:disabled) {
+        transform: scale(0.97);
+        background: var(--paper-2);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      /* ghost 次要按钮：可见浅底 + 透明边框，hover 显边框（对齐 kit .pk-btn.ghost） */
+      button.ghost,
+      .editor-top > button,
+      .editor-foot button,
+      footer button {
+        background: color-mix(in srgb, var(--ink) 5%, transparent);
+        border-color: transparent;
+        color: var(--muted);
+      }
+      button.ghost:hover:not(:disabled),
+      .editor-top > button:hover:not(:disabled),
+      .editor-foot button:hover:not(:disabled),
+      footer button:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--warm) 45%, transparent);
+        background: color-mix(in srgb, var(--warm) 7%, transparent);
+        color: var(--ink);
       }
       input,
       textarea,
@@ -32,9 +73,16 @@
         color: inherit;
         background: var(--paper);
         border: 1px solid var(--line);
-        border-radius: 6px;
-        padding: 8px;
+        border-radius: calc(var(--pk-radius, 8px) - 2px);
+        padding: 5px 8px;
+        min-height: 28px;
         min-width: 0;
+        transition: border-color var(--speed) ease;
+      }
+      input:focus-visible,
+      textarea:focus-visible,
+      select:focus-visible {
+        border-color: var(--warm);
       }
       .app {
         height: 100%;
@@ -46,18 +94,21 @@
         min-height: 0;
         flex-direction: column;
         border-right: 1px solid var(--line);
+        background: var(--chrome-bg);
+        backdrop-filter: var(--chrome-blur);
+        -webkit-backdrop-filter: var(--chrome-blur);
       }
       header {
-        padding: 22px 20px 13px;
+        padding: 20px 20px 12px;
         display: flex;
         gap: 10px;
         align-items: center;
       }
       h1 {
         font-size: 20px;
-        font-weight: 600;
+        font-weight: 650;
+        letter-spacing: -0.02em;
         margin: 0;
-        letter-spacing: -0.5px;
       }
       header span {
         flex: 1;
@@ -68,7 +119,13 @@
       }
       .new {
         color: var(--warm);
-        background: color-mix(in srgb, var(--warm) 11%, transparent);
+        background: var(--warm-soft);
+        border-color: color-mix(in srgb, var(--warm) 45%, transparent);
+        font-weight: 600;
+      }
+      .new:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--warm) 16%, transparent);
+        border-color: var(--warm);
       }
       .search-wrap {
         padding: 0 16px 12px;
@@ -76,6 +133,13 @@
       .search-wrap input {
         width: 100%;
         background: transparent;
+        border-color: transparent;
+        border-bottom-color: var(--line);
+        border-radius: 0;
+      }
+      .search-wrap input:focus-visible {
+        border-color: transparent;
+        border-bottom-color: var(--warm);
       }
       .tabs {
         display: flex;
@@ -87,44 +151,123 @@
       .tabs button {
         font-size: 12px;
         white-space: nowrap;
+        display: inline-flex;
+        gap: 5px;
+        align-items: baseline;
+        min-height: 26px;
+        background: transparent;
+        border-color: transparent;
+        color: var(--muted);
+      }
+      .tabs button:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--warm) 45%, transparent);
+        color: var(--ink);
+      }
+      .tabs .t-count {
+        font-size: 10px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
       }
       .active {
         color: var(--warm);
-        background: color-mix(in srgb, var(--warm) 10%, transparent);
+        background: var(--warm-soft);
+        border-color: color-mix(in srgb, var(--warm) 45%, transparent);
+        font-weight: 600;
+      }
+      .active .t-count {
+        color: var(--warm);
+      }
+      /* 颜色快速过滤：一行色点 + 计数 */
+      .color-filter {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 9px 16px 2px;
+      }
+      .color-filter .dot {
+        width: 15px;
+        height: 15px;
+        padding: 0;
+        min-height: 15px;
+        border-radius: 50%;
+        background: var(--swatch) !important;
+        position: relative;
+        opacity: 0.75;
+      }
+      .color-filter .dot:hover:not(:disabled) {
+        opacity: 1;
+        border-color: transparent;
+      }
+      .color-filter .dot.chosen {
+        opacity: 1;
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      .color-filter .dot .c-count {
+        position: absolute;
+        right: -4px;
+        top: -6px;
+        font-size: 9px;
+        line-height: 1;
+        color: var(--muted);
+        background: var(--paper);
+        border-radius: 6px;
+        padding: 1px 3px;
+      }
+      .color-filter .all-dot {
+        width: 15px;
+        height: 15px;
+        min-height: 15px;
+        border-radius: 50%;
+        border: 1px dashed var(--muted);
+        font-size: 9px;
+        color: var(--muted);
+        padding: 0;
+        background: transparent;
+        display: grid;
+        place-items: center;
+      }
+      .color-filter .all-dot:hover:not(:disabled) {
+        border-color: var(--warm);
       }
       .library-tools {
-        padding: 9px 16px;
+        padding: 8px 16px;
         display: flex;
         gap: 7px;
       }
-      .library-tools select {
-        padding: 4px;
-        max-width: 140px;
+      /* select 已升级为自定义下拉：原尺寸规则迁移到触发器 */
+      .library-tools .pk-select-trigger {
+        padding: 3px 8px;
+        max-width: 150px;
+        min-height: 28px;
+        font-size: 12px;
       }
       #notes {
         overflow: auto;
         flex: 1;
-        padding: 0 10px;
+        padding: 4px 10px 10px;
       }
       .note-row {
-        padding: 14px 12px;
+        padding: 13px 12px;
         margin: 3px 0;
         border-radius: 7px;
         cursor: pointer;
         border: 1px solid transparent;
         position: relative;
+        transition: background-color var(--speed) ease,
+          border-color var(--speed) ease, box-shadow var(--speed) ease;
       }
       .note-row.selected {
         background: var(--paper);
         border-color: var(--line);
-        box-shadow: 0 2px 5px #20202005;
+        box-shadow: var(--shadow-1);
       }
       .note-row::before {
         content: '';
         position: absolute;
         left: 1px;
-        top: 18px;
-        bottom: 18px;
+        top: 16px;
+        bottom: 16px;
         width: 3px;
         border-radius: 3px;
         background: var(--note-color, #cba15f);
@@ -132,6 +275,7 @@
       .note-title {
         font-size: 14px;
         font-weight: 600;
+        letter-spacing: -0.01em;
         text-overflow: ellipsis;
         overflow: hidden;
         white-space: nowrap;
@@ -145,11 +289,14 @@
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
       .note-meta {
         font-size: 10px;
         display: flex;
         justify-content: space-between;
+        gap: 8px;
         color: var(--muted);
       }
       .library footer {
@@ -157,6 +304,7 @@
         border-top: 1px solid var(--line);
         display: flex;
         gap: 3px;
+        flex-wrap: wrap;
       }
       .editor {
         min-height: 0;
@@ -165,17 +313,17 @@
         background: var(--paper);
       }
       .editor-top {
-        padding: 16px 22px;
+        padding: 14px 22px;
         display: flex;
         align-items: center;
         gap: 6px;
         border-bottom: 1px solid var(--line);
+        background: var(--chrome-bg);
+        backdrop-filter: var(--chrome-blur);
+        -webkit-backdrop-filter: var(--chrome-blur);
       }
       .editor-top .spacer {
         flex: 1;
-      }
-      .editor-top select {
-        max-width: 130px;
       }
       .document {
         max-width: 850px;
@@ -189,21 +337,30 @@
       }
       #title {
         font-size: 25px;
-        letter-spacing: -0.6px;
-        font-weight: 600;
+        font-weight: 650;
+        letter-spacing: -0.02em;
         border: 0;
+        min-height: 0;
         padding: 0 0 14px;
         background: transparent;
         border-radius: 0;
+      }
+      #title:focus-visible {
+        border-color: transparent;
       }
       #tags {
         font-size: 11px;
         border: 0;
         border-bottom: 1px solid var(--line);
+        min-height: 0;
         padding: 0 0 12px;
         background: transparent;
         border-radius: 0;
         margin-bottom: 15px;
+      }
+      #tags:focus-visible {
+        border-color: transparent;
+        border-bottom-color: var(--warm);
       }
       #body {
         resize: none;
@@ -226,10 +383,21 @@
       #preview h1,
       #preview h2,
       #preview h3 {
+        letter-spacing: -0.015em;
         margin: 18px 0 10px;
       }
+      /* 危险动作：语义色（删除 / 永久删除） */
+      button.danger {
+        color: var(--danger, #c04f48);
+        border-color: color-mix(in srgb, var(--danger, #c04f48) 45%, transparent);
+        background: color-mix(in srgb, var(--ink) 5%, transparent);
+      }
+      button.danger:hover:not(:disabled) {
+        border-color: var(--danger, #c04f48);
+        background: color-mix(in srgb, var(--danger, #c04f48) 8%, transparent);
+      }
       #preview pre {
-        background: var(--surface-2, #f1eeea);
+        background: var(--paper-2);
         padding: 12px;
         overflow: auto;
         border-radius: 7px;
@@ -244,19 +412,31 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 12px 25px;
+        padding: 11px 25px;
         color: var(--muted);
         font-size: 11px;
         border-top: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .editor-foot .stat {
+        font-variant-numeric: tabular-nums;
       }
       #save-state {
         margin-left: auto;
       }
       .empty {
-        padding: 70px 22px;
+        padding: 60px 22px;
         text-align: center;
         color: var(--muted);
         line-height: 1.8;
+      }
+      .empty svg,
+      .editor-empty svg {
+        width: 88px;
+        height: 88px;
+        display: block;
+        margin: 0 auto 10px;
+        opacity: 0.85;
       }
       .colors {
         display: flex;
@@ -265,9 +445,14 @@
       .color {
         width: 15px;
         height: 15px;
+        min-height: 15px;
         padding: 0;
         border-radius: 50%;
         background: var(--swatch) !important;
+        border-color: transparent;
+      }
+      .color:hover:not(:disabled) {
+        border-color: transparent;
       }
       .color.chosen {
         outline: 2px solid var(--ink);
@@ -286,6 +471,10 @@
         background: var(--paper);
         border-color: var(--line);
         min-height: 130px;
+        box-shadow: var(--shadow-1);
+      }
+      .grid .note-row:hover {
+        box-shadow: var(--shadow-2);
       }
       .grid .note-excerpt {
         -webkit-line-clamp: 4;
@@ -298,11 +487,32 @@
       .quick-composer input {
         flex: 1;
       }
+      .quick-composer button {
+        min-height: 28px;
+      }
+      /* 快速记录按钮复用 .new 主行动样式 */
+      .quick-composer .new {
+        color: var(--warm);
+        background: var(--warm-soft);
+        border-color: color-mix(in srgb, var(--warm) 45%, transparent);
+        font-weight: 600;
+      }
       .editor-empty {
         height: 100%;
         display: grid;
         place-items: center;
         color: var(--muted);
+        text-align: center;
+        line-height: 1.9;
+        padding: 20px;
+      }
+      @media (prefers-reduced-transparency: reduce) {
+        .library,
+        .editor-top {
+          background: var(--paper);
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
       }
       [data-mode='quick'] .app {
         grid-template-columns: 1fr;
@@ -343,6 +553,13 @@
       [data-mode='quick'] .note-excerpt {
         -webkit-line-clamp: 1;
         margin: 3px 0;
+      }
+      [data-mode='quick'] .color-filter,
+      [data-mode='quick'] .library-tools {
+        display: none;
+      }
+      [data-mode='quick'] .quick-composer .new {
+        min-height: 28px;
       }
       @media (max-width: 750px) {
         [data-mode='shell'] .app {
@@ -397,10 +614,11 @@
           /><button class="new">记录</button>
         </form>
         <div class="tabs" id="tabs"></div>
-        <div class="library-tools">
+        <div class="color-filter shell-only" id="color-filter"></div>
+        <div class="library-tools shell-only">
           <select id="tag-filter" aria-label="标签筛选">
             <option value="">全部标签</option></select
-          ><button id="layout" class="shell-only">卡片视图</button
+          ><button id="layout">卡片视图</button
           ><select id="template" aria-label="新建模板">
             <option value="">从模板新建</option>
             <option value="meeting">会议记录</option>
@@ -411,16 +629,15 @@
         <div id="notes" role="list"></div>
         <footer class="shell-only">
           <button id="export-all">导出备份</button
+          ><button id="export-md">导出 Markdown</button
           ><button id="import">导入</button
-          ><button data-open-settings>设置</button
-          >
+          ><button data-open-settings>设置</button>
         </footer>
       </section>
       <section class="editor" id="editor">
-        <div class="editor-empty">选择一条笔记，或开始记录</div>
+        <div class="editor-empty" id="editor-empty"></div>
       </section>
     </div>
-
 
     <script type="module" src="./src/entry.js"></script>
   </body>

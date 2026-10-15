@@ -1,5 +1,7 @@
 /* 批量重命名 — localFiles.fromDrop 句柄队列 + 规则链（core.mjs 纯函数）+ 实时预览
-   → fs.renameBatch(confirmed) → 结果报告 + storage 撤销映射（反向 renameBatch）。 */
+   → fs.renameBatch(confirmed) → 结果报告 + storage 撤销映射（反向 renameBatch）。
+   v1.1：工作台布局（左规则 / 右预览）、插入与删除片段规则、预览 diff 高亮
+   （公共前后缀淡化，变化段着色）、冲突分类标注、确认摘要统计。 */
 import { applyRules, hasBlocked } from './core.mjs'
 
 ;(function () {
@@ -10,6 +12,19 @@ import { applyRules, hasBlocked } from './core.mjs'
     if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`
     if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`
     return `${(n / 1024 ** 3).toFixed(2)} GB`
+  }
+  // 公共前缀 / 后缀长度：diff 高亮用（只在两侧同展布时稳定）
+  const commonPrefix = (a, b) => {
+    let i = 0
+    const n = Math.min(a.length, b.length)
+    while (i < n && a[i] === b[i]) i++
+    return i
+  }
+  const commonSuffix = (a, b) => {
+    let i = 0
+    const n = Math.min(a.length, b.length) - commonPrefix(a, b)
+    while (i < n && a[a.length - 1 - i] === b[b.length - 1 - i]) i++
+    return i
   }
 
   const kit = window.PluginKit.create({ title: '批量重命名', height: 560 })
@@ -82,12 +97,17 @@ import { applyRules, hasBlocked } from './core.mjs'
       case 'number': return { type, start: 1, step: 1, width: 2, position: 'prefix', separator: '_', keepBase: true }
       case 'date': return { type, source: 'mtime', pattern: 'YYYYMMDD', position: 'suffix', separator: '_' }
       case 'case': return { type, mode: 'upper' }
+      case 'insert': return { type, text: '', position: 'head', at: 0 }
+      case 'remove': return { type, position: 'start', start: 0, length: 1 }
       case 'ext': return { type, ext: '' }
       default: return null
     }
   }
 
-  const RULE_LABEL = { replace: '查找替换', number: '序号', date: '日期', case: '大小写', ext: '扩展名' }
+  const RULE_LABEL = {
+    replace: '查找替换', number: '序号', date: '日期', case: '大小写',
+    insert: '插入', remove: '删除', ext: '扩展名'
+  }
 
   function renderRules() {
     const list = $('rule-list')
@@ -107,6 +127,7 @@ import { applyRules, hasBlocked } from './core.mjs'
       const order = document.createElement('span')
       order.className = 'r-order'
       order.textContent = `${idx + 1}.`
+      order.title = '拖动调整顺序'
       const kind = document.createElement('span')
       kind.className = 'r-kind'
       kind.textContent = RULE_LABEL[rule.type] || rule.type
@@ -179,6 +200,16 @@ import { applyRules, hasBlocked } from './core.mjs'
         case 'case':
           li.append(select(rule.mode, 'mode', [['upper', '全大写'], ['lower', '全小写'], ['title', '首字母大写']]))
           break
+        case 'insert':
+          li.append(field('内容', text(rule.text, 'text', '要插入的片段')))
+          li.append(select(rule.position, 'position', [['head', '开头'], ['tail', '结尾'], ['index', '指定位置']]))
+          if (rule.position === 'index') li.append(field('第 n 字符前', num(rule.at, 'at', 0)))
+          break
+        case 'remove':
+          li.append(select(rule.position, 'position', [['start', '从开头数'], ['end', '从结尾数']]))
+          li.append(field('起始于', num(rule.start, 'start', 0)))
+          li.append(field('删除位数', num(rule.length, 'length', 1)))
+          break
         case 'ext':
           li.append(field('新扩展名', text(rule.ext, 'ext', '如 jpg（留空删除）')))
           break
@@ -206,11 +237,28 @@ import { applyRules, hasBlocked } from './core.mjs'
     })
   }
 
-  // —— 预览 ——
+  // —— 预览（diff 高亮：公共前后缀淡化、变化段着色）——
   let previewTimer = null
   function schedulePreview() {
     clearTimeout(previewTimer)
     previewTimer = setTimeout(renderPreview, 120)
+  }
+
+  function renderName(target, name, { diff = false, against = '' } = {}) {
+    target.replaceChildren()
+    if (!diff || name === against) {
+      target.textContent = name
+      target.title = name
+      return
+    }
+    const pre = commonPrefix(against, name)
+    const suf = commonSuffix(against, name)
+    const midTo = name.length - suf
+    const mk = (t, cls) => { const s = document.createElement('span'); if (cls) s.className = cls; s.textContent = t; return s }
+    if (pre > 0) target.append(mk(name.slice(0, pre), 'pv-same'))
+    target.append(mk(name.slice(pre, midTo), 'pv-diff'))
+    if (suf > 0) target.append(mk(name.slice(midTo), 'pv-same'))
+    target.title = name
   }
 
   function renderPreview() {
@@ -226,7 +274,7 @@ import { applyRules, hasBlocked } from './core.mjs'
     } catch (err) {
       errBox.textContent = `规则参数错误：${err.message}`
       errBox.hidden = false
-      rows = state.files.map((f) => ({ id: f.handleId, oldName: f.name, newName: f.name, error: null }))
+      rows = state.files.map((f) => ({ id: f.handleId, oldName: f.name, newName: f.name, changed: false, error: null }))
     }
     state.rows = rows
     const table = $('preview-table')
@@ -236,42 +284,39 @@ import { applyRules, hasBlocked } from './core.mjs'
       p.className = 'rule-empty'
       p.textContent = '加入文件后这里显示 原名 → 新名 预览'
       table.append(p)
-    } else {
-      const head = document.createElement('div')
-      head.className = 'pv-row pv-head'
-      for (const t of ['原名', '', '新名', '状态']) {
-        const s = document.createElement('span')
-        s.textContent = t
-        head.append(s)
-      }
-      table.append(head)
-      const blocked = hasBlocked(rows)
-      const changed = rows.filter((r) => r.newName !== r.oldName && !r.error).length
-      for (const row of rows) {
-        const div = document.createElement('div')
-        div.className = 'pv-row' + (row.error ? ' blocked' : '')
-        const oldEl = document.createElement('span')
-        oldEl.className = 'pv-name'
-        oldEl.textContent = row.oldName
-        oldEl.title = row.oldName
-        const arrow = document.createElement('span')
-        arrow.className = 'pv-arrow'
-        arrow.textContent = '→'
-        const newEl = document.createElement('span')
-        newEl.className = 'pv-name pv-new'
-        newEl.textContent = row.newName
-        newEl.title = row.newName
-        const note = document.createElement('span')
-        note.className = 'pv-note'
-        note.textContent = row.error || (row.newName === row.oldName ? '（不变）' : '')
-        div.append(oldEl, arrow, newEl, note)
-        table.append(div)
-      }
-      $('preview-meta').textContent = blocked
-        ? `${changed} 个将改名 · ${rows.filter((r) => r.error).length} 个异常（禁止执行）`
-        : `${changed} 个将改名`
-      $('run-btn').disabled = blocked || changed === 0
+      $('preview-meta').textContent = ''
+      $('run-btn').disabled = true
+      return
     }
+    const blocked = hasBlocked(rows)
+    const changed = rows.filter((r) => r.newName !== r.oldName && !r.error).length
+    const conflictCount = rows.filter((r) => r.error?.startsWith('冲突')).length
+    const invalidCount = rows.filter((r) => r.error && !r.error.startsWith('冲突')).length
+    for (const row of rows) {
+      const div = document.createElement('div')
+      div.className = 'pv-row' + (row.error ? ' blocked' : '')
+      div.setAttribute('role', 'listitem')
+      const oldEl = document.createElement('span')
+      oldEl.className = 'pv-name'
+      renderName(oldEl, row.oldName)
+      const arrow = document.createElement('span')
+      arrow.className = 'pv-arrow'
+      arrow.textContent = row.newName === row.oldName ? '·' : '→'
+      const newEl = document.createElement('span')
+      newEl.className = 'pv-name pv-new'
+      renderName(newEl, row.newName, { diff: row.newName !== row.oldName && !row.error, against: row.oldName })
+      const note = document.createElement('span')
+      note.className = 'pv-note'
+      note.textContent = row.error || (row.newName === row.oldName ? '不变' : '')
+      div.append(oldEl, arrow, newEl, note)
+      table.append(div)
+    }
+    const parts = [`${changed} 个将改名`]
+    if (conflictCount) parts.push(`${conflictCount} 个冲突`)
+    if (invalidCount) parts.push(`${invalidCount} 个非法名`)
+    if (blocked) parts.push('已禁止执行')
+    $('preview-meta').textContent = parts.join(' · ')
+    $('run-btn').disabled = blocked || changed === 0
   }
 
   function render() {
@@ -281,19 +326,24 @@ import { applyRules, hasBlocked } from './core.mjs'
     $('undo-btn').hidden = !state.lastRun
   }
 
-  // —— 执行 ——
+  // —— 执行（确认摘要 → renameBatch）——
   async function run() {
     const items = state.rows
       .filter((r) => r.newName !== r.oldName && !r.error)
       .map((r) => ({ handleId: r.id, newName: r.newName }))
     if (!items.length) return
     const dlg = $('confirm-dialog')
-    $('confirm-summary').textContent = `将改名 ${items.length} 个文件（仅同目录，不移动）`
+    const total = state.files.length
+    const skipped = total - items.length
+    $('confirm-summary').textContent =
+      `队列 ${total} 个，将改名 ${items.length} 个` +
+      (skipped > 0 ? `，${skipped} 个保持不变` : '') +
+      '（仅同目录，不移动）'
     const list = $('confirm-list')
     list.innerHTML = ''
     for (const item of items.slice(0, 60)) {
       const li = document.createElement('li')
-      li.textContent = `${item.newName}`
+      li.textContent = item.newName
       list.append(li)
     }
     if (items.length > 60) {
@@ -381,6 +431,7 @@ import { applyRules, hasBlocked } from './core.mjs'
   $('rule-add').addEventListener('change', (e) => {
     const type = e.target.value
     e.target.value = ''
+    PluginKit.upgradeSelects() // 重置为占位项后同步自定义下拉触发器文案
     if (!type) return
     const rule = ruleTemplate(type)
     if (rule) { state.rules.push(rule); render() }

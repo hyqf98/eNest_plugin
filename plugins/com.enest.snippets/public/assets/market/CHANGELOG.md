@@ -2,6 +2,12 @@
 
 > 功能参考 [ZTools-plugins/snippets](https://github.com/ZToolsCenter/ZTools-plugins)（MIT, ZToolsCenter）
 
+## 1.1.0
+
+- 详情代码块折叠：缩进驱动的行级折叠（自动并入同缩进收尾 `}` 行），行号 + 折叠箭头 + 内联省略（含行数）；「全部折叠 / 全部展开」快捷操作；折叠状态跟随片段
+- 高亮增强：按行高亮渲染（跨行模板字符串 / 块注释正确分段）；新增 SQL 语言 scope（`--` 注释 + 关键字）；补充 TypeScript 关键字（satisfies / keyof / declare 等）
+- 侧栏「分组 / 片段」分区可折叠，开合状态本地记忆
+- 超过 1500 行的长片段自动降级为仅高亮不可折叠
 ## 1.0.0
 
 初始版本。

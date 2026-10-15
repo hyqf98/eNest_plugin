@@ -117,6 +117,11 @@
     await A.storageSet(STORE_KEY, cache || [])
   }
 
+  /** 清空内存缓存（全量恢复等外部写入 storage 后调用） */
+  function resetCache() {
+    cache = null
+  }
+
   /** 条目：{ id, name, spec, apps: { appId: true }, homepage? } */
   async function upsert(entry) {
     await load()
@@ -278,7 +283,7 @@
   global.CCS = global.CCS || {}
   global.CCS.mcp = {
     TEMPLATES, MCP_TARGETS,
-    load, upsert, remove, toggleApp,
+    load, upsert, remove, toggleApp, resetCache,
     syncToApp, importFromApp, extractFromSnapshot, normalizeSpec,
     formatSpec
   }

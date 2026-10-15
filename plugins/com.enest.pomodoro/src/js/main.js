@@ -7,7 +7,8 @@
     editId = '',
     legacy = null,
     ready = false
-  let journalVersion = ''
+  let journalVersion = '',
+    lastPhaseKey = ''
   const kit = PluginKit.create({
     title: '番茄钟',
     quickPlaceholder: '为这次专注写个任务名称',
@@ -19,6 +20,8 @@
       longBreakEvery: 4,
       autoStart: false,
       notify: true,
+      preset: '25,5',
+      sound: true,
     },
     onQuery: (value) => {
       if (!snapshot || snapshot.state.status === 'idle') $('task').value = value
@@ -29,11 +32,52 @@
   })
   const day = (ts) => new Date(ts).toLocaleDateString(),
     phaseLabels = { focus: '专注', break: '短休息', longBreak: '长休息' }
+
+  // —— WebAudio 合成提示音：无外部资产。专注完成上行双音，休息结束下行双音 ——
+  let audioCtx = null
+  function chime(kind) {
+    if (!kit.settings.sound) return
+    try {
+      audioCtx ||= new (window.AudioContext || window.webkitAudioContext)()
+      if (audioCtx.state === 'suspended') void audioCtx.resume()
+      const now = audioCtx.currentTime,
+        steps = kind === 'focus-done' ? [523.25, 783.99] : [659.25, 440]
+      steps.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator(),
+          gain = audioCtx.createGain(),
+          t0 = now + i * 0.16
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        gain.gain.setValueAtTime(0.0001, t0)
+        gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5)
+        osc.connect(gain).connect(audioCtx.destination)
+        osc.start(t0)
+        osc.stop(t0 + 0.55)
+      })
+    } catch {
+      /* 音频不可用不影响计时 */
+    }
+  }
+
   function applySettings() {
     if (!snapshot || snapshot.state.status === 'idle') {
-      $('focus-min').value = kit.settings.focusMin
-      $('break-min').value = kit.settings.breakMin
+      const preset = String(kit.settings.preset || '')
+      if (/^\d+,\d+$/.test(preset)) {
+        const [f, r] = preset.split(',')
+        $('focus-min').value = f
+        $('break-min').value = r
+      } else {
+        $('focus-min').value = kit.settings.focusMin
+        $('break-min').value = kit.settings.breakMin
+      }
     }
+  }
+  function markPreset() {
+    const key = $('focus-min').value + ',' + $('break-min').value
+    document
+      .querySelectorAll('[data-preset]')
+      .forEach((b) => b.classList.toggle('chosen', b.dataset.preset === key))
   }
   function render() {
     if (!snapshot) return
@@ -76,6 +120,7 @@
       .forEach((el) =>
         el.classList.toggle('active', el.dataset.phase === s.phase),
       )
+    $('clock').classList.toggle('is-rest', s.phase !== 'focus')
     const total =
       (s.phase === 'focus'
         ? opts.focusMin
@@ -85,6 +130,19 @@
     $('ring').style.strokeDashoffset = String(
       339.292 * (1 - Math.min(1, Math.max(0, ms / total))),
     )
+    // 阶段完成（autoStart 开→running 继续；关→paused 等确认）时按完成阶段播提示音
+    const phaseKey = s.phase + '|' + s.cycle + '|' + s.status
+    if (
+      ready &&
+      lastPhaseKey &&
+      lastPhaseKey !== phaseKey &&
+      s.status !== 'idle'
+    ) {
+      const prevPhase = lastPhaseKey.split('|')[0]
+      if (prevPhase !== s.phase)
+        chime(prevPhase === 'focus' ? 'focus-done' : 'break-done')
+    }
+    lastPhaseKey = phaseKey
     renderJournal()
   }
   function renderJournal() {
@@ -98,7 +156,8 @@
     journalVersion = version
     const records = snapshot.records,
       completed = records.filter((r) => r.counted),
-      today = completed.filter((r) => day(r.endedAt) === day(Date.now())),
+      now = Date.now(),
+      today = completed.filter((r) => day(r.endedAt) === day(now)),
       weekStart = new Date()
     weekStart.setHours(0, 0, 0, 0)
     weekStart.setDate(weekStart.getDate() - 6)
@@ -123,7 +182,7 @@
     $('week').innerHTML = days
       .map(
         (d, i) =>
-          `<div class="day ${i === 6 ? 'today' : ''}" title="${esc(day(d.date))} · ${d.count} 次"><div class="bar" style="height:${Math.max(3, (d.count / max) * 65)}px"></div><span>${['日', '一', '二', '三', '四', '五', '六'][d.date.getDay()]}</span></div>`,
+          `<div class="day ${i === 6 ? 'today' : ''}" title="${esc(day(d.date))} · ${d.count} 次"><div class="bar" style="height:${Math.max(3, (d.count / max) * 62)}px"></div><span>${['日', '一', '二', '三', '四', '五', '六'][d.date.getDay()]}</span></div>`,
       )
       .join('')
     $('records').innerHTML = records.length
@@ -134,12 +193,16 @@
               `<div class="record"><div class="body"><div class="record-title">${esc(r.task || phaseLabels[r.phase])}</div><div class="record-meta">${new Date(r.endedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${{ completed: '已完成', skipped: '已跳过', stopped: '已停止' }[r.outcome]}${r.counted ? '' : ' · 不计统计'}</div></div><span class="record-time">${Math.round(r.durationMs / 60000)}′</span><button data-edit="${esc(r.id)}">编辑</button><button data-delete="${esc(r.id)}" aria-label="删除记录">×</button></div>`,
           )
           .join('')
-      : '<div class="empty">第一段专注，从现在开始。<br>完成后会在这里留下记录。</div>'
+      : emptyState()
     if (legacy?.count) {
       $('legacy').hidden = false
       $('legacy').textContent =
         `旧版本统计已保留：${legacy.date} 完成 ${legacy.count} 次（无明细）`
     }
+  }
+  function emptyState() {
+    // 纯 SVG 插画：静止的番茄轮廓 + 呼吸刻度线，不引入循环动画
+    return `<div class="empty"><svg viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="54" r="30" fill="none" stroke="var(--line)" stroke-width="2.5"/><circle cx="48" cy="54" r="21" fill="none" stroke="var(--focus)" stroke-width="2" stroke-dasharray="4 6" stroke-linecap="round" opacity=".7"/><path d="M48 24c-3-6-9-8-13-7 2 5 6 8 10 9m3-2c0-5 2-9 6-11 1 5-1 9-4 12" fill="none" stroke="var(--focus)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M33 45c2-6 7-10 12-11" fill="none" stroke="var(--focus)" stroke-width="2" stroke-linecap="round" opacity=".45"/></svg>第一段专注，从现在开始。<br>完成后会在这里留下记录。</div>`
   }
   async function call(method, ...args) {
     if (!api?.focusTimer?.[method]) {
@@ -192,10 +255,16 @@
         const [f, r] = b.dataset.preset.split(',')
         $('focus-min').value = f
         $('break-min').value = r
+        // 预设持久化：写壳设置，重启后沿用（基础设置能力，无新增权限）
+        void api?.settings?.set?.('preset', b.dataset.preset).catch(() => {})
+        markPreset()
         render()
       }),
   )
-  $('focus-min').oninput = render
+  $('focus-min').oninput = () => {
+    markPreset()
+    render()
+  }
   $('records').onclick = (e) => {
     const edit = e.target.closest('[data-edit]'),
       del = e.target.closest('[data-delete]')
@@ -273,6 +342,7 @@
       if (legacy && !(await kit.load('pomo_stats_v1_backup', null)))
         await kit.save('pomo_stats_v1_backup', legacy)
       ready = true
+      markPreset()
       render()
     } catch (e) {
       $('hint').textContent = e.message

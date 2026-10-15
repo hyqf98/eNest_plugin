@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>单位与汇率</title>
-
     <link rel="stylesheet" href="src/css/main.css" />
   </head>
   <body>
@@ -12,6 +11,19 @@
       <nav class="tabs" id="tabs" role="tablist" aria-label="换算类目"></nav>
 
       <section class="pane" id="pane">
+        <div class="display-bar shell-only">
+          <label class="ctl">精度
+            <select id="precision" aria-label="有效数字位数">
+              <option value="6">6 位</option>
+              <option value="8">8 位</option>
+              <option value="10">10 位</option>
+              <option value="12" selected>12 位</option>
+              <option value="15">15 位</option>
+            </select>
+          </label>
+          <button id="scientific" class="ghost" aria-pressed="false" title="科学计数法切换">科学计数</button>
+          <span id="formula" class="formula mono" aria-live="polite" hidden></span>
+        </div>
         <div class="rows" id="rows"></div>
         <div class="presets shell-only" id="presets"></div>
       </section>
@@ -20,7 +32,7 @@
         <div class="fx-head">
           <label>基准<select id="fx-base"></select></label>
           <label>金额<input id="fx-amount" class="mono" inputmode="decimal" value="1" /></label>
-          <button id="fx-refresh">刷新汇率</button>
+          <button id="fx-refresh" class="pk-btn">刷新汇率</button>
           <span id="fx-state" class="muted"></span>
         </div>
         <div class="rows" id="fx-rows"></div>
@@ -32,19 +44,17 @@
           <label>金额<input id="rmb-input" class="mono" inputmode="decimal" placeholder="如 1024.50" /></label>
         </div>
         <div class="rmb-results">
-          <div class="rmb-row"><span class="cap">票据大写</span><span id="rmb-upper" class="mono">—</span><button data-copy-target="rmb-upper">复制</button></div>
-          <div class="rmb-row"><span class="cap">中文数字</span><span id="rmb-cn" class="mono">—</span><button data-copy-target="rmb-cn">复制</button></div>
+          <div class="rmb-row"><span class="cap">票据大写</span><span id="rmb-upper" class="mono">—</span><button data-copy-target="rmb-upper" class="pk-btn ghost">复制</button></div>
+          <div class="rmb-row"><span class="cap">中文数字</span><span id="rmb-cn" class="mono">—</span><button data-copy-target="rmb-cn" class="pk-btn ghost">复制</button></div>
         </div>
       </section>
 
       <footer>
         <span id="foot-note"></span>
         <span class="grow"></span>
-        <button id="copy-all" class="shell-only">复制全部结果</button>
+        <button id="copy-all" class="pk-btn shell-only">复制全部结果</button>
       </footer>
     </main>
-
-
     <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

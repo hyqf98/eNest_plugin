@@ -130,7 +130,7 @@ button, input, select, textarea {
 .rail-spacer { flex: 1; }
 .rail-btn {
   appearance: none;
-  border: 0;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-2);
   width: 36px;
@@ -140,10 +140,15 @@ button, input, select, textarea {
   font-size: 14px;
   display: grid;
   place-items: center;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.rail-btn:hover { background: var(--surface-2); color: var(--text); }
-.rail-btn.active { color: var(--accent); background: var(--accent-soft); }
+.rail-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.rail-btn:active:not(:disabled) { transform: scale(0.97); }
+.rail-btn.active { color: var(--brand-strong); background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
 
 .side-body {
   display: grid;
@@ -204,7 +209,11 @@ button, input, select, textarea {
   cursor: pointer;
   line-height: 1.2;
 }
-.chip:hover { background: var(--surface-2); color: var(--text); }
+.chip:hover:not(.active) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
 .chip.active {
   color: var(--accent);
   background: var(--accent-soft);
@@ -364,8 +373,13 @@ textarea {
   font-size: 12px;
   outline: none;
 }
+input:disabled, select:disabled, textarea:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--surface-2);
+}
 input:focus, select:focus, textarea:focus {
-  border-color: var(--border-strong);
+  border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border));
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 input::placeholder, textarea::placeholder { color: var(--text-3); }
@@ -385,6 +399,63 @@ label.field,
   color: var(--text-2);
   font-weight: 500;
 }
+/* kit 自定义下拉：modal 表单内的 select 升级为 .pk-select 包裹层，
+   宽度弹性从原生 select 迁移过来（撑满 field 网格列） */
+.field .pk-select,
+.form-grid .pk-select,
+.modal .pk-select {
+  width: 100%;
+  display: flex;
+}
+.field .pk-select-trigger,
+.form-grid .pk-select-trigger,
+.modal .pk-select-trigger {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 12px;
+}
+.field select:focus-visible,
+.pk-select-trigger:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* modal / dialog 自身 overflow:auto 会裁切 absolute 菜单：打开时放开裁切。
+   菜单为 absolute（top:calc(100% + 6px); left:0 挂 .pk-select），kit 打开时会按视口
+   剩余空间设置 maxHeight 并自动上翻，滚动容器 overflow 恢复 visible 后菜单可溢出显示；
+   弹层关闭（menu[hidden]）时恢复裁切，避免表单滚动时内容穿出圆角 */
+.modal:has(.pk-select-menu:not([hidden])),
+dialog:has(.pk-select-menu:not([hidden])) {
+  overflow: visible;
+}
+/* 放开 modal 裁切后，modal 的 sticky 头/脚与圆角依赖 overflow —— 打开下拉期间
+   modal 高度已由菜单 maxHeight 约束，sticky 失效可接受；menu 自身提升层级 */
+.modal .pk-select-menu { z-index: 400; }
+/* 高级折叠区与动态 wb 弹窗里的 select：宽度跟随原生契约 */
+.wb-settings-form .pk-select {
+  margin-left: auto;
+  width: 200px;
+}
+.wb-settings-form .pk-select-trigger {
+  min-height: 30px;
+  padding: 7px 9px;
+  border-radius: 5px;
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+dialog .pk-select-trigger {
+  min-height: 30px;
+}
+/* 分屏选择下拉（wb 弹窗内，kit 升级后宽度契约保持）：原样式在 workbench.css */
+.wb-split-target.pk-select,
+dialog .pk-select.wb-split-target {
+  display: block;
+  width: 100%;
+  margin: 14px 0;
+}
 .input-row {
   display: flex;
   gap: 6px;
@@ -394,7 +465,7 @@ label.field,
 .input-row input { flex: 1; min-width: 0; }
 .input-row .btn { flex: none; }
 
-/* 自定义下拉触发器（避免原生 select 在 modal overflow 内被裁切/遮挡） */
+/* 自定义下拉触发器（分组/颜色等复杂选择，仍走插件自绘 openDropdown 浮层） */
 .cs-trigger {
   appearance: none;
   width: 100%;
@@ -532,11 +603,13 @@ label.field,
   flex: none;
 }
 
+/* 统一按钮层级：常规 1px 边框 + surface 底；ghost 5% wash 不裸文本；primary/danger 语义 */
 .btn {
   appearance: none;
-  border: 1px solid transparent;
-  background: var(--surface-2);
+  border: 1px solid var(--border);
+  background: var(--surface);
   color: var(--text);
+  min-height: 28px;
   padding: 7px 14px;
   border-radius: var(--radius-sm);
   font-size: 12px;
@@ -544,25 +617,39 @@ label.field,
   cursor: pointer;
   white-space: nowrap;
 }
-.btn:hover { background: var(--surface-3); }
+.btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border));
+}
 .btn.primary {
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--brand-strong);
+  border-color: var(--brand-strong);
+  color: var(--accent-contrast, #fff);
   font-weight: 600;
 }
-.btn.primary:hover { filter: brightness(1.06); }
-.btn.danger { color: var(--danger); background: var(--danger-soft); }
+.btn.primary:hover:not(:disabled) { background: var(--brand); border-color: var(--brand); filter: brightness(1.06); }
+.btn.danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+.btn.danger:hover:not(:disabled) { border-color: var(--danger); }
 .btn.ghost {
-  background: transparent;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border-color: transparent;
   color: var(--text-2);
 }
-.btn.ghost:hover { background: var(--surface-2); color: var(--text); }
-.btn.sm { padding: 5px 10px; font-size: 11px; border-radius: 8px; }
+.btn.ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand, var(--accent)) 7%, transparent);
+  border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, transparent);
+  color: var(--text);
+}
+.btn.sm { min-height: 24px; padding: 5px 10px; font-size: 11px; border-radius: 8px; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .icon-btn {
   appearance: none;
-  border: 0;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-2);
   min-width: 28px;
@@ -577,9 +664,14 @@ label.field,
   line-height: 1;
   flex: none;
 }
-.icon-btn:hover { background: var(--surface-2); color: var(--text); }
-.icon-btn.active { color: var(--accent); background: var(--accent-soft); }
-.icon-btn.danger:hover { color: var(--danger); background: var(--danger-soft); }
+.icon-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.icon-btn:active:not(:disabled) { transform: scale(0.97); }
+.icon-btn.active { color: var(--brand-strong); background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
+.icon-btn.danger:hover { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
 
 .empty {
   color: var(--text-3);
@@ -1125,14 +1217,40 @@ label.field,
   background: var(--surface-2);
   border-color: transparent;
 }
+/* drawer 工具条里的范围下拉：紧凑、随内容自适应（kit 升级后作用在 .pk-select 包裹层） */
 .drawer-tools select,
+.drawer-tools .pk-select,
 .drawer-tools .cs-trigger {
   width: auto;
   min-width: 64px;
+  max-width: 96px;
+  flex: none;
+}
+.drawer-tools .pk-select-trigger,
+.drawer-tools select,
+.drawer-tools .cs-trigger {
   background: var(--surface-2);
   border-color: transparent;
-  padding: 6px 8px;
+  padding: 5px 8px;
   font-size: 11px;
+  min-height: 26px;
+}
+.drawer-tools .pk-select-trigger:hover:not(:disabled),
+.drawer-tools select:hover,
+.drawer-tools .cs-trigger:hover {
+  border-color: color-mix(in srgb, var(--text) 14%, transparent);
+}
+/* quick 模式（720px 小窗）：抽屉 90vw 宽，下拉随内容自适应且不溢出工具条 */
+:root[data-launch-mode="quick"] .drawer-tools .pk-select {
+  min-width: 56px;
+  max-width: 40vw;
+}
+:root[data-launch-mode="quick"] .drawer-tools .pk-select-trigger {
+  max-width: 40vw;
+}
+/* 菜单宽度跟随触发器（kit minWidth=rect.width），加 max 兜底避免 quick 窄窗横向溢出 */
+.pk-select-menu {
+  max-width: min(320px, calc(100vw - 16px));
 }
 
 .right-body {
@@ -1461,8 +1579,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 /* —— 环境徽章：走基础层语义 token（--danger/--warn/--ok），随壳子主题变换 —— */
 
 /* —— 主按钮/CTA 品牌化（--brand 由壳子 accent 映射注入，文字用对比色 token） —— */
-.btn.primary { background: var(--brand-strong); color: var(--accent-contrast, #fff); }
-.btn.primary:hover { filter: brightness(1.08); }
+/* .btn.primary 已在基础层品牌化；此处仅保留 fab/chip/icon/rail 的品牌态 */
 .fab {
   background: var(--brand-strong);
   color: var(--accent-contrast, #fff);
@@ -1475,8 +1592,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 }
 .chip.active { color: var(--brand-strong); background: var(--brand-soft); }
 :root[data-theme="dark"] .chip.active { color: var(--brand); }
-.icon-btn.active { color: var(--brand-strong); background: var(--brand-soft); }
-:root[data-theme="dark"] .icon-btn.active { color: var(--brand); }
 .rail-btn.active { color: var(--brand-strong); background: var(--brand-soft); }
 :root[data-theme="dark"] .rail-btn.active { color: var(--brand); }
 
@@ -1702,7 +1817,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 
 /* —— 微交互 —— */
 .btn, .icon-btn, .rail-btn, .ctx-item, .chip, .session-tab {
-  transition: background 0.12s, color 0.12s, transform 0.08s ease, filter 0.12s, box-shadow 0.12s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.08s ease, filter 0.12s, box-shadow 0.12s;
 }
 .btn:active:not(:disabled), .icon-btn:active, .rail-btn:active, .ctx-item:active {
   transform: scale(0.97);

@@ -4,17 +4,23 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createHash } from 'node:crypto'
 import { unzipSync, strFromU8 } from 'fflate'
-import { repositoryRoot as root, pluginIds, readManifest, assertMediaPaths, validPath, DSH_ID, MAX_README_BYTES } from './plugin-contract.mjs'
+import { repositoryRoot as root, pluginIds, readManifest, assertMediaPaths, validPath, validBackendPath, DSH_ID, MAX_README_BYTES } from './plugin-contract.mjs'
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
 
 /** Only final ZIP bytes supply registry metadata and media. Source identifies the version to publish. */
 export function archiveMetadata(archive, expected) {
   const names = new Set()
   let hasRuntime = false
+  const backendPaths = new Set()
   const entries = unzipSync(new Uint8Array(archive), { filter: file => {
     const path = file.name.replace(/\/$/, '')
     if (names.has(file.name)) throw new Error(`Duplicate archive entry: ${file.name}`)
     names.add(file.name)
+    if (path === 'backend' || path.startsWith('backend/')) {
+      if (!validBackendPath(path) || /\.(map|tsx?|vue)$/i.test(path)) throw new Error(`Invalid backend archive entry: ${file.name}`)
+      backendPaths.add(path)
+      return false
+    }
     if (path.startsWith('runtime/') || path === 'runtime') { hasRuntime = true; return false }
     if (!validPath(path) || !['plugin.json', 'index.html', 'assets'].includes(path.split('/')[0])) throw new Error(`Invalid archive entry: ${file.name}`)
     if (path.split('/').some(part => ['src', 'tests', 'node_modules'].includes(part)) || /\.(map|tsx?|vue)$/i.test(path)) throw new Error(`Development file in archive: ${file.name}`)
@@ -28,6 +34,8 @@ export function archiveMetadata(archive, expected) {
   if (errors.length) throw new Error(errors.join('\n'))
   assertMediaPaths(manifest)
   if (hasRuntime && manifest.id !== DSH_ID) throw new Error('runtime is only permitted for DSH')
+  if (backendPaths.size && !manifest.backend) throw new Error('Undeclared plugin backend')
+  if (manifest.backend && !backendPaths.has(manifest.backend.entry)) throw new Error('Plugin backend entry missing from archive')
   if (manifest.development) throw new Error('Archive contains development configuration')
   if (expected && (manifest.id !== expected.id || manifest.version !== expected.version)) throw new Error('Archive identity/version does not match source')
   const media = [manifest.icon, manifest.market.readme, ...manifest.market.screenshots]
@@ -51,7 +59,7 @@ export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryR
     return {
       id: m.id, name: m.name, version: m.version, description: m.description, author: m.author ?? '', category: m.category ?? '其它',
       icon: publish(m.icon), readmeUrl: publish(m.market.readme), screenshots: m.market.screenshots.map(publish), tags: m.market.tags ?? [],
-      permissions: m.permissions ?? [], engines: m.engines ?? {}, featured: m.market.featured ?? false, installs: 0, ui: m.ui ?? {},
+      permissions: m.permissions ?? [], engines: m.engines ?? {}, featured: m.market.featured ?? false, ui: m.ui ?? {},
       asset: { name, url: baseUrl + encodeURIComponent(name), size: archive.length, sha256: createHash('sha256').update(archive).digest('hex') }
     }
   })

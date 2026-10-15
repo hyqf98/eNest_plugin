@@ -95,7 +95,7 @@ function makeContext(overrides = {}) {
   context.window = context
   context.enest = mockApi
   context.zapi = mockApi
-  for (const f of ['presets.js', 'api.js', 'providers.js', 'mcp.js', 'sessions.js', 'usage.js', 'main.js']) {
+  for (const f of ['presets.js', 'api.js', 'providers.js', 'history.js', 'mcp.js', 'snapshot.js', 'sessions.js', 'usage.js', 'main.js']) {
     vm.runInContext(readFileSync(new URL('src/js/' + f, pluginRoot), 'utf8'), context, { filename: f })
   }
   return { context, store, calls, CCS: context.CCS }
@@ -289,6 +289,130 @@ test('usage: aggregate 走 sessions 通道并聚合计数', async () => {
   assert.equal(agg.totals.input, 111)
   assert.equal(agg.days.length, 2)
   assert.equal(agg.models[0].model, 'claude-x')
+})
+
+test('providers: 全部 10 应用 changes 生成 + extractCurrent 回读闭环', async () => {
+  const { CCS } = makeContext()
+  const prov = { name: 'Test 供应商', baseUrl: 'https://api.test.example/v1', model: 'test-chat', plainSecret: 'sk-loop' }
+  // 每个支持切换的应用：changes 生成 → 构造快照 → extractCurrent 回读 baseUrl/model 一致
+  const snapshotShapes = {
+    'claude-code': (c) => ({ files: [{ parsed: { env: c.env } }] }),
+    'gemini-cli': (c) => ({ files: [{ parsed: { env: c.env } }] }),
+    codex: (c) => ({ files: [{ parsed: { model: c.model, model_providers: c.model_providers } }] }),
+    'grok-build': (c) => ({ files: [{ parsed: { ...c } }] }),
+    opencode: (c) => ({ files: [{ parsed: { provider: c.provider } }] }),
+    openclaw: (c) => ({ files: [{ parsed: { provider: c.provider } }] }),
+    hermes: (c) => ({ files: [{ parsed: { provider: c.provider } }] }),
+    pi: (c) => ({ files: [{ parsed: { provider: c.provider } }] }),
+    'minimax-code': (c) => ({ files: [{ parsed: { provider: c.provider } }] })
+  }
+  const supported = Object.keys(snapshotShapes)
+  assert.equal(supported.length, 9, '除 claude-desktop 外 9 个应用支持切换')
+  assert.equal(CCS.providers.CHANGES_BUILDERS['claude-desktop']({}), null)
+  for (const app of supported) {
+    const changes = CCS.providers.CHANGES_BUILDERS[app](prov)
+    assert.ok(changes && Object.keys(changes).length > 0, app + ' changes 不能为空')
+    const snap = snapshotShapes[app](changes)
+    const cur = CCS.providers.extractCurrent(app, snap)
+    assert.ok(cur, app + ' extractCurrent 应有结果')
+    assert.equal(cur.baseUrl, prov.baseUrl, app + ' 端点回读一致')
+    assert.equal(cur.model, prov.model, app + ' 模型回读一致')
+    // 回读结果必须能与原供应商互相识别（host 级比对语义）
+    assert.equal(new URL(cur.baseUrl).host, new URL(prov.baseUrl).host, app + ' host 比对一致')
+  }
+  // toml 文本兜底回读（codex）
+  const fromText = CCS.providers.extractCurrentFromText('codex', 'base_url = "https://t.example/v1"\nmodel = "m-t"\n')
+  assert.equal(fromText.baseUrl, 'https://t.example/v1')
+  assert.equal(fromText.model, 'm-t')
+})
+
+test('providers: 多标签 tagsOf 兼容旧单标签 + applyProvider 密钥写入', async () => {
+  const { CCS, calls } = makeContext()
+  // vm 领域数组与宿主原型不同，展开为宿主数组再 deepEqual
+  assert.deepEqual([...CCS.providers.tagsOf({ tag: '官方' })], ['官方'])
+  assert.deepEqual([...CCS.providers.tagsOf({ tags: ['官方', '常用', '官方'] })], ['官方', '常用'])
+  assert.deepEqual([...CCS.providers.tagsOf({})], [])
+  // claude-code 明文密钥 → ANTHROPIC_AUTH_TOKEN
+  calls.length = 0
+  await CCS.providers.applyProvider('claude-code', { name: 'k', baseUrl: 'https://k.example', model: 'm', plainSecret: 'sk-9' })
+  const w = calls[0][1]
+  assert.equal(w.changes.env.ANTHROPIC_AUTH_TOKEN, 'sk-9')
+  // gemini-cli 明文密钥 → GOOGLE_API_KEY
+  calls.length = 0
+  await CCS.providers.applyProvider('gemini-cli', { name: 'g', baseUrl: 'https://g.example', plainSecret: 'gk-1' })
+  assert.equal(calls[0][1].changes.env.GOOGLE_API_KEY, 'gk-1')
+  // 不支持的应用：changes 为 null → applyProvider 抛错（无法写入）
+  await assert.rejects(() => CCS.providers.applyProvider('claude-desktop', { name: 'x' }))
+})
+
+test('history: 记录 / 环形上限 / 回退走 agent.write', async () => {
+  const { CCS, calls } = makeContext()
+  const H = CCS.history
+  await H.load()
+  // 记录 3 条
+  for (let i = 0; i < 3; i++) {
+    await H.record({ id: 'p' + i, name: 'P' + i, baseUrl: 'https://p' + i + '.example', model: 'm' + i },
+      { baseUrl: 'https://old.example', model: 'old' }, ['claude-code'])
+  }
+  assert.equal(H.recent().length, 3)
+  const top = H.recent()[0]
+  assert.equal(top.providerName, 'P2')
+  assert.equal(top.prevBaseUrl, 'https://old.example')
+  assert.equal(top.changed, true)
+  // 环形上限
+  for (let i = 0; i < 60; i++) {
+    await H.record({ id: 'x' + i, name: 'X' + i, baseUrl: '', model: '' }, { baseUrl: 'https://o.example' }, ['codex'])
+  }
+  assert.ok(H.recent().length <= H.LIMIT, '历史不超过 ' + H.LIMIT + ' 条')
+  // 回退：prev 状态构造临时供应商 → agent.write
+  calls.length = 0
+  const rollbackEntry = { ...top, app: 'claude-code' }
+  await H.rollback(rollbackEntry)
+  const write = calls.find(c => c[0] === 'agent.write')
+  assert.ok(write, '回退必须触发 agent.write')
+  assert.equal(write[1].confirmed, true)
+  assert.equal(write[1].changes.env.ANTHROPIC_BASE_URL, 'https://old.example')
+  assert.equal(write[1].changes.env.ANTHROPIC_MODEL, 'old')
+  // 无 prev 状态的记录不可回退
+  await assert.rejects(() => H.rollback({ app: 'claude-code', prevName: null, prevBaseUrl: '', prevModel: '' }), /无法回退/)
+  // 清空
+  await H.clear()
+  assert.equal(H.recent().length, 0)
+})
+
+test('snapshot: 全量导出（不含密钥明文）+ 覆盖/合并恢复', async () => {
+  const { CCS, store } = makeContext()
+  const P = CCS.providers
+  const M = CCS.mcp
+  const SNAP = CCS.snapshot
+  // 造数据：2 供应商（含 secretRef）+ 1 MCP
+  await P.upsertProvider({ id: '', name: 'A', baseUrl: 'https://a.example', apps: ['claude-code'], secretRef: 'vault://k1', tag: '官方' })
+  await P.upsertProvider({ id: '', name: 'B', baseUrl: 'https://b.example', apps: ['codex'], tags: ['自建', '常用'] })
+  await M.upsert({ id: 'github', name: 'github', spec: { type: 'stdio', command: 'npx', args: ['x'] }, apps: { 'claude-code': true } })
+  // 导出
+  const payload = await SNAP.exportAll()
+  assert.equal(payload.format, 'enest.ccswitch.full')
+  assert.equal(payload.scope.secrets, 'excluded')
+  assert.equal(payload.data.providers.length, 2)
+  assert.equal(payload.data.mcp.length, 1)
+  assert.ok(payload.data.providers.every(p => !('plainSecret' in p)))
+  // 覆盖恢复：模块缓存置空 → 覆盖写入（覆盖时旧 secretRef 会被清除）→ 重置缓存再读
+  P.resetCache(); M.resetCache()
+  await SNAP.importAll(payload, { merge: false })
+  P.resetCache(); M.resetCache()
+  await P.loadProviders()
+  const restored = P.sorted()
+  assert.equal(restored.length, 2)
+  assert.ok(restored.find(p => p.name === 'A' && p.secretRef === 'vault://k1'))
+  const mA = await M.load()
+  assert.equal(mA.length, 1)
+  // 合并恢复：同名单跳过
+  const res = await SNAP.importAll(payload, { merge: true })
+  assert.equal(res.providers.added, 0)
+  // 旧格式兼容：{providers:[…]}
+  const legacy = await SNAP.importAll({ providers: [{ name: 'C', baseUrl: 'https://c.example' }] }, { merge: true })
+  assert.equal(legacy.mode, 'legacy')
+  assert.equal(legacy.providers.added, 1)
 })
 
 test('main: boot 完成（mock DOM）且 quick/shell 双形态样式类', async () => {

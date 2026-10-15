@@ -4,27 +4,51 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>编解码</title>
-
-
     <link rel="stylesheet" href="src/css/main.css" />
   </head>
   <body>
     <main class="codec">
-      <header>
-        <h1>编解码</h1>
-        <nav id="modes" aria-label="转换类型"></nav>
-      </header>
-      <div class="operation-bar">
-        <button id="direction">编码 →</button
-        ><label><input id="live" type="checkbox" checked /> 即时转换</label
-        ><label><input id="batch" type="checkbox" /> 逐行处理</label
-        ><span id="mode-help"></span><button id="run">执行</button>
+      <div class="chrome">
+        <header class="topbar">
+          <h1>编解码</h1>
+          <nav id="modes" class="segmented modes" aria-label="转换类型"></nav>
+        </header>
+        <div class="toolbar">
+          <div class="segmented dir" role="group" aria-label="方向">
+            <button id="dir-enc" class="active" aria-pressed="true">编码 →</button>
+            <button id="dir-dec" aria-pressed="false">← 解码</button>
+          </div>
+          <label class="opt" title="输入后自动转换">
+            <input id="live" type="checkbox" checked /><span>即时</span>
+          </label>
+          <label class="opt" title="多行输入逐行独立转换，失败行单独标出">
+            <input id="batch" type="checkbox" /><span>逐行</span>
+          </label>
+          <span id="mode-help" class="hint"></span>
+          <span class="flex"></span>
+          <button id="history" class="ghost" aria-haspopup="true" aria-expanded="false">最近</button>
+          <button id="file-btn" class="ghost" title="选择文件，生成 Data URL">文件转 Data URL</button>
+          <button id="run" class="primary">执行</button>
+          <input id="file-input" type="file" hidden />
+          <div id="history-panel" class="history" hidden>
+            <div class="history-head">
+              <span class="history-title">最近转换</span>
+              <button id="history-clear" class="mini">清空记录</button>
+            </div>
+            <ul id="history-list"></ul>
+            <p id="history-empty" class="hint history-empty">暂无记录。复制、导出或回填结果后，会自动记下内容片段与所用模式。</p>
+          </div>
+        </div>
       </div>
+
       <section class="panes">
-        <div class="pane source">
+        <div class="pane">
           <div class="pane-head">
-            <label for="input">输入</label><span id="in-size"></span
-            ><button id="paste">粘贴</button><button id="clear">清空</button>
+            <label for="input">输入</label>
+            <button id="file-chip" class="chipfile" hidden></button>
+            <span id="in-size" class="hint num"></span>
+            <button id="paste" class="mini">粘贴</button>
+            <button id="clear" class="mini">清空</button>
           </div>
           <textarea
             id="input"
@@ -32,12 +56,14 @@
             placeholder="输入或粘贴需要转换的内容"
           ></textarea>
         </div>
-        <div class="pane target">
+        <div class="pane">
           <div class="pane-head">
-            <label for="output">结果</label><span id="out-size"></span
-            ><button id="swap">回填并反转</button
-            ><button id="copy" disabled>复制</button
-            ><button id="save" disabled>导出</button>
+            <label for="output">结果</label>
+            <span id="out-size" class="hint num"></span>
+            <button id="swap" class="mini">回填反转</button>
+            <button id="save-file" class="mini" hidden>存为文件</button>
+            <button id="copy" class="mini" disabled>复制</button>
+            <button id="save" class="mini" disabled>导出</button>
           </div>
           <textarea
             id="output"
@@ -46,16 +72,16 @@
             placeholder="转换结果"
             aria-live="polite"
           ></textarea>
+          <div id="batch-list" class="batch" hidden></div>
         </div>
       </section>
-      <div id="error" role="alert"></div>
+
+      <div id="error" role="alert" hidden></div>
       <footer>
-        <span id="status">所有转换均在本地完成</span
-        ><span>⌘/Ctrl + Shift + Enter 执行</span>
+        <span id="status">所有转换均在本地完成</span>
+        <span class="keys"><kbd>⌘/Ctrl</kbd> <kbd>⇧</kbd> <kbd>Enter</kbd> 执行</span>
       </footer>
     </main>
-
-
     <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

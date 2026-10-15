@@ -1,6 +1,7 @@
-import { calculate, formatNumber } from "./core.mjs";
+import { calculate, formatNumber, parseAssignment, isVariableName, CONSTANTS } from "./core.mjs";
 const api = window.enest || window.zapi;
 const $ = (id) => document.getElementById(id);
+const VARS_KEY = "calculator.vars.v1";
 const kit = PluginKit.create({
   title: "计算器",
   quickPlaceholder: "输入表达式，Enter 记录",
@@ -11,7 +12,7 @@ const kit = PluginKit.create({
     compute();
   },
   onAction: (action) => {
-    if (action === "submit") confirm();
+    if (action === "submit") confirmEntry();
     else if (action === "clear") {
       $("expr").value = "";
       compute();
@@ -23,15 +24,21 @@ let history = [],
   onlyFavorites = false,
   ans = 0,
   memory = 0,
+  vars = {},
   current = null,
   degrees = false;
+
+const fmt = (value) => formatNumber(value, kit.settings.precision, { group: display.group });
+const display = { group: true };
+
 function compute() {
   try {
-    current = calculate($("expr").value, { ans, memory, degrees });
-    $("result").textContent =
-      current == null
-        ? "即输即算"
-        : formatNumber(current, kit.settings.precision);
+    const source = $("expr").value;
+    const assign = parseAssignment(source);
+    const target = assign ? assign.expr : source;
+    current = calculate(target, { ans, memory, degrees, vars });
+    if (assign) $("result").textContent = `${assign.name} = ` + fmt(current);
+    else $("result").textContent = current == null ? "即输即算" : fmt(current);
     $("result").className = "";
     $("copy").disabled = current == null;
   } catch (error) {
@@ -40,6 +47,8 @@ function compute() {
     $("result").className = "error";
     $("copy").disabled = true;
   }
+  if (Object.keys(vars).length) $("memory-value").textContent = "M = " + fmt(memory) + " · " + Object.entries(vars).map(([k, v]) => `${k}=${fmt(v)}`).join(" ");
+  else $("memory-value").textContent = "M = " + fmt(memory);
 }
 function records() {
   const q = $("history-search").value.toLowerCase();
@@ -64,10 +73,13 @@ function render() {
     row.className = "record" + (i === selected ? " selected" : "");
     const recall = document.createElement("button");
     recall.className = "recall";
-    recall.innerHTML =
-      '<span class="expression"></span><span class="value"></span>';
-    recall.children[0].textContent = r.expr + " =";
-    recall.children[1].textContent = r.result;
+    const expression = document.createElement("span");
+    expression.className = "expression";
+    expression.textContent = r.expr + " =";
+    const value = document.createElement("span");
+    value.className = "value";
+    value.textContent = r.result;
+    recall.append(expression, value);
     recall.title = "回填表达式";
     recall.onclick = () => {
       $("expr").value = r.expr;
@@ -95,27 +107,30 @@ async function persist() {
     .save("calculator.history.v1", history)
     .catch((e) => kit.toast("记录保存失败：" + e.message, "error"));
 }
-function confirm() {
+function confirmEntry() {
   compute();
   if (current == null) return;
-  const expr = $("expr").value.trim(),
-    result = formatNumber(current, kit.settings.precision);
-  const previous = history.find((r) => r.expr === expr && r.result === result);
+  const source = $("expr").value.trim();
+  const assign = parseAssignment(source);
+  const expr = assign ? assign.expr : source;
+  const result = fmt(current);
+  const previous = history.find((r) => r.expr === source && r.result === result);
   history = history.filter((r) => r !== previous);
   history.unshift({
     id: previous?.id || crypto.randomUUID(),
-    expr,
+    expr: source,
     result,
     favorite: previous?.favorite || false,
     at: Date.now(),
   });
-  const limit = Math.max(
-    20,
-    Math.min(500, Number(kit.settings.historyLimit) || 100),
-  );
+  const limit = Math.max(20, Math.min(500, Number(kit.settings.historyLimit) || 100));
   let kept = 0;
   history = history.filter((r) => r.favorite || ++kept <= limit);
   ans = current;
+  if (assign) {
+    vars[assign.name] = current;
+    kit.save(VARS_KEY, vars).catch(() => {});
+  }
   $("expr").value = result;
   kit.setQuery(result);
   selected = -1;
@@ -168,15 +183,16 @@ const keys = [
   "log(",
   "ln(",
   "π",
-  "e",
+  "g",
   "=",
 ];
 for (const key of keys) {
   const b = document.createElement("button");
   b.textContent = key;
   if (key === "=") b.className = "equal";
+  if (key === "π" || key === "g") b.title = key === "π" ? "圆周率" : "重力加速度 9.80665";
   b.onclick = () => {
-    if (key === "=") confirm();
+    if (key === "=") confirmEntry();
     else if (key === "AC") {
       $("expr").value = "";
       compute();
@@ -207,14 +223,14 @@ $("expr").onkeydown = (event) => {
       $("expr").value = records()[selected].expr;
       selected = -1;
       compute();
-    } else confirm();
+    } else confirmEntry();
   } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();
     move(event.key === "ArrowDown" ? 1 : -1);
   }
 };
 $("copy").onclick = () =>
-  current != null && copy(formatNumber(current, kit.settings.precision));
+  current != null && copy(fmt(current));
 $("angle").onclick = () => {
   degrees = !degrees;
   $("angle").textContent = degrees ? "DEG" : "RAD";
@@ -225,18 +241,25 @@ $("toggle-pad").onclick = () => {
   const open = $("keypad").classList.toggle("expanded");
   $("toggle-pad").setAttribute("aria-expanded", String(open));
 };
+$("group-toggle").onclick = () => {
+  display.group = !display.group;
+  $("group-toggle").textContent = display.group ? "千分位" : "原始";
+  $("group-toggle").setAttribute("aria-pressed", String(display.group));
+  render();
+  compute();
+};
 document.querySelectorAll("[data-insert]").forEach((b) => {
   b.onclick = () => insert(b.dataset.insert);
 });
 $("memory-add").onclick = () => {
   compute();
   if (current != null) memory += current;
-  $("memory-value").textContent = "M = " + formatNumber(memory);
+  $("memory-value").textContent = "M = " + fmt(memory);
   compute();
 };
 $("memory-clear").onclick = () => {
   memory = 0;
-  $("memory-value").textContent = "M = 0";
+  $("memory-value").textContent = "M = " + fmt(memory);
   compute();
 };
 $("favorites").onclick = () => {
@@ -281,6 +304,11 @@ history = Array.isArray(loaded)
       )
       .slice(0, 1000)
   : [];
+const savedVars = await kit.load(VARS_KEY, {});
+if (savedVars && typeof savedVars === "object" && !Array.isArray(savedVars)) {
+  for (const [k, v] of Object.entries(savedVars))
+    if (isVariableName(k) && Number.isFinite(Number(v))) vars[k] = Number(v);
+}
 render();
 compute();
 kit.onSettings(compute);

@@ -8,15 +8,15 @@
 </head>
 <body>
   <main class="screen-app">
-    <header class="app-head"><div><span class="eyebrow">截图与录制</span><h1>屏幕助手</h1></div><span id="status" role="status">准备就绪</span><button id="capture" class="primary">矩形截图</button><button id="capture-full">全屏</button><button id="import-image" class="desktop-only">打开图片</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden /></header>
+    <header class="app-head"><div><h1>屏幕助手</h1></div><span id="status" role="status">准备就绪</span><button id="capture" class="primary">矩形截图</button><button id="capture-full">全屏</button><button id="import-image" class="desktop-only">打开图片</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden /></header>
     <nav class="tabs" aria-label="工具"><button data-tab="capture" aria-pressed="true">截图标注</button><button data-tab="record" aria-pressed="false">录屏<span id="record-dot" hidden></span></button><button data-tab="pin" aria-pressed="false">贴图管理</button><button data-tab="history" aria-pressed="false">原图历史<span id="history-count">0</span></button></nav>
     <section id="capture-panel" class="panel" aria-label="截图标注">
       <div class="editor-layout">
         <div class="editor-main">
           <div class="result-toolbar"><span id="image-meta">尚无截图</span><button id="toggle-editor">标注</button><button id="copy-image" disabled>复制</button><button id="pin-image" disabled>贴图</button><button id="export-image" disabled>导出 PNG</button></div>
           <div id="edit-toolbar" class="edit-toolbar" aria-label="标注工具">
-            <div class="tool-group"><button data-tool="arrow" aria-pressed="true">箭头</button><button data-tool="rect" aria-pressed="false">矩形</button><button data-tool="text" aria-pressed="false">文字</button><button data-tool="mosaic" aria-pressed="false">马赛克</button><button data-tool="crop" aria-pressed="false">裁剪</button></div>
-            <label class="color-control">颜色<input id="annotation-color" type="color" value="#e45d50" aria-label="标注颜色" /></label><label class="width-control">粗细<select id="annotation-width"><option value="3">细</option><option value="6" selected>中</option><option value="10">粗</option></select></label><button id="undo" disabled title="撤销（⌘/Ctrl Z）">撤销</button><button id="redo" disabled title="重做（⌘/Ctrl Shift Z）">重做</button>
+            <div class="tool-group"><button data-tool="arrow" title="箭头（A）" aria-pressed="true">箭头</button><button data-tool="rect" title="矩形（R）" aria-pressed="false">矩形</button><button data-tool="text" title="文字（T）" aria-pressed="false">文字</button><button data-tool="mosaic" title="马赛克（M）" aria-pressed="false">马赛克</button><button data-tool="crop" title="裁剪（C）" aria-pressed="false">裁剪</button></div>
+            <label class="color-control">颜色<input id="annotation-color" type="color" value="#e45d50" aria-label="标注颜色" /></label><label class="width-control">粗细<select id="annotation-width" aria-label="标注粗细"><option value="3">细</option><option value="6" selected>中</option><option value="10">粗</option></select></label><button id="undo" disabled title="撤销（⌘/Ctrl Z）">撤销</button><button id="redo" disabled title="重做（⌘/Ctrl Shift Z）">重做</button>
           </div>
           <div id="text-options" class="text-options" hidden><label for="annotation-text">文字内容</label><input id="annotation-text" maxlength="200" placeholder="输入后，点击图片放置" /><label for="text-size">字号</label><input id="text-size" type="number" min="12" max="160" value="32" /></div>
           <p id="tool-hint" class="tool-hint">在图片上拖动，添加箭头。</p>
@@ -31,7 +31,7 @@
     </section>
     <section id="pin-panel" class="panel" hidden aria-label="贴图管理"><div class="pin-entries"><button id="pin-capture" class="pin-entry"><strong>截图并贴</strong><span>框选区域，直接贴到屏幕</span></button><button id="pin-clipboard" class="pin-entry"><strong>贴剪贴板图片</strong><span>使用刚刚复制的图片</span></button><button id="pin-file" class="pin-entry"><strong>贴本地图片</strong><span>选择 PNG、JPEG、WebP</span></button><input id="pin-file-input" type="file" accept="image/png,image/jpeg,image/webp" hidden /></div><div class="section-head"><h2>当前贴图</h2><span id="pin-count"></span><button id="refresh-pins">刷新</button><button id="close-pins" class="danger" disabled>全部关闭</button></div><div id="pin-list"></div></section>
     <section id="history-panel" class="panel" hidden aria-label="原图历史"><div class="history-tools"><label for="history-search">查找截图</label><input id="history-search" placeholder="名称或日期" /><button id="clear-history" class="danger">清空历史</button></div><div id="history-list" class="history-grid"></div></section>
-    <footer><span id="footer-hint">标注草稿自动保留，另存版本不覆盖原图</span><button class="text-button" data-open-settings>截图与录屏设置</button></footer>
+    <footer><span id="footer-hint">标注草稿自动保留，另存版本不覆盖原图</span><span class="kbd-hints">工具快捷键：A 箭头 · R 矩形 · T 文字 · M 马赛克 · C 裁剪</span><button class="text-button" data-open-settings>截图与录屏设置</button></footer>
   </main>
 
   <script type="module" src="./src/entry.js"></script>

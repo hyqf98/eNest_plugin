@@ -7,20 +7,35 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
   let current = math.parse('#447766'), background = math.parse('#FFFFFF'), history = [], palettes = []
   let activePaletteId = '', query = '', selected = 0, pixel = null, picking = false, captureRevision = 0
   let lastPick = null, saveQueue = Promise.resolve(), clearArmed = false, deleteArmed = false
+  let harmonyKind = 'triadic', view = 'recent'
   const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  const kit = PluginKit.create({ title: '取色器', height: 410, quickPlaceholder: '输入 HEX、RGB、HSL，或查找颜色…', defaults: { copyFormat: 'hex', autoCopy: true, historyLimit: 48 }, onQuery: onQuery, onAction: onAction })
+  const kit = PluginKit.create({ title: '取色器', height: 470, quickPlaceholder: '输入 HEX、RGB、HSL，或查找颜色…', defaults: { copyFormat: 'hex', autoCopy: true, historyLimit: 48 }, onQuery, onAction })
   const status = (text) => { $('status').textContent = text }
   const fail = (error) => { const text = String(error?.message || error); status(text); kit.toast(text, 'error') }
   const run = (fn) => Promise.resolve().then(fn).catch(fail)
   const format = (color, type = kit.settings.copyFormat) => (math[type] || math.hex)(color)
   const historyLimit = () => Math.max(12, Math.min(120, Number(kit.settings.historyLimit) || 48))
   const activePalette = () => palettes.find((p) => p.id === activePaletteId) || palettes[0]
+
+  // ---------- 持久化（key 与旧版一致，向后兼容） ----------
   function persist() {
-    const data = structuredClone({ palettes, activePaletteId, history, current, background })
+    const data = structuredClone({ palettes, activePaletteId, history, current, background, harmonyKind })
     saveQueue = saveQueue.catch(() => {}).then(() => kit.save('color_workspace_v2', data))
     saveQueue.catch(fail)
     return saveQueue
   }
+
+  // ---------- 工作区视图切换 ----------
+  function showView(next) {
+    view = next
+    for (const name of ['recent', 'harmony', 'contrast', 'palette', 'pick']) {
+      $(`view-${name}`).hidden = name !== next
+    }
+    document.querySelectorAll('.work-seg [data-view]').forEach((button) => button.setAttribute('aria-selected', String(button.dataset.view === next)))
+  }
+  document.querySelectorAll('.work-seg [data-view]').forEach((button) => { button.onclick = () => showView(button.dataset.view) })
+
+  // ---------- 当前颜色（所有调整 1:1 实时反映） ----------
   function setCurrent(color, syncInput = true) {
     current = math.normalized(color)
     if (syncInput) $('color-input').value = math.hex(current)
@@ -31,11 +46,48 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
   function renderCurrent() {
     $('swatch').style.background = math.rgb(current)
     $('swatch-label').textContent = math.hex(current)
-    for (const type of ['hex', 'rgb', 'hsl']) $(`value-${type}`).textContent = math[type](current)
+    for (const type of ['hex', 'rgb', 'hsl', 'oklch']) $(`value-${type}`).textContent = math[type](current)
     $('alpha').value = String(Math.round(current.a * 100))
     $('alpha-value').value = `${Math.round(current.a * 100)}%`
     renderContrast()
+    renderHarmony()
   }
+
+  // ---------- 和谐色 ----------
+  function renderHarmony() {
+    const grid = $('harmony-grid'); grid.replaceChildren()
+    document.querySelectorAll('[data-harmony]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.harmony === harmonyKind)))
+    const list = math.harmony(current, harmonyKind)
+    for (const item of list) {
+      const card = document.createElement('div'); card.className = 'harmony-card'
+      const paint = document.createElement('span'); paint.className = 'paint'; paint.style.background = math.rgb(item.color)
+      const row = document.createElement('span'); row.className = 'row'
+      const role = document.createElement('span'); role.className = 'role'; role.textContent = item.role
+      const code = document.createElement('button'); code.className = 'code pk-mono'; code.textContent = math.hex(item.color); code.title = '复制 HEX'
+      code.onclick = () => void run(() => copyColor(item.color, 'hex'))
+      row.append(role, code)
+      const pick = document.createElement('button'); pick.className = 'pick'; pick.textContent = '设为当前色'
+      pick.onclick = () => { setCurrent(item.color); remember(item.color) }
+      card.append(paint, row, pick)
+      grid.append(card)
+    }
+  }
+  document.querySelectorAll('[data-harmony]').forEach((button) => { button.onclick = () => { harmonyKind = button.dataset.harmony; renderHarmony(); void persist() } })
+  $('harmony-to-palette').onclick = () => {
+    const palette = activePalette(); if (!palette) return
+    const list = math.harmony(current, harmonyKind)
+    if (palette.colors.length + list.length > 100) return kit.toast('每组色板最多 100 色', 'warn')
+    palette.colors.push(...list.map((item, index) => ({ id: uid(), name: `${item.role} ${index + 1}`, color: { ...item.color } })))
+    renderPalettes(); void persist(); status(`已加入 ${list.length} 个和谐色`)
+  }
+  $('harmony-css').onclick = () => void run(async () => {
+    const list = math.harmony(current, harmonyKind)
+    const css = `:root {\n${list.map((item) => `  --harmony-${item.role}: ${math.rgb(item.color)}; /* ${math.hex(item.color)} */`).join('\n')}\n}\n`
+    await kit.copy(css)
+    status('已复制和谐色 CSS 变量')
+  })
+
+  // ---------- 对比度 ----------
   function renderContrast() {
     const ratio = math.contrast(current, background)
     const bg = math.composite(background), fg = math.composite(current, bg)
@@ -49,6 +101,7 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
       $(id).className = pass ? 'pass' : 'fail'
     }
   }
+
   async function copyColor(color, type) {
     const text = format(color, type)
     await kit.copy(text)
@@ -60,9 +113,11 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
     renderHistory()
     void persist()
   }
+
+  // ---------- 最近颜色 ----------
   function filteredHistory() {
     const q = query.trim().toLowerCase()
-    return !q || math.parse(q) ? history : history.filter((c) => [math.hex(c), math.rgb(c), math.hsl(c)].some((s) => s.toLowerCase().includes(q)))
+    return !q || math.parse(q) ? history : history.filter((c) => [math.hex(c), math.rgb(c), math.hsl(c), math.oklch(c)].some((s) => s.toLowerCase().includes(q)))
   }
   function renderHistory() {
     const root = $('recent-colors'); root.replaceChildren()
@@ -78,10 +133,13 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
       root.append(button)
     })
   }
+
+  // ---------- 命名色板 ----------
   function renderPalettes() {
     const select = $('palette-select'); select.replaceChildren()
     palettes.forEach((palette) => { const option = document.createElement('option'); option.value = palette.id; option.textContent = palette.name; select.append(option) })
     const active = activePalette(); activePaletteId = active?.id || ''; select.value = activePaletteId
+    PluginKit.upgradeSelects() // 重建 option 并程序化赋值后，立即同步自定义下拉触发器标签
     $('palette-count').textContent = `${palettes.length} 组`
     const root = $('palette-colors'); root.replaceChildren()
     if (!active?.colors.length) { const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = '添加当前颜色，为配色方案留下名字。'; root.append(empty) }
@@ -92,12 +150,14 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
       swatch.onclick = () => { setCurrent(entry.color); void persist() }
       const name = document.createElement('input'); name.value = entry.name; name.maxLength = 40; name.setAttribute('aria-label', `${math.hex(entry.color)} 的颜色名称`); name.placeholder = '未命名'
       name.onchange = () => { entry.name = name.value.trim().slice(0, 40); void persist() }
-      const code = document.createElement('button'); code.className = 'palette-code'; code.textContent = math.hex(entry.color); code.title = '复制颜色'; code.onclick = () => void run(() => copyColor(entry.color))
+      const code = document.createElement('button'); code.className = 'palette-code pk-mono'; code.textContent = math.hex(entry.color); code.title = '复制颜色'; code.onclick = () => void run(() => copyColor(entry.color))
       const remove = document.createElement('button'); remove.className = 'remove-color'; remove.textContent = '×'; remove.setAttribute('aria-label', `移除 ${entry.name || math.hex(entry.color)}`)
       remove.onclick = () => { active.colors = active.colors.filter((c) => c.id !== entry.id); renderPalettes(); void persist() }
       row.append(swatch, name, code, remove); root.append(row)
     }
   }
+
+  // ---------- Quick 查询 ----------
   function onQuery(value) {
     query = value; selected = 0
     const parsed = math.parse(value)
@@ -115,6 +175,8 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
       setCurrent(c); remember(c); void run(() => copyColor(c))
     } else if (name === 'clear') { query = ''; renderHistory() }
   }
+
+  // ---------- 输入接线 ----------
   $('color-input').addEventListener('input', (event) => {
     const color = math.parse(event.target.value)
     $('input-error').hidden = !!color; event.target.setAttribute('aria-invalid', String(!color))
@@ -164,9 +226,12 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
     const colors = data.colors.map((item) => { const color = math.parse(typeof item === 'string' ? item : item?.color); if (!color) throw new Error('色板包含无效色值'); return { id: uid(), name: typeof item?.name === 'string' ? item.name.slice(0, 40) : '', color } })
     const palette = { id: uid(), name: data.name.trim().slice(0, 40) || '导入色板', colors }; palettes.push(palette); activePaletteId = palette.id; renderPalettes(); await persist(); status(`已导入 ${colors.length} 色`)
   })
+
+  // ---------- 图片取色（放大镜 + 键盘微调） ----------
   function stopPick() {
     captureRevision += 1; picking = false; pixel = null; lastPick = null
-    $('picker-panel').hidden = true; document.body.classList.remove('picking'); $('shot').width = 1; $('shot').height = 1; $('confirm-pick').disabled = true
+    showView('pick')
+    document.body.classList.remove('picking'); $('shot').width = 1; $('shot').height = 1; $('confirm-pick').disabled = true
     void api?.ui?.setInputContext?.('workbench')
     status('已退出取色')
   }
@@ -177,7 +242,7 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
     if (image.naturalWidth * image.naturalHeight > 64 * 1024 * 1024) throw new Error('图片像素过大，请使用小于 6400 万像素的图片')
     const canvas = $('shot'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight
     canvas.getContext('2d', { willReadFrequently: true }).drawImage(image, 0, 0)
-    picking = true; document.body.classList.add('picking'); $('picker-panel').hidden = false
+    showView('pick'); picking = true; document.body.classList.add('picking')
     void api?.ui?.setInputContext?.('overlay')
     status(`${canvas.width} × ${canvas.height} · 点击图片收录颜色`)
     canvas.focus()
@@ -216,7 +281,12 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
     if (event.key === 'Enter') { event.preventDefault(); commitPick() }
   }
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && picking) { event.preventDefault(); event.stopPropagation(); stopPick() } }, true)
-  kit.onMode((mode) => { $('mode-hint').textContent = mode === 'quick' ? 'Enter 复制 · ↑ ↓ 选择最近颜色' : '' })
+
+  // ---------- 模式与初始化 ----------
+  kit.onMode((mode) => {
+    $('mode-hint').textContent = mode === 'quick' ? 'Enter 复制 · ↑ ↓ 选择最近颜色' : ''
+    if (mode === 'quick') showView('recent')
+  })
   kit.onSettings(() => { history = history.slice(0, historyLimit()); renderHistory() })
   api?.onOut?.(() => { if (picking) stopPick() })
   api?.onBeforeClose?.(() => saveQueue)
@@ -230,12 +300,13 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
       activePaletteId = String(state.activePaletteId || '')
       if (valid(state.current)) current = math.normalized(state.current)
       if (valid(state.background)) background = math.normalized(state.background)
+      if (['complement', 'analogous', 'triadic', 'square'].includes(state.harmonyKind)) harmonyKind = state.harmonyKind
     } else {
       const legacy = await kit.load('colors_v1', [])
       history = Array.isArray(legacy) ? legacy.filter((c) => c && ['r', 'g', 'b'].every((k) => Number.isFinite(c[k]))).map(math.normalized).slice(0, historyLimit()) : []
     }
     if (!palettes.length) palettes = [{ id: uid(), name: '我的色板', colors: [] }]
-    setCurrent(current); $('background').value = math.hex(background); renderHistory(); renderPalettes()
+    setCurrent(current); $('background').value = math.hex(background); renderHistory(); renderPalettes(); showView('recent')
   })
-  renderCurrent(); renderHistory()
+  renderCurrent(); renderHistory(); renderPalettes(); showView('recent')
 })()

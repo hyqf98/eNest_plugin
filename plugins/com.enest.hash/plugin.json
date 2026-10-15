@@ -1,8 +1,8 @@
 {
   "id": "com.enest.hash",
   "name": "哈希与加密",
-  "version": "1.0.0",
-  "description": "多算法同屏哈希（SHA 家族/MD5）、HMAC、AES-GCM 与 RSA 加解密签名、JWT 解码、hex/base64 输出。",
+  "version": "1.1.0",
+  "description": "多算法同屏哈希（SHA 家族/MD5）、文件哈希进度反馈、校验对比 diff、HMAC、AES-GCM 与 RSA 加解密签名、JWT 解码、hex/base64 输出。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",

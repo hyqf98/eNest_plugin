@@ -1,17 +1,69 @@
 {
   "name": "com.enest.database",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "node ../../scripts/build-plugin.mjs com.enest.database",
-    "pack": "node ../../scripts/pack-plugin.mjs com.enest.database"
+    "pack": "node ../../scripts/pack-plugin.mjs com.enest.database",
+    "typecheck:backend": "tsc -p backend/tsconfig.json",
+    "test:backend": "node --test backend/*.test.mjs",
+    "test:backend:integration": "tsx --tsconfig backend/tsconfig.json --test backend/*.test.ts"
   },
   "dependencies": {
-    "@enest/plugin-kit": "1.0.0"
+    "@enest/plugin-kit": "1.0.0",
+    "@clickhouse/client": "^1.24.1",
+    "@duckdb/node-api": "^1.5.6-r.1",
+    "@tdengine/websocket": "^3.5.0",
+    "cassandra-driver": "^4.10.0",
+    "csv-parse": "^7.0.3",
+    "lossless-json": "^4.3.1",
+    "mongodb": "^7.7.0",
+    "mssql": "^12.7.4",
+    "mysql2": "^3.24.4",
+    "neo4j-driver": "^6.2.0",
+    "oracledb": "^26.0.0",
+    "pg": "^8.23.0",
+    "pg-query-stream": "^4.17.1",
+    "redis": "^6.3.0",
+    "undici": "^8.11.2"
   },
   "devDependencies": {
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "@types/node": "^22.20.3",
+    "typescript": "^5.9.3",
+    "@types/mssql": "^12.3.0",
+    "@types/oracledb": "^7.0.3",
+    "@types/pg": "^8.23.1",
+    "@types/pg-query-stream": "^1.0.3",
+    "esbuild": "^0.21.5",
+    "tsx": "^4.23.15"
+  },
+  "enestBackend": {
+    "entry": "backend/index.ts",
+    "dependencies": [
+      "@clickhouse/client",
+      "@duckdb/node-api",
+      "@tdengine/websocket",
+      "cassandra-driver",
+      "csv-parse",
+      "lossless-json",
+      "mongodb",
+      "mssql",
+      "mysql2",
+      "neo4j-driver",
+      "oracledb",
+      "pg",
+      "pg-query-stream",
+      "redis",
+      "undici"
+    ],
+    "platformPackages": [
+      "@duckdb/node-bindings-darwin-arm64",
+      "@duckdb/node-bindings-darwin-x64",
+      "@duckdb/node-bindings-win32-x64",
+      "@duckdb/node-bindings-linux-x64"
+    ]
   }
 }

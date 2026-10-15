@@ -186,6 +186,11 @@
     return rows
   }
 
+  /** 代码文字宽度按最长行字符数计量（等宽字体，1 字符 = charWidth）。 */
+  function measure(code, font) {
+    return String(code ?? '').split('\n').reduce((max, line) => Math.max(max, line.length), 0)
+  }
+
   /** 语法色板：全部由主题 token 派生（暗色深底 / 亮色浅底）。 */
   function syntaxPalette(tokens, mode) {
     const pick = name => String(tokens?.[name] || '').trim()
@@ -207,10 +212,33 @@
     }
   }
 
-  /** 代码文字颜色总在纯色底上渲染，确保透明画布下仍可读。 */
-  function measure(code, font) {
-    return String(code ?? '').split('\n').reduce((max, line) => Math.max(max, line.length), 0)
+  /** 独立语法主题：跟随宿主之外，可强制 dark / light；结构同 syntaxPalette，色彩为精选固定值。 */
+  const CODE_THEMES = [
+    { id: 'auto', label: '跟随主题' },
+    { id: 'dark', label: '深色' },
+    { id: 'light', label: '浅色' },
+    { id: 'midnight', label: '午夜蓝' },
+    { id: 'forest', label: '森绿' }
+  ]
+  const CODE_THEME_COLORS = {
+    dark: { background: '#202326', header: '#292d31', border: 'rgba(242,243,243,.16)', title: '#adb3b8', plain: '#f2f3f3', keyword: '#e98654', string: '#77bfa4', comment: '#8b9298', number: '#d9a05e', gutter: '#82888b', dot: 'rgba(242,243,243,.28)', shadow: 'rgba(4, 8, 16, .55)' },
+    light: { background: '#ffffff', header: '#eeefed', border: 'rgba(41,44,46,.16)', title: '#666c70', plain: '#292c2e', keyword: '#bd542b', string: '#318469', comment: '#82888b', number: '#a35428', gutter: '#82888b', dot: 'rgba(41,44,46,.24)', shadow: 'rgba(24, 32, 40, .18)' },
+    midnight: { background: '#0f1729', header: '#16203a', border: 'rgba(210,220,255,.14)', title: '#8fa3c8', plain: '#dbe4f5', keyword: '#7aa2f7', string: '#9ece6a', comment: '#5d6f95', number: '#ff9e64', gutter: '#5d6f95', dot: 'rgba(210,220,255,.28)', shadow: 'rgba(4, 8, 20, .6)' },
+    forest: { background: '#1b231d', header: '#232e25', border: 'rgba(220,240,224,.14)', title: '#9ab5a0', plain: '#e2ede4', keyword: '#e0af68', string: '#a5d6a7', comment: '#6d8573', number: '#f2c94c', gutter: '#6d8573', dot: 'rgba(220,240,224,.28)', shadow: 'rgba(8, 16, 10, .55)' }
+  }
+  /** resolveTheme(preference, shellMode)：auto → 跟随宿主；其余 → 固定主题色板。 */
+  function resolveTheme(preference, shellMode) {
+    if (preference && preference !== 'auto' && CODE_THEME_COLORS[preference]) return { ...CODE_THEME_COLORS[preference] }
+    const fallbackId = shellMode === 'light' ? 'light' : 'dark'
+    return { ...CODE_THEME_COLORS[fallbackId] }
   }
 
-  root.CodeCore = { LANGUAGES, KEYWORDS, detectLanguage, tokenize, layoutLines, gutterWidth, syntaxPalette, measure }
+  /** 窗口样式：mac 三点 / windows 双钮 / 无装饰。返回绘制所需元信息。 */
+  const WINDOW_STYLES = [
+    { id: 'mac', label: 'macOS' },
+    { id: 'windows', label: 'Windows' },
+    { id: 'none', label: '无' }
+  ]
+
+  root.CodeCore = { LANGUAGES, KEYWORDS, detectLanguage, tokenize, layoutLines, gutterWidth, syntaxPalette, measure, CODE_THEMES, resolveTheme, WINDOW_STYLES }
 })(globalThis)

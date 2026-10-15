@@ -7,9 +7,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,[tabindex]:focus
 .wb-brand strong { font-weight: 650; letter-spacing: -.4px; }
 .wb-mode-label { color: var(--text-3); font-size: calc(var(--ssh-ui-size) * 0.846154); }
 .wb-header nav { display: flex; gap: 2px; }
-.wb-header button,.wb-tool-tabs button,.wb-pane-title button,.wb-file-actions button,.wb-file-path button,.wb-data-table button,.wb-settings-page button,.wb-editor-tabs button,.wb-resource-strip button,.wb-table-actions button { border: 0; background: transparent; padding: 6px 9px; border-radius: 5px; font-size: calc(var(--ssh-ui-size) * 0.923077); cursor: pointer; white-space: nowrap; }
+.wb-header button,.wb-tool-tabs button,.wb-pane-title button,.wb-file-actions button,.wb-file-path button,.wb-data-table button,.wb-settings-page button,.wb-editor-tabs button,.wb-resource-strip button,.wb-table-actions button { border: 1px solid transparent; background: transparent; padding: 6px 9px; border-radius: 5px; font-size: calc(var(--ssh-ui-size) * 0.923077); cursor: pointer; white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .08s ease; }
 .wb-header button:hover,.wb-tool-tabs button:hover,.wb-pane-title button:hover,.wb-file-actions button:hover,.wb-file-path button:hover,.wb-data-table button:hover,.wb-settings-page button:hover,.wb-editor-tabs button:hover,.wb-table-actions button:hover { background: var(--surface-2); }
-.wb-header button.active,.wb-tool-tabs button.active,.wb-settings-page nav button.active,.wb-editor-tabs button.active { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.wb-header button:active,.wb-tool-tabs button:active,.wb-pane-title button:active,.wb-file-actions button:active,.wb-file-path button:active,.wb-data-table button:active,.wb-settings-page button:active,.wb-editor-tabs button:active,.wb-resource-strip button:active,.wb-table-actions button:active { transform: scale(.97); }
+.wb-header button.active,.wb-tool-tabs button.active,.wb-settings-page nav button.active,.wb-editor-tabs button.active { background: var(--accent-soft); color: var(--text); font-weight: 600; border-color: color-mix(in srgb, var(--brand, var(--accent)) 35%, transparent); }
 .wb-header-end { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .wb-header kbd { font: calc(var(--ssh-ui-size) * 0.769231) var(--font); opacity: .6; margin-left: 7px; }
 .wb-open-shell { display: none; }
@@ -67,10 +68,12 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-inline-error p { color: var(--text-3); }
 .wb-explorer.drop-active { box-shadow: inset 0 0 0 2px var(--ok); background: var(--ok-soft); }
 .wb-export { padding: 9px; background: var(--ok-soft); color: var(--ok); font-size: calc(var(--ssh-ui-size) * 0.846154); cursor: grab; display: flex; align-items: center; justify-content: space-between; }
-.wb-export button { background: none; border: none; cursor: pointer; }
+.wb-export button { background: none; border: 1px solid transparent; border-radius: 4px; cursor: pointer; }
+.wb-export button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 12%, transparent); }
 .wb-local-title { padding: 8px; display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border-strong); }
 .wb-local-title strong { margin-right: auto; font-size: calc(var(--ssh-ui-size) * 0.846154); }
-.wb-local-title button { border: 0; background: none; cursor: pointer; font-size: calc(var(--ssh-ui-size) * 0.769231); }
+.wb-local-title button { border: 1px solid transparent; background: none; border-radius: 4px; cursor: pointer; font-size: calc(var(--ssh-ui-size) * 0.769231); }
+.wb-local-title button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 12%, transparent); }
 .wb-local-path { padding: 0 8px 6px; color: var(--text-3); font: calc(var(--ssh-ui-size) * 0.769231) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-local-list { max-height: 38%; min-height: 110px; overflow: auto; border-top: 1px dashed var(--border); padding: 6px 0; }
 .wb-local-list > span { padding: 7px; font-size: calc(var(--ssh-ui-size) * 0.769231); color: var(--text-3); display: block; }
@@ -85,7 +88,8 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-tool-toolbar { display: flex; align-items: center; padding: 5px 9px; gap: 10px; border-bottom: 1px solid var(--border); }
 .wb-tool-toolbar input { border: 0; background: var(--surface-2); border-radius: 4px; width: 220px; padding: 5px 8px; font-size: calc(var(--ssh-ui-size) * 0.846154); }
 .wb-tool-status { margin-left: auto; color: var(--text-3); font-size: calc(var(--ssh-ui-size) * 0.769231); }
-.wb-tool-toolbar button { border: 0; background: none; cursor: pointer; font-size: calc(var(--ssh-ui-size) * 0.846154); }
+.wb-tool-toolbar button { border: 1px solid transparent; background: none; cursor: pointer; font-size: calc(var(--ssh-ui-size) * 0.846154); border-radius: 4px; min-height: 24px; padding: 3px 8px; transition: background-color .12s ease, border-color .12s ease; }
+.wb-tool-toolbar button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 12%, transparent); }
 .wb-tool-body { flex: 1; min-height: 0; overflow: auto; }
 .wb-data-table { width: 100%; border-collapse: collapse; font-size: calc(var(--ssh-ui-size) * 0.846154); font-variant-numeric: tabular-nums; }
 .wb-data-table th { position: sticky; top: 0; background: var(--surface-2); color: var(--text-2); font-weight: 500; font-size: calc(var(--ssh-ui-size) * 0.769231); z-index: 1; }
@@ -97,7 +101,8 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-table-actions { display: flex; align-items: center; padding: 6px 10px; gap: 12px; }
 .wb-table-actions small { color: var(--text-3); }
 .wb-statusbar { display: flex; align-items: center; min-height: 25px; border-top: 1px solid var(--border); background: var(--surface-2); padding: 3px 10px; gap: 14px; color: var(--text-3); font-size: calc(var(--ssh-ui-size) * 0.769231); }
-.wb-statusbar button { margin-left: auto; background: none; border: 0; cursor: pointer; font-size: calc(var(--ssh-ui-size) * 0.769231); }
+.wb-statusbar button { margin-left: auto; background: none; border: 1px solid transparent; border-radius: 4px; min-height: 20px; cursor: pointer; font-size: calc(var(--ssh-ui-size) * 0.769231); }
+.wb-statusbar button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 12%, transparent); }
 .completion-list { position: fixed; right: auto; bottom: auto; z-index: 100; width: 430px; max-height: 216px; border-radius: 6px; }
 .completion-list .completion-item { border-radius: 4px; font-size: calc(var(--ssh-ui-size) * 0.846154); }
 .hint-meta { font-size: calc(var(--ssh-ui-size) * 0.769231); }
@@ -140,8 +145,13 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-settings-form { max-width: 580px; display: grid; gap: 18px; }
 .wb-settings-form label { display: flex; align-items: center; gap: 10px; }
 .wb-settings-form input:not([type=checkbox]),.wb-settings-form select { padding: 7px 9px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 5px; margin-left: auto; width: 200px; }
+/* kit 统一下拉：wb-settings-form 里的 select 升级后宽度/位置契约迁移到 .pk-select 包裹层 */
+.wb-settings-form .pk-select { margin-left: auto; width: 200px; }
+.wb-settings-form .pk-select .pk-select-trigger { padding: 7px 9px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 5px; min-height: 30px; width: 100%; }
 .wb-settings-form input[type=checkbox] { accent-color: var(--ok); }
-.wb-settings-form button { justify-self: start; padding: 8px 18px; background: var(--accent); color: var(--surface); }
+.wb-settings-form button[type=submit],.wb-settings-form > button { justify-self: start; padding: 8px 18px; min-height: 28px; background: var(--brand-strong, var(--accent)); color: var(--accent-contrast, var(--surface)); border: 1px solid transparent; border-radius: 5px; font-weight: 600; }
+.wb-settings-form button[type=submit]:hover,.wb-settings-form > button:hover { filter: brightness(1.08); }
+.wb-settings-form button[type=submit]:active,.wb-settings-form > button:active { transform: scale(.97); }
 .wb-settings-form p,.wb-settings-form small { margin: 0; color: var(--text-3); line-height: 1.8; }
 .wb-shortcut-list { max-width: 700px; margin-bottom: 16px; }
 .wb-shortcut-list label { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; gap: 20px; }
@@ -190,10 +200,12 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-file-filter input { background: transparent; border: 0; width: 100%; color: var(--text); font: calc(var(--ssh-ui-size) * 0.846154) var(--font); padding: 3px; }
 .wb-file-row.drop-target { background: var(--ok-soft); box-shadow: inset 0 0 0 1px var(--ok); }
 .wb-connection-actions { display: flex; gap: 3px; }
-.wb-connection-actions button { border: 0; background: none; color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 1.153846); width: 24px; height: 24px; border-radius: 4px; cursor: pointer; }
-.wb-connection-actions button:hover { background: var(--surface-2); }
+.wb-connection-actions button { border: 1px solid transparent; background: none; color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 1.153846); width: 24px; height: 24px; border-radius: 4px; cursor: pointer; }
+.wb-connection-actions button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
+.wb-connection-actions button:active { transform: scale(.94); }
 .wb-session-actions { display: flex; gap: 3px; margin-left: auto; padding: 2px 6px; position: sticky; right: 0; background: var(--surface-2); align-items: center; }
-.wb-session-actions button { border: 0; background: none; color: var(--text-2); padding: 4px; font-size: calc(var(--ssh-ui-size) * 0.769231); white-space: nowrap; cursor: pointer; }
+.wb-session-actions button { border: 1px solid transparent; background: none; color: var(--text-2); padding: 4px; border-radius: 4px; font-size: calc(var(--ssh-ui-size) * 0.769231); white-space: nowrap; cursor: pointer; }
+.wb-session-actions button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
 :root[data-launch-mode=quick] .wb-session-actions { display: none; }
  .wb-proxy-fields[hidden] { display: none !important; }
  .wb-proxy-fields { gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
@@ -234,7 +246,8 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-session-context strong { font-size: calc(var(--ssh-ui-size) * 0.923077); font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .wb-session-target { color: var(--text-2); font: calc(var(--ssh-ui-size) * 0.846154) var(--mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .wb-session-status { margin-left: auto; font-size: calc(var(--ssh-ui-size) * 0.846154); color: var(--text-3); }
-.wb-session-context button { border: 0; background: var(--surface-2); border-radius: 5px; padding: 4px 7px; font-size: calc(var(--ssh-ui-size) * 0.846154); cursor: pointer; flex-shrink: 0; }
+.wb-session-context button { border: 1px solid var(--border); background: var(--surface-2); border-radius: 5px; padding: 4px 7px; font-size: calc(var(--ssh-ui-size) * 0.846154); cursor: pointer; flex-shrink: 0; transition: border-color .12s ease, background-color .12s ease; }
+.wb-session-context button:hover { border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border)); }
 .wb-session-context button[hidden] { display: none; }
 .app[data-workbench] .wb-resource-strip { order: 2; display: none; min-height: 40px; }
 .app[data-workbench][data-view=resources] .wb-resource-strip { display: flex; }
@@ -283,8 +296,10 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-custom-commands { display: grid; gap: 8px; }
 .wb-custom-command { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 28px; gap: 7px; align-items: center; }
 .wb-settings-form .wb-custom-command input { width: 100%; min-width: 0; font: calc(var(--ssh-ui-size) * 0.846154) var(--mono); }
-.wb-settings-form .wb-custom-command button { padding: 5px; background: transparent; color: var(--text-2); justify-self: stretch; }
-.wb-settings-form .wb-add-command { padding: 5px 8px; background: var(--surface-2); color: var(--text); }
+.wb-settings-form .wb-custom-command button { padding: 5px; background: transparent; color: var(--text-2); justify-self: stretch; border: 1px solid transparent; border-radius: 4px; min-height: 24px; }
+.wb-settings-form .wb-custom-command button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 12%, transparent); }
+.wb-settings-form .wb-add-command { padding: 5px 8px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; min-height: 24px; }
+.wb-settings-form .wb-add-command:hover { border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border)); }
 .wb-command-empty, .wb-settings-feedback { color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 0.846154); line-height: 1.7; }
 .wb-settings-feedback:empty { display: none; }
 .wb-navigation-scrim { position: absolute; inset: 0 0 0 var(--ssh-rail); background: #0002; border: 0; z-index: 45; cursor: default; }

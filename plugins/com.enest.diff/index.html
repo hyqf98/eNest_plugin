@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>文本对比</title>
 
-
     <link rel="stylesheet" href="src/css/main.css" />
   </head>
   <body>
@@ -13,16 +12,24 @@
       <header class="topbar">
         <h1>文本对比</h1>
         <span id="stats" class="stats mono" role="status" aria-live="polite"></span>
+        <span id="nav-pos" class="nav-pos mono" hidden></span>
         <div class="toolbar">
           <div class="options" role="group" aria-label="对比选项">
-            <button id="opt-inline" aria-pressed="true">行内细化</button>
-            <button id="opt-ws" aria-pressed="false">忽略空白</button>
-            <button id="opt-case" aria-pressed="false">忽略大小写</button>
+            <button id="opt-inline" aria-pressed="true" title="行内字符级高亮">字符级</button>
+            <button id="opt-ws" aria-pressed="false" title="比较前折叠空白并去首尾">忽略空白</button>
+            <button id="opt-case" aria-pressed="false" title="比较前转为小写">忽略大小写</button>
+            <button id="opt-blank" aria-pressed="false" title="空行不参与比较">忽略空行</button>
+            <button id="opt-json" aria-pressed="false" title="两侧都为合法 JSON 时按键排序规范化再比">JSON 规范化</button>
           </div>
-          <button id="nav-prev" disabled title="上一处差异">↑ 上一处</button>
-          <button id="nav-next" disabled title="下一处差异">↓ 下一处</button>
+          <div class="seg" role="group" aria-label="视图切换">
+            <button id="view-split" aria-pressed="true">并排</button
+            ><button id="view-unified" aria-pressed="false">统一</button>
+          </div>
+          <button id="nav-prev" disabled title="上一处差异 (Ctrl/⌘+↑)">↑ 上一处</button>
+          <button id="nav-next" disabled title="下一处差异 (Ctrl/⌘+↓)">↓ 下一处</button>
           <button id="swap" title="交换两栏">⇄ 交换</button>
-          <button id="export-diff" disabled>复制 unified diff</button>
+          <button id="copy-diff" disabled title="复制 unified diff 到剪贴板">复制 diff</button>
+          <button id="export-diff" disabled title="导出 .patch 文件">导出 patch</button>
         </div>
       </header>
 
@@ -31,6 +38,7 @@
           <div class="pane-head">
             <label for="source">源文本</label>
             <span class="pane-actions">
+              <button id="pick-source">文件…</button>
               <button id="paste-source">粘贴</button>
               <button id="clear-source">清空</button>
             </span>
@@ -44,6 +52,7 @@
           <div class="pane-head">
             <label for="target">目标文本</label>
             <span class="pane-actions">
+              <button id="pick-target">文件…</button>
               <button id="paste-target">粘贴</button>
               <button id="clear-target">清空</button>
             </span>
@@ -58,12 +67,11 @@
       <section class="result" id="result">
         <div class="pane-head result-head">
           <h2>差异结果 <span id="result-mode" class="hint">行级</span></h2>
-          <span class="hint" id="result-hint">差异块以底色标注；⌘↑ / ⌘↓ 或按钮导航</span>
+          <span class="hint" id="result-hint">Ctrl/⌘+↑ ↓ 导航差异；导出为 unified patch</span>
         </div>
         <div id="diff-view" class="diff-view mono" tabindex="0"></div>
       </section>
     </main>
-
 
     <script type="module" src="./src/entry.js"></script>
   </body>

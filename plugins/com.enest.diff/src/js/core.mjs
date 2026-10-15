@@ -1,59 +1,67 @@
-// LCS 行级 diff + 行内字符细化 + unified diff 生成 + hex dump。可在 node 中直接自测。
+// LCS 行级 diff + 行内字符细化 + unified diff 生成 + hex dump + JSON 规范化。可在 node 中直接自测。
 
-/** 归一化行：忽略空白 / 忽略大小写 */
-function normalizeLine(line, { ignoreWhitespace = false, ignoreCase = false } = {}) {
+/** 归一化行：忽略行尾空白 / 忽略大小写 / 忽略空白串 / 忽略空行（返回 null 表示该行应跳过） */
+function normalizeLine(line, { ignoreWhitespace = false, ignoreCase = false, ignoreBlank = false } = {}) {
   let out = line;
   if (ignoreWhitespace) out = out.replace(/\s+/g, " ").trim();
   if (ignoreCase) out = out.toLowerCase();
+  if (ignoreBlank && out.trim() === "") return null;
   return out;
 }
 
 /**
  * 行级 LCS 对齐 → 变换脚本数组：
  * { type: 'same'|'del'|'add', aIndex?, bIndex? }
+ * ignoreBlank 时两侧空行都不产生操作（视作 same，但保留行号推进）。
  */
 export function diffLines(aText, bText, options = {}) {
-  const a = String(aText ?? "").split("\n");
-  const b = String(bText ?? "").split("\n");
+  const aAll = String(aText ?? "").split("\n");
+  const bAll = String(bText ?? "").split("\n");
+  const ignoreBlank = !!options.ignoreBlank;
+  // 忽略空行：先剔除，记录原始行号用于展示
+  const a = [], aOrig = [], b = [], bOrig = [];
+  for (let k = 0; k < aAll.length; k++) {
+    if (ignoreBlank && aAll[k].trim() === "") continue;
+    a.push(aAll[k]); aOrig.push(k);
+  }
+  for (let k = 0; k < bAll.length; k++) {
+    if (ignoreBlank && bAll[k].trim() === "") continue;
+    b.push(bAll[k]); bOrig.push(k);
+  }
   const an = a.map((l) => normalizeLine(l, options));
   const bn = b.map((l) => normalizeLine(l, options));
-  const n = an.length,
-    m = bn.length;
+  const n = an.length, m = bn.length;
   // LCS 动态规划（上限保护：超长文本退化为按前缀对齐）
   const LIMIT = 4000;
   let script = [];
   if (n > LIMIT || m > LIMIT) {
     let i = 0;
     while (i < Math.min(n, m) && an[i] === bn[i]) i++;
-    for (let k = i; k < n; k++) script.push({ type: "del", aIndex: k });
-    for (let k = i; k < m; k++) script.push({ type: "add", bIndex: k });
+    for (let k = i; k < n; k++) script.push({ type: "del", aIndex: aOrig[k] });
+    for (let k = i; k < m; k++) script.push({ type: "add", bIndex: bOrig[k] });
     return script;
   }
   const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
   for (let i = n - 1; i >= 0; i--)
     for (let j = m - 1; j >= 0; j--)
       dp[i][j] = an[i] === bn[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-  let i = 0,
-    j = 0;
+  let i = 0, j = 0;
   while (i < n && j < m) {
     if (an[i] === bn[j]) {
-      script.push({ type: "same", aIndex: i, bIndex: j });
-      i++;
-      j++;
+      script.push({ type: "same", aIndex: aOrig[i], bIndex: bOrig[j] });
+      i++; j++;
     } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      script.push({ type: "del", aIndex: i });
-      i++;
+      script.push({ type: "del", aIndex: aOrig[i] }); i++;
     } else {
-      script.push({ type: "add", bIndex: j });
-      j++;
+      script.push({ type: "add", bIndex: bOrig[j] }); j++;
     }
   }
-  while (i < n) script.push({ type: "del", aIndex: i++ });
-  while (j < m) script.push({ type: "add", bIndex: j++ });
+  while (i < n) script.push({ type: "del", aIndex: aOrig[i++] });
+  while (j < m) script.push({ type: "add", bIndex: bOrig[j++] });
   return script;
 }
 
-/** 相邻 del/add 配对成 hunk：{ type:'change', dels, adds }，供行内细化 */
+/** 相邻 del/add 配对成 hunk：{ type:'change'|'del-only'|'add-only'|'same', … }，供行内细化 */
 export function pairHunks(script) {
   const hunks = [];
   let k = 0;
@@ -64,8 +72,7 @@ export function pairHunks(script) {
       k++;
       continue;
     }
-    const dels = [],
-      adds = [];
+    const dels = [], adds = [];
     while (k < script.length && script[k].type === "del") dels.push(script[k++]);
     while (k < script.length && script[k].type === "add") adds.push(script[k++]);
     if (dels.length && adds.length) hunks.push({ type: "change", dels, adds });
@@ -78,8 +85,7 @@ export function pairHunks(script) {
 /** 字符级 LCS，返回 [{ value, kind: 'same'|'ins'|'del' }] 段 */
 export function diffChars(a, b) {
   if (a === b) return a ? [{ value: a, kind: "same" }] : [];
-  const n = a.length,
-    m = b.length;
+  const n = a.length, m = b.length;
   if (n * m > 4_000_000) return [{ value: a, kind: "del" }, { value: b, kind: "ins" }];
   const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
   for (let i = n - 1; i >= 0; i--)
@@ -91,13 +97,10 @@ export function diffChars(a, b) {
     if (last && last.kind === kind) last.value += ch;
     else segments.push({ value: ch, kind });
   };
-  let i = 0,
-    j = 0;
+  let i = 0, j = 0;
   while (i < n && j < m) {
     if (a[i] === b[j]) {
-      push("same", a[i]);
-      i++;
-      j++;
+      push("same", a[i]); i++; j++;
     } else if (dp[i + 1][j] >= dp[i][j + 1]) push("del", a[i++]);
     else push("ins", b[j++]);
   }
@@ -107,8 +110,7 @@ export function diffChars(a, b) {
 }
 
 export function countChanges(script) {
-  let dels = 0,
-    adds = 0;
+  let dels = 0, adds = 0;
   for (const op of script) {
     if (op.type === "del") dels++;
     else if (op.type === "add") adds++;
@@ -140,10 +142,7 @@ export function unifiedDiff(aText, bText, { from = "a", to = "b", context = 3, o
     }
     let end = idx;
     while (end + 1 < script.length && inWindow[end + 1]) end++;
-    let aStart = -1,
-      bStart = -1,
-      aCount = 0,
-      bCount = 0;
+    let aStart = -1, bStart = -1, aCount = 0, bCount = 0;
     const rows = [];
     for (let k = idx; k <= end; k++) {
       const op = script[k];
@@ -184,4 +183,33 @@ export function hexDump(text, bytesPerLine = 16) {
     out.push(`${offset.toString(16).padStart(8, "0")}  ${hex.padEnd(bytesPerLine * 3 - 1)}  |${printable}|`);
   }
   return out.join("\n");
+}
+
+/**
+ * JSON 智能对比：两侧都解析成功时按键排序 + 2 空格缩进规范化后返回
+ * { ok: true, a, b }；任一侧解析失败返回 { ok: false, error? }。
+ * 数组保持原顺序（乱序数组规范化会制造假差异）。
+ */
+export function canonicalJson(text) {
+  const value = JSON.parse(String(text ?? ""));
+  return JSON.stringify(sortKeys(value), null, 2);
+}
+
+function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const key of Object.keys(value).sort()) out[key] = sortKeys(value[key]);
+    return out;
+  }
+  return value;
+}
+
+/** 尝试 JSON 规范化两侧文本；成功返回 { a, b }，失败返回 null（保持原文对比） */
+export function normalizeJsonPair(aText, bText) {
+  try {
+    return { a: canonicalJson(aText), b: canonicalJson(bText) };
+  } catch {
+    return null;
+  }
 }

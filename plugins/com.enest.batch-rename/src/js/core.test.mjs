@@ -102,6 +102,51 @@ ok('先替换再序号再扩展名', () => {
   assert.equal(rows[0].newName, '01_photo.webp')
 })
 
+console.log('insert 规则')
+ok('开头 / 结尾插入', () => {
+  const rows = applyRules([E('report.pdf')], [{ type: 'insert', text: '[2024] ', position: 'head' }])
+  assert.equal(rows[0].newName, '[2024] report.pdf')
+  const rows2 = applyRules([E('report.pdf')], [{ type: 'insert', text: '-final', position: 'tail' }])
+  assert.equal(rows2[0].newName, 'report-final.pdf')
+})
+ok('指定位置插入（第 n 字符前）', () => {
+  assert.equal(applyRules([E('abcdef.txt')], [{ type: 'insert', text: '-', position: 'index', at: 3 }])[0].newName, 'abc-def.txt')
+  // 超界：钳制到末尾
+  assert.equal(applyRules([E('abc.txt')], [{ type: 'insert', text: 'X', position: 'index', at: 99 }])[0].newName, 'abcX.txt')
+  // 负数：从尾部计数（-1 = 末尾前）
+  assert.equal(applyRules([E('abc.txt')], [{ type: 'insert', text: 'X', position: 'index', at: -1 }])[0].newName, 'abXc.txt')
+})
+ok('空插入片段不改变名称', () => {
+  const rows = applyRules([E('a.txt')], [{ type: 'insert', text: '', position: 'head' }])
+  assert.equal(rows[0].newName, 'a.txt')
+  assert.equal(rows[0].changed, false)
+})
+
+console.log('remove 规则')
+ok('从开头第 n 位起删 length 位', () => {
+  const rows = applyRules([E('IMG_20240101_a.jpg', 0), E('IMG_20240101_b.jpg', 1)], [
+    { type: 'remove', position: 'start', start: 0, length: 4 },
+    { type: 'remove', position: 'start', start: 0, length: 9 }
+  ])
+  assert.equal(rows[0].newName, 'a.jpg')
+  assert.equal(rows[1].newName, 'b.jpg')
+})
+ok('从结尾数删除（position=end，负向计数）', () => {
+  const rows = applyRules([E('song (1).mp3')], [{ type: 'remove', position: 'end', start: -4, length: 4 }])
+  assert.equal(rows[0].newName, 'song.mp3')
+})
+ok('删除 0 位不改变名称', () => {
+  const rows = applyRules([E('keep.txt')], [{ type: 'remove', position: 'start', start: 0, length: 0 }])
+  assert.equal(rows[0].newName, 'keep.txt')
+})
+
+console.log('changed 标记')
+ok('changed = 新旧名是否不同', () => {
+  const rows = applyRules([E('same.txt'), E('old.txt')], [{ type: 'replace', find: 'old', replaceWith: 'new' }])
+  assert.equal(rows[0].changed, false)
+  assert.equal(rows[1].changed, true)
+})
+
 console.log('冲突检测矩阵')
 ok('批内同目录同名冲突（后者标注，先到者放行）', () => {
   const rows = applyRules([E('x1.txt', 0), E('x2.txt', 1)], [

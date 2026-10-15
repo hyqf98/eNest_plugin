@@ -68,3 +68,109 @@ dialog { color: var(--text); background: var(--surface); border: 1px solid var(-
 .pk-palette-item.pk-active .pk-palette-label { color: var(--accent, #3579dd); }
 .pk-palette-hint { color: var(--text-2, #747c88); font-size: 12px; }
 .pk-palette-list.pk-empty::after { content: "无匹配命令"; display: block; padding: 14px; text-align: center; color: var(--text-2, #747c88); }
+
+/* —— 统一表单控件：自定义下拉（upgradeSelects 自动接管原生 <select>） —— */
+select.pk-select-native { display: none !important; }
+/* 仍为原生的 select（禁用 JS / 尚未升级）也给一致外观 */
+select:not(.pk-select-native) {
+  padding: 4px 8px;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: calc(var(--pk-radius, 8px) - 2px);
+  background: var(--surface, #fff);
+  color: var(--text, #252a32);
+}
+.pk-select { position: relative; display: inline-flex; min-width: 0; }
+.pk-select-trigger {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 28px; max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: calc(var(--pk-radius, 8px) - 2px);
+  background: var(--surface, #fff);
+  color: var(--text, #252a32);
+  font-size: 12.5px; line-height: 1.4;
+  transition: border-color var(--pk-speed, 0.15s) ease, background-color var(--pk-speed, 0.15s) ease, transform 0.1s ease;
+}
+.pk-select-trigger:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--border, #d9dfe6)); }
+.pk-select-trigger:active:not(:disabled) { transform: scale(0.98); }
+.pk-select-trigger::after {
+  content: ""; flex: none;
+  width: 7px; height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  opacity: 0.6;
+  transition: transform 0.15s ease;
+}
+.pk-select-trigger[aria-expanded="true"]::after { transform: translateY(2px) rotate(225deg); }
+.pk-select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-select-menu {
+  position: absolute; z-index: 60;
+  top: calc(100% + 6px); left: 0;
+  min-width: 100%; max-height: 280px;
+  overflow: auto; padding: 4px;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: var(--pk-radius, 8px);
+  background: var(--surface, #fff);
+  box-shadow: 0 10px 32px rgba(20, 32, 52, 0.16);
+}
+.pk-select-menu.up { top: auto; bottom: calc(100% + 6px); }
+.pk-select-group {
+  padding: 6px 10px 2px;
+  font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-2, #747c88);
+}
+.pk-select-option {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  border-radius: calc(var(--pk-radius, 8px) - 3px);
+  font-size: 12.5px;
+  cursor: pointer; white-space: nowrap;
+}
+.pk-select-option.active { background: color-mix(in srgb, var(--accent, #3579dd) 10%, transparent); }
+.pk-select-option.selected { color: var(--accent, #3579dd); font-weight: 600; }
+.pk-select-option.selected::after { content: "✓"; margin-left: auto; font-size: 11px; }
+.pk-select-option.disabled { opacity: 0.4; cursor: default; }
+.pk-select-option.disabled.active { background: none; }
+
+/* —— 统一按钮层级：默认带边框；ghost 也有可见底色，不再裸文本 —— */
+.pk-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 28px; padding: 4px 12px;
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: calc(var(--pk-radius, 8px) - 2px);
+  background: var(--surface, #fff);
+  color: var(--text, #252a32);
+  font-size: 12.5px; line-height: 1.4;
+  transition: border-color var(--pk-speed, 0.15s) ease, background-color var(--pk-speed, 0.15s) ease, color var(--pk-speed, 0.15s) ease, transform 0.1s ease;
+}
+.pk-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--border, #d9dfe6)); }
+.pk-btn:active:not(:disabled) { transform: scale(0.97); }
+.pk-btn.primary {
+  background: var(--accent, #3579dd);
+  border-color: var(--accent, #3579dd);
+  color: var(--surface, #fff);
+}
+.pk-btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent, #3579dd) 86%, #fff); border-color: color-mix(in srgb, var(--accent, #3579dd) 86%, #fff); }
+.pk-btn.danger {
+  color: var(--danger, #b44c50);
+  border-color: color-mix(in srgb, var(--danger, #b44c50) 45%, var(--border, #d9dfe6));
+}
+.pk-btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger, #b44c50) 8%, transparent); }
+.pk-btn.ghost {
+  background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
+  border-color: transparent;
+  color: var(--text-2, #747c88);
+}
+.pk-btn.ghost:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #3579dd) 7%, transparent);
+  color: var(--text, #252a32);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pk-select-trigger, .pk-select-trigger::after, .pk-btn { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .pk-select-menu { box-shadow: 0 0 0 1px var(--border, #d9dfe6); }
+  .pk-btn.ghost { background: var(--surface-2, #f0f2f5); }
+}

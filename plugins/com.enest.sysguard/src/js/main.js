@@ -1,12 +1,15 @@
 /**
  * main.js — 进程与端口 · 入口
- * 依赖：plugin-kit（PluginKit.create / dataTable / badge）、./core.js
- * 宿主：enest.sys.processes / sys.ports / sys.kill(confirmed) / storage / ui.toast
- * 结构：Quick 单列表（端口查询 / 进程搜索即杀候选）+ 桌面双表联动 + 曲线 Tab
+ * 依赖：plugin-kit（PluginKit.create / dataTable）、./core.js
+ * 宿主：enest.sys.processes / sys.ports / sys.kill(confirmed) / storage / ui.toast / runtime.acquireActivity
+ * 结构：Quick 单列表（端口查询 / 进程搜索即杀候选）+ 桌面「概览仪表盘 / 进程 / 端口 / 曲线」
+ * 仪表盘：CPU·内存·进程数·监听端口四张数据卡 + 迷你趋势 + 阈值告警 + Top 进程；
+ * 刷新为增量更新（只改文本与样式，不整页重绘，避免闪烁）。
  */
 import {
   formatKb, formatPct, isSystemProc, searchProc, searchPort,
-  linkPortsToProc, makeSampler, SampleRing, drawSparkline, shortName
+  linkPortsToProc, makeSampler, SampleRing, drawSparkline, shortName,
+  thresholdLevel, summarize, topProcesses
 } from './core.js'
 
 const api = window.enest || window.zapi
@@ -21,11 +24,13 @@ const el = (tag, cls, text) => {
 const kit = PluginKit.create({
   title: '进程与端口',
   quickPlaceholder: '端口号查占用 / 进程名搜索',
-  height: 460
+  height: 460,
+  defaults: { intervalMs: 1500, cpuWarn: 70, cpuDanger: 90, memWarn: 70, memDanger: 90 }
 })
 
 // ———— 全局状态 ————
 
+const INTERVALS = [1500, 3000, 5000, 10000]
 const state = {
   procs: [],
   ports: [],
@@ -33,13 +38,22 @@ const state = {
   hideSys: false,
   favs: new Set(),      // 收藏 pid（置顶）
   linkedPid: null,      // 端口表 → 进程表联动高亮
-  tab: 'proc',
-  cpuRing: new SampleRing(64),
-  memRing: new SampleRing(64),
+  tab: 'dash',
+  intervalMs: 1500,
+  cpuRing: new SampleRing(80),
+  memRing: new SampleRing(80),
   sampler: null,
   chartTimer: null,
   mode: kit.mode
 }
+
+// 阈值（宿主 settings 可覆盖默认；按 0-100 百分比）
+const thresholds = () => ({
+  cpuWarn: Number(kit.settings.cpuWarn) || 70,
+  cpuDanger: Number(kit.settings.cpuDanger) || 90,
+  memWarn: Number(kit.settings.memWarn) || 70,
+  memDanger: Number(kit.settings.memDanger) || 90
+})
 
 const foot = $('#foot')
 function setStatus(text) {
@@ -60,6 +74,8 @@ async function restore() {
   if (prefs) {
     state.hideSys = prefs.hideSys === true
     state.favs = new Set(Array.isArray(prefs.favs) ? prefs.favs : [])
+    // 向后兼容：无 intervalMs 记录时保持默认 1.5s
+    if (INTERVALS.includes(Number(prefs.intervalMs))) state.intervalMs = Number(prefs.intervalMs)
   }
 }
 
@@ -74,11 +90,11 @@ async function refresh({ silent = false } = {}) {
     ])
     state.procs = procs ?? []
     state.ports = ports ?? []
-    // 曲线采样同步：总 CPU%（pcpu 求和）与总内存（rss 求和 KB）
+    // 曲线采样同步：总 CPU%（pcpu 求和，裁到 100）与总内存（rss 求和 KB）
     if (state.procs.length) {
-      const totalCpu = state.procs.reduce((n, p) => n + (p.pcpu ?? 0), 0)
+      const totalCpu = Math.min(100, state.procs.reduce((n, p) => n + (p.pcpu ?? 0), 0))
       const totalMemKb = state.procs.reduce((n, p) => n + (p.rss ?? 0), 0)
-      state.cpuRing.push(Math.min(100, totalCpu))
+      state.cpuRing.push(totalCpu)
       state.memRing.push(totalMemKb)
     }
     setStatus(`进程 ${state.procs.length} · 监听端口 ${state.ports.length} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`)
@@ -97,31 +113,23 @@ function applyMode(mode) {
   state.mode = mode
   $('#quick-view').hidden = mode !== 'quick'
   $('#desktop-view').hidden = mode !== 'shell'
+  restartSampler()
   if (mode === 'shell') {
-    renderCurrent()
-    startSampler()
+    renderTabBody()
   } else {
-    stopSampler()
     renderQuick()
-    startSampler()
   }
 }
 
-// ———— 采样器（宿主 1s 缓存节律 / 1.5s 周期；隐藏时暂停）———
+// ———— 采样器（周期 = 设置的刷新频率；隐藏时暂停）———
 
-function startSampler() {
-  if (state.sampler?.running) return
-  let acquiring = false
+function restartSampler() {
+  void state.sampler?.stop()
   state.sampler = makeSampler({
-    intervalMs: 1500,
+    intervalMs: state.intervalMs,
     acquire: async () => {
-      if (acquiring || !api?.runtime?.acquireActivity) return null
-      acquiring = true
-      try {
-        return await api.runtime.acquireActivity('sysguard-sampling')
-      } finally {
-        acquiring = false
-      }
+      if (!api?.runtime?.acquireActivity) return null
+      return await api.runtime.acquireActivity('sysguard-sampling')
     },
     release: (token) => api?.runtime?.releaseActivity?.(token).catch(() => {}),
     sample: () => refresh({ silent: true })
@@ -138,7 +146,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     stopSampler()
   } else {
-    startSampler()
+    restartSampler()
     void refresh({ silent: true })
   }
 })
@@ -148,6 +156,109 @@ api?.onEnter?.(() => {
   applyMode(event?.mode ?? kit.mode)
   void refresh({ silent: true })
 })
+
+// ———— 桌面：概览仪表盘 ————
+// 静态骨架只建一次；采样循环只更新文本 / 数据卡配色 / 重绘 spark，不重建 DOM（增量更新，无闪烁）。
+
+function buildDash() {
+  const wrap = el('div', 'sg-dash')
+
+  const cards = el('div', 'sg-dash-cards')
+  const makeCard = (key, label, sub) => {
+    const card = el('article', 'sg-card')
+    card.dataset.card = key
+    const head = el('div', 'sg-card-label', label)
+    const value = el('div', 'sg-card-value mono', '—')
+    const spark = el('canvas', 'sg-card-spark')
+    spark.setAttribute('aria-hidden', 'true')
+    const footEl = el('div', 'sg-card-sub', sub)
+    card.append(head, value, spark, footEl)
+    cards.append(card)
+    return { card, value, spark, footEl }
+  }
+  const cpu = makeCard('cpu', 'CPU 总占用', '')
+  const mem = makeCard('mem', '物理内存合计', '')
+  const procs = makeCard('procs', '进程数', '')
+  const ports = makeCard('ports', '监听端口', '')
+  wrap.__cards = { cpu, mem, procs, ports }
+
+  // Top 列表：CPU / 内存两列
+  const tops = el('div', 'sg-dash-tops')
+  const makeTop = (key, title) => {
+    const box = el('section', 'sg-toplist')
+    box.append(el('h3', 'sg-toplist-title', title))
+    const list = el('ol', 'sg-toplist-list')
+    box.append(list)
+    tops.append(box)
+    return { box, list }
+  }
+  wrap.__tops = { cpu: makeTop('cpu', 'CPU 占用最高'), mem: makeTop('mem', '内存占用最高') }
+
+  wrap.append(cards, tops)
+  return wrap
+}
+
+/** 单卡更新：文本 + 阈值配色 + spark 重绘（增量） */
+function updateCard(card, { text, value, unit, series, color, fill, max, level, sub }) {
+  if (!card) return
+  if (card.value.textContent !== text) card.value.textContent = text
+  card.card.dataset.level = level
+  if (sub !== undefined && card.footEl.textContent !== sub) card.footEl.textContent = sub
+  if (series) drawSparkline(card.spark, [{ data: series, color, fill }], { max, grid: false })
+}
+
+function updateDash() {
+  const wrap = $('.sg-dash')
+  if (!wrap) return
+  const s = summarize(state.procs, state.ports)
+  const th = thresholds()
+  const css = getComputedStyle(document.documentElement)
+  const accent = css.getPropertyValue('--accent').trim() || '#bd542b'
+  const ok = css.getPropertyValue('--ok').trim() || '#318469'
+  const accentSoft = css.getPropertyValue('--accent-soft').trim() || 'transparent'
+  const okSoft = css.getPropertyValue('--ok-soft').trim() || 'transparent'
+
+  const cpuLevel = thresholdLevel(s.totalCpu, th.cpuWarn, th.cpuDanger)
+  const memLevel = thresholdLevel(s.memPct, th.memWarn, th.memDanger)
+  const cpuLast = state.cpuRing.items.at(-1)
+  const memLast = state.memRing.items.at(-1)
+
+  updateCard(wrap.__cards.cpu, {
+    text: formatPct(cpuLast ?? s.totalCpu),
+    level: cpuLevel,
+    series: state.cpuRing.items, color: accent, fill: accentSoft, max: 100,
+    sub: `阈值 ${th.cpuWarn}% / ${th.cpuDanger}%`
+  })
+  updateCard(wrap.__cards.mem, {
+    text: formatKb(memLast ?? s.totalMemKb),
+    level: memLevel,
+    series: state.memRing.items, color: ok, fill: okSoft, max: Math.max(1, ...state.memRing.items),
+    sub: `占用 ${formatPct(s.memPct)} · 阈值 ${th.memWarn}% / ${th.memDanger}%`
+  })
+  updateCard(wrap.__cards.procs, {
+    text: String(s.procCount), level: 'ok',
+    sub: `内存最高 ${s.memTop ? shortName(s.memTop.command) : '—'}`
+  })
+  updateCard(wrap.__cards.ports, {
+    text: String(s.portCount), level: s.portCount > 0 ? 'ok' : 'warn',
+    sub: `${s.listenCount} 个进程在监听`
+  })
+
+  // Top 列表增量重绘（数量小，直接重建列表内容）
+  fillTopList(wrap.__tops.cpu.list, topProcesses(state.procs, 'pcpu', 5), (v) => formatPct(v), (v) => thresholdLevel(v, th.cpuWarn, th.cpuDanger))
+  fillTopList(wrap.__tops.mem.list, topProcesses(state.procs, 'rss', 5), (v) => formatKb(v), () => 'ok')
+}
+
+function fillTopList(listEl, items, fmt, level) {
+  listEl.replaceChildren()
+  for (const item of items) {
+    const li = el('li', 'sg-toplist-item')
+    li.append(el('span', 'sg-toplist-name', item.name))
+    li.append(el('span', `sg-toplist-value mono lv-${level(item.value)}`, fmt(item.value)))
+    listEl.append(li)
+  }
+  if (!items.length) listEl.append(el('li', 'sg-toplist-empty', '暂无数据'))
+}
 
 // ———— 桌面：进程表 ————
 
@@ -324,7 +435,7 @@ function buildChart() {
   legend.innerHTML =
     '<span><i class="dot" style="background:var(--accent)"></i>CPU%（0-100）</span>' +
     '<span><i class="dot" style="background:var(--ok)"></i>内存（自适应满刻度）</span>' +
-    '<span class="pk-muted">60s 滚动 · 1.5s 采样 · 隐藏自动暂停</span>'
+    '<span class="pk-muted">滚动窗口 · 隐藏自动暂停</span>'
 
   wrap.append(cpuCard, memCard, legend)
   wrap.__cpuCv = cpuCv
@@ -368,7 +479,11 @@ function renderTabBody() {
   const prevSearch = $('.sg-search', body)?.value
   if (prevSearch) state.search = prevSearch
   body.replaceChildren()
-  if (state.tab === 'proc') {
+  if (state.tab === 'dash') {
+    if (!tabPanes.has('dash')) tabPanes.set('dash', buildDash())
+    body.append(tabPanes.get('dash'))
+    updateDash()
+  } else if (state.tab === 'proc') {
     if (!tabPanes.has('proc')) tabPanes.set('proc', buildProcTable())
     const pane = tabPanes.get('proc')
     const search = $('.sg-search', pane)
@@ -385,7 +500,7 @@ function renderTabBody() {
   } else {
     body.append(buildChart())
     updateChart()
-    if (!state.chartTimer) state.chartTimer = setInterval(updateChart, 1500)
+    if (!state.chartTimer) state.chartTimer = setInterval(updateChart, Math.max(500, state.intervalMs))
   }
 }
 
@@ -489,7 +604,11 @@ function renderQuickList(q) {
   }
   // 同时给出进程名命中（port 查询也允许同名进程补充）
   const procHits = searchProc(state.procs, query).slice(0, asPort ? 8 : 30)
-  if (procHits.length && asPort) list.append(el('div', 'sg-row36', el('span', 'pk-muted', '— 相关进程 —')))
+  if (procHits.length && asPort) {
+    const head = el('div', 'sg-row36 sg-row-head')
+    head.append(el('span', 'pk-muted', '相关进程'))
+    list.append(head)
+  }
   for (const p of procHits) {
     const row = el('div', 'sg-row36')
     row.append(el('span', 'num pk-muted', `#${p.pid}`))
@@ -523,6 +642,8 @@ function updateQuickSpark() {
   const memEl = $('#q-mem')
   if (cpuEl) cpuEl.textContent = cpuLast != null ? formatPct(cpuLast) : '-'
   if (memEl) memEl.textContent = memLast != null ? formatKb(memLast) : '-'
+  const procsEl = $('#q-procs')
+  if (procsEl) procsEl.textContent = state.procs.length ? `${state.procs.length} 进程` : ''
 }
 
 // ———— 事件绑定 ————
@@ -537,6 +658,19 @@ $('#hide-sys').addEventListener('change', (e) => {
   state.hideSys = e.target.checked
   void persist()
   updateProcTable()
+})
+
+$('#interval').addEventListener('change', (e) => {
+  const value = Number(e.target.value)
+  if (!INTERVALS.includes(value)) return
+  state.intervalMs = value
+  // 窗口容量按「60s 窗口」语义随频率伸缩：容量 = 窗口时长 / 周期，上限 240 点
+  const capacity = Math.min(240, Math.max(16, Math.round(60000 / value)))
+  state.cpuRing.setCapacity(capacity)
+  state.memRing.setCapacity(capacity)
+  void persist()
+  restartSampler()
+  setStatus(`刷新频率：每 ${value / 1000} 秒`)
 })
 
 let quickDeb = 0
@@ -554,11 +688,13 @@ $('#q-search').addEventListener('click', () => renderQuickList($('#q-input').val
 
 window.addEventListener('resize', () => {
   if (state.tab === 'chart') updateChart()
+  if (state.tab === 'dash') updateDash()
   updateQuickSpark()
 })
 
 api?.ui?.onThemeChange?.(() => {
   if (state.tab === 'chart') updateChart()
+  if (state.tab === 'dash') updateDash()
   updateQuickSpark()
 })
 
@@ -573,10 +709,18 @@ api?.onBeforeClose?.(async () => {
 
 async function boot() {
   await restore()
+  await kit.ready
   $('#hide-sys').checked = state.hideSys
+  // 设置：宿主 settings.intervalMs（数字或字符串毫秒）优先，其次本地偏好
+  const hostInterval = Number(kit.settings.intervalMs)
+  if (INTERVALS.includes(hostInterval)) state.intervalMs = hostInterval
+  $('#interval').value = String(state.intervalMs)
+  PluginKit.upgradeSelects() // 纯 .value 赋值不触发 change，同步自定义下拉标签
+  const capacity = Math.min(240, Math.max(16, Math.round(60000 / state.intervalMs)))
+  state.cpuRing.setCapacity(capacity)
+  state.memRing.setCapacity(capacity)
   applyMode(kit.mode)
   await refresh()
-  // Quick 高度按内容收敛；桌面记录即可
   if (kit.mode === 'quick') {
     void api?.ui?.resize?.({ height: 460 })
   }

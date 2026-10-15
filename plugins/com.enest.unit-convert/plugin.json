@@ -1,8 +1,8 @@
 {
   "id": "com.enest.unit-convert",
   "name": "单位与汇率",
-  "version": "1.0.0",
-  "description": "长度/面积/体积/质量/温度/速度/数据量/进制/汇率同屏联动换算，人民币大写。",
+  "version": "1.1.0",
+  "description": "长度/面积/体积/质量/温度/速度/数据量/时间/压力/能量/进制/汇率同屏联动换算，公式展示与常用单位置顶，人民币大写。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",

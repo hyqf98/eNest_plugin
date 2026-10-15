@@ -76,7 +76,41 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
       if (action.includes('list')) return []
       return {}
     },
-    'net.fetch': async () => ({ status: 200, ok: true, data: {}, body: '{}' })
+    'net.fetch': async () => ({ status: 200, ok: true, data: {}, body: '{}' }),
+    'backend.call': async (method, args = []) => {
+      if (method === 'providers') return {
+        platform: 'darwin',
+        providers: [
+          { id: 'spotlight', label: 'Spotlight (mdfind)', available: true, detail: 'macOS 系统索引，即时搜索（演示数据）' },
+          { id: 'everything', label: 'Everything HTTP', available: false, detail: '未配置 Everything HTTP 端口' }
+        ],
+        active: 'spotlight'
+      }
+      if (method === 'search') {
+        const dir = '/Users/demo/Studio/enest'
+        const mk = (name, ext, isDirectory, size, minutesAgo) => ({ path: `${dir}/${name}`, name, dir, ext, isDirectory, size, mtimeMs: now - minutesAgo * 60000 })
+        const pool = [
+          mk('icons', '', true, 0, 51),
+          mk('release-notes-draft.md', 'md', false, 4218, 12),
+          mk('Node 22 升级记录.md', 'md', false, 12980, 134),
+          mk('enest-plugin-market.png', 'png', false, 1243904, 420),
+          mk('季度目标 review.key', 'key', false, 8375509, 1580),
+          mk('analytics-2026Q3.xlsx', 'xlsx', false, 346112, 2760),
+          mk('registry-backup-10-08.json', 'json', false, 88410, 4300),
+          mk('wireframes-v3.sketch', 'sketch', false, 15982592, 65),
+          mk('deploy.sh', 'sh', false, 940, 9000)
+        ]
+        const terms = String(args[0] ?? '').toLowerCase().split(/\s+/).filter(Boolean).map(term => term.replace(/[*"]/g, '')).filter(Boolean)
+        const hits = terms.length ? pool.filter(file => terms.every(term => file.name.toLowerCase().includes(term))) : []
+        return { results: hits, provider: 'spotlight', total: hits.length, collected: hits.length, truncated: false, elapsedMs: 38 }
+      }
+      if (method === 'readText') return {
+        content: '# Node 22 升级记录\n\n- rolldown 需要 styleText，Node 18 已不够用\n- 切到 node@22 后 vite 8 与 esbuild 均正常\n- CI 三个平台都要固定到 22.x\n\n> 下一步：把 postinstall 指向 ignored 脚本的问题一并收掉。',
+        encoding: 'utf-8', truncated: false, size: 12980
+      }
+      if (method === 'open' || method === 'reveal' || method === 'trash' || method === 'stat') return true
+      return true
+    }
   }
   function api(path = '') {
     return new Proxy(function (...args) {

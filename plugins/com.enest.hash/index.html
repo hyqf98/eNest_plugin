@@ -4,8 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>哈希与加密</title>
-
-
     <link rel="stylesheet" href="src/css/main.css" />
   </head>
   <body>
@@ -17,9 +15,8 @@
           <button role="tab" id="tab-jwt" aria-selected="false">JWT</button>
         </nav>
         <div class="spacer"></div>
-        <div class="encoding" id="encoding-row">
-          <span class="hint">输出</span>
-          <button id="enc-hex" aria-pressed="true">HEX</button>
+        <div class="encoding segmented" id="encoding-row" role="group" aria-label="输出编码">
+          <button id="enc-hex" class="active" aria-pressed="true">HEX</button>
           <button id="enc-base64" aria-pressed="false">Base64</button>
         </div>
       </header>
@@ -35,23 +32,40 @@
             </span>
           </div>
           <textarea id="hash-input" rows="4" spellcheck="false" placeholder="输入即算：同屏展示 SHA-1/224/256/384/512 与 MD5"></textarea>
+          <p id="hash-empty" class="empty-state">
+            <span class="empty-title">输入即算</span>
+            在上方粘贴文本，六种算法并行出值；也可以把文件拖进下方虚线框算 SHA-256 摘要，用于校验下载完整性。
+          </p>
         </div>
 
         <section class="hash-file">
-          <div class="dropzone" id="hash-drop" tabindex="0">
+          <div class="dropzone" id="hash-drop" tabindex="0" role="button" aria-label="选择或拖入文件计算 SHA-256">
             <input id="hash-file" type="file" hidden />
-            <span id="hash-file-label">拖入文件或点击选择 · 分块计算 SHA-256</span>
+            <span id="hash-file-label">拖入文件或点击选择 · 计算 SHA-256</span>
+            <div class="progress" id="hash-progress" hidden><div class="bar" id="hash-progress-bar"></div></div>
           </div>
-          <div class="file-result mono" id="hash-file-result" hidden></div>
+          <div class="file-result" id="hash-file-result" hidden></div>
         </section>
 
-        <ul class="hash-list" id="hash-list"></ul>
+        <ul class="hash-grid" id="hash-list"></ul>
+
+        <section class="verify">
+          <div class="verify-head">
+            <label for="verify-input">校验对比</label>
+            <span class="hint">粘贴期望的哈希值，自动逐字符对比</span>
+          </div>
+          <div class="verify-row">
+            <input id="verify-input" class="mono" spellcheck="false" placeholder="例如 3a985da74fe225b2 04a85f4c…" />
+            <button id="verify-copy" class="mono" disabled title="复制当前首个结果">复制结果</button>
+          </div>
+          <p id="verify-out" class="verify-out" hidden></p>
+        </section>
       </section>
 
       <!-- ── 加密区 ─────────────────────── -->
       <section class="page" id="page-crypto" role="tabpanel" aria-labelledby="tab-crypto" hidden>
         <details class="block" open>
-          <summary>HMAC 签名 <span class="hint">算法 + 密钥</span></summary>
+          <summary>HMAC 签名 <span class="hint">算法 + 密钥，随哈希输入联动</span></summary>
           <div class="block-body">
             <div class="grid-row">
               <div>
@@ -67,7 +81,7 @@
                 <label for="hmac-key">密钥</label>
                 <div class="key-row">
                   <input id="hmac-key" class="mono" spellcheck="false" placeholder="密钥文本" />
-                  <button id="hmac-gen-key" title="生成随机密钥">随机</button>
+                  <button id="hmac-gen-key" title="生成 32 字节随机密钥（base64）">随机</button>
                 </div>
               </div>
             </div>
@@ -131,6 +145,7 @@
               <button id="rsa-verify" disabled>公钥验签</button>
               <button id="rsa-copy" disabled>复制</button>
             </div>
+            <p id="rsa-error" class="error-bar" role="alert" hidden></p>
           </div>
         </details>
 
@@ -165,8 +180,6 @@
         </div>
       </section>
     </main>
-
-
     <script type="module" src="./src/entry.js"></script>
   </body>
 </html>

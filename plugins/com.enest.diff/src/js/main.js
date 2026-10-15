@@ -1,8 +1,21 @@
-import { diffLines, countChanges, pairHunks, diffChars, unifiedDiff, hexDump } from "./core.mjs";
+/* 文本对比 — 双栏输入 + 并排/统一双视图 + 字符级行内高亮 + 差异导航与统计 +
+   忽略空白/大小写/空行 + JSON 规范化对比 + unified patch 复制/导出。 */
+import {
+  diffLines,
+  countChanges,
+  pairHunks,
+  diffChars,
+  unifiedDiff,
+  hexDump,
+  normalizeJsonPair,
+} from "./core.mjs";
 
 const api = window.enest || window.zapi;
 const $ = (id) => document.getElementById(id);
 const esc = PluginKit.escape;
+
+const HEX_KEY = "diff_hex_mode_v1";
+const PREF_KEY = "diff_prefs_v2";
 
 const kit = PluginKit.create({
   title: "文本对比",
@@ -18,27 +31,51 @@ const kit = PluginKit.create({
   },
 });
 
-const HEX_KEY = "diff_hex_mode_v1";
 let ops = []; // 渲染行模型：{ el, changeIndex? }
 let currentChange = -1;
-let changeCount = 0;
 let hexMode = false;
+let view = "split"; // split | unified
+let jsonNotice = ""; // JSON 规范化降级提示
+
+const prefs = {
+  inline: true,
+  ignoreWhitespace: false,
+  ignoreCase: false,
+  ignoreBlank: false,
+  jsonNormalize: false,
+};
 
 (async () => {
   await kit.ready;
-  $("opt-inline").setAttribute("aria-pressed", String(!!kit.settings.inline));
-  $("opt-ws").setAttribute("aria-pressed", String(!!kit.settings.ignoreWhitespace));
-  $("opt-case").setAttribute("aria-pressed", String(!!kit.settings.ignoreCase));
+  Object.assign(prefs, await kit.load(PREF_KEY, {}));
+  syncOptionButtons();
   hexMode = !!(await kit.load(HEX_KEY, false));
   syncHexUi();
   render();
 })();
 
 const options = () => ({
-  ignoreWhitespace: $("opt-ws").getAttribute("aria-pressed") === "true",
-  ignoreCase: $("opt-case").getAttribute("aria-pressed") === "true",
+  ignoreWhitespace: prefs.ignoreWhitespace,
+  ignoreCase: prefs.ignoreCase,
+  ignoreBlank: prefs.ignoreBlank,
 });
-const inlineEnabled = () => $("opt-inline").getAttribute("aria-pressed") === "true";
+
+function syncOptionButtons() {
+  const map = {
+    "opt-inline": prefs.inline,
+    "opt-ws": prefs.ignoreWhitespace,
+    "opt-case": prefs.ignoreCase,
+    "opt-blank": prefs.ignoreBlank,
+    "opt-json": prefs.jsonNormalize,
+  };
+  for (const [id, on] of Object.entries(map)) $(id).setAttribute("aria-pressed", String(!!on));
+  $("view-split").setAttribute("aria-pressed", String(view === "split"));
+  $("view-unified").setAttribute("aria-pressed", String(view === "unified"));
+}
+
+function persistPrefs() {
+  void kit.save(PREF_KEY, prefs).catch(() => {});
+}
 
 function syncHexUi() {
   $("result-mode").textContent = hexMode ? "hex 字节对比" : "行级";
@@ -46,119 +83,157 @@ function syncHexUi() {
 
 /* ── 渲染 ─────────────────────────── */
 function render() {
-  const a = $("source").value;
-  const b = $("target").value;
-  const view = $("diff-view");
+  let a = $("source").value;
+  let b = $("target").value;
+  const viewEl = $("diff-view");
   ops = [];
-  changeCount = 0;
   currentChange = -1;
-  view.classList.toggle("hex", hexMode);
+  jsonNotice = "";
+  viewEl.classList.toggle("hex", hexMode);
+  viewEl.classList.toggle("unified", view === "unified" && !hexMode);
 
   if (!a && !b) {
-    view.innerHTML =
-      '<div class="diff-empty">在两侧粘贴文本开始对比；也可以把本地文件拖到任意一侧。<br>选项支持忽略空白 / 忽略大小写 / 行内字符细化，hex 模式按字节 dump 对比。</div>';
+    viewEl.innerHTML =
+      '<div class="diff-empty">在两侧粘贴文本开始对比；也可以把本地文件拖到任意一侧。<br>选项支持字符级细化 / 忽略空白 / 忽略大小写 / 忽略空行；JSON 规范化会按键排序后对比；统一视图切换单栏差异流。</div>';
     $("stats").innerHTML = "";
-    $("nav-prev").disabled = $("nav-next").disabled = $("export-diff").disabled = true;
+    $("nav-pos").hidden = true;
+    for (const id of ["nav-prev", "nav-next", "copy-diff", "export-diff"]) $(id).disabled = true;
     return;
   }
 
   if (hexMode) {
     renderHex(a, b);
   } else {
+    // JSON 规范化：两侧都解析成功才启用，否则原文对比并提示
+    if (prefs.jsonNormalize) {
+      const pair = normalizeJsonPair(a, b);
+      if (pair) {
+        a = pair.a;
+        b = pair.b;
+      } else {
+        jsonNotice = "JSON 规范化未生效：至少一侧不是合法 JSON，已按原文对比";
+      }
+    }
     renderLines(a, b);
   }
+  renderNotice();
   syncStats();
   updateNav();
 }
 
+function renderNotice() {
+  const old = $("diff-notice");
+  if (old) old.remove();
+  if (!jsonNotice) return;
+  const bar = document.createElement("div");
+  bar.className = "diff-notice";
+  bar.id = "diff-notice";
+  bar.textContent = jsonNotice;
+  $("diff-view").before(bar);
+}
+
 function renderLines(a, b) {
+  const aLines = a.split("\n");
+  const bLines = b.split("\n");
   const script = diffLines(a, b, options());
   const counts = countChanges(script);
-  changeCount = counts.dels + counts.adds;
-  const view = $("diff-view");
+  const viewEl = $("diff-view");
   const hunks = pairHunks(script);
-  let html = "";
-  let aNo = 0;
-  let bNo = 0;
-  const inline = inlineEnabled();
+  const unified = view === "unified";
+  const inline = prefs.inline;
   const frag = document.createDocumentFragment();
-  let idx = 0;
-  let changeIndexCounter = 0;
-  const buildRow = (cls, gutterA, cellA, gutterB, cellB) => {
+  const buildRow = (cls, cells) => {
     const row = document.createElement("div");
-    row.className = "diff-row " + cls;
-    row.innerHTML =
-      `<span class="gutter">${gutterA ?? ""}</span><span class="cell">${cellA ?? ""}</span>` +
-      `<span class="gutter">${gutterB ?? ""}</span><span class="cell">${cellB ?? ""}</span>`;
+    row.className = "diff-row" + (cls ? " " + cls : "");
+    for (const cell of cells) {
+      const span = document.createElement("span");
+      span.className = cell.cls;
+      span.innerHTML = cell.html ?? "";
+      row.appendChild(span);
+    }
     frag.appendChild(row);
     return row;
   };
+  // 并排四列 / 统一四列（符号 + 双行号 + 文本）
+  const splitRow = (cls, aNo, aHtml, bNo, bHtml) =>
+    buildRow(cls, [
+      { cls: "gutter", html: aNo ? esc(aNo) : "" },
+      { cls: "cell", html: aHtml ?? "" },
+      { cls: "gutter", html: bNo ? esc(bNo) : "" },
+      { cls: "cell", html: bHtml ?? "" },
+    ]);
+  const unifiedRow = (cls, sign, aNo, bNo, html) =>
+    buildRow(cls, [
+      { cls: "sign", html: sign },
+      { cls: "gutter", html: aNo ? esc(aNo) : "" },
+      { cls: "gutter", html: bNo ? esc(bNo) : "" },
+      { cls: "cell", html },
+    ]);
+  const register = (row) => {
+    row.dataset.change = String(ops.length);
+    ops.push({ el: row, change: ops.length });
+  };
+  const inlineSegs = (aText, bText) => {
+    const segs = diffChars(aText, bText);
+    return {
+      left: segs
+        .filter((s) => s.kind !== "ins")
+        .map((s) => (s.kind === "del" ? `<del>${esc(s.value)}</del>` : esc(s.value)))
+        .join(""),
+      right: segs
+        .filter((s) => s.kind !== "del")
+        .map((s) => (s.kind === "ins" ? `<ins>${esc(s.value)}</ins>` : esc(s.value)))
+        .join(""),
+    };
+  };
+
   for (const hunk of hunks) {
     if (hunk.type === "same") {
-      aNo++;
-      bNo++;
-      const row = buildRow("", aNo, esc(textAt(a, hunk.line.aIndex)), bNo, esc(textAt(b, hunk.line.bIndex)));
-      ops.push({ el: row, change: -1 });
+      const text = esc(aLines[hunk.line.aIndex] ?? "");
+      if (unified) unifiedRow("", "&nbsp;", hunk.line.aIndex + 1, hunk.line.bIndex + 1, text);
+      else splitRow("", hunk.line.aIndex + 1, text, hunk.line.bIndex + 1, text);
     } else if (hunk.type === "del-only") {
       for (const d of hunk.dels) {
-        aNo++;
-        const row = buildRow("del", aNo, esc(textAt(a, d.aIndex)), "", "");
-        row.dataset.change = String(changeIndexCounter++);
-        ops.push({ el: row, change: changeIndexCounter - 1 });
+        const row = unified
+          ? unifiedRow("del", "−", d.aIndex + 1, "", esc(aLines[d.aIndex] ?? ""))
+          : splitRow("del", d.aIndex + 1, esc(aLines[d.aIndex] ?? ""), "", "");
+        register(row);
       }
     } else if (hunk.type === "add-only") {
       for (const ad of hunk.adds) {
-        bNo++;
-        const row = buildRow("add", "", "", bNo, esc(textAt(b, ad.bIndex)));
-        row.dataset.change = String(changeIndexCounter++);
-        ops.push({ el: row, change: changeIndexCounter - 1 });
+        const row = unified
+          ? unifiedRow("add", "+", "", ad.bIndex + 1, esc(bLines[ad.bIndex] ?? ""))
+          : splitRow("add", "", "", ad.bIndex + 1, esc(bLines[ad.bIndex] ?? ""));
+        register(row);
       }
     } else {
-      // change：可选行内细化
+      // change：可选行内字符细化
       const pairs = Math.max(hunk.dels.length, hunk.adds.length);
       for (let p = 0; p < pairs; p++) {
         const d = hunk.dels[p];
         const ad = hunk.adds[p];
-        let leftHtml = "",
-          rightHtml = "";
-        if (d) {
-          aNo++;
-          leftHtml = esc(textAt(a, d.aIndex));
-        }
-        if (ad) {
-          bNo++;
-          rightHtml = esc(textAt(b, ad.bIndex));
-        }
+        const aText = d ? (aLines[d.aIndex] ?? "") : "";
+        const bText = ad ? (bLines[ad.bIndex] ?? "") : "";
+        let left = d ? esc(aText) : "";
+        let right = ad ? esc(bText) : "";
         if (inline && d && ad) {
-          const segs = diffChars(textAt(a, d.aIndex), textAt(b, ad.bIndex));
-          leftHtml = segs
-            .filter((s) => s.kind !== "ins")
-            .map((s) => (s.kind === "del" ? `<del>${esc(s.value)}</del>` : esc(s.value)))
-            .join("");
-          rightHtml = segs
-            .filter((s) => s.kind !== "del")
-            .map((s) => (s.kind === "ins" ? `<ins>${esc(s.value)}</ins>` : esc(s.value)))
-            .join("");
+          const segs = inlineSegs(aText, bText);
+          left = segs.left;
+          right = segs.right;
         }
-        const row = buildRow(
-          d && ad ? "del add" : d ? "del" : "add",
-          d ? aNo : "",
-          d ? leftHtml : "",
-          ad ? bNo : "",
-          ad ? rightHtml : "",
-        );
-        row.dataset.change = String(changeIndexCounter++);
-        ops.push({ el: row, change: changeIndexCounter - 1 });
+        let row;
+        if (unified) {
+          if (d) row = register(unifiedRow("del", "−", d.aIndex + 1, "", left));
+          if (ad) row = register(unifiedRow("add", "+", "", ad.bIndex + 1, right));
+        } else {
+          row = splitRow(d && ad ? "del add" : d ? "del" : "add", d ? d.aIndex + 1 : "", d ? left : "", ad ? ad.bIndex + 1 : "", ad ? right : "");
+          register(row);
+        }
       }
     }
   }
-  void idx;
-  view.innerHTML = "";
-  view.appendChild(frag);
-}
-
-function textAt(text, index) {
-  return String(text ?? "").split("\n")[index] ?? "";
+  viewEl.replaceChildren(frag);
+  void counts;
 }
 
 function renderHex(a, b) {
@@ -167,8 +242,7 @@ function renderHex(a, b) {
   const linesA = dumpA ? dumpA.split("\n") : [];
   const linesB = dumpB ? dumpB.split("\n") : [];
   const rows = Math.max(linesA.length, linesB.length);
-  const view = $("diff-view");
-  changeCount = Math.abs(linesA.length - linesB.length);
+  const viewEl = $("diff-view");
   const frag = document.createDocumentFragment();
   let changeIndex = 0;
   for (let i = 0; i < rows; i++) {
@@ -176,7 +250,8 @@ function renderHex(a, b) {
     const lb = linesB[i] ?? "";
     const same = la === lb;
     const row = document.createElement("div");
-    row.className = "diff-row hex-line " + (same ? "" : la && !lb ? "del" : lb && !la ? "add" : la !== lb ? "del add" : "");
+    row.className =
+      "diff-row hex-line " + (same ? "" : la && !lb ? "del" : lb && !la ? "add" : la !== lb ? "del add" : "");
     if (!same) row.dataset.change = String(changeIndex++);
     row.innerHTML =
       `<span class="gutter">${i + 1}</span><span class="cell">${esc(la)}</span>` +
@@ -184,8 +259,7 @@ function renderHex(a, b) {
     frag.appendChild(row);
     ops.push({ el: row, change: same ? -1 : changeIndex - 1 });
   }
-  view.innerHTML = "";
-  view.appendChild(frag);
+  viewEl.replaceChildren(frag);
 }
 
 function syncStats() {
@@ -195,15 +269,24 @@ function syncStats() {
     stats.innerHTML = diffRows
       ? `<span class="del">${diffRows} 行不同</span>`
       : '<span class="add">字节完全一致</span>';
-    $("export-diff").disabled = true;
+    $("copy-diff").disabled = $("export-diff").disabled = true;
     return;
   }
-  const a = $("source").value;
-  const b = $("target").value;
+  let a = $("source").value;
+  let b = $("target").value;
+  if (prefs.jsonNormalize) {
+    const pair = normalizeJsonPair(a, b);
+    if (pair) {
+      a = pair.a;
+      b = pair.b;
+    }
+  }
   const counts = countChanges(diffLines(a, b, options()));
-  stats.innerHTML =
-    `<span class="add">+${counts.adds}</span><span class="del">−${counts.dels}</span>`;
-  $("export-diff").disabled = !(counts.adds || counts.dels);
+  const sameCounts = !counts.adds && !counts.dels;
+  stats.innerHTML = sameCounts
+    ? '<span class="same">两栏一致</span>'
+    : `<span class="add">+${counts.adds}</span><span class="del">−${counts.dels}</span>`;
+  $("copy-diff").disabled = $("export-diff").disabled = sameCounts;
 }
 
 /* ── 导航 ─────────────────────────── */
@@ -213,18 +296,39 @@ function changeRows() {
 function updateNav() {
   const rows = changeRows();
   $("nav-prev").disabled = $("nav-next").disabled = !rows.length;
+  const pos = $("nav-pos");
+  if (!rows.length) {
+    pos.hidden = true;
+    currentChange = -1;
+    return;
+  }
+  if (currentChange < 0) currentChange = 0;
+  pos.hidden = false;
+  pos.textContent = `${currentChange + 1} / ${rows.length} 处`;
 }
 function jump(step) {
   const rows = changeRows();
   if (!rows.length) return;
   currentChange = (currentChange + step + rows.length) % rows.length;
   const target = rows[currentChange].el;
-  for (const row of view().querySelectorAll(".diff-row.current")) row.classList.remove("current");
+  for (const row of $("diff-view").querySelectorAll(".diff-row.current")) row.classList.remove("current");
   target.classList.add("current");
   target.scrollIntoView({ block: "center" });
+  $("nav-pos").textContent = `${currentChange + 1} / ${rows.length} 处`;
 }
-function view() {
-  return $("diff-view");
+
+/* ── 导出 ─────────────────────────── */
+function diffText() {
+  let a = $("source").value;
+  let b = $("target").value;
+  if (prefs.jsonNormalize) {
+    const pair = normalizeJsonPair(a, b);
+    if (pair) {
+      a = pair.a;
+      b = pair.b;
+    }
+  }
+  return unifiedDiff(a, b, { options: options() });
 }
 
 /* ── 事件 ─────────────────────────── */
@@ -235,19 +339,39 @@ const scheduleRender = () => {
 };
 $("source").addEventListener("input", scheduleRender);
 $("target").addEventListener("input", scheduleRender);
-for (const id of ["opt-inline", "opt-ws", "opt-case"]) {
+
+for (const [id, key] of [
+  ["opt-inline", "inline"],
+  ["opt-ws", "ignoreWhitespace"],
+  ["opt-case", "ignoreCase"],
+  ["opt-blank", "ignoreBlank"],
+  ["opt-json", "jsonNormalize"],
+]) {
   $(id).addEventListener("click", () => {
-    const b = $(id);
-    b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+    prefs[key] = !prefs[key];
+    persistPrefs();
     render();
   });
 }
+$("view-split").addEventListener("click", () => {
+  view = "split";
+  syncOptionButtons();
+  render();
+});
+$("view-unified").addEventListener("click", () => {
+  view = "unified";
+  syncOptionButtons();
+  render();
+});
 $("nav-prev").onclick = () => jump(-1);
 $("nav-next").onclick = () => jump(1);
+// 差异导航：Ctrl/⌘+↑↓（编辑器内不拦截光标移动；Alt+↑↓ 备选）
 document.addEventListener("keydown", (e) => {
-  if (!(e.metaKey || e.ctrlKey) || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  const nav = e.metaKey || e.ctrlKey || e.altKey;
+  if (!nav) return;
   const inEditor = ["TEXTAREA", "INPUT"].includes(e.target.tagName);
-  if (inEditor) return; // 不拦截编辑器内的光标移动
+  if (inEditor && !(e.altKey && !e.metaKey && !e.ctrlKey)) return; // 编辑器内仅 Alt 组合生效
   e.preventDefault();
   jump(e.key === "ArrowDown" ? 1 : -1);
 });
@@ -257,13 +381,21 @@ $("swap").onclick = () => {
   $("target").value = a;
   render();
 };
+$("copy-diff").onclick = () => {
+  const text = diffText();
+  if (!text) {
+    kit.toast("两栏内容一致，没有可复制的差异");
+    return;
+  }
+  kit.copy(text).catch((e) => kit.toast(e.message, "error"));
+};
 $("export-diff").onclick = () => {
-  const text = unifiedDiff($("source").value, $("target").value, { options: options() });
+  const text = diffText();
   if (!text) {
     kit.toast("两栏内容一致，没有可导出的差异");
     return;
   }
-  kit.copy(text).catch((e) => kit.toast(e.message, "error"));
+  kit.saveText("diff.patch", text + "\n").catch((e) => kit.toast(e.message, "error"));
 };
 for (const [btn, area] of [
   ["paste-source", "source"],
@@ -310,7 +442,20 @@ async function toggleHex() {
   kit.toast(hexMode ? "已切换 hex 字节对比" : "已切回行级对比");
 }
 
-/* ── 拖入文件（DOM File API，零额外权限） ─────────────────────────── */
+/* ── 拖入 / 选择文件（经宿主 localFiles 句柄，零额外权限） ─────────────────────────── */
+async function readFileToArea(file, area) {
+  if (file.size > 2 * 1024 * 1024) {
+    kit.toast("文件超过 2MB，请粘贴文本片段", "error");
+    return;
+  }
+  try {
+    area.value = await file.text();
+    render();
+    kit.toast(`已载入 ${file.name}`, "success");
+  } catch (e) {
+    kit.toast(e.message, "error");
+  }
+}
 for (const [wrapId, areaId] of [
   ["source-drop", "source"],
   ["target-drop", "target"],
@@ -334,17 +479,25 @@ for (const [wrapId, areaId] of [
     const file = e.dataTransfer?.files?.[0];
     if (!file) return;
     e.preventDefault();
-    if (file.size > 2 * 1024 * 1024) {
-      kit.toast("文件超过 2MB，请粘贴文本片段", "error");
-      return;
-    }
-    try {
-      area.value = await file.text();
-      render();
-      kit.toast(`已载入 ${file.name}`, "success");
-    } catch (e2) {
-      kit.toast(e2.message, "error");
-    }
+    await readFileToArea(file, area);
+  });
+}
+for (const [btnId, areaId] of [
+  ["pick-source", "source"],
+  ["pick-target", "target"],
+]) {
+  $(btnId).addEventListener("click", () => {
+    api.localFiles
+      .pick({ kind: "file", access: "read" })
+      .then(async (handles) => {
+        const handle = handles?.[0];
+        if (!handle) return;
+        const file = await api.localFiles.read({ handleId: handle.id, encoding: "text", maxBytes: 2 * 1024 * 1024 });
+        $(areaId).value = String(file ?? "");
+        render();
+        kit.toast(`已载入 ${handle.name}`, "success");
+      })
+      .catch((error) => kit.toast(error.message, "error"));
   });
 }
 

@@ -79,5 +79,51 @@
     const slug = String(name).replace(/[^a-zA-Z0-9_-]/g, '-').replace(/^-+|-+$/g, '') || 'palette'
     return `:root {\n${colors.map((item, index) => `  --${slug}-${index + 1}: ${rgb(item.color || item)};`).join('\n')}\n}\n`
   }
-  root.ColorMath = { parse, hex, rgb, hsl, contrast, composite, hslToRgb, normalized, cssPalette }
+
+  // ---------- OKLCH（感知均匀色彩空间，CSS Color 4） ----------
+  const linear = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
+  function oklchParts(color) {
+    const c = composite(color)
+    const alpha = normalized(color).a
+    const r = linear(c.r), g = linear(c.g), b = linear(c.b)
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+    const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s
+    const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
+    const hue = (Math.atan2(B, A) * 180 / Math.PI + 360) % 360
+    return { l: 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, c: Math.hypot(A, B), h: hue, a: alpha }
+  }
+  function oklch(color) {
+    const { l, c, h, a } = oklchParts(color)
+    const body = `${(Math.round(l * 1000) / 10).toFixed(1)}% ${(Math.round(c * 1000) / 1000).toFixed(3)} ${Math.round(h)}`
+    return a < 1 ? `oklch(${body} / ${alphaText(a)})` : `oklch(${body})`
+  }
+
+  // ---------- 和谐色：在同一 HSL 骨架上旋转色相 ----------
+  function hslParts(color) {
+    const c = normalized(color), r = c.r / 255, g = c.g / 255, b = c.b / 255
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, l = (max + min) / 2
+    let h = 0, s = 0
+    if (d) {
+      s = d / (1 - Math.abs(2 * l - 1))
+      h = (max === r ? ((g - b) / d + (g < b ? 6 : 0)) : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60
+    }
+    return { h, s, l, a: c.a }
+  }
+  const HARMONY_OFFSETS = {
+    complement: [0, 180],
+    analogous: [-30, 0, 30],
+    triadic: [0, 120, 240],
+    square: [0, 90, 180, 270]
+  }
+  /** harmony(color, 'complement'|'analogous'|'triadic'|'square') → [{ role, color }] */
+  function harmony(color, kind = 'triadic') {
+    const offsets = HARMONY_OFFSETS[kind] || HARMONY_OFFSETS.triadic
+    const base = hslParts(color)
+    const roles = { complement: ['基色', '互补'], analogous: ['冷邻', '基色', '暖邻'], triadic: ['基色', '第二', '第三'], square: ['基色', '直角', '互补', '斜角'] }
+    return offsets.map((offset, index) => ({ role: roles[kind]?.[index] || `色 ${index + 1}`, color: hslToRgb(base.h + offset, base.s, base.l, base.a) }))
+  }
+
+  root.ColorMath = { parse, hex, rgb, hsl, oklch, oklchParts, contrast, composite, hslToRgb, hslParts, harmony, normalized, cssPalette }
 })(globalThis)

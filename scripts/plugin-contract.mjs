@@ -15,6 +15,9 @@ export function pluginIds(root = repositoryRoot) {
 export function validPath(value) {
   return typeof value === 'string' && value.length > 0 && !/[:\\?#%\u0000-\u001f\u007f]/.test(value) && !isAbsolute(value) && value.split('/').every(part => part && !part.startsWith('.'))
 }
+export function validBackendPath(value) {
+  return typeof value === 'string' && value.length > 0 && !/[\\\u0000-\u001f\u007f?:*<>|]/.test(value) && value.split('/').every(part => part && !part.startsWith('.'))
+}
 export function localFile(root, path) {
   if (!validPath(path)) throw new Error(`Invalid package path: ${path}`)
   const base = realpathSync(root), absolute = resolve(base, path)

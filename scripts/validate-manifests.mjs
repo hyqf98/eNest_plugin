@@ -33,7 +33,11 @@ export function validateSource(directory, { release = true } = {}) {
       if (stat.isDirectory()) for (const name of readdirSync(path)) inspect(join(path, name))
     }
     inspect(publicRoot)
-    for (const name of ['src', 'tests']) if (existsSync(join(directory, name))) inspect(join(directory, name))
+    for (const name of ['src', 'tests', 'backend']) if (existsSync(join(directory, name))) inspect(join(directory, name))
+    if (manifest.backend) {
+      if (!pkg.enestBackend?.entry || !Array.isArray(pkg.enestBackend.dependencies)) throw new Error('Declared backend requires package.enestBackend build config')
+      localFile(directory, pkg.enestBackend.entry)
+    }
     resolveMarketAssets(manifest, publicRoot, { release })
     if (manifest.development?.main) {
       const url = new URL(manifest.development.main)

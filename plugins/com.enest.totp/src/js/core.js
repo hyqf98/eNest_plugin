@@ -87,7 +87,12 @@ export function periodStart(now, period = 30) {
   return Math.floor(now / 1000 / p) * p * 1000
 }
 
-/** otpauth://totp/Label?secret=..&issuer=.. 解析 */
+/** 下一个码的到期时间戳（ms）：当前周期结束时刻 */
+export function nextCodeAt(now, period = 30) {
+  return periodStart(now, period) + period * 1000
+}
+
+/** otpauth://totp/Label?secret=..&issuer=.. 解析（泛位数/周期/算法） */
 export function parseOtpauth(uri) {
   let url
   try {
@@ -109,15 +114,15 @@ export function parseOtpauth(uri) {
   const issuer = (issuerParam || issuerFromLabel).trim()
   const secret = (url.searchParams.get('secret') || '').trim()
   if (!secret) throw new Error('链接缺少 secret')
-  const digits = Number(url.searchParams.get('digits')) || 6
-  const period = Number(url.searchParams.get('period')) || 30
+  const digitsRaw = Number(url.searchParams.get('digits')) || 6
+  const periodRaw = Number(url.searchParams.get('period')) || 30
   const algorithm = (url.searchParams.get('algorithm') || 'SHA1').toUpperCase()
   return {
     account: account || issuer || '账号',
     issuer,
     secret,
-    digits: digits === 8 ? 8 : 6,
-    period: period === 60 ? 60 : 30,
+    digits: digitsRaw === 8 ? 8 : 6,
+    period: [30, 60].includes(periodRaw) ? periodRaw : 30,
     algorithm: ['SHA1', 'SHA256', 'SHA512'].includes(algorithm) ? algorithm : 'SHA1',
   }
 }
@@ -133,7 +138,7 @@ export function toOtpauth(entry) {
   return `otpauth://totp/${encodeURIComponent(label)}?${params.toString()}`
 }
 
-/** 条目归一化 */
+/** 条目归一化（编辑 / 导入 / 恢复共用） */
 export function normalizeEntry(input, id) {
   if (!input || typeof input !== 'object') throw new Error('条目数据格式不正确')
   const account = String(input.account ?? '').trim()

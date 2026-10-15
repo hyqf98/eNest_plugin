@@ -93,7 +93,9 @@
             "type": "boolean"
           },
           "installs": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 0,
+            "description": "仅在具有真实安装统计来源时提供；构建脚本不生成占位计数。"
           },
           "engines": {
             "type": "object",
@@ -148,7 +150,9 @@
                 "type": "string"
               },
               "size": {
-                "type": "number"
+                "type": "integer",
+                "minimum": 1,
+                "description": "最终发布包的实际字节数，由构建脚本读取资产生成。"
               },
               "sha256": {
                 "type": "string"

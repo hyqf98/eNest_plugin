@@ -77,7 +77,7 @@
       }
     }
   }
-  /** openclaw / pi / minimax-code / hermes：JSON/YAML 顶层 env 或 provider 段 */
+  /** openclaw / pi / minimax-code / hermes：JSON 顶层 env 或 provider 段 */
   function changesForGenericJson(p) {
     const out = {}
     if (p.baseUrl) out.baseUrl = p.baseUrl
@@ -87,6 +87,17 @@
 
   function slug(name) {
     return String(name).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'custom'
+  }
+
+  /** 标签归一：兼容旧单字符串 tag 与新数组 tags；返回去重数组（无标签时 fallback 到「未分组」由 UI 决定） */
+  function tagsOf(p) {
+    const raw = Array.isArray(p?.tags) ? p.tags : (p?.tag ? [p.tag] : [])
+    const out = []
+    for (const t of raw) {
+      const s = String(t || '').trim()
+      if (s && !out.includes(s)) out.push(s)
+    }
+    return out
   }
 
   /** 各应用的 changes 构造器表；null = 该应用不支持供应商切换（如 claude-desktop） */
@@ -143,6 +154,12 @@
   async function persist() {
     await A.storageSet(STORE_KEY, providersCache || [])
     await A.storageSet(ORDER_KEY, orderCache || [])
+  }
+
+  /** 清空内存缓存（全量恢复等外部写入 storage 后调用，下次 load 重新读取） */
+  function resetCache() {
+    providersCache = null
+    orderCache = null
   }
 
   function newId() {
@@ -207,8 +224,22 @@
         return { baseUrl: env.GOOGLE_GEMINI_BASE_URL || null, model: env.GEMINI_MODEL || null }
       case 'grok-build':
         return { baseUrl: mainParsed.base_url || null, model: mainParsed.model || null }
-      default:
-        return { baseUrl: mainParsed.provider?.baseUrl || null, model: mainParsed.model || null }
+      default: {
+        // generic 应用：provider.baseUrl / provider.model（与 changesForGenericJson 对应）
+        const prov = mainParsed.provider
+        if (prov && typeof prov === 'object') {
+          if (prov.baseUrl) return { baseUrl: prov.baseUrl, model: prov.model || null }
+          // opencode：provider.<slug>.options.baseURL + models 键（与 changesForOpencode 对应）
+          for (const v of Object.values(prov)) {
+            if (!v || typeof v !== 'object') continue
+            if (v.options && typeof v.options === 'object' && v.options.baseURL) {
+              return { baseUrl: v.options.baseURL, model: Object.keys(v.models || {})[0] || null }
+            }
+            if (v.baseUrl) return { baseUrl: v.baseUrl, model: v.model || null }
+          }
+        }
+        return { baseUrl: null, model: mainParsed.model || null }
+      }
     }
   }
 
@@ -325,12 +356,14 @@
         id: newId(),
         name: p.name,
         tag: p.tag || '',
+        tags: tagsOf(p),
         baseUrl: p.baseUrl || '',
         model: p.model || '',
         secretRef: p.secretRef || '',
         apps: Array.isArray(p.apps) ? p.apps : [],
         extraEnv: p.extraEnv || null,
         tomlExtra: p.tomlExtra || null,
+        quotaEndpoint: p.quotaEndpoint || '',
         universal: Boolean(p.universal)
       }
       providersCache.push(item)
@@ -345,7 +378,8 @@
   global.CCS.providers = {
     APPS, APP_MAP,
     CHANGES_BUILDERS,
-    loadProviders, sorted, upsertProvider, removeProvider, reorder,
+    tagsOf,
+    loadProviders, sorted, upsertProvider, removeProvider, reorder, resetCache,
     extractCurrent, extractCurrentFromText,
     buildDiff, applyProvider, secretChangesFor,
     exportPayload, importPayload

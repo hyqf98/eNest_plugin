@@ -294,6 +294,7 @@ function buildTreeCol() {
         rb.append(el('span', 'm nk-mono', r.method))
         rb.append(el('span', '', r.url))
         const del = el('button', 'del', '✕')
+        del.type = 'button'
         del.title = '删除'
         del.addEventListener('click', (e) => { e.stopPropagation(); collections.remove(g.id, r.id); persistAll(); renderBody() })
         rb.append(del)
@@ -415,6 +416,7 @@ function buildKvEditor(kv, onChange, emptyHint) {
       v.setAttribute('data-input-context', 'editor')
       v.addEventListener('input', () => { pair.value = v.value; onChange?.() })
       const del = el('button', 'del', '✕')
+      del.type = 'button'
       del.title = '删除'
       del.addEventListener('click', () => { kv.splice(idx, 1); render(); onChange?.() })
       row.append(on, k, v, del)
@@ -496,6 +498,8 @@ function buildAssertPane(s) {
       const res = el('span', 'res ' + (a.result ? (a.result.pass ? 'pass' : 'fail') : 'idle'), a.result ? (a.result.pass ? 'pass' : 'fail') : '—')
       res.title = a.result ? `实际：${a.result.actual}` : '发送后自动执行'
       const del = el('button', 'del', '✕')
+      del.type = 'button'
+      del.title = '删除'
       del.addEventListener('click', () => { s.asserts.splice(idx, 1); render() })
       row.append(typeSel, target, expected, res, del)
       wrap.append(row)
@@ -1044,7 +1048,7 @@ function buildDuplex(s) {
   const histSel = el('select', 'nk-select')
   histSel.append(new Option('发送历史', ''))
   for (const h of s.sendHistory.slice(0, 20)) histSel.append(new Option(`${h.kind}: ${h.text.slice(0, 24)}`, h.text))
-  histSel.addEventListener('change', () => { if (histSel.value) { sendInput.value = histSel.value; kindSel.value = s.sendHistory.find((h) => h.text === histSel.value)?.kind ?? kindSel.value } })
+  histSel.addEventListener('change', () => { if (histSel.value) { const hit = s.sendHistory.find((h) => h.text === histSel.value); kindSel.value = hit?.kind ?? kindSel.value; kindSel.dispatchEvent(new Event('change', { bubbles: true })); sendInput.value = histSel.value } })
   loopRow.append(el('span', '', '循环：'), iv, el('span', '', 'ms ×'), cnt, loopBtn, histSel)
 
   bottom.append(sendRow, loopRow)
@@ -1305,8 +1309,11 @@ $('#btn-history').addEventListener('click', () => {
   const head = el('div', 'nk-dlg-head')
   head.append(el('span', '', `历史（最近 ${Math.min(history.items.length, HISTORY_LIMIT)} 条）`))
   const clear = el('button', 'x nk-btn tiny ghost', '清空')
+  clear.type = 'button'
   clear.addEventListener('click', () => { history.clear(); persistAll(); renderBody(); dlg.close() })
   const x = el('button', 'x', '✕')
+  x.type = 'button'
+  x.title = '关闭'
   x.addEventListener('click', () => dlg.close())
   head.append(clear, x)
   const list = el('ul', 'nk-hist nk-dlg-body')
@@ -1338,6 +1345,8 @@ $('#btn-sets').addEventListener('click', () => {
   const head = el('div', 'nk-dlg-head')
   head.append(el('span', '', '集合'))
   const x = el('button', 'x', '✕')
+  x.type = 'button'
+  x.title = '关闭'
   x.addEventListener('click', () => dlg.close())
   head.append(x)
   const body = el('div', 'nk-dlg-body')
@@ -1365,6 +1374,8 @@ function openEnvDialog() {
   const head = el('div', 'nk-dlg-head')
   head.append(el('span', '', `环境变量 · ${envStore.current}`))
   const x = el('button', 'x', '✕')
+  x.type = 'button'
+  x.title = '关闭'
   x.addEventListener('click', () => { persistAll(); dlg.close(); renderBody() })
   head.append(x)
   const body = el('div', 'nk-dlg-body')
@@ -1395,6 +1406,8 @@ function promptDialog(title, desc, onSubmit, multiline = false) {
   const head = el('div', 'nk-dlg-head')
   head.append(el('span', '', title))
   const x = el('button', 'x', '✕')
+  x.type = 'button'
+  x.title = '关闭'
   x.addEventListener('click', () => dlg.close())
   head.append(x)
   const body = el('div', 'nk-dlg-body')
@@ -1419,6 +1432,8 @@ function confirmDialog(title, desc, onOk) {
   const head = el('div', 'nk-dlg-head')
   head.append(el('span', '', title))
   const x = el('button', 'x', '✕')
+  x.type = 'button'
+  x.title = '关闭'
   x.addEventListener('click', () => dlg.close())
   head.append(x)
   const body = el('div', 'nk-dlg-body')

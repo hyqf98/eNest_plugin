@@ -14,10 +14,11 @@
         <h1>Cron 工具</h1>
         <span class="sub">五域构建 · 自然语言 · 执行预览</span>
         <div class="toolbar">
-          <label class="toggle mono" title="Quartz 风格 6 域（含秒）">
-            <input type="checkbox" id="with-seconds" /> 秒级 6 域
-          </label>
-          <button id="toggle-presets" class="shell-only">预设库</button>
+          <div class="segmented" id="seconds-switch" role="group" aria-label="域模式">
+            <button id="mode-5" class="active" aria-pressed="true">5 域</button
+            ><button id="mode-6" aria-pressed="false">6 域（秒）</button>
+          </div>
+          <button id="toggle-presets" class="ghost shell-only">预设库</button>
         </div>
       </header>
 
@@ -31,7 +32,7 @@
           <ul id="preset-list" class="preset-list"></ul>
           <div class="presets-foot">
             <button id="preset-save" disabled>保存当前为预设</button>
-            <button id="preset-reset">恢复内置</button>
+            <button id="preset-reset" class="ghost">恢复内置</button>
           </div>
         </aside>
 
@@ -41,7 +42,7 @@
             <label for="expression">Cron 表达式</label>
             <div class="expr-row">
               <input id="expression" class="mono" spellcheck="false" placeholder="*/5 * * * *" />
-              <button id="copy-expression" disabled>复制</button>
+              <button id="copy-expression" class="ghost" disabled>复制</button>
             </div>
             <div id="expr-error" class="error-bar" role="alert" hidden></div>
             <p id="humanize" class="humanize"></p>
@@ -50,23 +51,30 @@
           <!-- 五/六域构建器 -->
           <div id="fields" class="fields"></div>
 
-          <!-- 下次执行预览 -->
+          <!-- 未来执行预览 -->
           <section class="panel">
             <div class="panel-head">
-              <h2>下次执行 <span id="upcoming-count" class="mono"></span></h2>
-              <div class="tz-row">
+              <h2>未来执行 <span id="upcoming-count" class="mono"></span></h2>
+              <div class="preview-controls">
+                <div class="segmented compact" id="count-switch" role="group" aria-label="预览次数">
+                  <button data-count="5" aria-pressed="false">5 次</button
+                  ><button data-count="10" class="active" aria-pressed="true">10 次</button
+                  ><button data-count="20" aria-pressed="false">20 次</button>
+                </div>
                 <select id="timezone" aria-label="预览时区">
                   <option value="local">本地时区</option>
                   <option value="UTC">UTC</option>
                 </select>
               </div>
             </div>
-            <table class="fire-table">
-              <thead>
-                <tr><th>#</th><th id="tz-label">本地时间</th><th id="tz-alt-label">UTC 对照</th><th class="num">倒计时</th></tr>
-              </thead>
-              <tbody id="fire-list"></tbody>
-            </table>
+            <div class="table-wrap">
+              <table class="fire-table">
+                <thead>
+                  <tr><th class="idx">#</th><th id="tz-label">本地时间</th><th id="tz-alt-label">UTC 对照</th><th class="rel-head">相对</th></tr>
+                </thead>
+                <tbody id="fire-list"></tbody>
+              </table>
+            </div>
           </section>
 
           <!-- crontab 粘贴 / 导出 -->

@@ -3,6 +3,8 @@ import * as core from './core.js'
 const api = window.enest || window.zapi
 const $ = (id) => document.getElementById(id)
 const FX_URL = 'https://open.er-api.com/v6/latest/USD'
+const FAV_KEY = 'unit-convert.favorites.v1'
+const PREF_KEY = 'unit-convert.prefs.v1'
 
 let activeTab = 'length'
 let fxRates = null
@@ -11,6 +13,8 @@ let fxSource = '' // live | cache | fallback
 let editingField = '' // 焦点所在输入（联动以它为主）
 let radixValues = { 2: '0', 8: '0', 10: '0', 16: '0' }
 let ready = false
+let favorites = [] // ["length:km", "temp:F", ...]
+let prefs = { precision: 12, scientific: false, lastTab: '' }
 
 const kit = PluginKit.create({
   title: '单位与汇率',
@@ -20,49 +24,91 @@ const kit = PluginKit.create({
 })
 
 const isSpecial = (tab) => tab === 'temp' || tab === 'radix' || tab === 'fx'
+const favId = (tab, unit) => `${tab}:${unit}`
+const isFav = (tab, unit) => favorites.includes(favId(tab, unit))
+function toggleFav(tab, unit) {
+  const id = favId(tab, unit)
+  favorites = favorites.includes(id) ? favorites.filter((f) => f !== id) : [...favorites, id]
+  kit.save(FAV_KEY, favorites).catch(() => {})
+  renderRows(true)
+}
 
 // —— Tabs —— //
 function renderTabs() {
-  $('tabs').innerHTML = core.TAB_ORDER.map(
-    (id) =>
-      `<button role="tab" aria-selected="${activeTab === id}" data-tab="${id}" class="chip ${activeTab === id ? 'active' : ''}">${core.CATEGORIES[id].name}</button>`,
-  ).join('')
+  $('tabs').replaceChildren()
+  for (const id of core.TAB_ORDER) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.role = 'tab'
+    btn.setAttribute('aria-selected', String(activeTab === id))
+    btn.dataset.tab = id
+    btn.className = 'chip' + (activeTab === id ? ' active' : '')
+    btn.textContent = core.CATEGORIES[id].name
+    if (core.CATEGORIES[id].units.some((u) => isFav(id, u.id))) btn.classList.add('has-fav')
+    $('tabs').append(btn)
+  }
 }
 
-// —— 数值行 —— //
+// —— 数值行（收藏单位置顶） ——//
 function unitRows(tab) {
   if (tab === 'temp') return core.TEMP_UNITS.map((u) => ({ id: u.id, name: u.name }))
   if (tab === 'radix') return core.RADIX_BASES.map((b) => ({ id: String(b), name: `${b} 进制`, radix: b }))
-  return core.CATEGORIES[tab].units
+  const units = core.CATEGORIES[tab].units
+  return [...units].sort((a, b) => Number(isFav(tab, b.id)) - Number(isFav(tab, a.id)))
 }
 
 function renderRows(preserveEditing = true) {
   const keep = preserveEditing ? editingField : ''
-  const rows = unitRows(activeTab)
+  const rowsEl = $('rows')
   // 保留当前行值：模式切换 / 重渲染不丢用户输入
   const previous = {}
-  $('rows').querySelectorAll('[data-unit]').forEach((el) => (previous[el.dataset.unit] = el.value))
+  rowsEl.querySelectorAll('[data-unit]').forEach((el) => (previous[el.dataset.unit] = el.value))
+  rowsEl.replaceChildren()
   if (activeTab === 'radix') {
-    $('rows').innerHTML = rows
-      .map(
-        (r) => `<label class="row"><span class="row-name">${r.name}</span><input class="mono" inputmode="text" data-radix="${r.id}" value="${escapeAttr(radixValues[r.id] || '')}" spellcheck="false" /></label>`,
-      )
-      .join('')
+    for (const r of unitRows(activeTab)) {
+      const label = document.createElement('label')
+      label.className = 'row'
+      const name = document.createElement('span')
+      name.className = 'row-name'
+      name.textContent = r.name
+      const input = document.createElement('input')
+      input.className = 'mono'
+      input.dataset.radix = r.id
+      input.value = radixValues[r.id] || ''
+      input.spellcheck = false
+      label.append(name, input)
+      rowsEl.append(label)
+    }
   } else {
-    $('rows').innerHTML = rows
-      .map((r) => {
-        const v = previous[r.id] ?? (r.id === keep ? '' : '')
-        return `<label class="row"><span class="row-name">${r.name}</span><input class="mono" inputmode="decimal" data-unit="${r.id}" value="${escapeAttr(v)}" placeholder="0" spellcheck="false" /></label>`
-      })
-      .join('')
+    for (const r of unitRows(activeTab)) {
+      const label = document.createElement('label')
+      label.className = 'row' + (isFav(activeTab, r.id) ? ' faved' : '')
+      const fav = document.createElement('button')
+      fav.type = 'button'
+      fav.className = 'fav-btn' + (isFav(activeTab, r.id) ? ' on' : '')
+      fav.textContent = isFav(activeTab, r.id) ? '★' : '☆'
+      fav.title = isFav(activeTab, r.id) ? '取消置顶' : '置顶常用'
+      fav.setAttribute('aria-label', `${r.name}${isFav(activeTab, r.id) ? '取消置顶' : '置顶常用'}`)
+      fav.setAttribute('aria-pressed', String(isFav(activeTab, r.id)))
+      fav.addEventListener('click', () => toggleFav(activeTab, r.id))
+      const name = document.createElement('span')
+      name.className = 'row-name'
+      name.textContent = r.name
+      const input = document.createElement('input')
+      input.className = 'mono'
+      input.inputMode = 'decimal'
+      input.dataset.unit = r.id
+      input.value = previous[r.id] ?? ''
+      input.placeholder = '0'
+      input.spellcheck = false
+      label.append(fav, name, input)
+      rowsEl.append(label)
+    }
   }
-  editingField = $('rows').querySelector(`[data-unit="${CSS.escape(keep)}"], [data-radix="${CSS.escape(keep)}"]`)?.dataset.unit || $('rows').querySelector(`[data-radix="${CSS.escape(keep)}"]`)?.dataset.radix || ''
-  $('presets').innerHTML = activeTab === 'fx'
-    ? ''
-    : `<span class="eyebrow">常用换算</span>` +
-      core.PRESETS.map((p) => `<button class="preset" data-preset="${p.value}">${p.label}</button>`).join('')
+  editingField = keep
+  renderPresets()
+  renderFormula()
   $('fx-section').hidden = activeTab !== 'fx'
-  $('rmb-section').hidden = activeTab !== 'fx' && activeTab !== 'mass'
   $('rmb-section').hidden = activeTab !== 'fx'
   $('foot-note').textContent =
     activeTab === 'fx'
@@ -71,26 +117,60 @@ function renderRows(preserveEditing = true) {
         : fxSource === 'cache'
           ? `网络不可用，展示 ${new Date(fxFetchedAt).toLocaleString()} 的缓存汇率`
           : '网络不可用且无缓存，展示静态参考汇率（仅供参考）'
-      : '修改任一行，其余即时联动'
+      : '修改任一行，其余即时联动 · ★ 置顶常用单位'
   if (activeTab === 'fx') void ensureFx()
+}
+
+function renderPresets() {
+  $('presets').replaceChildren()
+  if (activeTab === 'fx') return
+  const eyebrow = document.createElement('span')
+  eyebrow.className = 'eyebrow'
+  eyebrow.textContent = '常用换算'
+  $('presets').append(eyebrow)
+  for (const p of core.PRESETS) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'preset'
+    btn.dataset.preset = p.value
+    btn.textContent = p.label
+    $('presets').append(btn)
+  }
+}
+
+/** 换算公式展示：焦点行 → 目标行 */
+function renderFormula() {
+  const el = $('formula')
+  if (!el) return
+  if (activeTab === 'radix' || activeTab === 'fx' || !editingField) {
+    el.textContent = ''
+    el.hidden = true
+    return
+  }
+  const rows = unitRows(activeTab)
+  const targets = rows.filter((r) => r.id !== editingField).slice(0, 3)
+  const lines = targets.map((t) => core.formulaText(activeTab, editingField, t.id)).filter(Boolean)
+  el.textContent = lines.join('　·　')
+  el.hidden = !lines.length
 }
 
 function escapeAttr(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 }
 
-// —— 联动 —— //
+// —— 联动 ——//
 $('rows').addEventListener('input', (e) => {
   const el = e.target
   if (el.dataset.unit) {
     editingField = el.dataset.unit
     const value = core.parseInput(core.normalizeDigits(el.value))
-    const results = core.convertAll(activeTab, editingField, value)
+    const results = core.convertAll(activeTab, editingField, value, { precision: prefs.precision })
     $('rows').querySelectorAll('[data-unit]').forEach((input) => {
       if (input === el) return
       const v = results[input.dataset.unit]
-      input.value = v === undefined || !Number.isFinite(v) ? '' : core.formatNumber(v).replace(/,/g, '')
+      input.value = v === undefined || !Number.isFinite(v) ? '' : core.formatNumber(v, { scientific: prefs.scientific }).replace(/,/g, '')
     })
+    renderFormula()
   } else if (el.dataset.radix) {
     editingField = el.dataset.radix
     const base = Number(el.dataset.radix)
@@ -102,24 +182,25 @@ $('rows').addEventListener('input', (e) => {
   }
 })
 $('rows').addEventListener('focusin', (e) => {
-  if (e.target.dataset.unit || e.target.dataset.radix) editingField = e.target.dataset.unit || e.target.dataset.radix
+  if (e.target.dataset?.unit || e.target.dataset?.radix) {
+    editingField = e.target.dataset.unit || e.target.dataset.radix
+    renderFormula()
+  }
 })
-// 进制输入时为空则清空其它行
-$('rows').addEventListener('change', () => {})
 
-// —— 预设 —— //
+// —— 预设 ——//
 $('presets').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-preset]')
   if (!btn) return
-  // 形如 "1 lb = 453.59 g"：等号左侧数量填入左侧单位行，右侧联动
   const m = btn.dataset.preset.match(/^([\d.]+)\s+(\S+)\s*=\s*([\d.]+)\s+(\S+)$/)
   if (!m) return
   const [, amount, fromUnit] = m
-  // 切换到对应类目
   for (const [tabId, cat] of Object.entries(core.CATEGORIES)) {
     const src = cat.units?.find((u) => u.id === fromUnit)
     if (src) {
       activeTab = tabId
+      prefs.lastTab = tabId
+      kit.save(PREF_KEY, prefs).catch(() => {})
       renderTabs()
       renderRows(false)
       const input = $('rows').querySelector(`[data-unit="${CSS.escape(fromUnit)}"]`)
@@ -133,17 +214,39 @@ $('presets').addEventListener('click', (e) => {
   }
 })
 
-// —— Tabs 切换 —— //
+// —— Tabs 切换 ——//
 $('tabs').addEventListener('click', (e) => {
   const tab = e.target.closest('[data-tab]')?.dataset.tab
   if (!tab) return
   activeTab = tab
+  prefs.lastTab = tab
+  kit.save(PREF_KEY, prefs).catch(() => {})
   editingField = ''
   renderTabs()
   renderRows(false)
 })
 
-// —— 汇率 —— //
+// —— 精度 / 科学计数 ——//
+$('precision').onchange = (e) => {
+  const n = Number(e.target.value) || 12
+  prefs.precision = Math.max(4, Math.min(15, n))
+  e.target.value = String(prefs.precision)
+  kit.save(PREF_KEY, prefs).catch(() => {})
+  replayEditing()
+}
+$('scientific').onclick = () => {
+  prefs.scientific = !prefs.scientific
+  $('scientific').setAttribute('aria-pressed', String(prefs.scientific))
+  kit.save(PREF_KEY, prefs).catch(() => {})
+  replayEditing()
+}
+function replayEditing() {
+  if (!editingField) return
+  const input = $('rows').querySelector(`[data-unit="${CSS.escape(editingField)}"]`)
+  if (input) input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+// —— 汇率 ——//
 async function ensureFx() {
   renderFxRows()
   const cache = await kit.load('fx_cache', null)
@@ -201,7 +304,16 @@ function renderFxState() {
 function renderFxRows() {
   const base = String(kit.settings.baseCurrency || 'USD')
   const select = $('fx-base')
-  select.innerHTML = core.FX_CURRENCIES.map((c) => `<option value="${c.id}" ${c.id === base ? 'selected' : ''}>${c.id} ${c.name}</option>`).join('')
+  select.replaceChildren(
+    ...core.FX_CURRENCIES.map((c) => {
+      const opt = document.createElement('option')
+      opt.value = c.id
+      opt.textContent = `${c.id} ${c.name}`
+      if (c.id === base) opt.selected = true
+      return opt
+    }),
+  )
+  PluginKit.upgradeSelects() // 动态重建 option 后立即同步自定义下拉的选中标签
   if (!fxRates) {
     $('fx-rows').innerHTML = '<div class="empty small">正在获取汇率…</div>'
     return
@@ -211,7 +323,7 @@ function renderFxRows() {
   $('fx-rows').innerHTML = core.FX_CURRENCIES.map((c) => {
     if (c.id === base) return ''
     const v = result[c.id]
-    return `<div class="row fx-row" data-fx="${c.id}" tabindex="0"><span class="row-name">${c.id} <span class="muted">${c.name}</span></span><span class="row-value mono">${core.formatNumber(v)}</span></div>`
+    return `<div class="row fx-row" data-fx="${c.id}" tabindex="0"><span class="row-name">${c.id} <span class="muted">${escapeAttr(c.name)}</span></span><span class="row-value mono">${core.formatNumber(v, { scientific: prefs.scientific })}</span></div>`
   }).join('')
 }
 
@@ -240,7 +352,7 @@ $('fx-rows').onkeydown = (e) => {
   if (row) void copyText(row.querySelector('.row-value').textContent, `${row.dataset.fx} 已复制`)
 }
 
-// —— 人民币大写 —— //
+// —— 人民币大写 ——//
 $('rmb-input').oninput = () => {
   const raw = core.normalizeDigits($('rmb-input').value)
   const n = core.parseInput(raw)
@@ -264,15 +376,30 @@ async function copyText(text, message) {
 }
 
 $('copy-all').onclick = () => {
-  const lines = $('rows')
-    .querySelectorAll('[data-unit], [data-radix]')
-    .values()
-  const parts = [...lines].map((input) => `${input.previousElementSibling?.textContent || input.dataset.unit || input.dataset.radix}: ${input.value}`).join('\n')
+  const lines = $('rows').querySelectorAll('[data-unit], [data-radix]').values()
+  const parts = [...lines]
+    .map((input) => {
+      const name = input.closest('.row')?.querySelector('.row-name')?.textContent || input.dataset.unit || input.dataset.radix
+      return `${name}: ${input.value}`
+    })
+    .join('\n')
   void copyText(parts, '已复制全部结果')
 }
 
-// —— 启动 —— //
+// —— 启动 ——//
 const booted = (async () => {
+  const savedFav = await kit.load(FAV_KEY, [])
+  if (Array.isArray(savedFav)) favorites = savedFav.filter((f) => typeof f === 'string' && f.includes(':')).slice(0, 24)
+  const savedPrefs = await kit.load(PREF_KEY, {})
+  if (savedPrefs && typeof savedPrefs === 'object') {
+    if (Number.isFinite(Number(savedPrefs.precision))) prefs.precision = Math.max(4, Math.min(15, Number(savedPrefs.precision)))
+    prefs.scientific = Boolean(savedPrefs.scientific)
+    if (typeof savedPrefs.lastTab === 'string' && core.TAB_ORDER.includes(savedPrefs.lastTab)) prefs.lastTab = savedPrefs.lastTab
+  }
+  $('precision').value = String(prefs.precision)
+  PluginKit.upgradeSelects() // 恢复精度设置后同步下拉触发器标签
+  $('scientific').setAttribute('aria-pressed', String(prefs.scientific))
+  if (prefs.lastTab) activeTab = prefs.lastTab
   await kit.ready
   ready = true
   renderTabs()
@@ -296,9 +423,8 @@ api?.onEnter?.(async (event) => {
   const payload = event?.payload
   const text = typeof payload === 'string' ? payload : payload?.text
   if (text) {
-    // 载荷数字直接填入当前类目第一行
     const first = $('rows').querySelector('[data-unit]')
-    if (first && core.parseInput(core.normalizeDigits(String(text))) !== NaN) {
+    if (first && !Number.isNaN(core.parseInput(core.normalizeDigits(String(text))))) {
       first.value = String(text)
       first.dispatchEvent(new Event('input', { bubbles: true }))
     }

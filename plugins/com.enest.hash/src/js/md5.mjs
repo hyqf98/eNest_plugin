@@ -112,6 +112,49 @@ export async function digestBytes(algo, bytes) {
   return new Uint8Array(buf);
 }
 
+/** 归一化期望哈希：去引号、0x/空格/连字符、转小写；返回 { value, ok } */
+export function normalizeDigest(text) {
+  const value = String(text ?? "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/^0x/i, "")
+    .replace(/[\s:-]/g, "")
+    .toLowerCase();
+  return { value, ok: /^[0-9a-f]*$/.test(value) && value.length > 0 };
+}
+
+/** 逐字符对比两个摘要（容忍大小写/分隔符）：返回 { equal, actual, expected, mismatch }。
+ *  mismatch 为期望串中首个不匹配下标（长度不一致时为 -1）；一致时为 -1。 */
+export function compareDigest(actualHex, expectedText) {
+  const actual = String(actualHex ?? "").toLowerCase();
+  const { value: expected, ok } = normalizeDigest(expectedText);
+  if (!ok) return { equal: false, actual, expected: "", mismatch: -2, invalid: true };
+  if (actual === expected) return { equal: true, actual, expected, mismatch: -1 };
+  let mismatch = -1;
+  const len = Math.max(actual.length, expected.length);
+  for (let i = 0; i < len; i++) {
+    if (actual[i] !== expected[i]) {
+      mismatch = i;
+      break;
+    }
+  }
+  return { equal: false, actual, expected, mismatch };
+}
+
+/** 把对比串切成高亮段：[{ text, same }]；等长部分逐字符、长度差整体标红。 */
+export function diffSegments(actualHex, expectedText) {
+  const { equal, actual, expected, mismatch } = compareDigest(actualHex, expectedText);
+  if (mismatch === -2) return { equal, invalid: true, segments: [] };
+  const segments = [];
+  if (equal) {
+    segments.push({ text: actual, same: true });
+    return { equal, invalid: false, segments };
+  }
+  if (mismatch > 0) segments.push({ text: expected.slice(0, mismatch), same: true });
+  segments.push({ text: expected.slice(mismatch), same: false });
+  return { equal, invalid: false, segments };
+}
+
 export const HASH_ALGOS = [
   { id: "SHA-1", label: "SHA-1" },
   { id: "SHA-224", label: "SHA-224" },

@@ -56,6 +56,8 @@
     $('run').disabled = false
     $('run').textContent = '翻译'
     $('output').classList.remove('busy')
+    $('output-state').hidden = true
+    $('hint').textContent = '输入即翻译 · Enter 立即 · Shift+Enter 换行'
   }
   function sync() {
     const available = !!result
@@ -77,21 +79,22 @@
     $('engine-tag').textContent = ''
     $('output').textContent = '译文会显示在这里'
     $('output').className = 'placeholder'
+    $('output-state').hidden = true
     sync()
   }
   function inputChanged(updateHost = true) {
     invalidate()
     detected = ''
     result = null
-    $('output').textContent = '原文已更新，点击翻译'
+    $('output').textContent = '原文已更新，正在翻译'
     $('output').className = 'placeholder'
     $('engine-tag').textContent = ''
     $('detected').textContent = ''
     $('counter').textContent = $('input').value.length + ' / 10000'
     sync()
     if (updateHost) kit.setQuery($('input').value)
-    if (kit.settings.autoTranslate && $('input').value.trim())
-      timer = setTimeout(() => void run(), 650)
+    // 即时翻译：停 350ms 自动联网翻译（防抖；autoTranslate 设置为暂停开关）
+    if (!kit.settings.autoTranslate && $('input').value.trim()) timer = setTimeout(() => void run(), 350)
   }
   async function saveHistory() {
     if (!loaded) return
@@ -205,7 +208,10 @@
     $('run').disabled = true
     $('run').textContent = '翻译中…'
     $('output').className = 'placeholder busy'
-    $('output').textContent = '正在获取译文…'
+    $('output').textContent = ''
+    $('output-state').hidden = false
+    $('output-state-text').textContent =
+      engine === 'mymemory' ? 'MyMemory 正在翻译…' : '正在获取译文…'
     $('engine-tag').textContent = ''
     try {
       const translated =
@@ -248,12 +254,14 @@
       result = null
       $('output').className = 'error'
       $('output').textContent = '翻译失败：' + e.message
+      $('output-state').hidden = true
       $('hint').textContent = '调整语言或引擎后重试'
     } finally {
       if (id === request) {
         $('run').disabled = false
         $('run').textContent = '翻译'
         $('output').classList.remove('busy')
+        $('output-state').hidden = true
         sync()
       }
     }
@@ -273,12 +281,14 @@
       })
       .catch((e) => kit.toast('偏好保存失败：' + e.message, 'error'))
   }
-  function changeDirection() {
+  function changeDirection({ rerun = true } = {}) {
     invalidate()
     result = null
     sync()
+    PluginKit.upgradeSelects() // src/tgt 直接赋值后同步自定义下拉标签
+    renderLangChips()
     savePrefs()
-    if (kit.settings.autoTranslate && $('input').value.trim()) void run()
+    if (rerun && $('input').value.trim()) void run()
   }
   $('input').oninput = () => inputChanged()
   $('input').onkeydown = (e) => {
@@ -308,6 +318,7 @@
     const oldTarget = $('tgt').value
     $('src').value = oldTarget
     $('tgt').value = src
+    PluginKit.upgradeSelects() // 交换语言后同步自定义下拉标签
     if (result) {
       $('input').value = result.text
       kit.setQuery(result.text)
@@ -319,9 +330,21 @@
     (b) =>
       (b.onclick = () => {
         $('tgt').value = b.dataset.lang
+        PluginKit.upgradeSelects() // chips 切换目标语言后同步下拉标签
         changeDirection()
       }),
   )
+  // 目标语言快捷 chips 状态（当前目标语言高亮；原文即该语言时禁用）
+  function renderLangChips() {
+    const tgt = $('tgt').value,
+      src = $('src').value
+    document.querySelectorAll('[data-lang]').forEach((b) => {
+      const lang = b.dataset.lang
+      b.classList.toggle('active', lang === tgt)
+      b.disabled = lang === src
+      b.title = lang === src ? '与源语言相同' : `译为${LANGS[lang]}`
+    })
+  }
   $('paste').onclick = async () => {
     try {
       const text = await api.clipboard.readText()
@@ -382,6 +405,7 @@
     kit.setQuery(h.source)
     $('src').value = h.src
     $('tgt').value = h.tgt
+    PluginKit.upgradeSelects() // 回填历史语言后同步自定义下拉标签
     $('output').textContent = h.text
     $('output').className = ''
     $('engine-tag').textContent =
@@ -438,15 +462,18 @@
       $('tgt').value = kit.settings.tgtLang
     if (['auto', 'google', 'mymemory'].includes(kit.settings.engine))
       $('engine').value = kit.settings.engine
+    PluginKit.upgradeSelects() // 设置驱动的语言/引擎赋值后同步下拉标签
     document.documentElement.style.setProperty(
       '--translation-font',
       Math.max(14, Math.min(24, Number(kit.settings.resultFontSize) || 18)) +
         'px',
     )
+    renderLangChips()
   }
   const initialized = (async () => {
     try {
       await kit.ready
+      renderLangChips()
       const migrated = await kit.load('translate_prefs_v2_migrated', false)
       if (!migrated) {
         const old = {
@@ -499,6 +526,8 @@
       sync()
     }
   })
+  renderLangChips()
+  sync()
   api?.onEnter?.(async ({ payload }) => {
     await initialized
     const text =
@@ -510,7 +539,7 @@
     if (text) {
       $('input').value = text.slice(0, 10000)
       inputChanged()
-      if (kit.settings.autoTranslate) void run()
+      void run()
     }
   })
   api?.onBeforeClose?.(async () => {
@@ -518,5 +547,4 @@
     invalidate()
     return preferenceQueue
   })
-  sync()
 })()

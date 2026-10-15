@@ -16,26 +16,86 @@
         overflow: hidden;
       }
       button {
-        border: 0;
-        border-radius: 6px;
-        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: calc(var(--pk-radius, 8px) - 2px);
+        background: var(--paper);
         color: inherit;
-        padding: 8px 11px;
+        padding: 5px 11px;
+        min-height: 28px;
+        font-size: 12.5px;
+        transition: border-color 0.12s ease, background-color 0.12s ease,
+          color 0.12s ease, transform 0.1s ease;
       }
-      button:hover {
-        background: var(--surface-2, #eaf0f4);
+      button:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--blue) 45%, var(--line));
+      }
+      button:active:not(:disabled) {
+        transform: scale(0.97);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
       }
       button.active {
         color: var(--blue);
+        border-color: color-mix(in srgb, var(--blue) 45%, var(--line));
         background: color-mix(in srgb, var(--blue) 10%, transparent);
+      }
+      /* 语言快捷 chips：pill 形 ghost（同 tab 语义，透明底可见 hover） */
+      .common button {
+        border-color: transparent;
+        background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
+        color: var(--muted);
+      }
+      .common button:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+        color: var(--text);
+      }
+      .common button.active {
+        color: var(--blue);
+        border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+        background: color-mix(in srgb, var(--blue) 10%, transparent);
+      }
+      /* 历史面板过滤 tabs：ghost pill */
+      .history-head button[data-history] {
+        border-color: transparent;
+        background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
+        color: var(--muted);
+      }
+      .history-head button[data-history]:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+        color: var(--text);
+      }
+      .history-head button[data-history].active {
+        color: var(--blue);
+        border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+        background: color-mix(in srgb, var(--blue) 10%, transparent);
+      }
+      /* 微型图标钮（★ / × / ⇄）：保持紧凑但有可见反馈 */
+      .entry-meta button,
+      .history-head #close-history {
+        min-height: 22px;
+        padding: 1px 6px;
+        border-color: transparent;
+        background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
+        color: var(--muted);
+      }
+      .entry-meta button:hover:not(:disabled),
+      .history-head #close-history:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+        color: var(--text);
+      }
+      #swap {
+        padding: 5px 10px;
       }
       input,
       select {
         color: inherit;
         background: var(--paper);
         border: 1px solid var(--line);
-        padding: 7px 9px;
-        border-radius: 6px;
+        padding: 5px 9px;
+        min-height: 28px;
+        border-radius: calc(var(--pk-radius, 8px) - 2px);
         min-width: 0;
       }
       .app {
@@ -78,10 +138,20 @@
         align-items: center;
         gap: 8px;
       }
-      .language-bar select {
+      .language-bar select,
+      .language-bar .pk-select {
+        font-weight: 600;
+        min-width: 0;
+      }
+      .language-bar .pk-select-trigger {
         border: 0;
         background: transparent;
+        padding: 5px 6px;
         font-weight: 600;
+      }
+      .language-bar .pk-select-trigger:hover:not(:disabled) {
+        border-color: transparent;
+        background: color-mix(in srgb, var(--blue) 8%, transparent);
       }
       .language-bar .spacer {
         flex: 1;
@@ -91,6 +161,45 @@
         display: flex;
         gap: 2px;
         color: var(--muted);
+      }
+      .common button {
+        padding: 3px 9px;
+        min-height: 24px;
+        border-radius: 999px;
+        font-size: 11px;
+      }
+      .common button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .common button:disabled:hover {
+        background: transparent;
+      }
+      .output-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 18px;
+      }
+      .output-row .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--blue);
+        flex: none;
+      }
+      .output-row .busy-text {
+        color: var(--muted);
+      }
+      .dot.blink {
+        animation: translate-pulse 1.1s ease-in-out infinite;
+      }
+      @keyframes translate-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.25; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .dot.blink { animation: none; }
       }
       .panes {
         display: grid;
@@ -120,7 +229,16 @@
         margin-bottom: 15px;
       }
       .pane-label button {
-        padding: 4px 6px;
+        padding: 4px 9px;
+        min-height: 26px;
+        font-size: 12px;
+        border-color: transparent;
+        background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
+        color: var(--muted);
+      }
+      .pane-label button:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+        color: var(--text);
       }
       #input {
         flex: 1;
@@ -161,10 +279,12 @@
       .primary {
         background: var(--blue);
         color: white;
-        padding: 10px 20px;
+        border-color: var(--blue);
+        padding: 6px 20px;
       }
-      .primary:hover {
+      .primary:hover:not(:disabled) {
         background: var(--blue);
+        border-color: var(--blue);
         filter: brightness(1.04);
       }
       .actions {
@@ -190,7 +310,16 @@
         padding: 14px 15px;
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 5px;
+      }
+      .history-head button[data-history] {
+        padding: 3px 10px;
+        min-height: 24px;
+        font-size: 12px;
+        border-radius: 999px;
+      }
+      #close-history {
+        margin-left: auto;
       }
       .history-search {
         padding: 0 15px 12px;
@@ -238,11 +367,25 @@
         flex: 1;
       }
       .entry-meta button {
-        padding: 2px 5px;
+        padding: 2px 6px;
       }
       .history-foot {
         padding: 8px;
         border-top: 1px solid var(--line);
+        display: flex;
+        gap: 6px;
+      }
+      .history-foot button {
+        flex: 1;
+        font-size: 12px;
+        padding: 4px 9px;
+        border-color: transparent;
+        background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
+        color: var(--muted);
+      }
+      .history-foot button:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+        color: var(--text);
       }
       .empty {
         padding: 45px 15px;
@@ -370,7 +513,9 @@
             <div class="common">
               <button data-lang="zh-CN">中</button
               ><button data-lang="en">英</button
-              ><button data-lang="ja">日</button>
+              ><button data-lang="ja">日</button
+              ><button data-lang="ko">韩</button
+              ><button data-lang="fr">法</button>
             </div>
             <span class="spacer"></span
             ><select id="engine" aria-label="翻译引擎">
@@ -413,6 +558,10 @@
                 译文会显示在这里
               </div>
               <div class="pane-bottom">
+                <div class="output-row" id="output-state" hidden>
+                  <span class="dot blink" aria-hidden="true"></span
+                  ><span class="busy-text" id="output-state-text">正在获取译文…</span>
+                </div>
                 <button id="favorite" disabled>☆ 收藏</button
                 ><span class="spacer"></span
                 ><button id="copy-both" disabled>复制双语</button
@@ -421,7 +570,7 @@
             </section>
           </div>
           <div class="actions">
-            <span class="hint" id="hint">Enter 翻译 · Shift+Enter 换行</span
+            <span class="hint" id="hint">输入即翻译 · Enter 立即 · Shift+Enter 换行</span
             ><span class="grow"></span
             ><button id="export-current" class="shell-only" disabled>
               导出文本</button
@@ -432,7 +581,7 @@
           <div class="history-head">
             <button data-history="all" class="active">最近翻译</button
             ><button data-history="starred">收藏</button
-            ><button id="close-history" style="margin-left: auto">×</button>
+            ><button id="close-history" aria-label="关闭历史面板">×</button>
           </div>
           <div class="history-search">
             <input

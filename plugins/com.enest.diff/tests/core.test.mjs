@@ -27,6 +27,18 @@ test("diff options ignore whitespace and case", () => {
   assert.deepEqual(core.countChanges(script), { dels: 1, adds: 1 });
 });
 
+test("diff ignoreBlank skips blank lines and preserves original numbering", () => {
+  const a = "one\n\n two\nthree";
+  const b = "one\ntwo\nthree";
+  const strict = core.countChanges(core.diffLines(a, b));
+  assert.ok(strict.dels + strict.adds > 0);
+  const script = core.diffLines(a, b, { ignoreWhitespace: true, ignoreBlank: true });
+  assert.deepEqual(core.countChanges(script), { dels: 0, adds: 0 });
+  // 原始行号保留：same 指向剔除空行前的真实下标（"three" 在 a 中是第 4 行，0 基 3）
+  const three = script.find((s) => s.type === "same" && s.aIndex === 3);
+  assert.equal(three.bIndex, 2);
+});
+
 test("diff chars segments and hunk pairing", () => {
   assert.deepEqual(core.diffChars("abc", "abc"), [{ value: "abc", kind: "same" }]);
   const segs = core.diffChars("axc", "abc");
@@ -66,6 +78,13 @@ test("unified diff output is copy-pastable", () => {
   assert.equal(hunkCount, 2);
 });
 
+test("unified diff respects ignoreBlank", () => {
+  const a = "x\n\ny";
+  const b = "x\ny";
+  assert.equal(core.unifiedDiff(a, b, { options: { ignoreBlank: true } }), "");
+  assert.notEqual(core.unifiedDiff(a, b), "");
+});
+
 test("hex dump formats offsets and printable column", () => {
   const dump = core.hexDump("ABC", 16);
   assert.match(dump, /^00000000  41 42 43/);
@@ -76,4 +95,20 @@ test("hex dump formats offsets and printable column", () => {
   const lines = core.hexDump("x".repeat(33), 16).split("\n");
   assert.equal(lines.length, 3);
   assert.match(lines[2], /^00000020/);
+});
+
+test("json normalization sorts keys recursively and keeps array order", () => {
+  const a = '{"b":1,"a":{"d":2,"c":[3,1]}}';
+  const b = '{\n  "a": { "c": [3, 1], "d": 2 },\n  "b": 1\n}';
+  const pair = core.normalizeJsonPair(a, b);
+  assert.ok(pair);
+  assert.equal(pair.a, pair.b); // 键序与空白差异被规范化抹平
+  const reordered = core.normalizeJsonPair(a, '{"b":1,"a":{"d":2,"c":[1,3]}}');
+  assert.ok(reordered);
+  assert.notEqual(reordered.a, reordered.b); // 数组顺序保持，仍视为差异
+});
+
+test("json normalization degrades to plain text on invalid json", () => {
+  const pair = core.normalizeJsonPair('{"a":1}', "not json at all");
+  assert.equal(pair, null);
 });

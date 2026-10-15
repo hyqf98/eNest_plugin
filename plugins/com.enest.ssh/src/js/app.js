@@ -486,7 +486,10 @@ import { decodeTerminalData } from './terminalData.js'
       })
       setDrawerOpen(true, false)
       const scope = $('right-scope')
-      if (scope) scope.value = 'current'
+      if (scope) {
+        scope.value = 'current'
+        syncSelectLabels()
+      }
       const s = Array.from(sessions.values()).find((x) => x.profileId === id)
       if (s) setActiveTab(s.tabId)
       renderRight()
@@ -2763,6 +2766,8 @@ import { decodeTerminalData } from './terminalData.js'
     setGroupSelectValue(gid)
     initJumpFormFields(p.jump || null)
     $('form-root').classList.add('show')
+    // 回填走原生 .value，kit 触发器标签需要显式同步
+    syncSelectLabels()
   }
 
   function updateSecretState(p) {
@@ -3048,50 +3053,15 @@ import { decodeTerminalData } from './terminalData.js'
    * 消除 Chromium 原生弹层遮挡选项/深色下白底白字的问题。
    * 通过覆盖实例 value 属性 + 派发 change，保持既有 .value 读写与监听完全兼容。
    */
-  function enhanceSelect(select) {
-    if (!select || select.dataset.enhanced === '1') return
-    select.dataset.enhanced = '1'
-    const protoValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')
-    const readOptions = () =>
-      Array.from(select.options).map((o) => ({ id: o.value, label: o.textContent || o.value }))
-
-    const trigger = document.createElement('button')
-    trigger.type = 'button'
-    trigger.className = 'cs-trigger cs-select'
-    trigger.setAttribute('aria-haspopup', 'listbox')
-    trigger.setAttribute('aria-expanded', 'false')
-    trigger.innerHTML = '<span class="cs-label"></span><span class="cs-caret">▾</span>'
-    select.insertAdjacentElement('afterend', trigger)
-    select.style.display = 'none'
-
-    const syncLabel = () => {
-      const cur = protoValue.get.call(select)
-      const hit = readOptions().find((it) => String(it.id) === String(cur))
-      trigger.querySelector('.cs-label').textContent = hit ? hit.label : cur
+  /* ========== 下拉：原生 select 由 plugin-kit upgradeSelects 统一升级 ==========
+     kit 在载入时隐藏原生 select 并生成 .pk-select 触发器；.value 写入与 change 事件
+     契约不变。动态写入 value 后调用 window.PluginKit?.upgradeSelects() 同步选中标签。 */
+  function syncSelectLabels() {
+    try {
+      window.PluginKit?.upgradeSelects?.()
+    } catch {
+      /* kit 未就绪时静默：label 由下次 DOM 变化的 MutationObserver 兜底 */
     }
-    Object.defineProperty(select, 'value', {
-      configurable: true,
-      get() {
-        return protoValue.get.call(select)
-      },
-      set(v) {
-        protoValue.set.call(select, v)
-        syncLabel()
-      },
-    })
-
-    trigger.addEventListener('click', () => {
-      openDropdown(
-        trigger,
-        readOptions(),
-        (id) => {
-          select.value = id
-          select.dispatchEvent(new Event('change', { bubbles: true }))
-        },
-        select.value
-      )
-    })
-    syncLabel()
   }
 
   function groupLabelFor(id) {
@@ -3183,6 +3153,7 @@ import { decodeTerminalData } from './terminalData.js'
     if ($('f-jump-auth')) $('f-jump-auth').value = 'password'
     setKeyField($('f-jump-keypath'), {})
     updateJumpAuthFields()
+    syncSelectLabels()
   }
 
   function fillJumpFromProfile(jp) {
@@ -3194,6 +3165,7 @@ import { decodeTerminalData } from './terminalData.js'
     $('f-jump-auth').value = auth
     setKeyField($('f-jump-keypath'), jp)
     updateJumpAuthFields()
+    syncSelectLabels()
   }
 
   function matchJumpProfile(jump) {
@@ -3226,6 +3198,7 @@ import { decodeTerminalData } from './terminalData.js'
     $('f-jump-auth').value = jump.authType || (jump.privateKeyHandleId || jump.privateKeyHint ? 'key' : 'password')
     setKeyField($('f-jump-keypath'), jump)
     updateJumpAuthFields()
+    syncSelectLabels()
     if (matched) setJumpSelectValue(matched.id, matched.name || '跳板连接')
     else setJumpSelectValue(JUMP_MANUAL_SENTINEL, '手动填写')
   }
@@ -3416,12 +3389,11 @@ import { decodeTerminalData } from './terminalData.js'
     })
     const scopeEl = $('right-scope')
     if (scopeEl) {
-      // enhanceSelect 已接管显示：原生 select 常驻隐藏，显隐切换作用在 trigger 上
-      const scopeTrig =
-        scopeEl.dataset.enhanced === '1' && scopeEl.nextElementSibling?.classList?.contains('cs-trigger')
-          ? scopeEl.nextElementSibling
-          : null
-      if (scopeTrig) scopeTrig.style.display = tab === 'history' ? '' : 'none'
+      // kit upgradeSelects 已接管显示：原生 select 常驻隐藏，显隐切换作用在兄弟 .pk-select 包裹层
+      // （kit 把包裹层插在 select 之后：insertAdjacentElement('afterend')，故不能用 closest）
+      const next = scopeEl.nextElementSibling
+      const scopeWrap = next?.classList?.contains('pk-select') ? next : null
+      if (scopeWrap) scopeWrap.style.display = tab === 'history' ? '' : 'none'
       else scopeEl.style.display = tab === 'history' ? '' : 'none'
     }
 
@@ -3671,7 +3643,7 @@ import { decodeTerminalData } from './terminalData.js'
 
   /* ========== bind UI ========== */
   function bindUi() {
-    ;['right-scope', 'f-env', 'f-auth', 'f-fp', 'f-jump-auth'].forEach((id) => enhanceSelect($(id)))
+    // 原生 select 的升级由 plugin-kit（entry.js 引入）自动完成，这里无需再增强
     $('btn-toggle-side').onclick = () => toggleSidebar()
     $('rail-new').onclick = () => openProfileForm(null)
     $('rail-search').onclick = () => {
@@ -3881,6 +3853,7 @@ import { decodeTerminalData } from './terminalData.js'
       renderRight()
     })
     $('right-scope').value = store.state.ui.historyScope || 'current'
+    syncSelectLabels()
     $('right-scope').addEventListener('change', (e) => {
       store.setUi({ historyScope: e.target.value })
       renderRight()

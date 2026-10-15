@@ -1,12 +1,17 @@
 # 屏幕助手 Changelog
 
-> 功能参考 [ZTools-plugins/shortcut-capture](https://github.com/ZToolsCenter/ZTools-plugins)（MIT, ZToolsCenter）
+## 1.3.0
 
-## 1.1.0
+- 标注工具快捷键：标注模式下 A 箭头 / R 矩形 / T 文字 / M 马赛克 / C 裁剪（与 ⌘Z 撤销 / ⇧⌘Z 重做共存），
+  工具按钮带 title 提示，页脚常驻快捷键说明；选「文字」工具自动展开标注面板与文字输入
+- 顶部工具头改为粘性半透明层（backdrop-filter 毛玻璃），滚动时操作始终可达；
+  prefers-reduced-transparency 下自动退为不透明底色并关闭模糊
+- 录屏计时器排印优化：等宽 + tabular-nums + 收紧字距，秒跳动不再引起数字宽度抖动
+- 录制状态标签独立配色样式；录制信息与文件路径断行保护（word-break）
+- 移除头部装饰性 eyebrow 标签，标题字号与字距收敛（排印层级由字重与大小承担）
 
-- 新增「贴图」独立页签，onEnter 收到 code='pin' 直接进入。
-- 贴图三入口：截图并贴（选区截图后直接贴出）、贴剪贴板图片（clipboard.readImage）、贴本地图片（PNG/JPEG/WebP 文件选择）。
-- 新增贴图管理区：pin.list() 实时列出贴图，支持单条关闭（pin.close）与全部关闭（pin.closeAll），空列表显示"暂无贴图"。
-- 截图历史持久化：storage.local（key 'sa_history_v1'）保存最近 8 条 {id, ts, thumb, w, h}，thumb 为 canvas 压缩缩略图（宽 ≤360、JPEG quality 0.72），旧的淘汰；启动时与"最近"列表合并展示（会话内原图优先）。
-- 历史条目点击可贴图：优先会话内原图，无原图时贴持久化缩略图。
-- manifest 权限新增 clipboard.readImage，版本升至 1.1.0。
+## 1.2.0
+
+- 贴图管理：截图并贴 / 剪贴板贴图 / 本地图片贴图；贴图列表刷新与全部关闭（二次确认）
+- 录屏：区域录制、系统声音可选（依赖宿主能力）、录制记录（路径复制、时长与体积）
+- 截图完成动作设置：打开预览 / 复制 / 直接贴图

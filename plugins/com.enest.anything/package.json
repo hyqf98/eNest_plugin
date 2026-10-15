@@ -1,0 +1,25 @@
+{
+  "name": "com.enest.anything",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.enest.anything",
+    "pack": "node ../../scripts/pack-plugin.mjs com.enest.anything",
+    "typecheck:backend": "tsc -p backend/tsconfig.json",
+    "test:backend": "node --test backend/*.test.mjs"
+  },
+  "dependencies": {
+    "@enest/plugin-kit": "1.0.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4",
+    "@types/node": "^22.20.3",
+    "typescript": "^5.9.3"
+  },
+  "enestBackend": {
+    "entry": "backend/index.ts",
+    "dependencies": []
+  }
+}

@@ -388,7 +388,7 @@
           <div class="form-hint">密码经 vault 加密保存，任何界面不回读明文。</div>
         </div>
         <div class="dlg-foot">
-          ${isEdit ? '<button type="button" class="ghost" id="f-delete" style="margin-right:auto;color:var(--danger)">删除</button>' : ''}
+          ${isEdit ? '<button type="button" class="ghost danger" id="f-delete" style="margin-right:auto">删除</button>' : ''}
           <button type="button" class="ghost" data-close>取消</button>
           <button type="submit" class="primary">保存</button>
         </div>

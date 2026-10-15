@@ -1,7 +1,7 @@
 /**
  * com.enest.ccswitch — UI 主控
- * 页面路由（供应商 / MCP / 会话 / 用量 / 备份 / 项目预设 / 设置）+
- * 应用侧栏（安装探测灰显）+ 卡片网格 + 弹层 + quick provider + 热键。
+ * 页面路由（供应商 / 历史切换 / MCP / 会话 / 用量 / 备份 / 项目预设 / 设置）+
+ * 应用侧栏（安装探测灰显）+ 供应商卡片网格 + 右侧编辑抽屉 + 弹层 + quick provider + 热键。
  * 命名空间挂 window.CCS.ui。
  */
 ;(function (global) {
@@ -10,6 +10,8 @@
   const M = global.CCS.mcp
   const S = global.CCS.sessions
   const U = global.CCS.usage
+  const H = global.CCS.history
+  const SNAP = global.CCS.snapshot
   const PRESETS = global.CCS.presets
 
   /* —— 全局状态 —— */
@@ -25,9 +27,11 @@
     sessionDetail: null,
     sessionListApp: null,
     usageData: null,
-    diffPending: null,   // { app, provider, diff }
+    diffPending: null,   // [{ app, provider, diff }]
     editProviderId: null,
-    editMcpId: null
+    editMcpId: null,
+    latencyCache: new Map(), // baseUrl → { ok, latency, status, ts }
+    presetTag: ''       // 预设库标签过滤
   }
 
   const $ = (sel) => document.querySelector(sel)
@@ -64,6 +68,14 @@
     const d = new Date(ms)
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
+  function fmtAgo(ms) {
+    if (!ms) return '—'
+    const diff = Date.now() - ms
+    if (diff < 60_000) return '刚刚'
+    if (diff < 3_600_000) return Math.floor(diff / 60_000) + ' 分钟前'
+    if (diff < 86_400_000) return Math.floor(diff / 3_600_000) + ' 小时前'
+    return Math.floor(diff / 86_400_000) + ' 天前'
+  }
 
   function localToast(msg, type) {
     A.toast(msg, type)
@@ -72,6 +84,29 @@
     const t = h('div', { class: 'toast ' + (type || ''), text: msg })
     box.appendChild(t)
     setTimeout(() => t.remove(), 2600)
+  }
+
+  /** 通用确认弹层（替代 window.confirm，Promise<boolean>） */
+  function confirmDialog({ title, text, hint, okText = '确认', danger = false }) {
+    return new Promise((resolve) => {
+      const modal = $('#modal-confirm')
+      if (!modal) { resolve(global.confirm ? global.confirm(text || '') : true); return }
+      $('#confirm-title').textContent = title || '确认'
+      const txt = $('#confirm-text')
+      txt.innerHTML = ''
+      txt.appendChild(h('div', { text: text || '' }))
+      $('#confirm-hint').textContent = hint || ''
+      const ok = $('#btn-confirm-ok')
+      ok.textContent = okText
+      ok.className = 'btn ' + (danger ? 'danger' : 'primary')
+      modal.hidden = false
+      const done = (val) => { modal.hidden = true; ok.removeEventListener('click', onOk); resolve(val) }
+      const onOk = () => done(true)
+      ok.addEventListener('click', onOk)
+      modal.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => done(false), { once: true }))
+      modal.addEventListener('click', (e) => { if (e.target === modal) done(false) }, { once: true })
+      ok.focus()
+    })
   }
 
   /* ================ 应用侧栏 ================ */
@@ -173,10 +208,11 @@
     if (!state.installed.has(app)) {
       body.innerHTML = ''
       body.appendChild(h('div', { class: 'guide' },
-        h('div', { class: 'big', text: '📦' }),
+        h('div', { class: 'big', text: '⌾' }),
         h('div', { text: P.APP_MAP[app]?.name + ' 尚未安装或未初始化' }),
         h('div', { class: 'field-hint', text: '安装并首次运行该 CLI 后，此处可管理其供应商配置' })
       ))
+      renderSummary()
       return
     }
 
@@ -191,40 +227,105 @@
         h('div', { class: 'big', text: '⇄' }),
         h('div', { text: '还没有供应商' }),
         h('div', { class: 'field-hint', text: '从「预设库」一键实例化，或「新建」自定义' }),
-        h('div', { style: 'margin-top:12px' },
-          h('button', { class: 'btn primary', onclick: openPresetLib, text: '打开预设库' })
+        h('div', { style: 'margin-top:12px;display:flex;gap:8px;justify-content:center' },
+          h('button', { class: 'btn primary', onclick: openPresetLib, text: '打开预设库' }),
+          h('button', { class: 'btn ghost', onclick: () => openProviderModal(null), text: '新建供应商' })
         )
       ))
+      renderSummary()
       return
     }
 
+    // 标签过滤 chips（含「全部」）
+    renderTagChips(all)
     const kw = ($('#provider-search')?.value || '').trim().toLowerCase()
-    const filtered = kw
-      ? all.filter(p => (p.name + p.baseUrl + p.model + (p.tag || '')).toLowerCase().includes(kw))
-      : all
+    let filtered = all
+    if (kw) filtered = filtered.filter(p => (p.name + ' ' + p.baseUrl + ' ' + p.model + ' ' + P.tagsOf(p).join(' ')).toLowerCase().includes(kw))
 
     if (filtered.length === 0) {
       body.innerHTML = ''
       body.appendChild(h('div', { class: 'empty', text: '没有匹配的供应商' }))
+      renderSummary(all, current)
       return
     }
 
     body.innerHTML = ''
-    const grid = h('div', { class: 'grid' })
     const mode = P.APP_MAP[app]?.mode
-    filtered.forEach((p, idx) => {
-      const isCurrent = current && current.id === p.id
-      grid.appendChild(renderProviderCard(p, { isCurrent, mode }))
+    // 当前生效项置顶，其余保持排序
+    const ordered = [...filtered].sort((a, b) => (current && current.id === b.id ? 1 : 0) - (current && current.id === a.id ? 1 : 0))
+    const grid = h('div', { class: 'grid' })
+    ordered.forEach(p => {
+      grid.appendChild(renderProviderCard(p, { isCurrent: current && current.id === p.id, mode }))
     })
     body.appendChild(grid)
+    renderSummary(all, current)
+  }
+
+  /** 顶部状态摘要：当前供应商 + 已配置总数 + 多应用共用同一供应商 */
+  function renderSummary(all, current) {
+    const strip = $('#summary-strip')
+    if (!strip) return
+    const list = all || P.sorted().filter(p => !p.apps || p.apps.length === 0 || p.apps.includes(state.currentApp))
+    const cur = current !== undefined ? current : detectCurrentProvider(state.currentApp, list)
+    strip.hidden = false
+    strip.innerHTML = ''
+    const items = []
+    items.push({ label: '当前生效', value: cur ? cur.name : '官方默认', accent: true })
+    items.push({ label: '已配置', value: String(list.length) + ' 个供应商' })
+    // 跨应用共用统计：同一 provider 出现在多少个已安装应用
+    let shared = 0
+    for (const p of list) {
+      const n = (p.apps || []).filter(a => state.installed.has(a)).length
+      if (n > 1) shared++
+    }
+    items.push({ label: '多应用共用', value: shared ? String(shared) + ' 个供应商' : '无' })
+    const lat = cur?.baseUrl ? state.latencyCache.get(cur.baseUrl) : null
+    items.push({
+      label: '连通性',
+      value: lat ? (lat.ok ? lat.latency + ' ms' : '不可达') : '未测',
+      tone: lat ? (lat.ok ? 'ok' : 'danger') : ''
+    })
+    for (const it of items) {
+      strip.appendChild(h('div', { class: 'summary-item' + (it.accent ? ' accent' : '') + (it.tone ? ' tone-' + it.tone : '') },
+        h('div', { class: 'summary-value mono', text: it.value }),
+        h('div', { class: 'summary-label', text: it.label })
+      ))
+    }
+  }
+
+  function renderTagChips(all) {
+    const box = $('#provider-tags')
+    if (!box) return
+    const counts = new Map()
+    for (const p of all) {
+      const tags = P.tagsOf(p)
+      if (!tags.length) counts.set('未分组', (counts.get('未分组') || 0) + 1)
+      for (const t of tags) counts.set(t, (counts.get(t) || 0) + 1)
+    }
+    box.innerHTML = ''
+    const kw = ($('#provider-search')?.value || '').trim().toLowerCase()
+    const activeTag = state['_tagFilter:' + state.currentApp] || ''
+    const chip = (label, on, onclick) => h('button', {
+      class: 'chip' + (on ? ' active' : ''), type: 'button', onclick
+    }, label)
+    box.appendChild(chip('全部', !activeTag && !kw, () => { state['_tagFilter:' + state.currentApp] = ''; renderProviders() }))
+    for (const [tag, n] of [...counts.entries()].sort((a, b) => b[1] - a[1])) {
+      box.appendChild(chip(tag + ' ' + n, activeTag === tag, () => {
+        state['_tagFilter:' + state.currentApp] = activeTag === tag ? '' : tag
+        renderProviders()
+      }))
+    }
   }
 
   function renderProviderCard(p, { isCurrent, mode }) {
     const app = state.currentApp
     const card = h('div', {
-      class: 'card provider-card',
+      class: 'card provider-card' + (isCurrent ? ' current' : ''),
       draggable: 'true',
-      'data-id': p.id
+      'data-id': p.id,
+      tabindex: '0',
+      role: 'button',
+      'aria-label': p.name + (isCurrent ? '（当前使用）' : '')
     })
 
     // 行 1：名称 + 徽章 + 标签 + 拖拽柄
@@ -244,6 +345,8 @@
       h('span', { class: 'k', text: '模型' }),
       h('span', { class: 'v', title: p.model || '默认', text: p.model || '默认' })
     )
+    // 标签行（新 tags 数组）
+    const tags = P.tagsOf(p)
     const actions = h('div', { class: 'card-actions' },
       h('button', {
         class: 'btn sm ' + (isCurrent ? '' : 'primary'),
@@ -267,10 +370,13 @@
         onclick: () => confirmDeleteProvider(p)
       }, '删除')
     )
-    card.append(row1, row2, row3, actions)
-    if (p.tag) {
-      card.insertBefore(h('div', { class: 'card-row' }, h('span', { class: 'tag', text: p.tag })), row2)
+    card.append(row1, row2, row3)
+    if (tags.length) {
+      const tagRow = h('div', { class: 'card-row tag-row' })
+      for (const t of tags) tagRow.appendChild(h('span', { class: 'tag', text: t }))
+      card.appendChild(tagRow)
     }
+    card.appendChild(actions)
     // 拖拽排序
     card.addEventListener('dragstart', (e) => {
       card.classList.add('dragging')
@@ -291,6 +397,10 @@
         renderProviders()
       }
     })
+    // 键盘可达：Enter 打开编辑
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); openProviderModal(p) }
+    })
     return card
   }
 
@@ -305,37 +415,54 @@
       localToast('该供应商正在使用中，先切换到其它供应商再删除', 'error')
       return
     }
-    const modal = h('div', { class: 'modal', style: 'position:fixed' },
-      h('div', { class: 'modal-card' },
-        h('div', { class: 'modal-head' }, h('div', { class: 'modal-title', text: '删除供应商' })),
-        h('div', { class: 'modal-body' }, h('div', { text: `确定删除「${p.name}」？此操作不影响已写入的应用配置。` })),
-        h('div', { class: 'modal-foot' },
-          h('div', { class: 'spacer' }),
-          h('button', { class: 'btn ghost', onclick: () => modal.remove(), text: '取消' }),
+    // 撤销路径：删除前保留完整对象，确认弹层里给「撤销」toast 入口
+    const snapshotItem = JSON.parse(JSON.stringify(p))
+    const ok = await confirmDialog({
+      title: '删除供应商',
+      text: `确定删除「${p.name}」？此操作只移除插件内配置，不改动已写入的应用配置文件。`,
+      hint: '删除后可通过提示条内的「撤销」一键恢复。',
+      okText: '删除',
+      danger: true
+    })
+    if (!ok) return
+    try {
+      await P.removeProvider(p.id)
+      if (p.secretRef) await A.vaultRemove(p.secretRef)
+      localToast('已删除 ' + p.name, 'success')
+      renderProviders()
+      // 可撤销 toast
+      const box = $('#toasts')
+      if (box) {
+        const t = h('div', { class: 'toast undoable' },
+          h('span', { text: '已删除「' + p.name + '」' }),
           h('button', {
-            class: 'btn danger', text: '删除', onclick: async () => {
+            class: 'btn sm primary undo-btn', text: '撤销', onclick: async () => {
               try {
-                await P.removeProvider(p.id)
-                if (p.secretRef) await A.vaultRemove(p.secretRef)
-                modal.remove()
-                localToast('已删除 ' + p.name, 'success')
+                await P.upsertProvider(snapshotItem)
+                t.remove()
+                localToast('已恢复「' + snapshotItem.name + '」', 'success')
                 renderProviders()
-              } catch (e) { localToast(A.errMsg(e), 'error') }
+              } catch (e) { localToast('恢复失败：' + A.errMsg(e), 'error') }
             }
           })
         )
-      )
-    )
-    document.body.appendChild(modal)
+        box.appendChild(t)
+        setTimeout(() => t.remove(), 8000)
+      }
+    } catch (e) { localToast(A.errMsg(e), 'error') }
   }
 
-  /* —— 切换流程：diff 预览 → 确认 → write —— */
+  /* —— 切换流程：diff 预览 → 确认 → write → 历史记录 —— */
   async function switchProvider(p, { skipConfirm } = {}) {
     const app = state.currentApp
     try {
       // 通用供应商：多应用同步切换
       const targetApps = p.universal && Array.isArray(p.apps) && p.apps.length > 1 ? p.apps.filter(a => state.installed.has(a)) : [app]
-      // 密钥取回：vault 无明文 get —— 由用户在保存时选择「明文内置」或引用外部；当前实现：plainSecret 为空则跳过密钥写入
+      // 切换前状态（供历史记录与回退）
+      const beforeStates = new Map()
+      for (const target of targetApps) {
+        beforeStates.set(target, await H.readCurrentState(target))
+      }
       const diffs = []
       for (const target of targetApps) {
         const snap = await ensureSnapshot(target)
@@ -347,17 +474,18 @@
 
       const diffConfirmOn = await A.settingsGet('diffConfirm', true)
       if (!skipConfirm && diffConfirmOn !== false) {
-        showDiffModal(diffs)
+        showDiffModal(diffs, beforeStates)
         return
       }
-      await applyDiffs(diffs)
+      await applyDiffs(diffs, beforeStates)
     } catch (e) {
       localToast('切换失败：' + A.errMsg(e), 'error')
     }
   }
 
-  function showDiffModal(diffs) {
+  function showDiffModal(diffs, beforeStates) {
     state.diffPending = diffs
+    state._diffBefore = beforeStates || new Map()
     const first = diffs[0]
     $('#diff-app').textContent = diffs
       .map(d => `${P.APP_MAP[d.app]?.name || d.app} → ${d.provider.name}`)
@@ -378,12 +506,15 @@
     $('#modal-diff').hidden = false
   }
 
-  async function applyDiffs(diffs) {
+  async function applyDiffs(diffs, beforeStates) {
+    const before = beforeStates || state._diffBefore || new Map()
     let lastErr = null
+    const written = []
     for (const d of diffs) {
       try {
         await P.applyProvider(d.app, d.provider)
         state.snapshots.delete(d.app)
+        written.push(d.app)
       } catch (e) {
         lastErr = e
       }
@@ -393,18 +524,64 @@
     } else {
       localToast(`已切换到 ${diffs[0].provider.name}（已自动备份）`, 'success')
       A.notify('供应商切换', `已切换到 ${diffs[0].provider.name}`)
+      // 记入切换历史（环形 50 条），失败不阻塞主流程
+      try {
+        await H.record(diffs[0].provider, {
+          ...(before.get(written[0]) || {}),
+          providerId: null,
+          name: null
+        }, written)
+      } catch { /* 历史失败不影响切换 */ }
     }
     $('#modal-diff').hidden = true
     await renderProviders()
   }
 
-  /* ================ 供应商弹层 ================ */
-  function openProviderModal(existing, presetInit) {
-    state.editProviderId = existing?.id || null
-    const p = existing || presetInit || {}
-    $('#provider-modal-title').textContent = existing ? '编辑供应商' : '新建供应商'
+  /* ================ 编辑抽屉 ================ */
+  function openDrawer() {
+    const d = $('#drawer-provider')
+    if (!d) return
+    d.hidden = false
+    d.setAttribute('aria-hidden', 'false')
+    // 同帧切换再触发过渡（transform 过渡从 right 滑入）
+    requestAnimationFrame(() => d.classList.add('open'))
+    const first = $('#pf-name')
+    if (first) setTimeout(() => first.focus(), 120)
+  }
+  function closeDrawer() {
+    const d = $('#drawer-provider')
+    if (!d || d.hidden) return
+    d.classList.remove('open')
+    d.setAttribute('aria-hidden', 'true')
+    const done = () => { d.hidden = true }
+    if (global.matchMedia?.('(prefers-reduced-motion: reduce)').matches) done()
+    else setTimeout(done, 200)
+  }
+
+  /** 抽屉顶部「从模板开始」：常用预设快捷 chips（前 8 个 + 当前应用相关） */
+  function renderDrawerPresetChips(presetInit) {
+    const box = $('#pf-preset-chips')
+    if (!box) return
+    box.innerHTML = ''
+    const app = state.currentApp
+    const relevant = PRESETS.PRESETS.filter(p => p.apps.includes(app))
+    const list = (relevant.length >= 4 ? relevant : PRESETS.PRESETS).slice(0, 8)
+    for (const preset of list) {
+      box.appendChild(h('button', {
+        class: 'chip', type: 'button', title: preset.baseUrl || '官方默认端点',
+        onclick: () => {
+          const inst = PRESETS.instantiate(preset, { apps: [state.currentApp] })
+          fillProviderForm(inst)
+          $('#pf-form-hint').textContent = '已套用模板「' + preset.name + '」，补入 API Key 即可保存'
+        }
+      }, preset.name))
+    }
+    if (presetInit) $('#pf-form-hint').textContent = '已从预设库带入「' + presetInit.name + '」'
+  }
+
+  function fillProviderForm(p) {
     $('#pf-name').value = p.name || ''
-    $('#pf-tag').value = p.tag || ''
+    $('#pf-tags').value = P.tagsOf(p).join(', ')
     $('#pf-baseurl').value = p.baseUrl || ''
     $('#pf-apikey').value = ''
     $('#pf-apikey').type = 'password'
@@ -413,15 +590,15 @@
     // 目标应用 chips
     const appsBox = $('#pf-apps')
     appsBox.innerHTML = ''
-    const selected = new Set(p.apps || [state.currentApp])
+    const selected = new Set(p.apps && p.apps.length ? p.apps : [state.currentApp])
     for (const meta of P.APPS) {
-      const chip = h('button', {
+      const chipEl = h('button', {
         class: 'chip' + (selected.has(meta.id) ? ' on' : ''),
         type: 'button',
         'data-app': meta.id,
-        onclick: () => { chip.classList.toggle('on') }
-      }, meta.name + (p.universal ? '' : ''))
-      appsBox.appendChild(chip)
+        onclick: () => chipEl.classList.toggle('on')
+      }, meta.name)
+      appsBox.appendChild(chipEl)
     }
     // 高级
     const adv = $('#pf-advanced')
@@ -439,18 +616,26 @@
     )
     // JSON 源码视图
     $('#pf-json').value = JSON.stringify({
-      name: p.name || '', tag: p.tag || '', baseUrl: p.baseUrl || '',
+      name: p.name || '', tag: P.tagsOf(p)[0] || '', tags: P.tagsOf(p), baseUrl: p.baseUrl || '',
       model: p.model || '', apps: [...selected], universal: Boolean(p.universal)
     }, null, 2)
-    // 切回表单 tab
+    $('#pf-test-result').textContent = ''
+    $('#pf-form-hint').textContent = ''
+  }
+
+  function openProviderModal(existing, presetInit) {
+    state.editProviderId = existing?.id || null
+    const p = existing || presetInit || {}
+    $('#provider-modal-title').textContent = existing ? '编辑供应商' : '新建供应商'
+    fillProviderForm(p)
+    renderDrawerPresetChips(presetInit && !existing ? presetInit : null)
     activateFormTab('#provider-form-tabs', 'form')
-    $('#modal-provider').hidden = false
+    openDrawer()
   }
 
   function activateFormTab(tabsSel, tab) {
     $$(tabsSel + ' button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab))
     const isForm = tab === 'form'
-    const paneForm = $(tabsSel).parentElement.querySelector('.form-pane:first-of-type')
     const panes = $(tabsSel).parentElement.querySelectorAll('.form-pane')
     if (panes.length >= 2) {
       panes[0].hidden = !isForm
@@ -471,7 +656,8 @@
     } else {
       base = {
         name: $('#pf-name').value.trim(),
-        tag: $('#pf-tag').value.trim(),
+        tags: $('#pf-tags').value.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+        tag: $('#pf-tags').value.split(/[,，]/).map(s => s.trim()).filter(Boolean)[0] || '',
         baseUrl: $('#pf-baseurl').value.trim(),
         model: $('#pf-model').value.trim()
       }
@@ -480,10 +666,14 @@
     const apps = isJsonTab
       ? (Array.isArray(base.apps) ? base.apps : [state.currentApp])
       : $$('#pf-apps .chip.on').map(c => c.dataset.app)
+    const tags = Array.isArray(base.tags) && base.tags.length
+      ? base.tags.map(s => String(s).trim()).filter(Boolean)
+      : (base.tag ? [String(base.tag)] : [])
     const item = {
       id: state.editProviderId || '',
       name: String(base.name || '').trim(),
-      tag: String(base.tag || ''),
+      tag: tags[0] || '',
+      tags,
       baseUrl: String(base.baseUrl || '').trim(),
       model: String(base.model || '').trim(),
       apps,
@@ -525,20 +715,73 @@
     delete item.plainSecret
     await P.upsertProvider(item)
     item.plainSecret = plain
-    $('#modal-provider').hidden = true
+    closeDrawer()
     localToast('已保存 ' + item.name, 'success')
     renderProviders()
   }
 
+  /* ================ 测速 ================ */
+  async function testFromDrawer() {
+    const url = $('#pf-baseurl')?.value.trim()
+    const out = $('#pf-test-result')
+    if (!url) { localToast('先填写 Base URL', 'info'); return }
+    if (out) out.textContent = '测速中…'
+    const r = await U.testEndpoint(url)
+    if (r.ok) {
+      if (out) out.textContent = `可达 · ${r.latency}ms · HTTP ${r.status}`
+      state.latencyCache.set(url, { ok: true, latency: r.latency, status: r.status, ts: Date.now() })
+      localToast(`可达 · ${r.latency}ms · HTTP ${r.status}`, 'success')
+    } else {
+      if (out) out.textContent = '不可达：' + r.error
+      localToast('不可达：' + r.error, 'error')
+    }
+    if (state.page === 'providers') renderSummary()
+  }
+
+  /** 卡片测速：对单供应商 baseUrl 发轻量请求并缓存展示 */
+  async function testProviderCard(p, btn) {
+    if (!p.baseUrl) { localToast('官方默认端点无需测速', 'info'); return }
+    const cached = state.latencyCache.get(p.baseUrl)
+    const fresh = cached && Date.now() - cached.ts < 60_000
+    if (fresh) { renderProviders(); return }
+    btn.disabled = true
+    btn.textContent = '…'
+    const r = await U.testEndpoint(p.baseUrl)
+    state.latencyCache.set(p.baseUrl, { ok: r.ok, latency: r.latency, status: r.status, ts: Date.now() })
+    btn.disabled = false
+    renderProviders()
+    if (r.ok) localToast(p.name + ' 可达 · ' + r.latency + 'ms', 'success')
+    else localToast(p.name + ' 不可达：' + r.error, 'error')
+  }
+
   /* ================ 预设库 ================ */
   function openPresetLib() {
-    renderPresetGrid('')
+    state.presetTag = ''
+    renderPresetTagFilter()
+    renderPresetGrid($('#preset-search')?.value || '')
     $('#modal-presets').hidden = false
+  }
+
+  function renderPresetTagFilter() {
+    const box = $('#preset-tag-filter')
+    if (!box) return
+    box.innerHTML = ''
+    for (const t of PRESETS.tags()) {
+      box.appendChild(h('button', {
+        class: 'chip' + (state.presetTag === t ? ' active' : ''),
+        onclick: () => {
+          state.presetTag = state.presetTag === t ? '' : t
+          renderPresetTagFilter()
+          renderPresetGrid($('#preset-search')?.value || '')
+        }
+      }, t))
+    }
   }
 
   function renderPresetGrid(q) {
     const grid = $('#preset-grid')
-    const list = PRESETS.search(q)
+    let list = PRESETS.search(q)
+    if (state.presetTag) list = list.filter(p => p.tag === state.presetTag)
     grid.innerHTML = ''
     if (list.length === 0) {
       grid.appendChild(h('div', { class: 'empty', text: '没有匹配的预设' }))
@@ -555,8 +798,9 @@
         h('div', { class: 'card-actions' },
           h('button', {
             class: 'btn sm primary', text: '实例化', onclick: async () => {
+              const installedApps = preset.apps.filter(a => state.installed.has(a))
               const inst = PRESETS.instantiate(preset, {
-                apps: preset.apps.filter(a => state.installed.has(a)).length ? preset.apps.filter(a => state.installed.has(a)) : preset.apps
+                apps: installedApps.length ? installedApps : preset.apps
               })
               await P.upsertProvider(inst)
               localToast(`已从预设创建「${preset.name}」，可点击编辑补入密钥`, 'success')
@@ -616,6 +860,119 @@
     document.body.appendChild(modal)
   }
 
+  /* ================ 全量快照（备份页） ================ */
+  async function exportSnapshot() {
+    try {
+      const payload = await SNAP.exportAll()
+      const r = await A.saveTextFile({
+        defaultName: 'ccswitch-full-backup.json',
+        filename: 'ccswitch-full-backup.json',
+        content: JSON.stringify(payload, null, 2)
+      })
+      if (r) localToast('全量导出成功（不含密钥明文）', 'success')
+    } catch (e) { localToast('导出失败：' + A.errMsg(e), 'error') }
+  }
+
+  function importSnapshotModal() {
+    const ta = h('textarea', { class: 'mono', rows: '12', placeholder: '粘贴「导出全量 JSON」的内容（也兼容旧的供应商导出格式）' })
+    const mergeCheck = h('input', { type: 'checkbox' })
+    const modal = h('div', { class: 'modal' },
+      h('div', { class: 'modal-card' },
+        h('div', { class: 'modal-head' }, h('div', { class: 'modal-title', text: '从 JSON 恢复' })),
+        h('div', { class: 'modal-body' },
+          ta,
+          h('label', { class: 'field-row', style: 'display:flex;gap:8px;align-items:center;margin-top:10px' },
+            mergeCheck, h('span', { text: '合并导入（保留现有数据，按名称/ID 去重）；不勾选则覆盖' })),
+          h('div', { class: 'field-hint', text: '快照不含密钥明文；secretRef 引用原样保留，跨环境使用需重新录入密钥' })
+        ),
+        h('div', { class: 'modal-foot' },
+          h('div', { class: 'spacer' }),
+          h('button', { class: 'btn ghost', onclick: () => modal.remove(), text: '取消' }),
+          h('button', {
+            class: 'btn primary', text: '恢复', onclick: async () => {
+              try {
+                const data = JSON.parse(ta.value)
+                if (!mergeCheck.checked) {
+                  const ok = await confirmDialog({
+                    title: '覆盖恢复',
+                    text: '覆盖模式将清空当前的供应商 / MCP / 项目预设再写入快照内容。',
+                    hint: '建议先「导出全量 JSON」留一份当前状态。',
+                    okText: '覆盖恢复',
+                    danger: true
+                  })
+                  if (!ok) return
+                }
+                const res = await SNAP.importAll(data, { merge: mergeCheck.checked })
+                M.resetCache?.()
+                P.resetCache?.()
+                modal.remove()
+                localToast(`恢复完成（${res.mode}）：供应商 +${res.providers.added ?? 0}，MCP ${res.mcp}，项目 ${res.projects}`, 'success')
+                renderProviders()
+              } catch (e) { localToast('恢复失败：' + A.errMsg(e), 'error') }
+            }
+          })
+        )
+      )
+    )
+    document.body.appendChild(modal)
+  }
+
+  /* ================ 切换历史页 ================ */
+  async function loadHistoryPage() {
+    const body = $('#history-body')
+    const list = await H.load()
+    $('#history-sub').textContent = `最近 ${H.LIMIT} 次切换记录，可一键回退 · 当前共 ${list.length} 条`
+    body.innerHTML = ''
+    if (list.length === 0) {
+      body.appendChild(h('div', { class: 'guide' },
+        h('div', { class: 'big', text: '◷' }),
+        h('div', { text: '还没有切换记录' }),
+        h('div', { class: 'field-hint', text: '每次确认切换后自动记录（保留最近 50 条），可随时回退' })
+      ))
+      return
+    }
+    const wrap = h('div', { class: 'history-list' })
+    for (const entry of list) {
+      const appNames = (entry.apps || (entry.app ? [entry.app] : []))
+        .map(a => P.APP_MAP[a]?.name || a).join('、')
+      wrap.appendChild(h('div', { class: 'history-item' },
+        h('div', { class: 'history-main' },
+          h('div', { class: 'row1' },
+            h('span', { class: 'name', text: entry.providerName }),
+            h('span', { class: 'tag', text: appNames || '—' }),
+            entry.rolledBackFrom ? h('span', { class: 'tag', text: '回退产生' }) : null,
+            entry.changed === false ? h('span', { class: 'tag', text: '端点未变' }) : null
+          ),
+          h('div', { class: 'meta mono' },
+            h('span', { text: (entry.baseUrl ? host(entry.baseUrl) : '官方默认') + ' · ' + (entry.model || '默认模型') }),
+            entry.prevName ? h('span', { text: ' ← 原为 ' + entry.prevName }) : null
+          )
+        ),
+        h('div', { class: 'history-side' },
+          h('span', { class: 'when', title: new Date(entry.at).toLocaleString('zh-CN'), text: fmtAgo(entry.at) }),
+          h('button', {
+            class: 'btn sm ghost', text: '回退', onclick: async () => {
+              const ok = await confirmDialog({
+                title: '回退切换',
+                text: `将「${P.APP_MAP[entry.app]?.name || entry.app}」恢复到「${entry.prevName || '切换前状态'}」（${entry.prevBaseUrl ? host(entry.prevBaseUrl) : '官方默认'}）。`,
+                hint: '回退前宿主自动快照当前状态，可在「备份」页再恢复。',
+                okText: '回退'
+              })
+              if (!ok) return
+              try {
+                await H.rollback(entry)
+                state.snapshots.delete(entry.app)
+                localToast('已回退到 ' + (entry.prevName || '切换前状态'), 'success')
+                await Promise.all([loadHistoryPage(), renderProviders()])
+              } catch (e) { localToast('回退失败：' + A.errMsg(e), 'error') }
+            }
+          })
+        )
+      ))
+    }
+    body.appendChild(wrap)
+  }
+
   /* ================ MCP 页 ================ */
   async function renderMcp() {
     const body = $('#mcp-body')
@@ -660,7 +1017,14 @@
           h('button', { class: 'btn sm ghost', onclick: () => openMcpModal(entry), text: '编辑' }),
           h('button', {
             class: 'btn sm ghost danger', text: '删除', onclick: async () => {
-              if (!confirm(`删除 MCP「${entry.id}」？将从所有已启用应用配置中移除。`)) return
+              const ok = await confirmDialog({
+                title: '删除 MCP',
+                text: `删除 MCP「${entry.id}」？`,
+                hint: '将从所有已启用应用的配置文件中同步移除。',
+                okText: '删除',
+                danger: true
+              })
+              if (!ok) return
               await M.remove(entry.id)
               for (const appId of Object.keys(entry.apps || {})) {
                 if (entry.apps[appId] && state.installed.has(appId)) {
@@ -856,9 +1220,6 @@
       $('#sessions-sub').textContent = `${s.sessionId.slice(0, 8)} · ${detail.turns.length} 轮${detail.truncated ? ' · 文件超 512KB 已截断' : ''}`
       body.innerHTML = ''
       const wrap = h('div', { class: 'session-detail' })
-      if (kw(stateSessionSearch())) {
-        // 详情内搜索过滤
-      }
       for (const turn of detail.turns) {
         wrap.appendChild(renderTurn(turn))
       }
@@ -873,7 +1234,6 @@
   }
 
   function stateSessionSearch() { return $('#session-search')?.value || '' }
-  function kw(v) { return String(v || '').trim().length > 0 }
 
   function renderTurn(turn) {
     const search = stateSessionSearch().trim().toLowerCase()
@@ -981,6 +1341,7 @@
     if (state.page !== 'backups') return
     const app = state.currentApp
     const body = $('#backups-body')
+    $('#backups-sub').textContent = P.APP_MAP[app]?.name + ' · 切换前自动备份，保留最近 20 份'
     body.innerHTML = ''
     body.appendChild(h('div', { class: 'skeleton', style: 'height:60px' }))
     try {
@@ -995,7 +1356,13 @@
           h('span', { class: 'when', text: `${new Date(b.createdAt || Date.parse(b.id.replace(/\./g, ':')) || Date.now()).toLocaleString('zh-CN')} · ${b.files.length} 个文件` }),
           h('button', {
             class: 'btn sm ghost danger', text: '恢复', onclick: async () => {
-              if (!confirm('恢复到此快照？（恢复前会再自动备份当前状态）')) return
+              const ok = await confirmDialog({
+                title: '恢复快照',
+                text: '恢复到此快照？',
+                hint: '恢复前会再自动备份当前状态。',
+                okText: '恢复'
+              })
+              if (!ok) return
               try {
                 await A.agentRestore(app, b.id)
                 state.snapshots.delete(app)
@@ -1023,7 +1390,7 @@
       body.appendChild(h('div', { class: 'guide' },
         h('div', { class: 'big', text: '❖' }),
         h('div', { text: '还没有项目预设' }),
-        h('div', { class: 'field-hint', text: '保存当前供应商 + MCP + 提示词整套配置，一键应用' })
+        h('div', { class: 'field-hint', text: '保存当前供应商 + MCP 整套配置，一键应用' })
       ))
       return
     }
@@ -1057,7 +1424,13 @@
         }),
         h('button', {
           class: 'btn sm ghost danger', text: '删除', onclick: async () => {
-            if (!confirm(`删除项目预设「${proj.name}」？`)) return
+            const ok = await confirmDialog({
+              title: '删除项目预设',
+              text: `删除项目预设「${proj.name}」？`,
+              okText: '删除',
+              danger: true
+            })
+            if (!ok) return
             await A.storageSet(PROJECTS_KEY, projects.filter(x => x.id !== proj.id))
             renderProjects()
           }
@@ -1103,6 +1476,7 @@
         switchEl(diffConfirm !== false, async v => { await A.settingsSet('diffConfirm', v) }),
         '关闭后一键直接切换（仍自动快照）'),
       row('备份保留策略', h('span', { class: 'field-hint', text: '宿主自动快照 · 每应用保留最近 20 份' }), null),
+      row('切换历史', h('span', { class: 'field-hint', text: '环形保留最近 50 条，可在「切换历史」页回退或清空' }), null),
       row('数据来源', h('span', { class: 'field-hint', text: '功能语义与预设数据复刻自 cc-switch（Apache-2.0）' }), null)
     )
   }
@@ -1133,6 +1507,7 @@
   /* ================ 页面路由 ================ */
   const PAGE_LOADERS = {
     providers: refreshCurrentApp,
+    history: loadHistoryPage,
     mcp: renderMcp,
     sessions: loadSessionsPage,
     usage: loadUsagePage,
@@ -1226,12 +1601,15 @@
       const el = $('#pf-apikey')
       if (el) el.type = el.type === 'password' ? 'text' : 'password'
     })
-    bind('#btn-provider-test', 'click', async () => {
-      const url = $('#pf-baseurl')?.value.trim()
-      if (!url) { localToast('先填写 Base URL', 'info'); return }
-      localToast('测试中…')
-      const r = await U.testEndpoint(url)
-      localToast(r.ok ? `可达 · ${r.latency}ms · HTTP ${r.status}` : `不可达：${r.error}`, r.ok ? 'success' : 'error')
+    bind('#btn-provider-test', 'click', testFromDrawer)
+
+    // 抽屉关闭：按钮 + 遮罩 + Esc
+    $$('[data-drawer-close]').forEach(b => b.addEventListener('click', closeDrawer))
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !e.isComposing) {
+        const d = $('#drawer-provider')
+        if (d && !d.hidden) { e.preventDefault(); closeDrawer() }
+      }
     })
 
     bind('#preset-search', 'input', (e) => renderPresetGrid(e.target.value))
@@ -1248,7 +1626,7 @@
     $$('#mcp-form-tabs button').forEach(b => b.addEventListener('click', () => activateFormTab('#mcp-form-tabs', b.dataset.tab)))
     $$('#mf-type button').forEach(b => b.addEventListener('click', () => setMcpType(b.dataset.v)))
 
-    bind('#btn-diff-confirm', 'click', () => applyDiffs(state.diffPending || []))
+    bind('#btn-diff-confirm', 'click', () => applyDiffs(state.diffPending || [], state._diffBefore))
     $$('.modal-close, [data-close]').forEach(b => b.addEventListener('click', () => {
       const id = b.dataset.close
       if (id) { const m = $('#' + id); if (m) m.hidden = true }
@@ -1267,6 +1645,22 @@
     })
     bind('#btn-session-export', 'click', exportSessionMd)
     bind('#btn-backups-refresh', 'click', () => loadBackups())
+    bind('#btn-snapshot-export', 'click', exportSnapshot)
+    bind('#btn-snapshot-import', 'click', importSnapshotModal)
+    bind('#btn-history-refresh', 'click', () => loadHistoryPage())
+    bind('#btn-history-clear', 'click', async () => {
+      const ok = await confirmDialog({
+        title: '清空切换历史',
+        text: '清空全部切换记录？回退入口将一并消失。',
+        hint: '不影响当前各应用的生效配置。',
+        okText: '清空',
+        danger: true
+      })
+      if (!ok) return
+      await H.clear()
+      localToast('已清空切换历史', 'success')
+      loadHistoryPage()
+    })
     bind('#btn-project-save', 'click', saveCurrentProject)
 
     // 生命周期

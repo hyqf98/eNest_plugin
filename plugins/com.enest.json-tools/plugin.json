@@ -1,8 +1,8 @@
 {
   "id": "com.enest.json-tools",
   "name": "JSON 工具",
-  "version": "1.1.0",
-  "description": "无损数字 JSON 格式化、校验、树浏览、搜索、键排序与差异比较。",
+  "version": "1.3.0",
+  "description": "无损数字 JSON 格式化、路径查询、TypeScript 类型生成、统计、树浏览与差异比较。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
@@ -12,8 +12,7 @@
   },
   "permissions": [
     "clipboard.read",
-    "clipboard.write",
-    "shell.openExternal"
+    "clipboard.write"
   ],
   "features": [
     {
@@ -68,6 +67,10 @@
               {
                 "label": "4 空格",
                 "value": "4"
+              },
+              {
+                "label": "Tab",
+                "value": "tab"
               }
             ]
           },
@@ -84,6 +87,18 @@
               {
                 "label": "树",
                 "value": "tree"
+              },
+              {
+                "label": "查询",
+                "value": "query"
+              },
+              {
+                "label": "TS 类型",
+                "value": "ts"
+              },
+              {
+                "label": "统计",
+                "value": "stats"
               }
             ]
           },

@@ -9,6 +9,7 @@
     query = '',
     filter = 'all',
     tag = '',
+    color = '',
     ready = false,
     preview = false,
     layout = 'list',
@@ -66,6 +67,29 @@
       '未命名笔记'
     )
   }
+  // 相对时间：刚刚 / n 分钟前 / 小时 / 昨天 / 日期
+  function relTime(ts) {
+    const diff = Date.now() - ts,
+      min = 60000,
+      hour = 60 * min,
+      day = 24 * hour
+    if (diff < min) return '刚刚'
+    if (diff < hour) return `${Math.floor(diff / min)} 分钟前`
+    if (diff < day) return `${Math.floor(diff / hour)} 小时前`
+    if (diff < 2 * day) return '昨天'
+    return new Date(ts).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+  function wordCount(text) {
+    const cjk = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length,
+      words = text
+        .replace(/[\u4e00-\u9fff\u3400-\u4dbf]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean).length
+    return { chars: text.length, words: cjk + words }
+  }
   async function persist() {
     if (!ready) return
     status('保存中…')
@@ -97,6 +121,7 @@
               : !n.archived) &&
           (filter === 'pinned' ? n.pinned : true) &&
           (!tag || n.tags.includes(tag)) &&
+          (!color || n.color === color) &&
           `${n.title} ${n.text} ${n.tags.join(' ')}`
             .toLowerCase()
             .includes(query.toLowerCase()),
@@ -105,6 +130,19 @@
         (a, b) =>
           Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt,
       )
+  }
+  function countFor(key) {
+    if (key === 'all')
+      return notes.filter((n) => !n.deletedAt && !n.archived).length
+    if (key === 'pinned')
+      return notes.filter((n) => n.pinned && !n.deletedAt && !n.archived).length
+    if (key === 'archive') return notes.filter((n) => n.archived && !n.deletedAt).length
+    if (key === 'trash') return notes.filter((n) => n.deletedAt).length
+    return 0
+  }
+  function colorCount(c) {
+    return notes.filter((n) => !n.deletedAt && !n.archived && n.color === c)
+      .length
   }
   function renderList() {
     $('tabs').innerHTML = Object.entries({
@@ -115,9 +153,17 @@
     })
       .map(
         ([key, label]) =>
-          `<button data-filter="${key}" class="${filter === key ? 'active' : ''}">${label}</button>`,
+          `<button data-filter="${key}" class="${filter === key ? 'active' : ''}">${label}${countFor(key) ? `<span class="t-count">${countFor(key)}</span>` : ''}</button>`,
       )
       .join('')
+    $('color-filter').innerHTML =
+      `<button class="all-dot ${color === '' ? 'chosen' : ''}" data-color="" aria-label="全部颜色" title="全部颜色">全</button>` +
+      colors
+        .map(
+          (c) =>
+            `<button class="dot ${color === c ? 'chosen' : ''}" data-color="${c}" style="--swatch:${c}" aria-label="筛选颜色 ${c}">${colorCount(c) ? `<span class="c-count">${colorCount(c)}</span>` : ''}</button>`,
+        )
+        .join('')
     const tags = [...new Set(notes.flatMap((n) => n.tags))]
     $('tag-filter').innerHTML =
       '<option value="">全部标签</option>' +
@@ -130,14 +176,15 @@
       ? rows
           .map(
             (n) =>
-              `<article class="note-row ${n.id === selected ? 'selected' : ''}" data-id="${esc(n.id)}" tabindex="0" role="listitem" style="--note-color:${n.color}"><div class="note-title">${n.pinned ? '⌑ ' : ''}${esc(title(n))}</div><div class="note-excerpt">${esc(n.text || '还没有内容')}</div><div class="note-meta"><span>${esc(n.tags.map((t) => '#' + t).join(' '))}</span><time>${new Date(n.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</time></div></article>`,
+              `<article class="note-row ${n.id === selected ? 'selected' : ''}" data-id="${esc(n.id)}" tabindex="0" role="listitem" style="--note-color:${n.color}"><div class="note-title">${n.pinned ? '⌑ ' : ''}${esc(title(n))}</div><div class="note-excerpt">${esc(n.text || '还没有内容')}</div><div class="note-meta"><span>${esc(n.tags.map((t) => '#' + t).join(' '))}</span><time>${relTime(n.updatedAt)}</time></div></article>`,
           )
           .join('')
-      : '<div class="empty">没有匹配的笔记<br><small>记录一句话，让想法有个落点</small></div>'
+      : '<div class="empty">' + emptyArt() + '没有匹配的笔记<br><small>记录一句话，让想法有个落点</small></div>'
     const grid = layout === 'grid' && kit.mode === 'shell'
     $('notes').classList.toggle('grid', grid)
     $('app').classList.toggle('grid-layout', grid)
     $('layout').textContent = grid ? '列表视图' : '卡片视图'
+    // 相对时间随时间流逝会过期，这里不做定时器；切换视图/输入时自然刷新
   }
   function markdown(text) {
     let inCode = false
@@ -179,11 +226,12 @@
     const n = notes.find((n) => n.id === selected)
     if (!n) {
       $('editor').innerHTML =
-        '<div class="editor-empty">选择一条笔记，或开始记录</div>'
+        '<div class="editor-empty">' + editorEmptyArt() + '</div>'
       return
     }
+    const wc = wordCount(n.text)
     $('editor').innerHTML =
-      `<div class="editor-top"><button id="back" aria-label="返回笔记列表">←</button><div class="colors">${colors.map((c) => `<button class="color ${n.color === c ? 'chosen' : ''}" data-color="${c}" style="--swatch:${c}" aria-label="切换便签颜色 ${c}"></button>`).join('')}</div><span class="spacer"></span><button id="pin">${n.pinned ? '取消置顶' : '置顶'}</button><button id="preview-toggle">${preview ? '编辑' : '预览'}</button><button id="copy">复制</button><button id="export-note" class="shell-only">导出</button><button id="archive">${n.archived ? '取消归档' : '归档'}</button><button id="delete">${n.deletedAt ? '恢复' : '删除'}</button></div><div class="document"><input id="title" aria-label="笔记标题" placeholder="无标题" value="${esc(n.title)}" maxlength="200"><input id="tags" aria-label="笔记标签" placeholder="添加标签，用逗号分隔" value="${esc(n.tags.join(', '))}"><textarea id="body" placeholder="开始写吧。支持 Markdown 预览。" spellcheck="false" ${preview ? 'hidden' : ''}>${esc(n.text)}</textarea><div id="preview" ${preview ? '' : 'hidden'}>${markdown(n.text)}</div></div><div class="editor-foot"><span id="words">${n.text.length} 字</span><span>⌘ / Ctrl + Shift + Enter 保存</span><button id="undo" ${undo ? '' : 'hidden'}>撤销删除</button><button id="purge" ${n.deletedAt ? '' : 'hidden'}>永久删除</button><button id="save-state">已保存</button></div>`
+      `<div class="editor-top"><button id="back" aria-label="返回笔记列表">←</button><div class="colors">${colors.map((c) => `<button class="color ${n.color === c ? 'chosen' : ''}" data-color="${c}" style="--swatch:${c}" aria-label="切换便签颜色 ${c}"></button>`).join('')}</div><span class="spacer"></span><button id="pin">${n.pinned ? '取消置顶' : '置顶'}</button><button id="preview-toggle">${preview ? '编辑' : '预览'}</button><button id="copy">复制</button><button id="export-note" class="shell-only">导出 .md</button><button id="export-txt" class="shell-only">导出 .txt</button><button id="archive">${n.archived ? '取消归档' : '归档'}</button><button id="delete" class="danger">${n.deletedAt ? '恢复' : '删除'}</button></div><div class="document"><input id="title" aria-label="笔记标题" placeholder="无标题" value="${esc(n.title)}" maxlength="200"><input id="tags" aria-label="笔记标签" placeholder="添加标签，用逗号分隔" value="${esc(n.tags.join(', '))}"><textarea id="body" placeholder="开始写吧。支持 Markdown 预览。" spellcheck="false" ${preview ? 'hidden' : ''}>${esc(n.text)}</textarea><div id="preview" ${preview ? '' : 'hidden'}>${markdown(n.text)}</div></div><div class="editor-foot"><span class="stat">${wc.chars} 字符 · ${wc.words} 词</span><span class="stat" title="${esc(new Date(n.updatedAt).toLocaleString())}">编辑于 ${relTime(n.updatedAt)}</span><span>⌘ / Ctrl + Shift + Enter 保存</span><button id="undo" ${undo ? '' : 'hidden'}>撤销删除</button><button id="purge" ${n.deletedAt ? '' : 'hidden'}>永久删除</button><button id="save-state">已保存</button></div>`
     for (const [id, key] of [
       ['title', 'title'],
       ['body', 'text'],
@@ -198,7 +246,9 @@
                 .filter(Boolean)
             : $(id).value
         n.updatedAt = Date.now()
-        $('words').textContent = n.text.length + ' 字'
+        const now = wordCount(n.text)
+        const stat = $('editor').querySelector('.stat')
+        if (stat) stat.textContent = `${now.chars} 字符 · ${now.words} 词`
         save()
         renderList()
       }
@@ -231,12 +281,17 @@
       kit
         .copy((n.title ? n.title + '\n\n' : '') + n.text)
         .catch((e) => kit.toast(e.message, 'error'))
+    const safeName = () => title(n).replace(/[\\/:*?"<>|]/g, '_')
     $('export-note').onclick = () =>
       kit
         .saveText(
-          title(n).replace(/[\\/:*?"<>|]/g, '_') + '.md',
+          safeName() + '.md',
           (n.title ? '# ' + n.title + '\n\n' : '') + n.text,
         )
+        .catch((e) => kit.toast(e.message, 'error'))
+    $('export-txt').onclick = () =>
+      kit
+        .saveText(safeName() + '.txt', (n.title ? n.title + '\n\n' : '') + n.text)
         .catch((e) => kit.toast(e.message, 'error'))
     $('archive').onclick = () => {
       n.archived = !n.archived
@@ -285,6 +340,7 @@
     notes.unshift(n)
     filter = 'all'
     tag = ''
+    color = ''
     query = ''
     $('search').value = ''
     kit.setQuery('')
@@ -310,6 +366,7 @@
     const t = templates[e.target.value]
     if (t) create(t[1], t[0])
     e.target.value = ''
+    PluginKit.upgradeSelects() // 模板下拉复位后同步自定义下拉标签
   }
   $('notes').onclick = (e) => {
     const row = e.target.closest('[data-id]')
@@ -327,6 +384,13 @@
       renderList()
     }
   }
+  $('color-filter').onclick = (e) => {
+    const btn = e.target.closest('[data-color]')
+    if (btn) {
+      color = color === btn.dataset.color ? '' : btn.dataset.color
+      renderList()
+    }
+  }
   $('tag-filter').onchange = (e) => {
     tag = e.target.value
     renderList()
@@ -339,6 +403,24 @@
   $('layout').onclick = () => {
     layout = layout === 'list' ? 'grid' : 'list'
     renderList()
+  }
+  // 全量导出 Markdown：每条笔记一段，含标签与更新时间（基础保存能力）
+  $('export-md').onclick = () => {
+    const live = notes.filter((n) => !n.deletedAt)
+    if (!live.length) return kit.toast('没有可导出的笔记')
+    const doc = live
+      .map((n) => {
+        const head = '# ' + title(n)
+        const meta = `\n\n> 标签：${n.tags.map((t) => '#' + t).join(' ') || '无'} · 更新于 ${new Date(n.updatedAt).toLocaleString()}\n\n`
+        return head + meta + n.text.trim()
+      })
+      .join('\n\n---\n\n')
+    kit
+      .saveText(
+        `备忘录-${new Date().toISOString().slice(0, 10)}.md`,
+        doc + '\n',
+      )
+      .catch((e) => kit.toast(e.message, 'error'))
   }
   $('export-all').onclick = () =>
     kit
@@ -369,6 +451,12 @@
     } catch (e) {
       kit.toast(e.message, 'error')
     }
+  }
+  function emptyArt() {
+    return `<svg viewBox="0 0 96 96" aria-hidden="true"><rect x="22" y="16" width="52" height="66" rx="6" fill="none" stroke="var(--line)" stroke-width="2.5" transform="rotate(-4 48 48)"/><rect x="26" y="20" width="52" height="66" rx="6" fill="none" stroke="var(--warm)" stroke-width="2.5" transform="rotate(3 52 52)"/><path d="M38 44h28M38 56h22M38 68h16" stroke="var(--warm)" stroke-width="2.5" stroke-linecap="round" opacity=".55"/></svg>`
+  }
+  function editorEmptyArt() {
+    return `<svg viewBox="0 0 96 96" aria-hidden="true"><rect x="24" y="14" width="48" height="68" rx="6" fill="none" stroke="var(--line)" stroke-width="2.5"/><path d="M34 32h28M34 44h28M34 56h18" stroke="var(--warm)" stroke-width="2.5" stroke-linecap="round" opacity=".55"/><path d="M62 62l14 14m0-14L62 76" stroke="var(--line)" stroke-width="2.5" stroke-linecap="round"/></svg>选择一条笔记，或新建开始记录`
   }
   const initialized = (async () => {
     try {

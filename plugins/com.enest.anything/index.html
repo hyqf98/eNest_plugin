@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Anything 文件搜索</title><link rel="stylesheet" href="./src/style.css"></head>
+<body><main class="app">
+<header class="shell-only"><div><h1>Anything 文件搜索</h1><span class="muted">Spotlight / Everything 全盘即时搜索</span></div><span id="engine-badge" class="engine-badge" hidden></span><button data-open-settings>偏好设置</button></header>
+<section class="searchbar shell-only">
+  <input id="query" type="search" placeholder='搜索文件名，如 报告 pdf　"精确"　-排除　*.sketch' aria-label="搜索文件" data-input-context="editor">
+  <button id="scope-pick" title="限定搜索目录（Spotlight 内限定该目录索引）">范围：全盘</button>
+  <select id="sort" aria-label="排序"><option value="relevance">相关度</option><option value="name">名称</option><option value="mtime">修改时间</option><option value="size">大小</option></select>
+</section>
+<div id="status" class="status" role="status">正在检测搜索引擎…</div>
+<div class="workspace">
+  <section class="results-col"><div id="list" role="listbox" tabindex="0" aria-label="搜索结果"></div><button id="more" hidden>载入更多</button></section>
+  <aside id="preview" class="shell-only"><div class="empty">选择左侧文件查看预览</div></aside>
+</div>
+<footer>
+  <div class="hint"><span class="shell-only"><kbd>↵</kbd> 打开　<kbd>⌘↵</kbd> 所在目录　<kbd>↑</kbd><kbd>↓</kbd> 选择</span><span class="quick-only"><kbd>↵</kbd> 打开　<kbd>↑</kbd><kbd>↓</kbd> 选择　<kbd>Esc</kbd> 收起</span></div>
+  <div class="actions"><button id="copy-path">复制路径</button><button id="reveal">所在目录</button><button id="trash" class="danger">移入废纸篓</button><button id="open" class="primary">打开 <kbd>↵</kbd></button></div>
+</footer>
+<dialog id="confirm-trash"><h2>移入废纸篓</h2><p id="trash-text"></p><div class="dialog-actions"><button id="trash-cancel">取消</button><button id="trash-ok" class="danger">移入废纸篓</button></div></dialog>
+</main>
+<script type="module" src="./src/entry.js"></script>
+</body></html>

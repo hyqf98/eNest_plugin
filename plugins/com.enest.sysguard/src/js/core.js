@@ -1,7 +1,8 @@
 /**
  * core.js — sysguard 纯逻辑（浏览器 / node 通用）
  * 导出：formatKb、formatPct、isSystemProc、searchProc、searchPort、
- *       linkPortsToProc、makeSampler、drawSparkline、SampleRing、decodeArgs
+ *       linkPortsToProc、makeSampler、drawSparkline、SampleRing、decodeArgs、
+ *       thresholdLevel、summarize、topProcesses
  */
 
 export function formatKb(kb) {
@@ -96,7 +97,7 @@ export function makeSampler({ intervalMs = 1500, acquire, release, sample }) {
   }
 }
 
-/** 环形样本序列：capacity 上限（60s / 1.5s ≈ 40 点，取 64 容量） */
+/** 环形样本序列：capacity 上限；setCapacity 动态调整（刷新频率设置切换时保留已有样本） */
 export class SampleRing {
   constructor(capacity = 64) {
     this.capacity = capacity
@@ -104,8 +105,12 @@ export class SampleRing {
   }
   push(v) {
     this.items.push(v)
-    if (this.items.length > this.capacity) this.items.shift()
+    if (this.items.length > this.capacity) this.items.splice(0, this.items.length - this.capacity)
     return this.items
+  }
+  setCapacity(capacity) {
+    this.capacity = Math.max(2, capacity)
+    if (this.items.length > this.capacity) this.items.splice(0, this.items.length - this.capacity)
   }
   clear() {
     this.items = []
@@ -170,4 +175,48 @@ export function shortName(command) {
   if (!c) return '(unknown)'
   const last = c.split('/').pop()
   return last || c
+}
+
+/**
+ * 阈值分级：v 相对阈值 [warn, danger] 返回 'ok' | 'warn' | 'danger'。
+ * CPU 与内存共用同一套 0-100 语义；宿主未提供系统级指标时按进程聚合值评估。
+ */
+export function thresholdLevel(v, warn = 70, danger = 90) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return 'ok'
+  return n >= danger ? 'danger' : n >= warn ? 'warn' : 'ok'
+}
+
+/**
+ * 数据汇总：进程数组 → 仪表盘指标（全部派生自宿主 sys.processes / sys.ports）。
+ * totalCpu 已按核数归一到 0-100（ps 的 pcpu 单进程上限即 100，总和无须再裁），
+ * 这里仍 clamp 100 防御异常样本。
+ */
+export function summarize(procs, ports) {
+  const list = Array.isArray(procs) ? procs : []
+  const totalCpu = Math.min(100, list.reduce((n, p) => n + (p.pcpu ?? 0), 0))
+  const totalMemKb = list.reduce((n, p) => n + (p.rss ?? 0), 0)
+  // 内存压力：pmem 为占物理内存百分比，取和（ps 语义上限 100）
+  const memPct = Math.min(100, list.reduce((n, p) => n + (p.pmem ?? 0), 0))
+  const portList = Array.isArray(ports) ? ports : []
+  const listenProcs = new Set(portList.map((p) => p.pid))
+  return {
+    procCount: list.length,
+    totalCpu,
+    totalMemKb,
+    memPct,
+    memTop: list.reduce((m, p) => ((p.rss ?? 0) > (m?.rss ?? -1) ? p : m), null),
+    cpuTop: list.reduce((m, p) => ((p.pcpu ?? 0) > (m?.pcpu ?? -1) ? p : m), null),
+    portCount: portList.length,
+    listenCount: listenProcs.size
+  }
+}
+
+/** Top 进程：按 key（pcpu / rss）降序取前 n，name 为 shortName 结果 */
+export function topProcesses(procs, key = 'pcpu', n = 5) {
+  const list = Array.isArray(procs) ? procs : []
+  return [...list]
+    .sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0))
+    .slice(0, Math.max(0, n))
+    .map((p) => ({ pid: p.pid, name: shortName(p.command), value: p[key] ?? 0 }))
 }

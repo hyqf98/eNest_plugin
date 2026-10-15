@@ -1,8 +1,8 @@
 {
   "id": "com.enest.color-picker",
   "name": "取色器",
-  "version": "1.1.0",
-  "description": "屏幕与图片精准取色，支持 HEX/RGB/HSL 透明颜色、WCAG 对比度检查、命名色板与 CSS/JSON 导出。",
+  "version": "1.2.0",
+  "description": "屏幕与图片精准取色，HEX/RGB/HSL/OKLCH 一键复制、和谐色生成、WCAG 对比度检查、命名色板与 CSS/JSON 导出。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "设计",

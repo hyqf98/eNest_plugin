@@ -11,7 +11,6 @@
     <main class="md-notes">
       <header>
         <div class="brand shell-only">
-          <div class="eyebrow">写作、整理、找回</div>
           <h1>Markdown 笔记</h1>
         </div>
         <input id="search" class="search" type="search" placeholder="全文搜索标题与内容" aria-label="搜索笔记" />
@@ -24,12 +23,12 @@
       <div class="workspace">
         <nav class="tree-pane shell-only">
           <div class="tree-head">
-            <span class="eyebrow">分组</span>
+            <span class="tree-label">分组</span>
             <button id="new-group" title="新建分组">＋</button>
           </div>
           <div id="groups" role="tree"></div>
           <div class="tree-head">
-            <span class="eyebrow">笔记</span>
+            <span class="tree-label">笔记</span>
             <button id="new-note" title="新建笔记">＋</button>
           </div>
           <div id="notes-tree" role="tree"></div>
@@ -48,15 +47,25 @@
             <button data-line="- [ ] " title="任务清单">☑</button>
             <button id="attach-image" title="粘贴剪贴板图片为附件">🖼</button>
             <span class="grow"></span>
-            <button id="toggle-preview" aria-pressed="false">预览</button>
+            <div class="mode-switch" role="tablist" aria-label="视图模式">
+              <button id="mode-edit" role="tab" aria-selected="true" title="仅编辑（⌘1）">编辑</button>
+              <button id="mode-split" role="tab" aria-selected="false" title="双栏（⌘2）">双栏</button>
+              <button id="mode-preview" role="tab" aria-selected="false" title="仅预览（⌘3）">预览</button>
+            </div>
           </div>
-          <div class="editor-body">
+          <div class="editor-body" id="editor-body" data-view="split">
             <textarea id="editor" spellcheck="false" placeholder="开始写…（Markdown 语法，自动保存）"></textarea>
+            <aside id="outline" class="outline shell-only" aria-label="标题大纲">
+              <div class="outline-head">大纲</div>
+              <div id="outline-tree" class="outline-tree"></div>
+            </aside>
             <div id="preview" class="preview md-render" hidden></div>
           </div>
           <div class="editor-status">
             <span id="save-state">已保存</span>
             <span id="editor-stats" class="muted"></span>
+            <span class="grow"></span>
+            <span id="outline-status" class="muted shell-only"></span>
           </div>
         </section>
       </div>
@@ -65,8 +74,6 @@
         <span id="search-summary"></span>
       </footer>
     </main>
-
-
 
     <script type="module" src="./src/entry.js"></script>
   </body>

@@ -22,6 +22,8 @@ function inline(text) {
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>')
   s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>')
+  // GFM 高亮标记 ==text==（保守：不与其它符号相邻）
+  s = s.replace(/==([^=\n]+)==/g, '<mark>$1</mark>')
   return s.replace(/\u0000(\d+)\u0000/g, (_, i) => codes[Number(i)])
 }
 
@@ -70,7 +72,9 @@ export function renderMarkdown(source) {
       while (i < lines.length && !/^```\s*$/.test(lines[i])) buf.push(lines[i++])
       i++ // 跳过闭合 ```
       const lang = fence[1] ? ` data-lang="${escapeHtml(fence[1])}"` : ''
-      out.push(`<pre class="code-block"${lang}><code>${escapeHtml(buf.join('\n'))}</code></pre>`)
+      const scope = langScope(fence[1])
+      const body = scope ? highlightToHtml(buf.join('\n'), scope) : escapeHtml(buf.join('\n'))
+      out.push(`<pre class="code-block"${lang}><code>${body}</code></pre>`)
       continue
     }
     // 表格
@@ -168,6 +172,39 @@ export function stats(text) {
   return { chars: s.length, words: cjk + words, lines: s ? s.split('\n').length : 0 }
 }
 
+/** 中文阅读速度约 300 字/分钟，英文约 200 词/分钟；最低 1 分钟 */
+export function readingTime(text) {
+  const { words } = stats(text)
+  return Math.max(1, Math.round(words / 260))
+}
+
+/**
+ * 标题大纲：[{ level, text, line }]，line 为 0 起始源码行号。
+ * 忽略围栏代码块内的 # 行。
+ */
+export function outline(source) {
+  const lines = String(source ?? '').replace(/\r\n?/g, '\n').split('\n')
+  const items = []
+  let inFence = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^```/.test(line.trim())) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+    const head = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/)
+    if (head) items.push({ level: head[1].length, text: head[2].replace(/[`*_~]/g, ''), line: i })
+  }
+  return items
+}
+
+/** 缩进层级计算：h2 起 0 级，逐级 +1；h1 与 h2 同级展示 */
+export function outlineDepth(items) {
+  const base = Math.min(...items.map((it) => it.level), 6)
+  return items.map((it) => ({ ...it, depth: it.level - base }))
+}
+
 /** 插入辅助：包裹选区 / 行首前缀 / 块插入 */
 export function transformWrap(text, selStart, selEnd, token) {
   const selected = text.slice(selStart, selEnd) || '文本'
@@ -183,6 +220,103 @@ export function transformBlock(text, selStart, selEnd, block) {
   return { text: text.slice(0, selStart) + insert + text.slice(selEnd), caret: selStart + insert.length }
 }
 
+/* ── 代码块轻量高亮：与 snippets 同思路的单遍 tokenizer，无外部依赖 ── */
+const escapeForTokens = (value) =>
+  String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch])
+
+const MD_KEYWORDS = new Set(
+  'break case catch class const continue default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while yield async await of static null undefined true false def elif except lambda None True False func package import'.split(
+    ' ',
+  ),
+)
+
+/** 语言 → tokenizer scope；不支持的语言返回 ''（纯转义输出） */
+export function langScope(lang) {
+  const key = String(lang || '').trim().toLowerCase()
+  if (['js', 'javascript', 'ts', 'typescript', 'jsx', 'tsx', 'mjs', 'cjs', 'java', 'c', 'cpp', 'go', 'rs', 'rust', 'swift', 'kotlin', 'json'].includes(key)) return 'c'
+  if (['py', 'python'].includes(key)) return 'py'
+  if (['sh', 'shell', 'bash', 'zsh'].includes(key)) return 'sh'
+  if (['html', 'xml', 'svg', 'vue'].includes(key)) return 'markup'
+  return ''
+}
+
+/** 单遍正则 tokenizer；返回 [{ type, value }] */
+function tokenize(source, scope) {
+  const out = []
+  const s = String(source ?? '')
+  const push = (type, value) => {
+    if (!value) return
+    const last = out[out.length - 1]
+    if (last && last.type === type) last.value += value
+    else out.push({ type, value })
+  }
+  if (scope === 'markup') {
+    const re = /<!--[\s\S]*?-->|<\/?[a-zA-Z][^\s>/]*|"[^"]*"|'[^']*'|[a-zA-Z-]+(?==)|\/?>/g
+    let last = 0
+    let m
+    while ((m = re.exec(s))) {
+      if (m.index > last) push('text', s.slice(last, m.index))
+      const t = m[0]
+      if (t.startsWith('<!--')) push('comment', t)
+      else if (t.startsWith('<')) push('keyword', t)
+      else if (/^["']/.test(t)) push('str', t)
+      else if (/^[a-zA-Z-]+$/.test(t)) push('fn', t)
+      else push('keyword', t)
+      last = m.index + t.length
+    }
+    if (last < s.length) push('text', s.slice(last))
+    return out
+  }
+  const lineComment = scope === 'py' || scope === 'sh' ? '#' : '//'
+  const blockComment = scope === 'py' || scope === 'sh' ? null : /\/\*[\s\S]*?\*\//
+  const groupDefs = [...(blockComment ? ['block'] : []), 'line', 'str', 'num', 'word']
+  const parts = [
+    blockComment ? blockComment.source : null,
+    `${lineComment}[^\\n]*`,
+    '"(?:\\\\.|[^"\\\\\\n])*"|\'(?:\\\\.|[^\'\\\\\\n])*\'|`(?:\\\\.|[^`\\\\])*`',
+    '0[xX][0-9a-fA-F]+|\\b\\d+(?:\\.\\d+)?\\b',
+    '[A-Za-z_$][\\w$]*',
+  ].filter(Boolean)
+  const re = new RegExp(parts.map((p) => `(${p})`).join('|'), 'g')
+  let last = 0
+  let m
+  while ((m = re.exec(s))) {
+    if (m.index > last) push('text', s.slice(last, m.index))
+    const full = m[0]
+    const kind = groupDefs.findIndex((_, i) => m[i + 1] !== undefined)
+    if (groupDefs[kind] === 'block' || groupDefs[kind] === 'line') push('comment', full)
+    else if (groupDefs[kind] === 'str') push('str', full)
+    else if (groupDefs[kind] === 'num') push('num', full)
+    else if (groupDefs[kind] === 'word') {
+      const after = s.slice(m.index + full.length)
+      if (MD_KEYWORDS.has(full)) push('keyword', full)
+      else if (/^\s*\(/.test(after)) push('fn', full)
+      else push('text', full)
+    }
+    last = m.index + full.length
+  }
+  if (last < s.length) push('text', s.slice(last))
+  return out
+}
+
+/** token 流 → 带 class 的安全 HTML（scope 为空时退化为纯转义） */
+export function highlightToHtml(source, scope) {
+  if (!scope) return escapeForTokens(source)
+  return tokenize(source, scope)
+    .map((t) => (t.type === 'text' ? escapeForTokens(t.value) : `<span class="tk-${t.type}">${escapeForTokens(t.value)}</span>`))
+    .join('')
+}
+
+/** UUID：浏览器用 crypto.randomUUID，其它环境（如 node 测试子进程）退化为随机串 */
+export function uuid() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  const bytes = globalThis.crypto?.getRandomValues ? globalThis.crypto.getRandomValues(new Uint8Array(16)) : Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0'))
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
+}
+
 /** 笔记数据归一化 */
 export function normalizeNote(input, id) {
   if (!input || typeof input !== 'object') throw new Error('笔记数据格式不正确')
@@ -195,7 +329,7 @@ export function normalizeNote(input, id) {
     }
   }
   return {
-    id: typeof id === 'string' && id ? id : typeof input.id === 'string' && input.id ? input.id : crypto.randomUUID(),
+    id: typeof id === 'string' && id ? id : typeof input.id === 'string' && input.id ? input.id : uuid(),
     title: title.slice(0, 120),
     group: String(input.group ?? '收件箱').trim().slice(0, 60) || '收件箱',
     content: String(input.content ?? '').slice(0, 512 * 1024),
@@ -221,7 +355,7 @@ export const TEMPLATES = {
   },
 }
 
-/** 导出 HTML 骨架 */
+/** 导出 HTML 骨架（含精致排印样式） */
 export function noteToHtml(title, content) {
-  return `<!doctype html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8" />\n<meta name="viewport" content="width=device-width,initial-scale=1" />\n<title>${escapeHtml(title)}</title>\n<style>body{max-width:720px;margin:40px auto;padding:0 20px;font:15px/1.7 -apple-system,'PingFang SC',sans-serif;color:#24292f}pre{background:#f6f8fa;padding:12px;border-radius:8px;overflow:auto}code{font-family:ui-monospace,SFMono-Regular,monospace}table{border-collapse:collapse}th,td{border:1px solid #d0d7de;padding:6px 12px}img{max-width:100%}blockquote{border-left:4px solid #d0d7de;margin:0;padding:0 16px;color:#57606a}</style>\n</head>\n<body>\n${renderMarkdown(content)}\n</body>\n</html>\n`
+  return `<!doctype html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8" />\n<meta name="viewport" content="width=device-width,initial-scale=1" />\n<title>${escapeHtml(title)}</title>\n<style>:root{color-scheme:light dark}body{max-width:720px;margin:48px auto;padding:0 24px;font:16px/1.8 -apple-system,'PingFang SC',sans-serif;color:#24292f;background:#fff}h1,h2,h3,h4{line-height:1.3;letter-spacing:-0.01em;margin:1.4em 0 .5em}h1{font-size:1.7em}h2{font-size:1.4em}h3{font-size:1.15em}p{margin:.7em 0}a{color:#0969da}pre{background:#f6f8fa;padding:14px 16px;border-radius:8px;overflow:auto}code{font-family:ui-monospace,SFMono-Regular,monospace;font-size:.9em}p code,li code{background:#f0f1f3;padding:1px 5px;border-radius:4px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d0d7de;padding:6px 12px;text-align:left}th{background:#f6f8fa}img{max-width:100%;border-radius:6px}blockquote{border-left:4px solid #d0d7de;margin:.8em 0;padding:.2em 16px;color:#57606a}hr{border:0;border-top:1px solid #d0d7de;margin:2em 0}mark{background:#fff8c5}del{color:#57606a}ul.task{list-style:none;padding-left:.2em}ul.task li.task{display:flex;gap:8px}@media (prefers-color-scheme:dark){body{color:#d0d7de;background:#0d1117}a{color:#58a6ff}pre,th{background:#161b22}p code,li code{background:#21262d}blockquote{color:#8b949e;border-color:#30363d}th,td{border-color:#30363d}hr{border-color:#30363d}mark{background:#bb800933;color:inherit}}</style>\n</head>\n<body>\n${renderMarkdown(content)}\n</body>\n</html>\n`
 }

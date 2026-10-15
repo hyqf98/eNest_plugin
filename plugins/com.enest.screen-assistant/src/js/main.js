@@ -176,9 +176,10 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
     document.querySelectorAll('[data-tool]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.tool === value)))
     $('text-options').hidden = value !== 'text'
     $('tool-hint').textContent = { arrow: '在图片上拖动，添加箭头。', rect: '拖动框选需要标出的区域。', text: '输入文字后，点击图片放置。', mosaic: '拖动框选打码区域；导出前请确认敏感信息已遮挡。', crop: '拖动选择保留区域，松开完成裁剪。' }[value]
+    if (value === 'text') document.documentElement.dataset.editing = 'true'
   }
   document.querySelectorAll('[data-tool]').forEach((button) => { button.onclick = () => chooseTool(button.dataset.tool) })
-  $('toggle-editor').onclick = () => { const open = document.documentElement.dataset.editing !== 'true'; document.documentElement.dataset.editing = String(open); $('toggle-editor').textContent = open ? '收起标注' : '标注' }
+  $('toggle-editor').onclick = () => { const open = document.documentElement.dataset.editing !== 'true'; document.documentElement.dataset.editing = String(open); if (open && tool === 'text') $('text-options').hidden = false; $('toggle-editor').textContent = open ? '收起标注' : '标注' }
   $('undo').onclick = () => { edits.undo(); renderCanvas(); saveDraft() }
   $('redo').onclick = () => { edits.redo(); renderCanvas(); saveDraft() }
   $('reset-edits').onclick = () => { edits.clear(); renderCanvas(); saveDraft() }
@@ -186,7 +187,13 @@ import { bindFileInput } from '@enest/plugin-kit/file-inputs'
     if (event.isComposing) return
     if (event.key === 'Escape' && drawStart) { event.preventDefault(); event.stopPropagation(); cancelDraw(); return }
     if (event.target.matches('input,textarea,select') || !original || busy || tab !== 'capture') return
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) edits.redo(); else edits.undo(); renderCanvas(); saveDraft() }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) edits.redo(); else edits.undo(); renderCanvas(); saveDraft(); return }
+    // 标注工具快捷键：A 箭头 / R 矩形 / T 文字 / M 马赛克 / C 裁剪（无修饰键，与撤销/重做共存）
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && document.documentElement.dataset.editing === 'true') {
+      const key = event.key.toLowerCase()
+      const toolKeys = { a: 'arrow', r: 'rect', t: 'text', m: 'mosaic', c: 'crop' }
+      if (toolKeys[key]) { event.preventDefault(); chooseTool(toolKeys[key]) }
+    }
   }, true)
   async function rememberImage(dataUrl, name) {
     if (!api?.storage?.blobs?.put) throw new Error('保存原图需要新版 eNest，请更新宿主后再截图')

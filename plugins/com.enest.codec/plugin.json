@@ -1,8 +1,8 @@
 {
   "id": "com.enest.codec",
   "name": "编解码",
-  "version": "1.1.0",
-  "description": "Base64、URL、Hex、Unicode、HTML 编解码与 JWT、URL 参数查看。",
+  "version": "1.2.0",
+  "description": "Base64、URL、Hex、Unicode、HTML 编解码与 JWT、URL 参数、Data URL 查看；逐行批量、错误定位、文件转 Data URL、最近转换记录。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
@@ -107,6 +107,10 @@
               {
                 "label": "query",
                 "value": "query"
+              },
+              {
+                "label": "dataurl",
+                "value": "dataurl"
               }
             ]
           },

@@ -1,5 +1,5 @@
 import { bindFileInput, readDroppedFiles } from '@enest/plugin-kit/file-inputs'
-import { templateText, qrSvg, decodedType, commitHistory } from "./core.mjs";
+import { templateText, qrSvg, decodedType, commitHistory, drawModules, logoFit, DOT_STYLES } from "./core.mjs";
 const api = window.enest || window.zapi,
   $ = (id) => document.getElementById(id);
 let generated = null,
@@ -23,6 +23,7 @@ const kit = PluginKit.create({
     $("template").value = "text";
     template();
     $("input").value = text;
+    PluginKit.upgradeSelects(); // 同步自定义下拉选中标签
     generate();
   },
   onAction(action) {
@@ -42,12 +43,43 @@ const safe =
       kit.toast(e.message, "error");
     }
   };
+
+// ---------- 样式选项（点样式 + 中心 logo），持久化于 storage.local ----------
+const STYLE_KEY = "qrcode_style_v1";
+let dotStyle = "square",
+  logoDataUrl = "",
+  logoScale = 20;
+function saveStyle() {
+  const data = { dotStyle, logoDataUrl: logoDataUrl.slice(0, 60000), logoScale };
+  return kit.save(STYLE_KEY, data).catch(() => {});
+}
+async function loadStyle() {
+  try {
+    const saved = await kit.load(STYLE_KEY, null);
+    if (!saved || typeof saved !== "object") return;
+    if (DOT_STYLES.some((s) => s.id === saved.dotStyle)) dotStyle = saved.dotStyle;
+    if (typeof saved.logoDataUrl === "string" && saved.logoDataUrl.startsWith("data:image/")) logoDataUrl = saved.logoDataUrl;
+    if (Number.isFinite(saved.logoScale)) logoScale = Math.max(0, Math.min(30, saved.logoScale));
+  } catch {
+    /* 首次运行无样式记录 */
+  }
+  syncStyleControls();
+}
+function syncStyleControls() {
+  document.querySelectorAll("[data-dot]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.dot === dotStyle)));
+  $("logo-scale").value = String(logoScale);
+  $("logo-scale-value").value = `${logoScale}%`;
+  $("logo-clear").disabled = !logoDataUrl;
+  $("logo-status").textContent = logoDataUrl ? "已加载 logo" : "未设置";
+}
+
 function options() {
   return {
     size: Number($("size").value),
     ecc: $("ecc").value,
     fg: $("fg").value,
     bg: $("bg").value,
+    style: dotStyle,
   };
 }
 function payload() {
@@ -93,10 +125,36 @@ function draw(canvas, qr, opts) {
   ctx.fillStyle = opts.bg;
   ctx.fillRect(0, 0, size, size);
   ctx.fillStyle = opts.fg;
-  for (let row = 0; row < count; row++)
-    for (let col = 0; col < count; col++)
-      if (qr.isDark(row, col))
-        ctx.fillRect((col + 4) * scale, (row + 4) * scale, scale, scale);
+  drawModules(ctx, qr, { scale, margin: 4, style: opts.style || "square" });
+  if (logoDataUrl) drawLogo(ctx, qr, opts, size);
+}
+function drawLogo(ctx, qr, opts, size) {
+  const fit = logoFit(qr, logoScale / 100, opts.ecc);
+  if (!fit.ok) return; // logo 不安全时静默跳过（状态由 meta 区提示）
+  const box = size * (logoScale / 100);
+  const x = (size - box) / 2,
+    y = (size - box) / 2;
+  const pad = Math.max(3, Math.round(box * 0.08));
+  ctx.fillStyle = opts.bg;
+  ctx.beginPath();
+  ctx.roundRect(x - pad, y - pad, box + pad * 2, box + pad * 2, Math.round(box * 0.18));
+  ctx.fill();
+  if (!logoImage) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, box, box, Math.round(box * 0.14));
+  ctx.clip();
+  ctx.drawImage(logoImage, x, y, box, box);
+  ctx.restore();
+}
+let logoImage = null;
+function loadLogoImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("logo 图片无法读取"));
+    image.src = dataUrl;
+  });
 }
 function template() {
   document.querySelectorAll("[data-template]").forEach((el) => {
@@ -112,30 +170,55 @@ function generate() {
   $("canvas").classList.remove("ready");
   $("empty").hidden = false;
   $("meta").textContent = "";
-  for (const id of ["copy-image", "save-png", "save-svg"])
-    $(id).disabled = true;
+  for (const id of ["copy-image", "save-png", "save-svg"]) $(id).disabled = true;
   try {
     const text = payload();
     if (!text.trim()) return;
     const opts = options(),
       qr = makeQr(text, opts);
+    let logoWarning = "";
+    if (logoDataUrl) {
+      const fit = logoFit(qr, logoScale / 100, opts.ecc);
+      if (!fit.ok) logoWarning = ` · logo 未叠加：${fit.reason}`;
+    }
     draw($("canvas"), qr, opts);
     generated = { text, ...opts, qr };
     $("canvas").classList.add("ready");
     $("empty").hidden = true;
     $("meta").textContent =
-      `${text.length} 字符 · ${qr.getModuleCount()}×${qr.getModuleCount()} 模块 · ${$("canvas").width}px`;
-    for (const id of ["copy-image", "save-png", "save-svg"])
-      $(id).disabled = false;
+      `${text.length} 字符 · ${qr.getModuleCount()}×${qr.getModuleCount()} 模块 · ${$("canvas").width}px${logoWarning}`;
+    for (const id of ["copy-image", "save-png", "save-svg"]) $(id).disabled = false;
   } catch (e) {
     $("error").textContent = "生成失败：" + e.message;
   }
+}
+// ---------- 历史记录：持久化（最近 12 条，向后兼容会话内结构） ----------
+const HISTORY_KEY = "qrcode_history_v1";
+async function loadHistory() {
+  try {
+    const saved = await kit.load(HISTORY_KEY, null);
+    if (Array.isArray(saved)) history = saved.filter((item) => item && typeof item.text === "string").slice(0, 12);
+  } catch {
+    /* 忽略 */
+  }
+  renderHistory();
 }
 function remember() {
   if (!generated) return;
   const { qr, ...entry } = generated;
   history = commitHistory(history, entry);
+  renderHistory();
+  void kit.save(HISTORY_KEY, history).catch(() => {});
+}
+function renderHistory() {
   $("history").replaceChildren();
+  if (!history.length) {
+    const empty = document.createElement("p");
+    empty.className = "history-empty";
+    empty.textContent = "复制或保存后，最近 12 条记录会留在这里。";
+    $("history").append(empty);
+    return;
+  }
   for (const item of history) {
     const b = document.createElement("button");
     b.textContent = item.text;
@@ -147,6 +230,7 @@ function remember() {
       $("ecc").value = item.ecc;
       $("fg").value = item.fg;
       $("bg").value = item.bg;
+      PluginKit.upgradeSelects(); // 恢复历史后同步下拉标签
       template();
     };
     $("history").append(b);
@@ -160,18 +244,15 @@ const copyImage = safe(async () => {
 });
 $("copy-image").onclick = copyImage;
 $("save-png").onclick = safe(async () => {
-  if (
-    generated &&
-    (await kit.saveFile("qrcode.png", $("canvas").toDataURL("image/png")))?.ok
-  )
-    remember();
+  if (!generated) return;
+  const size = Number($("png-size").value) || generated.size;
+  const offscreen = document.createElement("canvas");
+  const qr = makeQr(generated.text, generated);
+  draw(offscreen, qr, { ...generated, size });
+  if ((await kit.saveFile(`qrcode-${size}.png`, offscreen.toDataURL("image/png"))).ok) remember();
 });
 $("save-svg").onclick = safe(async () => {
-  if (
-    generated &&
-    (await kit.saveText("qrcode.svg", qrSvg(generated.qr, generated)))?.ok
-  )
-    remember();
+  if (generated && (await kit.saveText("qrcode.svg", qrSvg(generated.qr, generated)))?.ok) remember();
 });
 $("template").onchange = template;
 for (const el of document.querySelectorAll(
@@ -182,11 +263,53 @@ for (const el of document.querySelectorAll(
       clearTimeout(timer);
       timer = setTimeout(generate, 240);
     });
+// 自定义下拉（PluginKit.upgradeSelects）只派发 change 不派发 input，
+// select 需单独监听 change 才能在改尺寸/纠错/加密后触发生成
+for (const el of document.querySelectorAll(".composer select"))
+  if (el.id !== "template")
+    el.addEventListener("change", () => {
+      clearTimeout(timer);
+      generate();
+    });
 $("paste-text").onclick = safe(async () => {
   $("template").value = "text";
   $("input").value = await api.clipboard.readText();
+  PluginKit.upgradeSelects(); // 同步自定义下拉选中标签
   template();
 });
+// ---------- 样式定制接线（点样式分段控件在底部 DOT_STYLES 注入后统一绑定） ----------
+$("logo-scale").oninput = () => {
+  logoScale = Number($("logo-scale").value) || 20;
+  $("logo-scale-value").value = `${logoScale}%`;
+  generate();
+};
+$("logo-scale").onchange = () => void saveStyle();
+$("logo-file").onchange = () =>
+  void safe(async () => {
+    const file = $("logo-file").files[0];
+    $("logo-file").value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) throw new Error("logo 需为图片文件");
+    if (file.size > 1024 * 1024) throw new Error("logo 图片需小于 1 MB");
+    const reader = new FileReader();
+    const dataUrl = await new Promise((resolve, reject) => {
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("logo 读取失败"));
+      reader.readAsDataURL(file);
+    });
+    logoImage = await loadLogoImage(dataUrl);
+    logoDataUrl = dataUrl;
+    syncStyleControls();
+    generate();
+    void saveStyle();
+  });
+$("logo-clear").onclick = () => {
+  logoDataUrl = "";
+  logoImage = null;
+  syncStyleControls();
+  generate();
+  void saveStyle();
+};
 function tab(name) {
   document.querySelectorAll("[data-page]").forEach((el) => {
     el.hidden = el.dataset.page !== name;
@@ -442,6 +565,7 @@ api?.onEnter?.(({ code, payload: incoming }) => {
     tab("generate");
     $("template").value = "text";
     $("input").value = text;
+    PluginKit.upgradeSelects(); // 同步自定义下拉选中标签
     template();
   }
   if (incoming?.dataUrl?.startsWith("data:image/")) {
@@ -463,7 +587,26 @@ function applySettings() {
   $("ecc").value = kit.settings.defaultEcc;
   $("fg").value = kit.settings.foreground;
   $("bg").value = kit.settings.background;
+  PluginKit.upgradeSelects(); // 设置驱动的赋值后同步下拉标签
   generate();
 }
+// 点样式分段控件
+for (const entry of DOT_STYLES) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.dot = entry.id;
+  button.textContent = entry.label;
+  $("dot-style-seg").append(button);
+}
+document.querySelectorAll("[data-dot]").forEach((button) => {
+  button.onclick = () => {
+    dotStyle = button.dataset.dot;
+    syncStyleControls();
+    generate();
+    void saveStyle();
+  };
+});
+await loadStyle();
+await loadHistory();
 applySettings();
 kit.onSettings(applySettings);

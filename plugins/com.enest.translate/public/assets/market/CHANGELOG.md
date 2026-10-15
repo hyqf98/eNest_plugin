@@ -1,32 +1,21 @@
 # 翻译 Changelog
 
-> 功能参考 [ZTools-plugins/quick-translate](https://github.com/ZToolsCenter/ZTools-plugins)（MIT, ZToolsCenter）
+## 1.4.0
 
-## 1.2.1
+- 对话式对照即时翻译：输入停顿 350ms 自动联网翻译（防抖），原文 / 译文双栏即时对照；
+  原设置项「输入后自动联网翻译」语义反转并更名「暂停自动翻译（仅手动翻译）」，默认即开即译
+- 目标语言快捷 chips 扩到 5 门语言（中 / 英 / 日 / 韩 / 法），当前目标语言高亮、与源语言相同时禁用
+- 翻译中状态反馈独立化：译文面板底部脉冲圆点 + 引擎署名文案（如「MyMemory 正在翻译…」），
+  输入区不再被占位文案覆盖；错误态自动聚焦提示语
+- 历史记录升级：成功翻译即入历史（可收藏置顶、搜索、导出 JSON、清空未收藏），
+  回收历史条目直接恢复原文与语言方向
+- 快捷入口（划词 over / onEnter payload）进入后直接翻译，不再依赖自动翻译开关
+- 引擎切换 / 语言切换后有译文缓存上下文时自动重译（无需手动再点）
 
-- 偏好持久化从 `api.settings.get/set` 迁移至 `api.storage` KV（`srcLang` / `tgtLang` / `engine`）：壳侧 settings 通道仅限注册过的设置项（`contributes.settings` / `enest.settings.register`），本插件未注册任何 section，storage 通道才是正确落点。
-- manifest 清理：移除 schema 外的顶层 `form: "mini"` 与 `market.minWidth/minHeight` 字段（Quick 内嵌自适应已由 `ui.resize` 承担）。
+## 1.3.0
 
-## 1.2.0
-
-UI 精致化重做 + 双形态响应式（功能逻辑不变）：
-
-- **形态**：`form: "mini"` 复核（Quick 呼出面板优先）；新增 `ui.resize` 权限，Quick 内嵌时按内容高度自适应（ResizeObserver → `enest.ui.resize` 上报，首屏约 400px，上限 640px）。
-- **双形态响应式**：容器查询（`@container`，viewport 兜底）分两档 —— 窄容器（≤740px，Quick 小窗）紧凑上下双栏、字号收敛、间距 12px；宽容器（>740px，⌘Enter 固定主窗）左右双栏舒展；≥900px 再放大排印（译文 19px）与留白。
-- **排印**：译文区 16→19px / 行高 1.65，与源文（14px）拉开层级；语言码、检测信息、引擎标签用等宽字体；字符计数 tabular-nums。
-- **色彩**：中性色全量跟随壳子 themeAware Token（本地回退值与暗色预设一致）；琥珀 #f5a524 独立为 `--brand`，仅用于主 CTA、引擎标签与聚焦反馈（避免被壳子 `--accent` 覆盖）；无纯黑、无装饰渐变。
-- **组件**：语言选择 + 圆形交换钮一行对称排布（hover 图标 180° 旋转）；引擎下拉收进 header 右侧（自绘 chevron，去原生外观）；卡片 10–12px 圆角 + 1px 半透明描边 + 内高光；输入区聚焦描边亮起 + 4px 低透明度外发光。
-- **微交互**：翻译中占位文本呼吸透明度动画；复制成功按钮短暂变 ✓（ok 绿）；按钮 hover/active 三态（140–180ms 自定义 ease）；hover 显现的清空 / 粘贴行内工具钮。
-- **交互补充**：Enter 立即翻译 / Shift+Enter 换行（IME 组词期不误触发）；复制钮随有无译文启停；粘贴 / 清空从底部文字钮改为输入区行内图标钮。
-- 图标全量换内联 SVG（stroke 1.5px，14/16px 规格），滚动条细化（6px、半透明）。
-
-## 1.1.0
-
-- 多引擎翻译：新增 MyMemory 引擎（Google gtx 失败时自动切换），网络请求统一走 `api.net.fetch`（主进程代理，timeoutMs 8000）。
-- 引擎调度：顶部新增引擎下拉（自动 / Google / MyMemory），偏好持久化到 settings key `engine`。
-  - 自动模式：源语言为「自动检测」时先走 Google（顺带获取检测语言）；Google 失败后用已检出语言（或已选定的源语言）跑 MyMemory；检测也不可用时 toast 提示手动选择源语言，并按目标方向合理猜测（目标为中文猜 en，否则猜 zh-CN）再尝试一次 MyMemory。
-  - 锁定引擎：失败直接 toast 错误，译文区提示「可切换引擎重试」。
-  - 切换引擎后自动用当前输入重跑。
-- 修复交换语言在 auto 模式下自赋值无效的 bug：检测出语言时先把检测语言填入源下拉再交换；未翻译过则 toast 提示「自动检测时需先翻译一次」，不执行交换。
-- 译文区新增当前实际使用引擎的小标签；header 检测信息同步展示。
-- 保留：防抖即时翻译（500ms）、粘贴、复制译文、语言偏好持久化（`srcLang` / `tgtLang`）。
+- 多引擎：Google（自动检测、长文本）+ MyMemory（≤500 字节，需手动源语言），
+  引擎选「自动」时 Google 失败自动回退 MyMemory
+- 语言方向记忆（宿主设置持久化）、交换按钮（⇄，检测结果自动带入源语言）
+- 双语复制 / 译文复制 / 导出文本 / 历史导出
+- Quick 形态单列布局 + 浮层历史；桌面三段式（语言条 / 双栏 / 历史侧栏）

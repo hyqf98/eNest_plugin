@@ -315,8 +315,184 @@
     }
   }
 
+  // —— 自定义下拉：隐藏原生 <select>，保留其 DOM/取值/change 契约，UI 由 kit 接管 —— //
+  const selectInstances = new Map() // native select → instance
+  function buildSelect(native) {
+    const originalClass = native.className
+    native.classList.add('pk-select-native')
+    const wrapper = document.createElement('div')
+    wrapper.className = 'pk-select' + (originalClass ? ' ' + originalClass : '')
+    const trigger = document.createElement('button')
+    trigger.type = 'button'
+    trigger.className = 'pk-select-trigger'
+    trigger.disabled = native.disabled
+    trigger.setAttribute('role', 'combobox')
+    trigger.setAttribute('aria-haspopup', 'listbox')
+    trigger.setAttribute('aria-expanded', 'false')
+    // 可访问名：aria-label 优先；包裹式 label 只取其直接文本节点（排除 option 文本）
+    const labelEl = native.labels && native.labels[0]
+    const labelText = labelEl
+      ? [...labelEl.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join(' ').trim()
+      : ''
+    trigger.setAttribute('aria-label', String(native.getAttribute('aria-label') || labelText || '下拉选择').trim())
+    const valueEl = document.createElement('span')
+    valueEl.className = 'pk-select-value'
+    trigger.append(valueEl)
+    const menu = document.createElement('div')
+    menu.className = 'pk-select-menu'
+    menu.setAttribute('role', 'listbox')
+    menu.hidden = true
+    wrapper.append(trigger, menu)
+    native.insertAdjacentElement('afterend', wrapper)
+
+    let open = false, activeIndex = -1
+    const readOptions = () => {
+      const list = []
+      const walk = (parent, group) => {
+        for (const node of parent.children) {
+          if (node.tagName === 'OPTGROUP') walk(node, node.getAttribute('label') || '')
+          else if (node.tagName === 'OPTION') list.push({ value: node.value, label: node.textContent, disabled: node.disabled, group })
+        }
+      }
+      walk(native, '')
+      return list
+    }
+    const optionEls = () => [...menu.querySelectorAll('.pk-select-option')]
+    const sync = () => {
+      valueEl.textContent = (native.selectedOptions[0] || native.options[0] || {}).textContent || ''
+      for (const el of optionEls()) {
+        const selected = el.dataset.value === native.value
+        el.classList.toggle('selected', selected)
+        el.setAttribute('aria-selected', String(selected))
+      }
+    }
+    const rebuild = () => {
+      const frag = document.createDocumentFragment()
+      let lastGroup = null
+      for (const opt of readOptions()) {
+        if (opt.group && opt.group !== lastGroup) {
+          const head = document.createElement('div')
+          head.className = 'pk-select-group'
+          head.textContent = opt.group
+          frag.append(head)
+          lastGroup = opt.group
+        }
+        const item = document.createElement('div')
+        item.className = 'pk-select-option' + (opt.disabled ? ' disabled' : '')
+        item.dataset.value = opt.value
+        item.setAttribute('role', 'option')
+        item.textContent = opt.label
+        item.addEventListener('click', () => { if (!opt.disabled) choose(opt.value) })
+        item.addEventListener('mousemove', () => setActive(optionEls().indexOf(item), false))
+        frag.append(item)
+      }
+      menu.replaceChildren(frag)
+      sync()
+    }
+    const choose = value => {
+      close()
+      if (native.value !== value) {
+        native.value = value
+        native.dispatchEvent(new Event('input', { bubbles: true })) // 与原生 select 行为对齐：input + change 都派发
+        native.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+      trigger.focus()
+    }
+    const setActive = (index, scroll = true) => {
+      activeIndex = index
+      const els = optionEls()
+      els.forEach((el, i) => el.classList.toggle('active', i === index))
+      if (scroll) els[index]?.scrollIntoView({ block: 'nearest' })
+    }
+    const position = () => {
+      const rect = trigger.getBoundingClientRect()
+      menu.style.minWidth = rect.width + 'px'
+      const below = window.innerHeight - rect.bottom, above = rect.top
+      menu.style.maxHeight = Math.min(280, Math.max(150, Math.max(below, above) - 20)) + 'px'
+      menu.classList.toggle('up', below < 220 && above > below)
+    }
+    const openMenu = () => {
+      if (trigger.disabled || open) return
+      open = true
+      rebuild()
+      position()
+      menu.hidden = false
+      trigger.setAttribute('aria-expanded', 'true')
+      const selected = optionEls().findIndex(el => el.classList.contains('selected'))
+      setActive(selected >= 0 ? selected : 0)
+    }
+    const close = () => {
+      open = false
+      menu.hidden = true
+      trigger.setAttribute('aria-expanded', 'false')
+    }
+    trigger.addEventListener('click', () => (open ? close() : openMenu()))
+    trigger.addEventListener('keydown', event => {
+      if (event.isComposing) return
+      const els = optionEls()
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        if (!open) return openMenu()
+        const delta = event.key === 'ArrowDown' ? 1 : -1
+        let next = activeIndex + delta
+        while (els[next] && els[next].classList.contains('disabled')) next += delta
+        if (next >= 0 && next < els.length) setActive(next)
+      } else if ((event.key === 'Enter' || event.key === ' ') && open) {
+        event.preventDefault()
+        els[activeIndex]?.click()
+      } else if (event.key === 'Escape' && open) {
+        event.preventDefault()
+        close()
+      } else if (event.key === 'Home' && open) {
+        event.preventDefault(); setActive(0)
+      } else if (event.key === 'End' && open) {
+        event.preventDefault(); setActive(els.length - 1)
+      } else if (open && event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const key = event.key.toLowerCase()
+        const hit = els.findIndex(el => !el.classList.contains('disabled') && el.textContent.trim().toLowerCase().startsWith(key))
+        if (hit >= 0) setActive(hit)
+      }
+    })
+    const onDocPointer = event => { if (open && !wrapper.contains(event.target)) close() }
+    document.addEventListener('pointerdown', onDocPointer)
+    const onNativeChange = () => sync()
+    native.addEventListener('change', onNativeChange)
+    rebuild()
+    return {
+      el: wrapper, trigger,
+      refresh: () => { rebuild(); sync() },
+      destroy: () => {
+        document.removeEventListener('pointerdown', onDocPointer)
+        native.removeEventListener('change', onNativeChange)
+        selectInstances.delete(native)
+        wrapper.remove()
+        native.classList.remove('pk-select-native')
+      }
+    }
+  }
+  /** 把作用域内的原生 <select> 升级为自定义下拉（幂等；动态插入的会自动升级） */
+  function upgradeSelects(scope = document) {
+    const made = []
+    for (const native of (scope || document).querySelectorAll('select')) {
+      if (selectInstances.has(native)) continue
+      if (native.closest('template')) continue
+      selectInstances.set(native, buildSelect(native))
+      made.push(selectInstances.get(native))
+    }
+    // 顺带把所有已升级实例的标签/选中态同步一次（覆盖 JS 直接改 .value 的场景）
+    for (const instance of selectInstances.values()) instance.refresh()
+    return made
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => upgradeSelects(), { once: true })
+  else upgradeSelects()
+  let selectUpgradeTimer = 0
+  new MutationObserver(() => {
+    clearTimeout(selectUpgradeTimer)
+    selectUpgradeTimer = setTimeout(() => upgradeSelects(), 60)
+  }).observe(document.documentElement, { childList: true, subtree: true })
+
   window.PluginKit = {
-    create, escape,
+    create, escape, upgradeSelects,
     dataTable, hexDump, workbench, badge, quickBar, commandPalette
   }
 })()

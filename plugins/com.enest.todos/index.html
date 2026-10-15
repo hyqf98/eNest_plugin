@@ -9,31 +9,100 @@
       :root {
         --line: var(--border, #dce2e6);
         --paper: var(--surface, #fff);
+        --paper-2: var(--surface-2, #eef1f3);
         --muted: var(--text-2, #73808c);
+        --ink: var(--text, #252a32);
         --mark: var(--accent, #358472);
+        --mark-soft: color-mix(in srgb, var(--mark) 11%, transparent);
+        --shadow-1: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
+        --chrome-blur: saturate(160%) blur(18px);
+        --chrome-bg: color-mix(in srgb, var(--paper) 74%, transparent);
+        --speed: 130ms;
+      }
+      :root[data-anim='low'] {
+        --speed: 0ms;
       }
       body {
         overflow: hidden;
+        font-variant-numeric: tabular-nums;
       }
       button {
-        border: 0;
-        border-radius: 7px;
-        background: transparent;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 28px;
+        border: 1px solid var(--line);
+        border-radius: calc(8px - 2px);
+        background: var(--paper);
         color: inherit;
-        padding: 7px 10px;
+        padding: 4px 12px;
+        font-size: 12.5px;
+        line-height: 1.4;
+        white-space: nowrap;
+        transition: background-color var(--speed) ease,
+          transform 100ms ease-out, opacity var(--speed) ease,
+          color var(--speed) ease, border-color var(--speed) ease;
       }
-      button:hover {
-        background: var(--surface-2, #eaf0ef);
+      button:hover:not(:disabled) {
+        background: var(--paper-2);
+        border-color: color-mix(in srgb, var(--mark) 45%, var(--line));
+      }
+      button:active:not(:disabled) {
+        transform: scale(0.97);
+        background: var(--paper-2);
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.45;
+      }
+      button.primary {
+        background: var(--mark);
+        border-color: var(--mark);
+      }
+      button.danger {
+        color: var(--danger, #b35350);
+        border-color: color-mix(in srgb, var(--danger, #b35350) 45%, var(--line));
+      }
+      button.danger:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--danger, #b35350) 8%, transparent);
+        border-color: var(--danger, #b35350);
       }
       input,
       textarea,
       select {
         border: 1px solid var(--line);
-        border-radius: 7px;
+        border-radius: calc(8px - 2px);
         background: var(--paper);
         color: inherit;
-        padding: 8px;
+        padding: 4px 8px;
+        min-height: 28px;
         min-width: 0;
+        transition: border-color var(--speed) ease;
+      }
+      input:hover:not(:disabled):not([type='checkbox']),
+      textarea:hover:not(:disabled),
+      select:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--mark) 45%, var(--line));
+      }
+      input:focus,
+      textarea:focus,
+      select:focus {
+        border-color: var(--mark);
+        outline: none;
+      }
+      input:focus-visible,
+      textarea:focus-visible,
+      select:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--mark);
+        outline-offset: 2px;
+      }
+      input:disabled,
+      textarea:disabled,
+      select:disabled {
+        opacity: 0.45;
+        cursor: default;
       }
       textarea {
         resize: vertical;
@@ -42,40 +111,118 @@
         display: flex;
         align-items: center;
         gap: 12px;
-        padding: 20px 24px 14px;
+        padding: 18px 24px 13px;
+        background: var(--chrome-bg);
+        backdrop-filter: var(--chrome-blur);
+        -webkit-backdrop-filter: var(--chrome-blur);
       }
       h1 {
         font-size: 21px;
-        letter-spacing: -0.6px;
+        letter-spacing: -0.02em;
+        font-weight: 650;
         margin: 0;
-      }
-      header .grow {
-        flex: 1;
+        line-height: 1.15;
       }
       .eyebrow {
         font-size: 11px;
         color: var(--muted);
-        margin-bottom: 5px;
+        margin-bottom: 4px;
+      }
+      header .grow {
+        flex: 1;
+      }
+      /* —— 完成度统计条 —— */
+      .progress-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        width: clamp(140px, 24vw, 260px);
+      }
+      .progress-track {
+        flex: 1;
+        height: 4px;
+        border-radius: 999px;
+        background: var(--paper-2);
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: var(--mark);
+        transition: width 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        min-width: 0;
+      }
+      :root[data-anim='low'] .progress-fill {
+        transition: none;
+      }
+      .progress-label {
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .progress-label b {
+        color: var(--ink);
+        font-weight: 650;
       }
       .workspace {
-        height: calc(100% - 83px);
+        height: calc(100% - 78px);
         display: grid;
-        grid-template-columns: 180px minmax(280px, 1fr) 285px;
+        grid-template-columns: 180px minmax(280px, 1fr) 288px;
       }
       nav {
         padding: 12px;
         border-right: 1px solid var(--line);
+        overflow: auto;
       }
       nav button {
-        display: block;
+        display: flex;
         width: 100%;
+        align-items: center;
+        gap: 8px;
         text-align: left;
+        border-color: transparent;
+        background: transparent;
         margin: 3px 0;
       }
+      nav button:hover:not(:disabled) {
+        background: var(--paper-2);
+        border-color: transparent;
+      }
+      nav button .nav-count {
+        margin-left: auto;
+        font-size: 10px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
       button.active {
-        background: color-mix(in srgb, var(--mark) 12%, transparent);
+        background: var(--mark-soft);
+        border-color: color-mix(in srgb, var(--mark) 45%, transparent);
         color: var(--mark);
         font-weight: 600;
+      }
+      button.active .nav-count {
+        color: var(--mark);
+      }
+      nav hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 10px 0;
+      }
+      #list-form {
+        display: flex;
+        gap: 4px;
+        margin: 4px 0;
+      }
+      #list-form input {
+        flex: 1;
+        min-width: 0;
+        padding: 4px 8px;
+      }
+      #list-form button {
+        min-height: 26px;
+        padding: 3px 10px;
+        font-size: 12px;
       }
       .list-pane {
         min-height: 0;
@@ -90,6 +237,28 @@
         overflow-x: auto;
         flex: none;
       }
+      .filters button {
+        display: inline-flex;
+        gap: 6px;
+        align-items: baseline;
+        white-space: nowrap;
+        border-color: transparent;
+        background: transparent;
+        min-height: 26px;
+        padding: 3px 10px;
+      }
+      .filters button:hover:not(:disabled) {
+        background: var(--paper-2);
+        border-color: transparent;
+      }
+      .filters .f-count {
+        font-size: 10px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .filters button.active .f-count {
+        color: var(--mark);
+      }
       .composer {
         display: flex;
         gap: 8px;
@@ -99,47 +268,96 @@
         flex: 1;
         background: transparent;
       }
+      .composer .primary {
+        min-width: 64px;
+      }
       .primary {
         background: var(--mark);
+        border-color: var(--mark);
         color: #fff;
+        font-weight: 600;
       }
-      .primary:hover {
-        filter: brightness(1.05);
-        background: var(--mark);
+      .primary:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--mark) 86%, #fff);
+        border-color: color-mix(in srgb, var(--mark) 86%, #fff);
       }
       #tasks {
         overflow: auto;
         flex: 1;
-        padding: 0 12px;
+        padding: 0 12px 8px;
       }
       .task {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 12px 9px;
+        gap: 8px;
+        padding: 11px 8px;
         border-bottom: 1px solid var(--line);
         cursor: pointer;
         border-radius: 6px;
+        background: var(--paper);
+        transition: background-color var(--speed) ease;
       }
       .task.selected {
-        background: color-mix(in srgb, var(--mark) 9%, transparent);
+        background: color-mix(in srgb, var(--mark) 8%, transparent);
         box-shadow: inset 3px 0 var(--mark);
       }
       .task.done .task-title {
         text-decoration: line-through;
         color: var(--muted);
       }
+      /* 拖拽态：被拖行浮起，其余行让位 */
+      .task.dragging {
+        position: relative;
+        z-index: 3;
+        background: var(--paper);
+        box-shadow: var(--shadow-1), 0 8px 22px color-mix(in srgb, var(--ink) 14%, transparent);
+        transition: none;
+      }
+      .task.shift {
+        transition: transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      :root[data-anim='low'] .task.shift {
+        transition: none;
+      }
+      .drag-handle {
+        color: var(--muted);
+        opacity: 0.45;
+        cursor: grab;
+        padding: 6px 2px;
+        font-size: 13px;
+        letter-spacing: -1px;
+        touch-action: none;
+      }
+      .drag-handle:active {
+        cursor: grabbing;
+      }
+      .task.done .drag-handle {
+        visibility: hidden;
+      }
       .check {
         width: 20px;
         height: 20px;
+        min-height: 20px;
         border: 1px solid var(--line);
         padding: 0;
         border-radius: 6px;
         flex: none;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        background: var(--paper);
+      }
+      .check:hover:not(:disabled) {
+        border-color: var(--mark);
+        background: var(--paper);
+      }
+      .check:active:not(:disabled) {
+        transform: none;
       }
       .done .check {
         background: var(--mark);
         color: white;
+        border-color: var(--mark);
       }
       .task-body {
         flex: 1;
@@ -147,23 +365,68 @@
       }
       .task-title {
         overflow-wrap: anywhere;
+        word-break: break-word;
         font-size: 14px;
+        line-height: 1.5;
       }
       .meta {
         display: flex;
         gap: 8px;
+        flex-wrap: wrap;
         font-size: 11px;
         color: var(--muted);
-        margin-top: 5px;
+        margin-top: 4px;
       }
       .overdue {
         color: var(--danger, #b35350);
+        font-weight: 600;
+      }
+      .due-today {
+        color: var(--mark);
+        font-weight: 600;
+      }
+      .flag {
+        color: var(--danger, #b35350);
+      }
+      .subtask-progress {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .subtask-mini {
+        width: 34px;
+        height: 3px;
+        border-radius: 999px;
+        background: var(--paper-2);
+        position: relative;
+        overflow: hidden;
+      }
+      .subtask-mini i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: 999px;
+        background: var(--mark);
       }
       .pin {
         color: var(--mark);
+        background: transparent;
+        border-color: transparent;
+      }
+      .pin:hover:not(:disabled) {
+        background: var(--paper-2);
+        border-color: transparent;
       }
       .task .remove {
         opacity: 0;
+        background: transparent;
+        border-color: transparent;
+        color: var(--muted);
+        min-width: 24px;
+      }
+      .task .remove:hover:not(:disabled) {
+        color: var(--danger, #b35350);
+        background: color-mix(in srgb, var(--danger, #b35350) 8%, transparent);
+        border-color: transparent;
       }
       .task:hover .remove,
       .task:focus-within .remove {
@@ -179,6 +442,9 @@
         overflow: auto;
         border-left: 1px solid var(--line);
         padding: 18px;
+        background: var(--chrome-bg);
+        backdrop-filter: var(--chrome-blur);
+        -webkit-backdrop-filter: var(--chrome-blur);
       }
       .detail label {
         display: flex;
@@ -192,11 +458,32 @@
       .detail textarea,
       .detail select {
         width: 100%;
-        color: var(--text, #252a32);
+        color: var(--ink);
+      }
+      /* 优先级/清单下拉已由 kit 升级为 .pk-select：宽度约束迁到 wrapper */
+      .detail .pk-select {
+        width: 100%;
+      }
+      .detail .pk-select-trigger {
+        width: 100%;
       }
       .detail h2 {
         font-size: 14px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
         margin: 0 0 15px;
+      }
+      /* 子任务进度条（详情） */
+      .sub-progress {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 2px 0 10px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .sub-progress .progress-track {
+        height: 3px;
       }
       .detail .subtask {
         display: flex;
@@ -216,10 +503,48 @@
         gap: 5px;
         flex-wrap: wrap;
       }
+      .detail-actions button {
+        min-height: 26px;
+        padding: 3px 10px;
+        font-size: 12px;
+      }
+      #delete-task {
+        color: var(--danger, #b35350);
+        border-color: color-mix(in srgb, var(--danger, #b35350) 45%, var(--line));
+      }
+      #delete-task:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--danger, #b35350) 8%, transparent);
+        border-color: var(--danger, #b35350);
+      }
+      #subform button {
+        min-width: 34px;
+        padding: 3px 8px;
+      }
+      [data-remove-sub] {
+        background: transparent;
+        border-color: transparent;
+        color: var(--muted);
+        min-width: 24px;
+        min-height: 24px;
+        padding: 0 2px;
+      }
+      [data-remove-sub]:hover:not(:disabled) {
+        color: var(--danger, #b35350);
+        background: color-mix(in srgb, var(--danger, #b35350) 8%, transparent);
+        border-color: transparent;
+      }
       .empty {
         padding: 60px 18px;
         text-align: center;
         color: var(--muted);
+        line-height: 1.8;
+      }
+      .empty svg {
+        width: 84px;
+        height: 84px;
+        display: block;
+        margin: 0 auto 8px;
+        opacity: 0.85;
       }
       footer {
         display: flex;
@@ -243,6 +568,14 @@
       #undo {
         color: var(--mark);
       }
+      @media (prefers-reduced-transparency: reduce) {
+        header,
+        .detail {
+          background: var(--paper);
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
+      }
       [data-mode='quick'] .workspace {
         height: 100%;
         grid-template-columns: 1fr;
@@ -258,6 +591,9 @@
       }
       [data-mode='quick'] .task-title {
         font-size: 13px;
+      }
+      [data-mode='quick'] .drag-handle {
+        display: none;
       }
       [data-mode='quick'] .detail {
         position: absolute;
@@ -279,7 +615,7 @@
         [data-mode='shell'] .detail {
           position: absolute;
           right: 0;
-          top: 80px;
+          top: 78px;
           bottom: 0;
           width: 310px;
           background: var(--paper);
@@ -296,6 +632,9 @@
         .task .remove {
           opacity: 1;
         }
+        .progress-wrap {
+          display: none;
+        }
       }
     </style>
   </head>
@@ -304,6 +643,12 @@
       <div>
         <div class="eyebrow">把下一步写下来</div>
         <h1>待办清单</h1>
+      </div>
+      <div class="progress-wrap" title="今日完成度">
+        <div class="progress-track">
+          <div class="progress-fill" id="day-fill" style="width: 0%"></div>
+        </div>
+        <span class="progress-label" id="day-label">今日 0/0</span>
       </div>
       <span class="grow"></span
       ><input
@@ -326,13 +671,11 @@
             placeholder="清单名称"
             maxlength="50"
             aria-label="新清单名称"
-            style="width: 100%"
           /><button>创建</button
           ><button type="button" id="cancel-list">取消</button>
         </form>
         <hr />
-        <button id="import">导入任务</button
-        >
+        <button id="import">导入任务</button>
       </nav>
       <section class="list-pane">
         <div class="quick-summary quick-only">
@@ -363,7 +706,6 @@
         <div class="empty">选择任务，安排下一步</div>
       </aside>
     </div>
-
 
     <script type="module" src="./src/entry.js"></script>
   </body>

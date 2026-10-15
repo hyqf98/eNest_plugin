@@ -1,8 +1,8 @@
 {
   "id": "com.enest.ccswitch",
   "name": "供应商切换",
-  "version": "1.0.0",
-  "description": "AI CLI 供应商切换台：10 应用配置管理、50+ 预设、MCP 同步、会话浏览与用量统计（复刻 cc-switch）",
+  "version": "1.1.0",
+  "description": "AI CLI 供应商切换台：10 应用配置管理、50+ 预设、切换历史与回退、全量备份、MCP 同步、会话浏览与用量统计（复刻 cc-switch）",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
@@ -27,7 +27,7 @@
         "title": "供应商切换",
         "glyph": "⇄",
         "color": "#e8a33d",
-        "explain": "Claude Code / Codex / Gemini 等 10 应用供应商、MCP、会话与用量",
+        "explain": "Claude Code / Codex / Gemini 等 10 应用供应商、切换历史、MCP、会话与用量",
         "openCode": "main"
       }
     ],
@@ -81,10 +81,10 @@
     ]
   },
   "window": {
-    "width": 720,
-    "height": 480,
-    "minWidth": 480,
-    "minHeight": 320
+    "width": 960,
+    "height": 620,
+    "minWidth": 520,
+    "minHeight": 360
   },
   "features": [
     {
@@ -97,6 +97,14 @@
         "cc",
         "sq",
         "供应商"
+      ]
+    },
+    {
+      "code": "history",
+      "explain": "切换历史与一键回退",
+      "cmds": [
+        "切换/历史",
+        "回退"
       ]
     },
     {

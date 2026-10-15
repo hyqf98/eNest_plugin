@@ -69,7 +69,7 @@ test('markdown: 代码块/引用/列表/任务/表格/分隔线', () => {
   const html = markdown.renderMarkdown(
     '```js\nconst a = "<b>";\n```\n\n> 引用一行\n> 第二行\n\n- 甲\n- 乙\n\n1. one\n2. two\n\n- [ ] 未做\n- [x] 已做\n\n| A | B |\n| --- | ---: |\n| 1 | 2 |\n\n---\n',
   )
-  assert.match(html, /<pre class="code-block" data-lang="js"><code>const a = &quot;&lt;b&gt;&quot;;<\/code><\/pre>/)
+  assert.match(html, /<pre class="code-block" data-lang="js"><code><span class="tk-keyword">const<\/span> a = <span class="tk-str">&quot;&lt;b&gt;&quot;<\/span>;<\/code><\/pre>/)
   assert.match(html, /<blockquote><p>引用一行 第二行<\/p><\/blockquote>/)
   assert.match(html, /<ul class="ul"><li>甲<\/li><li>乙<\/li><\/ul>/)
   assert.match(html, /<ol><li>one<\/li><li>two<\/li><\/ol>/)

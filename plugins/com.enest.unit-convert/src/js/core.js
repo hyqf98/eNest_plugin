@@ -90,11 +90,50 @@ export const CATEGORIES = {
       { id: 'PB', name: 'PB', factor: 8 * 1024 ** 5 },
     ],
   },
+  time: {
+    name: '时间',
+    units: [
+      { id: 'ns', name: '纳秒', factor: 1e-6 },
+      { id: 'us', name: '微秒', factor: 0.001 },
+      { id: 'ms', name: '毫秒', factor: 1 },
+      { id: 's', name: '秒', factor: 1000 },
+      { id: 'min', name: '分钟', factor: 60000 },
+      { id: 'h', name: '小时', factor: 3600000 },
+      { id: 'd', name: '天', factor: 86400000 },
+      { id: 'wk', name: '周', factor: 604800000 },
+    ],
+  },
+  pressure: {
+    name: '压力',
+    units: [
+      { id: 'Pa', name: '帕斯卡', factor: 1 },
+      { id: 'kPa', name: '千帕', factor: 1000 },
+      { id: 'MPa', name: '兆帕', factor: 1e6 },
+      { id: 'bar', name: '巴', factor: 1e5 },
+      { id: 'atm', name: '标准大气压', factor: 101325 },
+      { id: 'at', name: '工程大气压', factor: 98066.5 },
+      { id: 'mmHg', name: '毫米汞柱', factor: 133.322387415 },
+      { id: 'psi', name: '磅/平方英寸', factor: 6894.757293168 },
+    ],
+  },
+  energy: {
+    name: '能量',
+    units: [
+      { id: 'J', name: '焦耳', factor: 1 },
+      { id: 'kJ', name: '千焦', factor: 1000 },
+      { id: 'cal', name: '卡路里', factor: 4.184 },
+      { id: 'kcal', name: '千卡', factor: 4184 },
+      { id: 'Wh', name: '瓦时', factor: 3600 },
+      { id: 'kWh', name: '千瓦时', factor: 3.6e6 },
+      { id: 'BTU', name: '英热单位', factor: 1055.05585262 },
+      { id: 'eV', name: '电子伏特', factor: 1.602176634e-19 },
+    ],
+  },
   radix: { name: '进制', units: [] }, // 特殊处理
   fx: { name: '汇率', units: [] }, // 特殊处理（桌面区）
 }
 
-export const TAB_ORDER = ['length', 'area', 'volume', 'mass', 'temp', 'speed', 'data', 'radix', 'fx']
+export const TAB_ORDER = ['length', 'area', 'volume', 'mass', 'temp', 'speed', 'data', 'time', 'pressure', 'energy', 'radix', 'fx']
 
 /** 温度换算：to/from 摄氏 */
 const TO_C = { C: (v) => v, F: (v) => ((v - 32) * 5) / 9, K: (v) => v - 273.15 }
@@ -107,14 +146,16 @@ export const TEMP_UNITS = [
 
 export const RADIX_BASES = [2, 8, 10, 16]
 
-/** 任意类目内单位联动：sourceId 输入 value，返回其余单位值（保留 10 位有效数字） */
-export function convertAll(category, sourceId, value) {
+/** 任意类目内单位联动：sourceId 输入 value，返回其余单位值（保留 10 位有效数字）
+ *  opts.precision：有效数字位数（4-15，默认 12） */
+export function convertAll(category, sourceId, value, opts = {}) {
+  const precision = Math.max(4, Math.min(15, Number(opts.precision) || 12))
   if (category === 'temp') {
     const toC = TO_C[sourceId]
     if (!toC || !Number.isFinite(value)) return {}
     const c = toC(value)
     const out = {}
-    for (const u of TEMP_UNITS) out[u.id] = round(FROM_C[u.id](c))
+    for (const u of TEMP_UNITS) out[u.id] = round(FROM_C[u.id](c), precision)
     return out
   }
   if (category === 'radix') {
@@ -126,23 +167,47 @@ export function convertAll(category, sourceId, value) {
   if (!src || !Number.isFinite(value)) return {}
   const base = value * src.factor
   const out = {}
-  for (const u of cat.units) out[u.id] = round(base / u.factor)
+  for (const u of cat.units) out[u.id] = round(base / u.factor, precision)
   return out
 }
 
-function round(n) {
+function round(n, precision = 12) {
   if (!Number.isFinite(n)) return n
   if (n === 0) return 0
   const abs = Math.abs(n)
-  const digits = abs >= 1e12 || abs < 1e-9 ? 8 : Math.max(0, 12 - Math.floor(Math.log10(abs)) - 1)
-  return Number(n.toFixed(Math.min(digits, 12)))
+  const digits = abs >= 1e12 || abs < 1e-9 ? 8 : Math.max(0, precision - Math.floor(Math.log10(abs)) - 1)
+  return Number(n.toFixed(Math.min(digits, precision)))
 }
 
-/** 数值格式化：整数部分千分位，去掉尾随 0 */
-export function formatNumber(n) {
+/** 换算公式展示文本：1 fromUnit = r toUnit（含公式链说明；温度用表达式） */
+export function formulaText(category, fromId, toId) {
+  if (category === 'temp') {
+    const from = TEMP_UNITS.find((u) => u.id === fromId)
+    const to = TEMP_UNITS.find((u) => u.id === toId)
+    if (!from || !to || fromId === toId) return ''
+    const expr = { C: '°C', F: '°F', K: 'K' }
+    if (fromId === 'C') return `°F = °C × 9/5 + 32；K = °C + 273.15 中的 ${to.name.split(' ')[0]}`
+    if (fromId === 'F' && toId === 'C') return '°C = (°F − 32) × 5/9'
+    if (fromId === 'F' && toId === 'K') return 'K = (°F − 32) × 5/9 + 273.15'
+    if (fromId === 'K' && toId === 'C') return '°C = K − 273.15'
+    if (fromId === 'K' && toId === 'F') return '°F = (K − 273.15) × 9/5 + 32'
+    return `${to.name} = f(${expr[fromId]})`
+  }
+  const cat = CATEGORIES[category]
+  if (!cat) return ''
+  const from = cat.units.find((u) => u.id === fromId)
+  const to = cat.units.find((u) => u.id === toId)
+  if (!from || !to || fromId === toId) return ''
+  const r = round(from.factor / to.factor)
+  const rText = formatNumber(r)
+  return `1 ${from.name} = ${rText} ${to.name}`
+}
+
+/** 数值格式化：千分位 + 有效数字；opts.scientific 强制科学计数 */
+export function formatNumber(n, opts = {}) {
   if (!Number.isFinite(n)) return '—'
   if (Object.is(n, -0)) n = 0
-  if (Math.abs(n) >= 1e15 || (Math.abs(n) !== 0 && Math.abs(n) < 1e-9)) return n.toExponential(6)
+  if (opts.scientific || Math.abs(n) >= 1e15 || (Math.abs(n) !== 0 && Math.abs(n) < 1e-9)) return n.toExponential(6)
   // 先按 12 位有效数字收敛，消除浮点噪声（0.1+0.2 → 0.3）
   let s = String(Number(n.toPrecision(12)))
   if (s.includes('e')) {
@@ -156,9 +221,12 @@ export function formatNumber(n) {
   return (neg ? '-' : '') + withSep + (frac ? '.' + frac : '')
 }
 
-/** 解析输入（允许千分位逗号、全角数字） */
+/** 解析输入（允许千分位逗号、全角数字与全角小数点） */
 export function parseInput(text) {
-  const cleaned = String(text ?? '').replace(/[,，\s]/g, '')
+  const cleaned = String(text ?? '')
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[．。]/g, '.')
+    .replace(/[,，\s]/g, '')
   if (!cleaned) return NaN
   if (!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(cleaned)) return NaN
   return Number(cleaned)
@@ -354,4 +422,7 @@ export const PRESETS = [
   { label: '1 加仑(美) = 3.785 升', value: '1 galUS = 3.785 L' },
   { label: '1 亩 = 666.67 m²', value: '1 mu = 666.67 m2' },
   { label: '1 GB = 1024 MB', value: '1 GB = 1024 MB' },
+  { label: '1 标准大气压 = 760 mmHg', value: '1 atm = 760 mmHg' },
+  { label: '1 千瓦时 = 860 千卡', value: '1 kWh = 860 kcal' },
+  { label: '1 天 = 24 小时', value: '1 d = 24 h' },
 ]

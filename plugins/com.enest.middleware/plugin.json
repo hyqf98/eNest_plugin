@@ -1,14 +1,14 @@
 {
   "id": "com.enest.middleware",
   "name": "中间件控制台",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kafka / RabbitMQ / MQTT / RocketMQ 统一控制台：连接管理、Topic 与队列、消息查询溯源与实时监听、消费组与监控",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.2.0"
   },
   "permissions": [
     "mw.connect",
@@ -16,7 +16,8 @@
     "mw.admin",
     "notify",
     "clipboard.write",
-    "shell.openExternal"
+    "shell.openExternal",
+    "backend.node"
   ],
   "contributes": {
     "settings": [
@@ -86,5 +87,8 @@
   },
   "development": {
     "main": "http://127.0.0.1:5173/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
   }
 }

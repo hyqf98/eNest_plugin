@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { resolve, join, dirname, extname, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { init, parse } from 'es-module-lexer'
-import { repositoryRoot, pluginIds, readManifest, localFile, validPath, DSH_ID } from './plugin-contract.mjs'
+import { repositoryRoot, pluginIds, readManifest, localFile, validPath, validBackendPath, DSH_ID } from './plugin-contract.mjs'
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
 import { resolveMarketAssets, markdownImagePaths } from './market-assets.mjs'
 
@@ -14,13 +14,15 @@ export async function validateDistribution(directory, { release = true, requireR
   if (manifest.development) throw new Error('Published manifest must not contain development')
   resolveMarketAssets(manifest, directory, { release })
   localFile(directory, 'index.html')
+  if (manifest.backend) localFile(directory, manifest.backend.entry)
   const files = []
   async function walk(path, prefix = '') {
     for (const entry of await readdir(path, { withFileTypes: true })) {
       const relative = prefix + entry.name, absolute = join(path, entry.name)
       if ((await lstat(absolute)).isSymbolicLink()) throw new Error(`Symlink forbidden: ${relative}`)
       if (relative === 'runtime' && manifest.id === DSH_ID) continue
-      if (relative.split('/').some(part => ['src', 'tests', 'node_modules'].includes(part)) || !validPath(relative) || (!prefix && !['plugin.json', 'index.html', 'assets'].includes(entry.name)) || /\.(map|tsx?|vue)$/i.test(relative)) throw new Error(`File outside distribution contract: ${relative}`)
+      const backend = !!manifest.backend && (relative === 'backend' || relative.startsWith('backend/'))
+      if ((!backend && relative.split('/').some(part => ['src', 'tests', 'node_modules'].includes(part))) || !(backend ? validBackendPath(relative) : validPath(relative)) || (!prefix && !['plugin.json', 'index.html', 'assets', ...(manifest.backend ? ['backend'] : [])].includes(entry.name)) || /\.(map|tsx?|vue)$/i.test(relative)) throw new Error(`File outside distribution contract: ${relative}`)
       if (entry.isDirectory()) await walk(absolute, relative + '/')
       else files.push(relative)
     }
@@ -36,6 +38,7 @@ export async function validateDistribution(directory, { release = true, requireR
     try { localFile(directory, target) } catch { throw new Error(`${from}: missing local resource ${value}`) }
   }
   for (const file of files) {
+    if (file.startsWith('backend/')) continue // Node imports are private; only browser resources use URL reference validation.
     const extension = extname(file)
     if (!['.html', '.js', '.css'].includes(extension)) continue
     const source = await readFile(join(directory, file), 'utf8')

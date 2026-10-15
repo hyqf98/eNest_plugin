@@ -10,31 +10,42 @@
   </head>
   <body>
     <main class="json-workspace">
-      <header>
-        <h1>JSON 工具</h1>
-        <span id="stats">保留数字原始精度</span>
+      <header class="app-head">
+        <div class="head-brand">
+          <h1>JSON 工具</h1>
+          <span id="stats" class="stat-line">保留数字原始精度</span>
+        </div>
         <div class="quick-switch">
           <button id="show-source" aria-pressed="true">原文</button
           ><button id="show-result" aria-pressed="false">结果</button>
         </div>
       </header>
-      <nav class="transforms" aria-label="JSON 操作">
-        <button data-action="format">格式化</button
-        ><select id="indent" aria-label="缩进">
-          <option value="2">2 空格</option>
-          <option value="4">4 空格</option></select
-        ><button data-action="minify">压缩</button
-        ><button data-action="check">校验</button
-        ><button data-action="sort">键排序</button
-        ><button data-action="escape">转义</button
-        ><button data-action="unescape">反转义</button
-        ><button id="paste">粘贴</button><button id="clear">清空</button>
-      </nav>
+      <div class="toolbar" role="toolbar" aria-label="JSON 操作">
+        <div class="segmented" id="mode-switch" role="tablist" aria-label="处理模式">
+          <button data-action="format" class="active" aria-pressed="true">格式化</button
+          ><button data-action="minify" aria-pressed="false">压缩</button
+          ><button data-action="sort" aria-pressed="false">键排序</button
+          ><button data-action="check" aria-pressed="false">校验</button
+          ><button data-action="escape" aria-pressed="false">转义</button
+          ><button data-action="unescape" aria-pressed="false">反转义</button>
+        </div>
+        <label class="indent-pick" for="indent">
+          缩进
+          <select id="indent">
+            <option value="2">2 空格</option>
+            <option value="4">4 空格</option>
+            <option value="tab">Tab</option>
+          </select>
+        </label>
+        <span class="tool-gap"></span>
+        <button id="paste" class="ghost">粘贴</button>
+        <button id="clear" class="ghost">清空</button>
+      </div>
       <div id="error" role="alert"></div>
       <section class="editors">
         <div class="source-pane">
           <div class="pane-head">
-            <label for="input">原文</label><span id="input-size"></span>
+            <label for="input">输入</label><span id="input-size"></span>
           </div>
           <textarea
             id="input"
@@ -44,21 +55,33 @@
         </div>
         <div class="result-pane">
           <div class="pane-head">
-            <nav>
+            <nav class="segmented" id="view-switch" aria-label="结果视图">
               <button data-view="text" aria-pressed="true">文本</button
               ><button data-view="tree" aria-pressed="false">树</button
+              ><button data-view="query" aria-pressed="false">查询</button
+              ><button data-view="ts" aria-pressed="false">TS</button
+              ><button data-view="stats" aria-pressed="false">统计</button
               ><button data-view="diff" aria-pressed="false">差异</button>
             </nav>
-            <button id="copy">复制</button><button id="refill">回填</button
-            ><button id="save">导出</button>
+            <button id="copy" class="ghost">复制</button><button id="refill" class="ghost">回填</button
+            ><button id="save" class="ghost">导出</button>
           </div>
           <div class="view text-view" data-content="text">
+            <div class="code-tools" id="code-tools" hidden>
+              <button id="hl-toggle" class="chip active" aria-pressed="true">高亮</button
+              ><button id="fold-none" class="chip">全部展开</button
+              ><button data-fold-depth="1" class="chip">1 层</button
+              ><button data-fold-depth="2" class="chip">2 层</button
+              ><button data-fold-depth="3" class="chip">3 层</button>
+              <span id="fold-hint" class="count-hint"></span>
+            </div>
+            <div id="code-render" class="code-render mono" tabindex="0" role="group" aria-label="JSON 高亮结果（行号旁箭头可折叠）" hidden></div>
             <textarea
               id="output"
               readonly
               spellcheck="false"
               aria-label="JSON 结果"
-              placeholder="格式化结果显示在这里"
+              placeholder="结果将显示在这里"
             ></textarea>
           </div>
           <div class="view tree-view" data-content="tree" hidden>
@@ -67,29 +90,72 @@
                 id="search"
                 placeholder="搜索键、值或路径"
                 aria-label="搜索 JSON 树"
-              /><span id="search-count"></span>
+              /><span id="search-count" class="count-hint"></span
+              ><button id="tree-expand" class="ghost">全部展开</button
+              ><button id="tree-collapse" class="ghost">全部收起</button>
             </div>
-            <div id="tree"></div>
+            <div id="tree" class="tree-body"></div>
+          </div>
+          <div class="view query-view" data-content="query" hidden>
+            <div class="query-bar">
+              <code class="query-sign">$</code>
+              <input
+                id="query"
+                spellcheck="false"
+                placeholder=".users[*].name · ..id · .items[0]"
+                aria-label="路径查询"
+              />
+              <button id="query-run">查询</button>
+            </div>
+            <p class="view-hint">点路径写法：<code>.a.b</code> 子键 · <code>[*]</code> 全部元素 · <code>[0]</code> / <code>[-1]</code> 索引 · <code>..name</code> 任意层级</p>
+            <div id="query-results" class="query-body"></div>
+          </div>
+          <div class="view ts-view" data-content="ts" hidden>
+            <div class="view-actions">
+              <label class="ts-root" for="ts-root-name">根类型名
+                <input id="ts-root-name" value="Root" spellcheck="false" />
+              </label>
+              <span class="tool-gap"></span>
+              <button id="ts-copy">复制类型</button>
+            </div>
+            <pre id="ts-output" class="code-block" tabindex="0" aria-label="TypeScript 类型"></pre>
+          </div>
+          <div class="view stats-view" data-content="stats" hidden>
+            <div id="stats-cards" class="stat-cards"></div>
+            <div class="stats-cols">
+              <section class="stat-col">
+                <h3>键出现次数 Top 8</h3>
+                <ol id="stats-keys" class="stat-list"></ol>
+              </section>
+              <section class="stat-col">
+                <h3>类型分布</h3>
+                <ul id="stats-types" class="stat-list"></ul>
+              </section>
+            </div>
           </div>
           <div class="view diff-view" data-content="diff" hidden>
             <textarea
               id="compare"
               spellcheck="false"
               aria-label="比较 JSON"
-              placeholder="粘贴另一份 JSON，与左侧原文比较"
+              placeholder="粘贴另一份 JSON，与左侧输入比较"
             ></textarea>
             <div class="diff-actions">
               <button id="compare-run">比较</button
-              ><button id="diff-copy">复制差异</button
-              ><span>按路径比较；数字按原始 token 比较</span>
+              ><button id="diff-copy" class="ghost">复制差异</button
+              ><span class="view-hint-inline">按路径比较，数字按原始 token 比较</span>
             </div>
             <div id="diff-results"></div>
+          </div>
+          <div class="result-empty" id="result-empty" hidden>
+            <p class="empty-title">还没有结果</p>
+            <p class="empty-desc">在左侧粘贴 JSON，选择上方模式；<br />⌘/Ctrl + Shift + Enter 快速格式化</p>
           </div>
         </div>
       </section>
       <footer>
         <span id="result-size">离线处理 · 最大 8 MB</span
-        ><span>⌘/Ctrl + Shift + Enter 格式化</span>
+        ><span class="foot-hint">⌘/Ctrl + Shift + Enter 格式化</span>
       </footer>
     </main>
 

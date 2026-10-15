@@ -39,6 +39,7 @@
         <div id="thumb-grid" class="thumb-grid" aria-label="图片缩略图"></div>
         <div class="bulk-bar">
           <span class="bulk-label">批量操作</span>
+          <span id="bulk-progress" class="pk-mono pk-muted bulk-progress" role="status"></span>
           <div class="bulk-actions">
             <button id="bulk-shrink" disabled>批量压缩</button>
             <button id="bulk-convert" disabled>转 WebP</button>
@@ -99,6 +100,7 @@
               <button data-resize="percent" aria-pressed="false">百分比</button>
             </div>
             <label class="field"><span class="field-label"><span id="resize-label">最长边</span> <output id="resize-value">1280</output> px</span><input id="resize-range" type="range" min="16" max="4000" step="16" value="1280" /></label>
+            <div class="preset-row" id="preset-row" aria-label="导出尺寸预设"></div>
             <div class="action-row"><button id="run-resize" class="primary">应用缩放</button><button id="preview-resize">预览尺寸</button></div>
             <p id="resize-preview" class="helper pk-mono"></p>
           </section>

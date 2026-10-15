@@ -1,8 +1,8 @@
 {
   "id": "com.enest.translate",
   "name": "翻译",
-  "version": "1.3.0",
-  "description": "多引擎翻译、语言切换、本地历史与收藏、双语复制导出。",
+  "version": "1.4.0",
+  "description": "多引擎翻译、原文译文对照即时翻译（防抖）、语言快捷切换、历史与收藏、双语复制导出。",
   "author": "Lingua",
   "main": "index.html",
   "category": "效率",
@@ -167,7 +167,7 @@
           {
             "key": "autoTranslate",
             "type": "switch",
-            "label": "输入后自动联网翻译",
+            "label": "暂停自动翻译（仅手动翻译）",
             "default": false
           },
           {

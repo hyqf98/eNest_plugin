@@ -23,7 +23,7 @@ export const MACROS = {
 
 /**
  * 解析单域表达式为命中的数值集合：星号、步进（星号/步长）、区间、区间步进、列表与英文名。
- * week 域支持 7=0 折叠与英文缩写（mon/tue…）。
+ * week 域支持 7=0 折叠与英文缩写（mon/tue…）；显式拒绝 Quartz 的 L / W / # / ? 特殊字符。
  */
 export function parseField(source, domain) {
   const text = String(source ?? "").trim();
@@ -32,6 +32,10 @@ export function parseField(source, domain) {
   for (const part of text.split(",")) {
     const chunk = part.trim().toLowerCase();
     if (!chunk) throw new Error(`${domain.label}域存在空列表项`);
+    if (chunk === "?") throw new Error(`${domain.label}域不支持 ?，标准 cron 用 * 代替`);
+    if (chunk === "l" || chunk === "w" || chunk === "lw" || /^[0-9]+[lw]$/.test(chunk))
+      throw new Error(`${domain.label}域不支持 Quartz 的 L / W 特殊字符`);
+    if (chunk.includes("#")) throw new Error(`${domain.label}域不支持 Quartz 的 # 序号语法`);
     let body = chunk,
       step = 1;
     const slash = chunk.indexOf("/");
@@ -94,7 +98,7 @@ function normalizeWeek(v, domain) {
   return v;
 }
 
-/** 解析完整表达式；withSeconds 时第一域为秒 */
+/** 解析完整表达式；withSeconds 时第一域为秒；出错时报出第几个域与问题 */
 export function parseExpression(source, { withSeconds = false } = {}) {
   const text = String(source ?? "").trim();
   if (!text) throw new Error("表达式为空");
@@ -105,54 +109,23 @@ export function parseExpression(source, { withSeconds = false } = {}) {
     throw new Error(`期望 ${expected} 个域（${withSeconds ? "秒 分 时 日 月 周" : "分 时 日 月 周"}），实际 ${parts.length} 个`);
   const domains = withSeconds ? DOMAINS : DOMAINS.slice(1);
   const sets = [];
-  for (const domain of domains) sets[domain.index] = parseField(parts[withSeconds ? domain.index : domain.index - 1], domain);
+  for (const domain of domains) {
+    const part = parts[withSeconds ? domain.index : domain.index - 1];
+    try {
+      sets[domain.index] = parseField(part, domain);
+    } catch (e) {
+      const detail = String(e.message || e).replace(`${domain.label}域`, "");
+      const humanPos = withSeconds ? domain.index + 1 : domain.index;
+      throw new Error(`第 ${humanPos} 个域「${domain.label}」：${detail}`);
+    }
+  }
   return { raw: text, withSeconds, sets };
 }
 
-/** 从基准时间向后扫描下一次命中（逐分钟，秒级逐秒）。上限 366 天。 */
-export function nextFire(schedule, from = new Date(), limit = 5) {
-  const results = [];
-  const cursor = new Date(from.getTime());
-  cursor.setMilliseconds(0);
-  const stepMs = schedule.withSeconds ? 1000 : 60000;
-  const maxSteps = 366 * 24 * 60 * (schedule.withSeconds ? 60 : 1);
-  let steps = 0;
-  while (results.length < limit && steps < maxSteps) {
-    cursor.setTime(cursor.getTime() + stepMs);
-    if (schedule.withSeconds ? matchesSecond(schedule, cursor) : matchesMinute(schedule, cursor))
-      results.push(new Date(cursor.getTime()));
-    steps++;
-  }
-  if (results.length < limit)
-    throw new Error("一年内没有找到匹配的执行时间，请检查日/月/周组合");
-  return results;
-}
-
-/* 分钟粒度命中：秒固定为 0 */
-function matchesMinute(schedule, date) {
-  return matchesCore(schedule, date, 0);
-}
-function matchesSecond(schedule, date) {
-  return matchesCore(schedule, date, date.getSeconds());
-}
-
-function isWildcard(set, min, max) {
-  if (set.size !== max - min + 1) return false;
-  for (let v = min; v <= max; v++) if (!set.has(v)) return false;
-  return true;
-}
-
-function matchesCore(schedule, date, second) {
-  const s = schedule.withSeconds;
-  const minute = schedule.sets[1],
-    hour = schedule.sets[2],
-    day = schedule.sets[3],
-    month = schedule.sets[4],
+/* 分钟骨架命中（不含秒）；日与周同时受限时标准 cron 取或 */
+function dayMatches(schedule, date) {
+  const day = schedule.sets[3],
     week = schedule.sets[5];
-  if (!month.has(date.getMonth() + 1)) return false;
-  if (!hour.has(date.getHours())) return false;
-  if (!minute.has(date.getMinutes())) return false;
-  if (s && !schedule.sets[0].has(second)) return false;
   const dayAny = isWildcard(day, 1, 31);
   const weekAny = isWildcard(week, 0, 6);
   if (dayAny && weekAny) return true;
@@ -162,22 +135,126 @@ function matchesCore(schedule, date, second) {
   return day.has(date.getDate()) || week.has(date.getDay());
 }
 
-/** 自然语言描述（中文） */
+/**
+ * 从基准时间向后扫描未来的执行时间。
+ * 策略：月不匹配直接跳到下个月 1 日，日/周不匹配跳到明天，命中日内只在配置的时/分（秒）组合中查找，
+ * 因此跨月 / 跨年 / 闰年 2 月 29 日都能正确命中；扫描上限 50 年。
+ * 分钟模式结果恒为整分（秒 = 0）；秒级模式在命中分钟内展开配置的秒。
+ */
+export function nextFire(schedule, from = new Date(), limit = 5) {
+  const results = [];
+  const hours = [...schedule.sets[2]].sort((a, b) => a - b);
+  const minutes = [...schedule.sets[1]].sort((a, b) => a - b);
+  const seconds = schedule.withSeconds ? [...schedule.sets[0]].sort((a, b) => a - b) : [0];
+  const cursor = new Date(from.getTime());
+  cursor.setMilliseconds(0);
+  if (schedule.withSeconds) cursor.setTime(cursor.getTime() + 1000);
+  else {
+    cursor.setSeconds(0, 0);
+    cursor.setTime(cursor.getTime() + 60000);
+  }
+  const maxDays = 366 * 50;
+  let days = 0;
+  while (results.length < limit && days < maxDays) {
+    const y = cursor.getFullYear(),
+      m = cursor.getMonth(),
+      d = cursor.getDate();
+    if (!schedule.sets[4].has(m + 1)) {
+      cursor.setTime(new Date(y, m + 1, 1, 0, 0, 0, 0).getTime());
+      continue;
+    }
+    if (!dayMatches(schedule, cursor)) {
+      cursor.setTime(new Date(y, m, d + 1, 0, 0, 0, 0).getTime());
+      days++;
+      continue;
+    }
+    // 命中日：找今天 >= cursor 的第一个 时:分 组合
+    let hit = null;
+    for (const h of hours) {
+      if (h < cursor.getHours()) continue;
+      for (const min of minutes) {
+        if (h === cursor.getHours() && min < cursor.getMinutes()) continue;
+        hit = new Date(y, m, d, h, min, 0, 0);
+        break;
+      }
+      if (hit) break;
+    }
+    if (!hit) {
+      cursor.setTime(new Date(y, m, d + 1, 0, 0, 0, 0).getTime());
+      days++;
+      continue;
+    }
+    if (schedule.withSeconds) {
+      const sameMinute = hit.getTime() === new Date(y, m, d, cursor.getHours(), cursor.getMinutes(), 0, 0).getTime();
+      for (const sec of seconds) {
+        if (sameMinute && sec < cursor.getSeconds()) continue;
+        if (results.length >= limit) break;
+        results.push(new Date(y, m, d, hit.getHours(), hit.getMinutes(), sec, 0));
+      }
+    } else {
+      results.push(new Date(hit.getTime()));
+    }
+    cursor.setTime(hit.getTime() + 60000);
+    days++;
+  }
+  if (results.length < limit)
+    throw new Error("50 年内没有足够的匹配执行时间，请检查日/月/周组合（如 2 月 30 日不存在）");
+  return results;
+}
+
+function isWildcard(set, min, max) {
+  if (set.size !== max - min + 1) return false;
+  for (let v = min; v <= max; v++) if (!set.has(v)) return false;
+  return true;
+}
+
+/* ── 中文人性化描述 ── */
+function periodOf(hour) {
+  if (hour < 6) return "凌晨";
+  if (hour < 9) return "早上";
+  if (hour < 12) return "上午";
+  if (hour === 12) return "中午";
+  if (hour < 18) return "下午";
+  return "晚上";
+}
+
+/** 连续周次压缩为区间：[1,2,3,4,5] → "周一至周五"；[0,6] → "周末" */
+function compressWeeks(sorted) {
+  if (sorted.length === 2 && sorted[0] === 0 && sorted[1] === 6) return "周末";
+  const runs = [];
+  let start = sorted[0],
+    prev = sorted[0];
+  for (let k = 1; k <= sorted.length; k++) {
+    const v = sorted[k];
+    if (v === prev + 1) {
+      prev = v;
+      continue;
+    }
+    runs.push([start, prev]);
+    start = prev = v;
+  }
+  return runs
+    .map(([a, b]) => (a === b ? WEEK_LABELS[a] : WEEK_LABELS[a] + "至" + WEEK_LABELS[b]))
+    .join("、");
+}
+
+/** 自然语言描述（中文）：周区间压缩、时段词（凌晨/早上/上午/…）、日周同限取「或」 */
 export function describe(schedule) {
   const s = schedule.withSeconds;
-  const second = schedule.sets[0],
-    minute = schedule.sets[1],
-    hour = schedule.sets[2],
-    day = schedule.sets[3],
-    month = schedule.sets[4],
-    week = schedule.sets[5];
-  const list = (set) => [...set].sort((a, b) => a - b);
+  const EMPTY = new Set();
+  const second = schedule.sets[0] ?? EMPTY,
+    minute = schedule.sets[1] ?? EMPTY,
+    hour = schedule.sets[2] ?? EMPTY,
+    day = schedule.sets[3] ?? EMPTY,
+    month = schedule.sets[4] ?? EMPTY,
+    week = schedule.sets[5] ?? EMPTY;
+  const list = (set) => (set instanceof Set ? [...set] : []).sort((a, b) => a - b);
   const segs = [];
-  const weekText = isWildcard(week, 0, 6) ? "" : "每" + list(week).map((w) => WEEK_LABELS[w]).join("、");
+  const weekText = isWildcard(week, 0, 6) ? "" : "每" + compressWeeks(list(week));
   const dayText = isWildcard(day, 1, 31) ? "" : `每月 ${list(day).join("、")} 日`;
   const monthSeg = isWildcard(month, 1, 12) ? "" : `${list(month).join("、")} 月`;
   if (monthSeg) segs.push(monthSeg);
-  if (weekText && dayText) segs.push(`${dayText}（${weekText.replace(/^每/, "")}）`);
+  if (weekText && dayText) segs.push(`${dayText} 或 ${weekText}`);
   else if (dayText) segs.push(dayText);
   else if (weekText) segs.push(weekText);
 
@@ -197,14 +274,23 @@ export function describe(schedule) {
     );
     timeText = times.slice(0, 8).join(" ");
     if (times.length > 8) timeText += " …";
+    // 时段词：单一小时或同段小时内加「凌晨/早上/上午/中午/下午/晚上」
+    if (hourArr.length && hourArr.length <= 6) {
+      const lead = periodOf(hourArr[0]);
+      if (hourArr.every((h) => periodOf(h) === lead)) timeText = `${lead} ${timeText}`;
+    }
+    if (!segs.length && !monthSeg) timeText = "每天 " + timeText;
   }
-  if (s && !isWildcard(second, 0, 59)) timeText += ` 第 ${list(second).slice(0, 4).join("、")} 秒`;
+  const secArr = list(second);
+  if (s && !isWildcard(second, 0, 59) && !(secArr.length === 1 && secArr[0] === 0))
+    timeText += ` 第 ${secArr.slice(0, 4).join("、")} 秒`;
   segs.push(timeText);
   return segs.join(" · ") || schedule.raw;
 }
 
 /** 等差满跨度序列返回步长文案，否则 null */
 function stepSpan(set, min, max) {
+  if (!(set instanceof Set)) return null;
   const arr = [...set].sort((a, b) => a - b);
   if (arr.length < 2) return null;
   const diff = arr[1] - arr[0];
@@ -216,14 +302,18 @@ function stepSpan(set, min, max) {
 
 export const PRESETS = [
   { name: "每天凌晨 3 点", expr: "0 3 * * *" },
+  { name: "每天早上 9 点", expr: "0 9 * * *" },
   { name: "工作日早上 9 点", expr: "0 9 * * 1-5" },
   { name: "每小时整点", expr: "0 * * * *" },
   { name: "每 5 分钟", expr: "*/5 * * * *" },
+  { name: "每 10 分钟", expr: "*/10 * * * *" },
   { name: "每 15 分钟", expr: "*/15 * * * *" },
   { name: "每月 1 号零点", expr: "0 0 1 * *" },
   { name: "每周一 08:30", expr: "30 8 * * 1" },
+  { name: "每周五 下午 6 点", expr: "0 18 * * 5" },
   { name: "每周日凌晨 2 点", expr: "0 2 * * 0" },
   { name: "每季度首月 1 号", expr: "0 0 1 1,4,7,10 *" },
+  { name: "每半年 1 月与 7 月 1 日", expr: "0 0 1 1,7 *" },
   { name: "每天 12 点与 18 点", expr: "0 12,18 * * *" },
   { name: "工作日每小时第 30 分", expr: "30 * * * 1-5" },
   { name: "每月 15 号晚上 22 点", expr: "0 22 15 * *" },

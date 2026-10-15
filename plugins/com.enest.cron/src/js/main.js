@@ -18,8 +18,8 @@ const esc = PluginKit.escape;
 const kit = PluginKit.create({
   title: "Cron 工具",
   quickPlaceholder: "粘贴 cron 表达式，即时解析并预览执行时间",
-  height: 420,
-  defaults: { withSeconds: false, timezone: "local" },
+  height: 460,
+  defaults: { withSeconds: false, timezone: "local", previewCount: "10" },
   onQuery: (value) => {
     $("expression").value = String(value);
     render();
@@ -37,44 +37,53 @@ const BUILTIN_TAG = "builtin";
 
 let userPresets = [];
 let lastFires = [];
+let previewCount = 10;
 
 /* ── 初始化 ─────────────────────────── */
-$("fields").innerHTML = (kit.settings.withSeconds ? DOMAINS : DOMAINS.slice(1))
-  .map(
-    (d) =>
-      `<div class="field-box" data-domain="${d.key}"><h3>${esc(d.label)}<span class="mono" data-value>*</span></h3><div class="chips">${(FIELD_CHIPS[d.key] || [])
-        .map(
-          (c) =>
-            `<button data-chip="${esc(c.value)}" title="${esc(c.title || c.label)}">${esc(c.label)}</button>`,
-        )
-        .join("")}</div><input data-input spellcheck="false" placeholder="手动输入：* 或 1-5 或 1,15" /></div>`,
-  )
-  .join("");
+const fieldBox = (d, shown) =>
+  `<div class="field-box" data-domain="${esc(d.key)}"><h3>${esc(d.label)}<span class="mono" data-value>${esc(shown)}</span></h3><div class="chips">${(FIELD_CHIPS[d.key] || [])
+    .map(
+      (c) =>
+        `<button data-chip="${esc(c.value)}" title="${esc(c.title || c.label)}">${esc(c.label)}</button>`,
+    )
+    .join("")}</div><input data-input spellcheck="false" placeholder="手动输入：* 或 1-5 或 1,15" /></div>`;
 
 $("preset-list").innerHTML = PRESETS.map(
   (p, i) =>
-    `<li data-preset="${i}" title="${esc(p.expr)}"><span class="name">${esc(p.name)}</span><span class="expr">${esc(p.expr)}</span></li>`,
+    `<li data-preset="b${i}" title="${esc(p.expr)}"><span class="name">${esc(p.name)}</span><span class="expr">${esc(p.expr)}</span></li>`,
 ).join("");
 
 (async () => {
   await kit.ready;
   const saved = await kit.load(PRESET_KEY, null);
   if (Array.isArray(saved)) userPresets = saved.slice(0, 100);
-  $("with-seconds").checked = !!kit.settings.withSeconds;
-  if (kit.settings.timezone === "UTC") $("timezone").value = "UTC";
+  setSecondsMode(!!kit.settings.withSeconds, { silent: true });
+  if (kit.settings.timezone === "UTC") {
+    $("timezone").value = "UTC";
+    PluginKit.upgradeSelects(); // 纯 .value 赋值不触发 change，同步自定义下拉标签
+  }
+  const savedCount = Number(kit.settings.previewCount);
+  previewCount = [5, 10, 20].includes(savedCount) ? savedCount : 10;
+  for (const b of document.querySelectorAll("#count-switch [data-count]"))
+    togglePressed(b, Number(b.dataset.count) === previewCount);
   rebuildFields();
   renderPresets();
   if (!$("expression").value) $("expression").value = "*/5 * * * *";
   render();
 })();
 
+function togglePressed(button, on) {
+  button.classList.toggle("active", on);
+  button.setAttribute("aria-pressed", String(on));
+}
+
 /* ── 渲染 ─────────────────────────── */
 function currentParts() {
-  const withSeconds = $("with-seconds").checked;
+  const withSeconds = document.documentElement.dataset.cronMode === "6";
   const order = withSeconds ? DOMAINS : DOMAINS.slice(1);
   const parts = order.map((d) => {
     const box = $(`fields`).querySelector(`[data-domain="${d.key}"]`);
-    const value = box.querySelector("[data-input]").value.trim();
+    const value = box ? box.querySelector("[data-input]").value.trim() : "";
     return value || "*";
   });
   return { withSeconds, parts };
@@ -89,6 +98,7 @@ function render() {
     try {
       schedule = parseExpression(expr, { withSeconds });
       $("copy-expression").disabled = false;
+      $("preset-save").disabled = false;
     } catch (e) {
       showError(e.message);
       schedule = null;
@@ -100,20 +110,24 @@ function render() {
   renderCrontab(schedule);
 }
 
+function setSecondsMode(on, { silent = false } = {}) {
+  document.documentElement.dataset.cronMode = on ? "6" : "5";
+  togglePressed($("mode-5"), !on);
+  togglePressed($("mode-6"), on);
+  if (!silent) {
+    applyExpressionToFields($("expression").value.trim(), on);
+    render();
+  } else rebuildFields();
+}
+
 function rebuildFields() {
-  const withSeconds = $("with-seconds").checked;
+  const withSeconds = document.documentElement.dataset.cronMode === "6";
   const previous = currentParts().parts;
   const order = withSeconds ? DOMAINS : DOMAINS.slice(1);
   $("fields").innerHTML = order
     .map((d, i) => {
       const value = withSeconds ? previous[i] : previous[i - 1] || "*";
-      const shown = withSeconds ? value : value;
-      return `<div class="field-box" data-domain="${d.key}"><h3>${esc(d.label)}<span class="mono" data-value>${esc(shown)}</span></h3><div class="chips">${(FIELD_CHIPS[d.key] || [])
-        .map(
-          (c) =>
-            `<button data-chip="${esc(c.value)}" title="${esc(c.title || c.label)}">${esc(c.label)}</button>`,
-        )
-        .join("")}</div><input data-input spellcheck="false" placeholder="手动输入：* 或 1-5 或 1,15" /></div>`;
+      return fieldBox(d, value);
     })
     .join("");
 }
@@ -125,7 +139,9 @@ function applyExpressionToFields(expr, withSeconds) {
   } catch {
     return false;
   }
-  $("with-seconds").checked = withSeconds;
+  document.documentElement.dataset.cronMode = withSeconds ? "6" : "5";
+  togglePressed($("mode-5"), !withSeconds);
+  togglePressed($("mode-6"), withSeconds);
   rebuildFields();
   const order = withSeconds ? DOMAINS : DOMAINS.slice(1);
   for (const d of order) {
@@ -159,11 +175,12 @@ function clearError() {
 }
 
 const pad = (n) => String(n).padStart(2, "0");
+const inSecondsMode = () => document.documentElement.dataset.cronMode === "6";
 function formatLocal(d) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}${$("with-seconds").checked ? ":" + pad(d.getSeconds()) : ""}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}${inSecondsMode() ? ":" + pad(d.getSeconds()) : ""}`;
 }
 function formatUtc(d) {
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}${$("with-seconds").checked ? ":" + pad(d.getUTCSeconds()) : ""}`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}${inSecondsMode() ? ":" + pad(d.getUTCSeconds()) : ""}`;
 }
 function countdown(ms) {
   if (ms < 0) return "已过期";
@@ -172,14 +189,17 @@ function countdown(ms) {
   const m = Math.round(s / 60);
   if (m < 90) return `${m} 分钟`;
   const h = Math.round(m / 60);
-  if (h < 36) return `${h} 小时`;
-  return `${Math.round(h / 24)} 天`;
+  if (h < 48) return `${h} 小时`;
+  const dayCount = Math.round(h / 24);
+  if (dayCount < 60) return `${dayCount} 天`;
+  return `${(dayCount / 365).toFixed(1)} 年`;
 }
 
 let fireTimer;
+let fireSchedule = null;
 function renderFires(schedule) {
   const tbody = $("fire-list");
-  const count = 5;
+  fireSchedule = schedule;
   if (!schedule) {
     tbody.innerHTML =
       '<tr><td colspan="4" class="empty-note">表达式有效后展示未来执行时间。</td></tr>';
@@ -187,11 +207,23 @@ function renderFires(schedule) {
     return;
   }
   try {
-    lastFires = nextFire(schedule, new Date(), count);
+    lastFires = nextFire(schedule, new Date(), previewCount);
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="4" class="empty-note">${esc(e.message)}</td></tr>`;
+    $("upcoming-count").textContent = "";
     return;
   }
+  $("upcoming-count").textContent = `· 未来 ${lastFires.length} 次`;
+  paintFires();
+  clearTimeout(fireTimer);
+  fireTimer = setTimeout(() => {
+    if (fireSchedule) renderFires(fireSchedule);
+  }, 30000);
+}
+
+/* 只重绘相对列与时间列，30 秒 / 1 秒粒度复用已算好的 lastFires */
+function paintFires() {
+  const tbody = $("fire-list");
   const utcMode = $("timezone").value === "UTC";
   $("tz-label").textContent = utcMode ? "UTC 时间" : "本地时间";
   $("tz-alt-label").textContent = utcMode ? "本地对照" : "UTC 对照";
@@ -200,12 +232,9 @@ function renderFires(schedule) {
     .map((d, i) => {
       const primary = utcMode ? formatUtc(d) : formatLocal(d);
       const alt = utcMode ? formatLocal(d) : formatUtc(d);
-      return `<tr><td class="mono">${i + 1}</td><td>${primary}</td><td class="${utcMode ? "" : ""}">${alt}</td><td class="num">${countdown(d.getTime() - now)}</td></tr>`;
+      return `<tr><td class="idx mono">${i + 1}</td><td class="mono">${primary}</td><td class="mono alt">${alt}</td><td class="rel">${esc(countdown(d.getTime() - now))}</td></tr>`;
     })
     .join("");
-  $("upcoming-count").textContent = "· 未来 5 次";
-  clearTimeout(fireTimer);
-  fireTimer = setTimeout(() => renderFires(schedule), 30000);
 }
 
 function renderCrontab(schedule) {
@@ -250,8 +279,15 @@ const scheduleRender = () => {
   debounce = setTimeout(render, 150);
 };
 $("expression").addEventListener("input", scheduleRender);
-$("with-seconds").addEventListener("change", () => {
-  applyExpressionToFields($("expression").value.trim(), $("with-seconds").checked);
+$("mode-5").addEventListener("click", () => setSecondsMode(false));
+$("mode-6").addEventListener("click", () => setSecondsMode(true));
+$("count-switch").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-count]");
+  if (!b) return;
+  previewCount = Number(b.dataset.count);
+  for (const x of document.querySelectorAll("#count-switch [data-count]"))
+    togglePressed(x, x === b);
+  void api?.storage?.set?.("cron_preview_count", String(previewCount)).catch?.(() => {});
   render();
 });
 $("fields").addEventListener("click", (e) => {
@@ -272,7 +308,7 @@ $("fields").addEventListener("input", (e) => {
 });
 
 function syncExpressionFromFields() {
-  const { withSeconds, parts } = currentParts();
+  const { parts } = currentParts();
   $("expression").value = parts.join(" ");
   scheduleRender();
 }
@@ -321,6 +357,7 @@ $("preset-reset").onclick = () => {
   userPresets = [];
   void persistPresets();
   renderPresets();
+  kit.toast("已恢复内置预设", "info");
 };
 
 /* crontab 粘贴解析与导出 */
@@ -355,6 +392,7 @@ $("crontab-parse").onclick = () => {
   $("expression").value = first.expr;
   render();
   status.textContent = `已解析 ${parsed.length} 行，构建器载入第 ${first.line} 行`;
+  kit.toast(`已载入第 ${first.line} 行表达式`, "success");
 };
 
 $("crontab-export").onclick = () => {

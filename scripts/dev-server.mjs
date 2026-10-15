@@ -5,13 +5,14 @@ import { pathToFileURL } from 'node:url'
 import { repositoryRoot, pluginIds, localFile } from './plugin-contract.mjs'
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.wasm': 'application/wasm' }
 export const productionCsp = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'"
-export async function createPreviewServer(port = 0) {
-  const ids = new Set(pluginIds())
+export async function createPreviewServer(port = 0, { root = repositoryRoot } = {}) {
+  const ids = new Set(pluginIds(root))
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url, 'http://localhost'), match = /^\/plugins\/([^/]+)\/(.*)$/.exec(decodeURIComponent(url.pathname))
       if (!match || !ids.has(match[1])) { response.writeHead(404); response.end(); return }
-      const file = localFile(join(repositoryRoot, 'plugins', match[1], 'dist'), match[2] || 'index.html')
+      if (match[2] && match[2] !== 'index.html' && !match[2].startsWith('assets/')) { response.writeHead(404); response.end(); return }
+      const file = localFile(join(root, 'plugins', match[1], 'dist'), match[2] || 'index.html')
       response.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'Content-Security-Policy': productionCsp })
       response.end(await readFile(file))
     } catch { response.writeHead(404); response.end('Not found') }

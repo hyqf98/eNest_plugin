@@ -15,6 +15,7 @@
         <span class="sub">表达式工作台</span>
         <div class="toolbar">
           <button id="angle" aria-pressed="false">RAD</button
+          ><button id="group-toggle" aria-pressed="true" title="结果千分位分组">千分位</button
           ><button id="toggle-pad" aria-expanded="false">键盘</button>
         </div>
       </header>
@@ -25,7 +26,7 @@
             id="expr"
             spellcheck="false"
             autocomplete="off"
-            placeholder="输入表达式，如 sqrt(144) + 25"
+            placeholder="输入表达式、x = 5 赋值或 200 × 10%"
             aria-label="计算表达式"
           />
           <div class="answer">
@@ -33,7 +34,7 @@
             ><button id="copy" disabled>复制结果</button>
           </div>
           <p class="status" id="status">
-            Enter 记录 · % 为取模 · 百分比用 ÷100
+            Enter 记录 · x = 5 赋值变量 · 10% 百分比 · 10 % 3 取模
           </p>
           <nav class="memory" aria-label="记忆操作">
             <button data-insert="Ans">Ans</button
@@ -45,7 +46,7 @@
           <div id="keypad" class="keypad"></div>
           <div class="function-guide">
             <span>sqrt / pow / abs</span><span>sin / cos / tan</span
-            ><span>ln / log / π / e</span>
+            ><span>ln / log / π / e / g</span>
           </div>
         </div>
         <aside class="history">
