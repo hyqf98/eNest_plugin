@@ -1,7 +1,7 @@
 import './register-db-alias.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeConfig, validateConfig } from '../../plugins/com.enest.database/src/js/sql-intelligence/configuration/index.js'
+import { normalizeConfig, validateConfig } from '../../plugins/database/src/js/sql-intelligence/configuration/index.js'
 const { enumValueDraft, parseEnumValue, updateScope, updateOverride, inheritedProfileConfig } = await import('@db/sql-intelligence/settings/ruleModel.js')
 
 test('typed enum form values preserve scalars, strings and escaped SQL text', () => {

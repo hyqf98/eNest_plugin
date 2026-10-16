@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@ssh/*": ["src/*"] },
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "checkJs": false
+  },
+  "include": ["src/**/*.js", "src/**/*.jsx", "vite.config.js"]
+}

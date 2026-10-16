@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-// 冒烟：snippets / markdown / unit-convert / totp 四个新插件的 Quick 与桌面形态。
+// 冒烟：markdown / unit-convert 两个插件的 Quick 与桌面形态。
 // 宿主 API 全部 mock（同 productivity.ui.js 模式）；net.fetch 由测试用例手动 resolve。
 
 async function setup(page, mode = 'shell', seed = {}) {
@@ -117,68 +117,6 @@ async function noOverflow(page) {
   ).toBe(true)
 }
 
-// ———— snippets ————
-test('片段：搜索过滤、占位符填值复制、Quick 回车复制与模式切换', async ({ page }) => {
-  await setup(page, 'shell', {
-    snippets_v1: {
-      version: 1,
-      snippets: [
-        {
-          id: 's1',
-          title: 'fetch 超时',
-          lang: 'js',
-          tags: ['网络'],
-          content: 'fetch(url, { timeout: ${ms} })',
-          useCount: 0,
-          lastUsedAt: 0,
-          updatedAt: 2,
-        },
-        {
-          id: 's2',
-          title: '排序',
-          lang: 'py',
-          tags: ['数组'],
-          content: 'sorted(arr)',
-          useCount: 1,
-          lastUsedAt: 9,
-          updatedAt: 1,
-        },
-      ],
-    },
-  })
-  await page.goto('/plugins/com.enest.snippets/index.html')
-  await expect(page.locator('.snippet')).toHaveCount(2)
-  // 使用次数排序：s2 在前
-  await expect(page.locator('.snippet-title').first()).toHaveText('排序')
-  // 无占位符复制：选中 s2（列表首位）后点详情复制
-  await page.locator('.snippet').first().click()
-  await page.locator('[data-act="copy"]').click()
-  expect(await page.evaluate(() => window.__copied)).toEqual(['sorted(arr)'])
-  // 搜索
-  await page.locator('#search').fill('超时')
-  await expect(page.locator('.snippet')).toHaveCount(1)
-  // 有占位符 → 弹填值表单，填值后复制渲染结果
-  await page.locator('.snippet').first().click()
-  await page.locator('[data-act="copy"]').click()
-  await expect(page.locator('#vars-dialog')).toBeVisible()
-  await page.locator('[data-var="ms"]').fill('3000')
-  await page.locator('#vars-form button[type="submit"]').click()
-  expect(await page.evaluate(() => window.__copied.at(-1))).toBe('fetch(url, { timeout: 3000 })')
-  // 导出
-  await page.locator('#search').fill('')
-  await page.locator('#export').click()
-  expect(await page.evaluate(() => window.__saved[0].defaultName)).toBe('代码片段.json')
-  await noOverflow(page)
-  // 切 Quick：单列、无详情
-  await page.evaluate(() => window.__host.mode('quick'))
-  await page.setViewportSize({ width: 706, height: 540 })
-  await expect(page.locator('.detail')).toBeHidden()
-  // Quick 下点击即复制（无占位符的 s2）
-  await page.locator('.snippet', { hasText: '排序' }).click()
-  expect(await page.evaluate(() => window.__copied.at(-1))).toBe('sorted(arr)')
-  await noOverflow(page)
-})
-
 // ———— markdown ————
 test('笔记：编辑自动保存、预览渲染、全文搜索与关闭 flush', async ({ page }) => {
   await setup(page, 'shell', {
@@ -198,7 +136,7 @@ test('笔记：编辑自动保存、预览渲染、全文搜索与关闭 flush',
       ],
     },
   })
-  await page.goto('/plugins/com.enest.markdown/index.html')
+  await page.goto('/plugins/markdown/index.html')
   await expect(page.locator('.note-title')).toHaveText('会议记录')
   // 预览（桌面默认开）
   await expect(page.locator('#preview strong')).toHaveText('粗体')
@@ -236,7 +174,7 @@ test('笔记：编辑自动保存、预览渲染、全文搜索与关闭 flush',
 // ———— unit-convert ————
 test('单位换算：联动、进制互转、汇率缓存回退与大写', async ({ page }) => {
   await setup(page, 'shell')
-  await page.goto('/plugins/com.enest.unit-convert/index.html')
+  await page.goto('/plugins/unit-convert/index.html')
   // 长度联动：1 in = 2.54 cm
   await page.locator('[data-unit="in"]').fill('1')
   await expect(page.locator('[data-unit="cm"]')).toHaveValue(/^2\.54/)
@@ -273,68 +211,5 @@ test('单位换算：联动、进制互转、汇率缓存回退与大写', async
   await page.locator('[data-tab="temp"]').click()
   await page.locator('[data-unit="C"]').fill('100')
   await expect(page.locator('[data-unit="F"]')).toHaveValue('212')
-  await noOverflow(page)
-})
-
-// ———— totp ————
-test('验证器：出码、点击复制、剩余秒数着色与加密恢复', async ({ page }) => {
-  await setup(page, 'shell')
-  // 预置一个标准 RFC secret 条目
-  await page.addInitScript(() => {
-    // GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ = base32("12345678901234567890")
-    window.__seedTotp = {
-      totp_v1: {
-        version: 1,
-        entries: [
-          {
-            id: 't1',
-            account: 'me@example.com',
-            issuer: 'GitHub',
-            secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
-            group: '默认',
-            digits: 6,
-            period: 30,
-            algorithm: 'SHA1',
-            sortOrder: 0,
-            createdAt: 1,
-          },
-        ],
-      },
-    }
-  })
-  // 把预置数据并入 store（addInitScript 里不方便直接改 __store，读一遍）
-  await page.goto('/plugins/com.enest.totp/index.html')
-  // 空态引导
-  await expect(page.locator('.empty')).toBeVisible()
-  await page.locator('#add').click()
-  await page.locator('#f-account').fill('me@example.com')
-  await page.locator('#f-secret').fill('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ')
-  await page.locator('#f-issuer').fill('GitHub')
-  await page.locator('#editor-form button[type="submit"]').click()
-  await expect(page.locator('.entry')).toHaveCount(1)
-  // 出码：6 位（当前 30s 窗口对 RFC key 的码）
-  await expect(page.locator('.entry .code')).toHaveText(/^\d{3} \d{3}$/)
-  // 剩余秒数渲染且 ≤30
-  const remain = await page.locator('.entry .remain').textContent()
-  expect(Number(remain)).toBeGreaterThanOrEqual(1)
-  expect(Number(remain)).toBeLessThanOrEqual(30)
-  // 点击行 → 复制当前码
-  await page.locator('.entry').click()
-  const copied = await page.evaluate(() => window.__copied.at(-1))
-  expect(copied).toMatch(/^\d{6}$/)
-  expect(copied).toBe((await page.locator('.entry .code').textContent()).replace(' ', ''))
-  // 备份导出加密 JSON
-  await page.locator('#backup').click()
-  await page.locator('#backup-pass').fill('pass-123')
-  await page.locator('#backup-go').click()
-  await expect.poll(() => page.evaluate(() => window.__saved.length)).toBeGreaterThan(0)
-  const saved = await page.evaluate(() => window.__saved.at(-1))
-  expect(saved.defaultName).toBe('验证器备份.json')
-  expect(saved.content).toContain('enest-totp-backup')
-  await noOverflow(page)
-  // Quick 形态
-  await page.evaluate(() => window.__host.mode('quick'))
-  await page.setViewportSize({ width: 706, height: 540 })
-  await expect(page.locator('.entry-copy').first()).toBeHidden()
   await noOverflow(page)
 })

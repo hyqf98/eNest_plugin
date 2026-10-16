@@ -663,7 +663,7 @@ test(
             missing.push(r.url());
         });
         try {
-          const url = `http://127.0.0.1:${server.address().port}/plugins/com.enest.${slug}/index.html?mode=quick`;
+          const url = `http://127.0.0.1:${server.address().port}/plugins/${slug}/index.html?mode=quick`;
           await page.goto(url);
           await page.waitForTimeout(250);
           assert.equal(

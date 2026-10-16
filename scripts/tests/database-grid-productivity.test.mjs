@@ -1,10 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseGridTsv, gridTsv, coerceGridValue } from '../../plugins/com.enest.database/src/js/gridProductivity.js'
+import { parseGridTsv, gridTsv, coerceGridValue } from '../../plugins/database/src/js/gridProductivity.js'
 
 globalThis.window = { addEventListener() {}, enest: { ui: { toast: async () => {} }, clipboard: { writeText: async () => true } } }
 globalThis.document = { addEventListener() {} }
-const { ResultGrid } = await import('../../plugins/com.enest.database/src/js/resultGrid.js')
+const { ResultGrid } = await import('../../plugins/database/src/js/resultGrid.js')
 delete globalThis.window; delete globalThis.document
 
 class BufferGrid extends ResultGrid {

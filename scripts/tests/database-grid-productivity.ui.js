@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { fixture, connect, setQuery } from './database-fixture.js'
+import { fixture, connect, runQuery, setQuery } from './database-fixture.js'
 
 async function gridFixture(page, readOnly = false, delayMetadata = false) {
   await fixture(page)
@@ -19,7 +19,7 @@ async function gridFixture(page, readOnly = false, delayMetadata = false) {
     window.enest.clipboard.writeText = async text => { window.__clipboardText = text; return true }
   }, { readOnly, delayMetadata })
   await connect(page); await setQuery(page, 'SELECT id, name, enabled FROM customers;')
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   await expect(page.locator('.grid-viewport')).toContainText('Alpha')
 }
 

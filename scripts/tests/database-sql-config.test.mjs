@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { DEFAULT_CONFIG, normalizeConfig, validateConfig, resolveConfig, fingerprintConfig, scopeMatches, mergeConfig, configConnectionIds } from '../../plugins/com.enest.database/src/js/sql-intelligence/configuration/index.js'
+import { DEFAULT_CONFIG, normalizeConfig, validateConfig, resolveConfig, fingerprintConfig, scopeMatches, mergeConfig, configConnectionIds } from '../../plugins/database/src/js/sql-intelligence/configuration/index.js'
 
 test('defaults are immutable, normalized copies do not share mutable arrays', () => {
   const first = normalizeConfig()

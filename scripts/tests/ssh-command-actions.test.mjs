@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { prepareCommandAction, createCommandActions } from '../../plugins/com.enest.ssh/src/js/commandActions.js'
-import { decodeTerminalData } from '../../plugins/com.enest.ssh/src/js/terminalData.js'
-import { isReservedSshShortcut, displaySshShortcut } from '../../plugins/com.enest.ssh/src/js/shortcutPolicy.js'
+import { prepareCommandAction, createCommandActions } from '../../plugins/ssh/src/js/commandActions.js'
+import { decodeTerminalData } from '../../plugins/ssh/src/js/terminalData.js'
+import { isReservedSshShortcut, displaySshShortcut } from '../../plugins/ssh/src/js/shortcutPolicy.js'
 
 const prompt = text => ({ promptId: 3, revision: 5, text, cursor: text.length, cwd: '/srv/中文' })
 function fixture() {

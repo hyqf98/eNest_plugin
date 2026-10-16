@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeRequest, normalizeQueryMode } from '../../plugins/com.enest.middleware/src/js/protocol.js'
+import { normalizeRequest, normalizeQueryMode } from '../../plugins/middleware/src/js/protocol.js'
 
 // Expectations match src/shared/types/mw-workbench.ts and mwService.ts dispatch,
 // including nested payloads passed unchanged to the existing driver methods.

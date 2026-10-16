@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { fixture, connect, openNavigation, navigate, openObject, setQuery } from './database-fixture.js'
+import { fixture, connect, openNavigation, navigate, openObject, runCommand, runQuery, setQuery, transaction } from './database-fixture.js'
 
 const activeId = page => page.locator('#workspace-tabs [role=tab][aria-selected=true]').getAttribute('data-workspace-tab')
 const tabButton = (page, id) => page.locator(`#workspace-tabs [role=tab][data-workspace-tab="${id}"]`)
@@ -9,7 +9,7 @@ test('a delayed query stays with its original connection while another query tab
   await fixture(page); await connect(page); await setQuery(page, 'SELECT source_connection FROM customers;')
   const sourceId = await activeId(page)
   await page.evaluate(() => { window.__deferExecution = true; window.__queryEcho = true })
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   await expect.poll(() => page.evaluate(() => window.__pendingExecutions.length)).toBe(1)
   await page.locator(`[data-close-tab="${sourceId}"]`).click()
   await expect(tabButton(page, sourceId)).toBeVisible()
@@ -18,7 +18,7 @@ test('a delayed query stays with its original connection while another query tab
   const destinationId = await activeId(page)
   expect(destinationId).not.toBe(sourceId)
   await page.evaluate(() => { window.__deferExecution = false; window.__pendingExecutions.shift().finish() })
-  await expect(page.locator('[data-action=run]')).toBeVisible()
+  await expect(page.locator('.wb-querybar')).toBeVisible()
   expect(await activeId(page)).toBe(destinationId)
   await expect(page.locator('#results')).not.toContainText('source_connection')
   await tabButton(page, sourceId).click()
@@ -31,7 +31,7 @@ test('a delayed query stays with its original connection while another query tab
 test('unsubmitted cell edits and selection survive tab switching and block closing that result', async ({ page }) => {
   await fixture(page); await connect(page); await setQuery(page, 'SELECT id, name FROM customers;')
   const sourceId = await activeId(page)
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   await page.locator('.grid-viewport [data-r="0"][data-c="1"]').dblclick()
   await page.locator('.cell-editor').fill('等待提交的名字')
   await connect(page, 'analytics')
@@ -52,22 +52,22 @@ test('closing requires a successful draft save and protects the final transactio
   await expect(tabButton(page, id)).toBeVisible()
   await expect(page.locator('#local-toast')).toContainText('存储空间不足')
   await page.evaluate(() => window.__storageFail = false)
-  await page.locator('[data-action=begin]').click()
+  await transaction(page, 'begin')
   await expect(page.locator('.wb-status')).toContainText('事务进行中')
   await page.locator(`[data-close-tab="${id}"]`).click()
   await expect(tabButton(page, id)).toBeVisible()
   await expect(page.locator('#local-toast')).toContainText('提交或回滚')
-  await page.locator('[data-action=rollback]').click()
+  await transaction(page, 'rollback')
   await page.locator(`[data-close-tab="${id}"]`).click()
   await expect(tabButton(page, id)).toHaveCount(0)
-  await navigate(page, 'documents')
+  await runCommand(page, 'documents')
   await expect(page.locator('.wb-library')).toContainText('SELECT saved_after_close;')
 })
 
 test('a submitted batch can finish in the background without replacing the visible result', async ({ page }) => {
   await fixture(page); await connect(page); await setQuery(page, 'SELECT id, name FROM customers;')
   const sourceId = await activeId(page)
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   await page.locator('.grid-viewport [data-r="0"][data-c="1"]').dblclick()
   await page.locator('.cell-editor').fill('后台提交的名字'); await page.locator('.cell-editor').press('Enter')
   await page.evaluate(() => window.__deferBatch = true)
@@ -137,7 +137,7 @@ test('delayed completion discovery never blocks query execution or a new object 
   const metadata = await page.evaluate(key => window.__sessions[key], metadataKey)
   expect(metadata.readOnly).toBe(true)
   expect(metadata.options.readOnly).toBe(true)
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   await expect(page.locator('.grid-viewport')).toContainText('阿尔法')
   await openObject(page, 'data')
   await expect(page.locator('.grid-viewport')).toContainText('阿尔法')
@@ -155,7 +155,7 @@ test('delayed completion discovery never blocks query execution or a new object 
 
 test('query execution shortcuts do not run closed documents from welcome, settings or history', async ({ page }) => {
   await fixture(page); await connect(page); await setQuery(page, 'SELECT never_run_again;')
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   await expect(page.locator('.grid-viewport')).toContainText('阿尔法')
   const id = await activeId(page)
   await page.locator(`[data-close-tab="${id}"]`).click()
@@ -171,7 +171,7 @@ test('query execution shortcuts do not run closed documents from welcome, settin
 
 test('CSV import requires a current preview and Escape restores the invoking control', async ({ page }) => {
   await fixture(page); await connect(page); await setQuery(page, 'SELECT id, name FROM customers;')
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   const openImport = async () => {
     await page.locator('#top-more').click()
     await page.locator('.ctx-menu [data-k=import]').click()
@@ -210,7 +210,7 @@ test('CSV import requires a current preview and Escape restores the invoking con
 
 test('the workbench stays usable across desktop and Quick sizes, themes and reduced motion', async ({ page }) => {
   await fixture(page); await connect(page); await setQuery(page, 'SELECT id, name FROM customers;')
-  await page.locator('[data-action=run]').click(); await expect(page.locator('.grid-viewport')).toContainText('阿尔法')
+  await runQuery(page); await expect(page.locator('.grid-viewport')).toContainText('阿尔法')
   for (const [width, height, theme, motion] of [[1280, 800, 'light', 'high'], [960, 640, 'dark', 'low'], [720, 420, 'light', 'medium']]) {
     await page.setViewportSize({ width, height })
     await page.evaluate(({ theme, motion }) => { document.documentElement.dataset.theme = theme; document.documentElement.dataset.anim = motion }, { theme, motion })
@@ -221,7 +221,7 @@ test('the workbench stays usable across desktop and Quick sizes, themes and redu
   }
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.evaluate(() => { window.__manyRows = 200; document.documentElement.style.setProperty('--font-size-base', '16.9px') })
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   const metric = page.locator('[data-el=rowMetric]')
   await expect.poll(() => metric.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(36)
   const rowHeight = await metric.evaluate(element => element.getBoundingClientRect().height)

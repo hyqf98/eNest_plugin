@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { createRemoteCompletion, mergeSuggestions } from '../../plugins/com.enest.ssh/src/js/remoteCompletion.js'
+import { createRemoteCompletion, mergeSuggestions } from '../../plugins/ssh/src/js/remoteCompletion.js'
 
-const source = name => readFileSync(new URL(`../../plugins/com.enest.ssh/src/js/${name}`, import.meta.url), 'utf8')
+const source = name => readFileSync(new URL(`../../plugins/ssh/src/js/${name}`, import.meta.url), 'utf8')
 const tick = () => new Promise(resolve => setTimeout(resolve, 5))
 
 /** Tiny DOM port: exercise the real controller lifecycle without a browser or build. */

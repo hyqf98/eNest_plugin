@@ -117,10 +117,8 @@ async function setup(page, mode = 'shell', seed = {}) {
 
 
 const cases = [
-  { id: 'com.enest.totp', button: '#restore', key: 'totp_v1', seed: { version: 1, entries: [] }, payload: { format: 'enest-totp-backup' }, limit: 2000000 },
-  { id: 'com.enest.snippets', button: '#import-file', key: 'snippets_v1', seed: { version: 1, snippets: [] }, payload: { version: 1, snippets: [{ title: 'Authorized snippet', content: 'const safe = true', lang: 'js' }] }, limit: 5000000 },
-  { id: 'com.enest.todos', button: '#import', key: 'todos_v2', seed: { version: 2, tasks: [], lists: ['收件箱'] }, payload: { version: 2, tasks: [{ text: 'Authorized task' }] }, limit: 5000000 },
-  { id: 'com.enest.sticky-notes', button: '#import', key: 'notes_v2', seed: { version: 2, notes: [] }, payload: { version: 2, notes: [{ text: 'Authorized note', title: 'Imported' }] }, limit: 10000000 },
+  { id: 'com.github.eNest.todos', button: '#import', key: 'todos_v2', seed: { version: 2, tasks: [], lists: ['收件箱'] }, payload: { version: 2, tasks: [{ text: 'Authorized task' }] }, limit: 5000000 },
+  { id: 'com.github.eNest.sticky-notes', button: '#import', key: 'notes_v2', seed: { version: 2, notes: [] }, payload: { version: 2, notes: [{ text: 'Authorized note', title: 'Imported' }] }, limit: 10000000 },
 ]
 for (const item of cases) test(`${item.id} imports through host file capability and preserves data on cancel or deny`, async ({ page }) => {
   await setup(page, 'shell', { [item.key]: item.seed })
@@ -139,10 +137,5 @@ for (const item of cases) test(`${item.id} imports through host file capability 
   await page.locator(item.button).click()
   await expect.poll(() => page.evaluate(() => window.__fileCalls.filter(call => call[0] === 'read').length)).toBe(1)
   expect(await page.evaluate(() => window.__fileCalls.at(-1))).toEqual(['read', { handleId: 'authorized-import', encoding: 'text', maxBytes: item.limit }])
-  if (item.id === 'com.enest.totp') {
-    await expect(page.locator('#backup-dialog')).toBeVisible(); await expect(page.locator('#backup-form')).toHaveAttribute('data-mode', 'restore')
-    expect(await page.evaluate(() => window.__store)).toEqual(before)
-  } else {
-    await expect.poll(() => page.evaluate(key => JSON.stringify(window.__store[key]), item.key)).toContain('Authorized')
-  }
+  await expect.poll(() => page.evaluate(key => JSON.stringify(window.__store[key]), item.key)).toContain('Authorized')
 })

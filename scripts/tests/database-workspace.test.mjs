@@ -5,8 +5,8 @@ import assert from 'node:assert/strict'
 // Exercise the real grid state transitions with rendering detached from the browser.
 globalThis.window = { addEventListener() {}, enest: { ui: { toast: async () => {} } } }
 globalThis.document = { addEventListener() {} }
-const { ResultGrid } = await import('../../plugins/com.enest.database/src/js/resultGrid.js')
-const { SqlEditor } = await import('../../plugins/com.enest.database/src/js/monacoEditor.js')
+const { ResultGrid } = await import('../../plugins/database/src/js/resultGrid.js')
+const { SqlEditor } = await import('../../plugins/database/src/js/monacoEditor.js')
 delete globalThis.window
 delete globalThis.document
 

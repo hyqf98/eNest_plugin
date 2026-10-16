@@ -1,8 +1,0 @@
-import '@enest/plugin-kit/responsive.css'
-import '@enest/plugin-kit/style.css'
-import '@enest/plugin-kit'
-import './js/api.js'
-import './js/state.js'
-import './js/views.js'
-import './js/settings.js'
-import './js/main.js'

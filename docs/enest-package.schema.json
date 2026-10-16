@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://enest.local/schemas/enest-package.json",
+  "title": "eNest package.json enest 段（本地开发环境声明）",
+  "description": "插件 package.json 的可选 enest 段：壳子按此解析开发服务启动与构建命令，不预设工具链。全部字段可省略；缺省走 scripts 约定回退（dev→start / build→pack）与锁文件包管理器检测（pnpm/yarn/bun/npm，兜底 npm）。畸形字段被宿主静默忽略。dev 服务 URL 优先级：enest.dev.url > plugin.json development.main。",
+  "type": "object",
+  "properties": {
+    "dev": {
+      "type": "object",
+      "description": "dev（开发）模式：开发服务启动命令与入口",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "dev 服务入口 HTTP(S) URL，不含凭据与 fragment；优先于 plugin.json development.main"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "原始命令逃生舱（非 node 工具链/特殊启动方式），整行交系统 shell 执行；{port} 占位符在端口漂移时替换。声明后忽略 manager/script/portArgs"
+        },
+        "manager": {
+          "type": "string",
+          "enum": ["npm", "yarn", "pnpm", "bun"],
+          "description": "包管理器；缺省按锁文件检测（插件目录向上最多 4 级），都找不到按 npm"
+        },
+        "script": {
+          "type": "string",
+          "minLength": 1,
+          "description": "package.json scripts 中的脚本名；缺省按 scripts.dev → scripts.start 回退"
+        },
+        "portArgs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "端口漂移参数模板，{port} 占位；缺省 [\"--\",\"--port={port}\"]。实际端口同时注入 ENEST_DEV_PORT 环境变量"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "启动进程附加环境变量"
+        }
+      },
+      "additionalProperties": false
+    },
+    "build": {
+      "type": "object",
+      "description": "prod（正式包）模式的构建命令；缺省按 scripts.build → scripts.pack 回退",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "原始构建命令逃生舱，整行交系统 shell 执行"
+        },
+        "manager": {
+          "type": "string",
+          "enum": ["npm", "yarn", "pnpm", "bun"],
+          "description": "包管理器；缺省同 dev 段的锁文件检测规则"
+        },
+        "script": {
+          "type": "string",
+          "minLength": 1,
+          "description": "package.json scripts 中的脚本名；缺省按 scripts.build → scripts.pack 回退"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "构建进程附加环境变量"
+        }
+      },
+      "additionalProperties": false
+    },
+    "output": {
+      "type": "string",
+      "minLength": 1,
+      "description": "构建产物目录（相对插件源码根）；缺省 dist。prod 模式从该目录加载产物"
+    }
+  },
+  "additionalProperties": false
+}

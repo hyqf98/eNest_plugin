@@ -22,7 +22,7 @@ try {
     page.on('response', response => { if (response.status() >= 400) resources.push(`${response.status()} ${response.url()}`) })
     page.on('console', message => { if (message.type() === 'error' && /Content Security Policy|Refused to/.test(message.text())) csp.push(message.text()) })
     await page.route('**/*', route => route.request().url().startsWith(url) ? route.continue() : route.abort())
-    await page.addInitScript(installPreviewFixture, { pluginId: id, mode: id === 'com.enest.dsh' ? 'quick' : 'shell' })
+    await page.addInitScript(installPreviewFixture, { pluginId: id, mode: id === 'dsh' ? 'quick' : 'shell' })
     await page.goto(`${url}/plugins/${id}/index.html`, { waitUntil: 'networkidle' })
     await page.evaluate(() => window.__preview.enter()).catch(error => errors.push(error.message))
     const scenario = await runMarketScenario(page, id)
@@ -37,10 +37,10 @@ try {
       await page.evaluate(() => new Promise(requestAnimationFrame))
       const measurements = await page.evaluate(id => {
         const modeMarkers = [...document.querySelectorAll('[data-mode="quick"], [data-mode="shell"], [data-launch-mode], [data-surface="quick"], [data-surface="shell"]')].map(node => node.dataset.mode || node.dataset.launchMode || node.dataset.surface)
-        if (id === 'com.enest.ccswitch') modeMarkers.push(document.body.classList.contains('quick-mode') ? 'quick' : 'shell')
+        if (id === 'ccswitch') modeMarkers.push(document.body.classList.contains('quick-mode') ? 'quick' : 'shell')
         return { width: innerWidth, height: innerHeight, overflow: document.documentElement.scrollWidth > innerWidth + 1, content: document.body.innerText.trim().length, modeMarkers }
       }, id)
-      if ((!measurements.modeMarkers.length && !['com.example.hello', 'com.enest.theme-demo'].includes(id)) || measurements.modeMarkers.some(value => value !== mode)) errors.push(`Mode transition to ${mode} did not update the rendered surface: ${measurements.modeMarkers.join(',')}`)
+      if (!measurements.modeMarkers.length || measurements.modeMarkers.some(value => value !== mode)) errors.push(`Mode transition to ${mode} did not update the rendered surface: ${measurements.modeMarkers.join(',')}`)
       sizes.push({ mode, font, ...measurements })
     }
     results.push({ id, scenario, errors: [...new Set(errors)], resources: [...new Set(resources)], csp: [...new Set(csp)], sizes })

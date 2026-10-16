@@ -14,7 +14,8 @@ function fixture(t) {
   const repositoryRoot = mkdtempSync(join(tmpdir(), 'enest-standard-'))
   t.after(() => rmSync(repositoryRoot, { recursive: true, force: true }))
   const manifest = { id: 'com.example.test', name: 'Test', version: '1.0.0', description: 'Fixture', main: 'index.html', icon: 'assets/market/icon.svg', market: { readme: 'assets/market/README.md', screenshots: ['assets/market/screenshots/01-main.png'] } }
-  const pluginDir = join(repositoryRoot, 'plugins', manifest.id), entries = {
+  const dirName = manifest.id.split('.').pop()
+  const pluginDir = join(repositoryRoot, 'plugins', dirName), entries = {
     'plugin.json': strToU8(JSON.stringify(manifest)), 'index.html': strToU8('<p>Fixture</p>'),
     'assets/market/icon.svg': strToU8('<svg xmlns="http://www.w3.org/2000/svg"/>'),
     'assets/market/README.md': strToU8('# Package description\n![screen](./screenshots/01-main.png)'),
@@ -22,10 +23,10 @@ function fixture(t) {
   }
   mkdirSync(join(repositoryRoot, 'dist'), { recursive: true }); mkdirSync(pluginDir, { recursive: true })
   writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest))
-  function archive() { writeFileSync(join(repositoryRoot, 'dist', `${manifest.id}@${manifest.version}.enestplugin`), zipSync(entries)) }
+  function archive() { writeFileSync(join(repositoryRoot, 'dist', `${dirName}@${manifest.version}.enestplugin`), zipSync(entries)) }
   function source() {
     writeFileSync(join(pluginDir, 'index.html'), '<p>Source</p>')
-    writeFileSync(join(pluginDir, 'package.json'), JSON.stringify({ name: manifest.id, version: manifest.version, type: 'module' }))
+    writeFileSync(join(pluginDir, 'package.json'), JSON.stringify({ name: dirName, version: manifest.version, type: 'module' }))
     for (const [path, value] of Object.entries(entries)) if (path.startsWith('assets/')) { const file = join(pluginDir, 'public', path); mkdirSync(join(file, '..'), { recursive: true }); writeFileSync(file, value) }
   }
   archive(); source(); return { repositoryRoot, pluginDir, manifest, entries, archive }
@@ -39,8 +40,8 @@ test('registry metadata is extracted from final archives, independent of source 
   const f = fixture(t)
   writeFileSync(join(f.pluginDir, 'public/assets/market/README.md'), 'Different source text')
   const registry = buildRegistry(f.repositoryRoot), item = registry.plugins[0]
-  assert.equal(item.icon, 'com.example.test%401.0.0/assets/market/icon.svg')
-  assert.match(readFileSync(join(f.repositoryRoot, 'dist/com.example.test@1.0.0/assets/market/README.md'), 'utf8'), /Package description/)
+  assert.equal(item.icon, 'test%401.0.0/assets/market/icon.svg')
+  assert.match(readFileSync(join(f.repositoryRoot, 'dist/test@1.0.0/assets/market/README.md'), 'utf8'), /Package description/)
   assert.ok(item.asset.size > 0); assert.match(item.asset.sha256, /^[0-9a-f]{64}$/)
   assert.equal(Object.hasOwn(item, 'installs'), false, 'archive bytes cannot establish an installation count')
 })
@@ -89,13 +90,13 @@ test('distribution validation catches missing local scripts and development sour
 test('Release media attachments come from archives and match versioned URLs', t => {
   const f = fixture(t), result = prepareRelease({ repositoryRoot: f.repositoryRoot, repository: 'owner/plugins', tag: 'v1.0.0' })
   const item = result.plugins[0]
-  assert.match(item.icon, /com.example.test%401.0.0-icon.svg$/)
-  assert.deepEqual(readFileSync(join(f.repositoryRoot, 'dist/com.example.test@1.0.0-screenshot-1.png')), image)
-  assert.match(item.readmeUrl, /com.example.test%401.0.0-README.md$/)
+  assert.match(item.icon, /test%401.0.0-icon.svg$/)
+  assert.deepEqual(readFileSync(join(f.repositoryRoot, 'dist/test@1.0.0-screenshot-1.png')), image)
+  assert.match(item.readmeUrl, /test%401.0.0-README.md$/)
   assert.equal(item.readmeImages['./screenshots/01-main.png'], item.screenshots[0])
 })
 test('missing archive cannot publish a registry', t => {
-  const f = fixture(t); rmSync(join(f.repositoryRoot, 'dist/com.example.test@1.0.0.enestplugin'))
+  const f = fixture(t); rmSync(join(f.repositoryRoot, 'dist/test@1.0.0.enestplugin'))
   assert.throws(() => buildRegistry(f.repositoryRoot), /ENOENT/)
 })
 

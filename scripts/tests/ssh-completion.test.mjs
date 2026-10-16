@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
-const root = new URL('../../plugins/com.enest.ssh/src/js/', import.meta.url)
+const root = new URL('../../plugins/ssh/src/js/', import.meta.url)
 const window = {}
 for (const file of ['dict.js', 'commandCompletion.js']) new Function('window', readFileSync(new URL(file, root), 'utf8'))(window)
 const engine = window.SshCommandCompletion

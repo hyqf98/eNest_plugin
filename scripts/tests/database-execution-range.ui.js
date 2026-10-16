@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { fixture, connect, setQuery } from './database-fixture.js'
+import { fixture, connect, editorShortcut, runQuery, setQuery } from './database-fixture.js'
 
 async function editorState(page, { start, end = start, crlf = false, undo = false, undoStop = false, insert } = {}) {
   return page.evaluate(async ({ start, end, crlf, undo, undoStop, insert }) => {
@@ -22,7 +22,7 @@ const executions = page => page.evaluate(() => window.__calls.filter(call => cal
 
 async function expectExecuted(page, expected) {
   await expect.poll(() => executions(page)).toEqual(expected)
-  await expect(page.locator('[data-action=run]').first()).toBeEnabled()
+  await expect(page.locator('.wb-querybar')).toBeVisible()
 }
 
 test('toolbar executes the caret statement with Chinese, CRLF and quoted semicolons without editing the model', async ({ page }) => {
@@ -30,7 +30,7 @@ test('toolbar executes the caret statement with Chinese, CRLF and quoted semicol
   const source = "SELECT '第一条;内容';\r\n-- 第二条查询\r\nSELECT 名称, '第二条;内容' FROM 客户;\r\nSELECT 3;"
   await setQuery(page, source)
   const before = await editorState(page, { crlf: true, start: source.indexOf('名称') })
-  await page.locator('[data-action=run]').first().click()
+  await editorShortcut(page)
   await expectExecuted(page, ["-- 第二条查询\r\nSELECT 名称, '第二条;内容' FROM 客户;"])
   const after = await editorState(page)
   expect(after).toEqual(before)
@@ -91,7 +91,7 @@ test('MySQL DELIMITER caret normalizes one routine while selected scripts preser
   const source = `DELIMITER $$\n${definition}$$\nDELIMITER ;\nSELECT 3;`
   await setQuery(page, source)
   const before = await editorState(page, { start: source.indexOf('SELECT 2') })
-  await page.locator('[data-action=run]').first().click()
+  await editorShortcut(page)
   await expectExecuted(page, [definition])
   expect(await editorState(page)).toEqual(before)
   await editorState(page, { start: source.indexOf('SELECT 3') })

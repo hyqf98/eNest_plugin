@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { fixture, connect, setQuery } from './database-fixture.js'
+import { fixture, connect, runQuery, setQuery, transaction } from './database-fixture.js'
 
 async function setup(page) {
   await fixture(page)
@@ -9,7 +9,7 @@ async function setup(page) {
     window.enest.clipboard.writeText = async text => { window.__copied = text; return true }
   })
   await connect(page); await setQuery(page, 'SELECT id, name FROM customers;')
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   await expect(page.locator('.grid-viewport')).toContainText('阿尔法')
 }
 async function edit(page, row, value) {
@@ -17,9 +17,7 @@ async function edit(page, row, value) {
   await page.locator('.cell-editor').fill(value); await page.locator('.cell-editor').press('Enter')
 }
 async function rollback(page) {
-  const button = page.locator('[data-action=rollback]')
-  if (await button.isVisible()) await button.click()
-  else { await page.locator('[data-action=more]').click(); await page.locator('.ctx-menu [data-k=rollback]').click() }
+  await transaction(page, 'rollback')
 }
 async function submit(page) {
   await page.locator('[data-sel=commit]').click()
@@ -42,7 +40,7 @@ test('result comments are hydrated independently without resetting pending cell 
 
 test('manual transaction stages mixed edits, removes deletes and protects local edits before rollback', async ({ page }) => {
   await setup(page)
-  await page.locator('[data-action=begin]').click()
+  await transaction(page, 'begin')
   await edit(page, 0, '事务内姓名')
   await page.locator('[data-row="1"] .row-check').check()
   await page.locator('[data-sel=delete]').click()
@@ -102,7 +100,7 @@ test('export selection and columns uses local values and never fetches missing s
 
 for (const sql of ['ROLLBACK;', 'ABORT;', 'ROLLBACK TO SAVEPOINT example;']) test(`${sql} invalidates stale values and keeps transaction status truthful`, async ({ page }) => {
   await setup(page)
-  await page.locator('[data-action=begin]').click()
+  await transaction(page, 'begin')
   await edit(page, 0, '已写入事务'); await submit(page)
   await expect(page.locator('.wb-status')).toContainText('1 项待提交')
   await page.evaluate(() => {
@@ -110,7 +108,7 @@ for (const sql of ['ROLLBACK;', 'ABORT;', 'ROLLBACK TO SAVEPOINT example;']) tes
     window.enest.db.workbench = async input => { const response = await execute(input); if (input.action === 'execute' && /^(ROLLBACK|ABORT)/.test(input.input.sql)) response.results = [{ columns: [], rows: [], transactionActive: input.input.sql.includes(' TO ') }]; return response }
   })
   await setQuery(page, sql)
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   if (sql.includes(' TO ')) await expect(page.locator('.wb-status')).toContainText('部分回滚')
   else await expect(page.locator('.wb-status')).not.toContainText('待提交')
   await expect(page.locator('.grid-viewport')).not.toContainText('已写入事务')

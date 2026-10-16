@@ -6,7 +6,7 @@
 
 ```json
 {
-  "id": "com.example.hello",
+  "id": "com.example.notes",
   "name": "Hello",
   "version": "1.0.0",
   "description": "一个标准 eNest 插件",
@@ -24,7 +24,7 @@
 }
 ```
 
-生产构建删除 `development`，其余媒体路径在发行包内必须真实存在。不要添加 `logo`、根 `settings` 或其它未定义顶层字段；Schema 会拒绝未知字段。
+`development.main` 的端口须与插件启动脚本一致且全仓唯一（现按插件分配 5173–5209）；壳加载时若端口被占会自动换用空闲端口。启动命令不写在清单里：壳子按插件 `package.json` 解析（锁文件检测包管理器 + `scripts.dev`/`start` 回退，可用 `enest` 段显式声明，见 [enest-package.schema.json](enest-package.schema.json)）。生产构建删除 `development`，其余媒体路径在发行包内必须真实存在。不要添加 `logo`、根 `settings` 或其它未定义顶层字段；Schema 会拒绝未知字段。
 
 ## 字段
 
@@ -43,7 +43,7 @@
 | `permissions` | 本插件使用的敏感能力；基础存储/UI/设置/主题无需声明，分类见 plugin-permission-policy.json |
 | `features` | `{code,cmds,explain?}` 数组；入口 code 由 `onEnter` 接收 |
 | `window` | 兼容旧插件的尺寸建议；Quick 插件态外框固定 720×545px，屏幕不足时缩小；主窗口由用户控制 |
-| `development.main` | 源码开发 HTTP(S) URL，不含凭据、fragment；发行包中禁止 |
+| `development.main` | 源码开发 HTTP(S) URL，不含凭据、fragment；发行包中禁止。优先级低于 package.json `enest.dev.url` |
 | `ui` | 是否跟随主题、背景与宿主 chrome |
 | `net` | `allowInsecure` 声明；仍受实际网络权限与宿主校验约束 |
 | `contributes` | 设置、首页入口、轨道入口和主题等声明式扩展 |
@@ -96,7 +96,7 @@
 
 `ui` 默认相当于 `chrome: "none"`、`themeAware: true`、`background: "opaque"`、`preferredColorScheme: "auto"`。`minimal` 请求宿主细条；弃用值 `default` 等价于 none。插件使用宿主注入的 token 和字体，不能在切换主题时保留不适配的固定背景。
 
-主题插件同样遵守工程与发行结构，声明 `theme` 权限，通过 `contributes.themePacks` 提供安装即可发现的主题，或通过 `enest.theme.register(pack)` 动态注册。主题的 source 由宿主绑定插件 ID；不应直接修改宿主 DOM 或设置文件。参考 `com.enest.theme-demo` 与 [主题开发](developer/themes.md)。
+主题插件同样遵守工程与发行结构，声明 `theme` 权限，通过 `contributes.themePacks` 提供安装即可发现的主题，或通过 `enest.theme.register(pack)` 动态注册。主题的 source 由宿主绑定插件 ID；不应直接修改宿主 DOM 或设置文件。主题开发细则见 [主题开发](developer/themes.md)。
 
 ## contributes
 

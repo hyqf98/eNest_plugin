@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { toCsv, toTsv, toJson, toSql, exportSqlLiteral, buildExport } from '../../plugins/com.enest.database/src/js/exportFormats.js'
+import { toCsv, toTsv, toJson, toSql, exportSqlLiteral, buildExport } from '../../plugins/database/src/js/exportFormats.js'
 
 test('CSV and TSV preserve multiline, quote and delimiter values with configurable headers/BOM', () => {
   assert.equal(toCsv(['名字', 'note'], [['甲', 'a,"b"\r\nc']]), '\uFEFF名字,note\r\n甲,"a,""b""\r\nc"')

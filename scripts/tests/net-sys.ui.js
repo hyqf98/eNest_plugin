@@ -233,7 +233,7 @@ async function setup(page, { mode = 'shell', plugin = 'net-kit', seed = {} } = {
     window.__emitHost = (evt, data) => emit(evt, data)
   }, { mode, plugin, seed, tcpPort, httpPort })
   page.on('pageerror', (error) => { throw error })
-  await page.goto(`/plugins/com.enest.${plugin}/index.html?mode=${mode}`)
+  await page.goto(`/plugins/${plugin}/index.html?mode=${mode}`)
 }
 
 // ———— net-kit 桌面形态：HTTP 流式 + TCP echo ————

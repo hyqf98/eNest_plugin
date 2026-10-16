@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { fixture, connect, setQuery, navigate } from './database-fixture.js'
+import { fixture, connect, editorCommand, setQuery, navigate } from './database-fixture.js'
 
 async function editorAction(page, action, offset) {
   return page.evaluate(async ({ action, offset }) => {
@@ -34,7 +34,7 @@ test('star expansion uses the caret list, accepts directly in one undo, excludes
   await fixture(page); await connect(page)
   const sql = 'SELECT * FROM customers c;'
   await setQuery(page, sql); await editorAction(page, '', 8)
-  await page.locator('[data-action=expandColumns]').first().click()
+  await editorCommand(page, 'expandColumns')
   await expect(labels(page).filter({ hasText: '展开全部可见字段' })).toBeVisible()
   await expect(page.locator('.suggest-widget.visible')).toContainText('c.id, c.name')
   await expect(page.locator('dialog[open]')).toHaveCount(0)
@@ -98,7 +98,7 @@ test('typing a table after SELECT lazily generates all fields without opening th
 test('editing the document while a projection list is open invalidates its old candidates', async ({ page }) => {
   await fixture(page); await connect(page)
   await setQuery(page, 'SELECT * FROM customers;'); await editorAction(page, '', 8)
-  await page.locator('[data-action=expandColumns]').first().click()
+  await editorCommand(page, 'expandColumns')
   await expect(labels(page).filter({ hasText: '展开全部可见字段' })).toBeVisible()
   await setQuery(page, 'SELECT id FROM customers WHERE id = 2;')
   await page.keyboard.press('Escape')
@@ -163,7 +163,7 @@ test('lightweight fallback uses the same inline list and directly expands fields
   await expect(editor).toBeVisible()
   await editor.fill('SELECT * FROM customers c;')
   await editor.evaluate(element => { element.focus(); element.setSelectionRange(8, 8) })
-  await page.locator('[data-action=expandColumns]').first().click()
+  await editorCommand(page, 'expandColumns')
   await expect(page.locator('.completion-popup:not([hidden])')).toContainText('c.id, c.name')
   await expect(page.locator('dialog[open], .completion-doc')).toHaveCount(0)
   await editor.press('Tab')
@@ -217,7 +217,7 @@ test('function parameter information stays inside the caret list and never inser
 
 test('SQL toolbar templates open the caret list and FROM space prioritizes object names', async ({ page }) => {
   await fixture(page); await connect(page); await setQuery(page, '')
-  await page.locator('[data-action=templates]').first().click()
+  await editorCommand(page, 'templates')
   await expect(labels(page).filter({ hasText: /^sel · customers$/ })).toBeVisible()
   await expect(page.locator('dialog[open]')).toHaveCount(0)
   await page.keyboard.press('Escape')

@@ -3,7 +3,8 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-export const DSH_ID = 'com.enest.dsh'
+export const DSH_DIR = 'dsh'
+export const DSH_ID = 'com.github.eNest.dsh'
 export const MAX_README_BYTES = 512 * 1024
 export const DSH_VERSION = '0.2.0-rc.2'
 // Generated from the host policy by api:generate; never maintain a second list here.

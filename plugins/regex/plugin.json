@@ -1,0 +1,53 @@
+{
+  "id": "com.github.eNest.regex",
+  "name": "正则工作台",
+  "version": "1.1.0",
+  "description": "正则实时匹配高亮、捕获分组、替换预览、常用片段库与元字符速查。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "开发",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.write"
+  ],
+  "window": {
+    "width": 860,
+    "height": 560,
+    "minWidth": 420,
+    "minHeight": 360
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "正则测试与调试",
+      "cmds": [
+        "正则",
+        "regex",
+        "zz"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "正则",
+      "开发",
+      "调试"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5196/"
+  }
+}

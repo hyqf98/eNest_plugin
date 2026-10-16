@@ -10,7 +10,7 @@ function load(relative, name) {
   vm.runInContext(readFileSync(new URL(relative, root), 'utf8'), context)
   return context[name]
 }
-const core = load('com.enest.image-tools/src/js/image-core.js', 'ImageCore')
+const core = load('image-tools/src/js/image-core.js', 'ImageCore')
 const plain = value => JSON.parse(JSON.stringify(value))
 
 // ---------- 基础工具 ----------

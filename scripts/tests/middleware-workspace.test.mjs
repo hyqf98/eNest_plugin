@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { restoreTasks, taskId, bindTaskApi } from '../../plugins/com.enest.middleware/src/js/workspace.js'
-import { jsonSuggestions, collectJsonKeys, newlineEdit } from '../../plugins/com.enest.middleware/src/js/editorSuggestions.js'
+import { restoreTasks, taskId, bindTaskApi } from '../../plugins/middleware/src/js/workspace.js'
+import { jsonSuggestions, collectJsonKeys, newlineEdit } from '../../plugins/middleware/src/js/editorSuggestions.js'
 
 const connections = [{ id: 'a', kind: 'kafka' }, { id: 'b', kind: 'rocketmq' }]
 test('restores legacy connection tabs and filters duplicate or incompatible tasks', () => {
@@ -46,7 +46,7 @@ test('Enter aligns nested JSON without changing following content', () => {
 })
 
 test('closing during open serializes old cleanup before new session and never closes the new one', async () => {
-  const { SessionCoordinator } = await import('../../plugins/com.enest.middleware/src/js/sessionCoordinator.js')
+  const { SessionCoordinator } = await import('../../plugins/middleware/src/js/sessionCoordinator.js')
   const events = [], gates = []
   const sessions = new SessionCoordinator({ open: async (key, configuration) => { events.push(`open:${configuration.name}`); await new Promise(resolve => gates.push(resolve)); events.push(`ready:${configuration.name}`); return configuration.name }, close: async () => { events.push('close') } })
   const first = sessions.ensure('mw:a', { name: 'old' })
@@ -67,7 +67,7 @@ test('closing during open serializes old cleanup before new session and never cl
 })
 
 test('concurrent tasks share only the current generation and same configuration', async () => {
-  const { SessionCoordinator } = await import('../../plugins/com.enest.middleware/src/js/sessionCoordinator.js')
+  const { SessionCoordinator } = await import('../../plugins/middleware/src/js/sessionCoordinator.js')
   let opens = 0
   const sessions = new SessionCoordinator({ open: async () => ++opens, close: async () => {} })
   const first = sessions.ensure('mw:a', { readOnly: false })

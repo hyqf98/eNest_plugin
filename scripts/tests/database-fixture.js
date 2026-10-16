@@ -98,12 +98,13 @@ export async function fixture(page, mode = 'shell', { connectionDriver } = {}) {
       }
     }
   }, { mode, connectionDriver })
-  await page.goto('/plugins/com.enest.database/index.html')
+  await page.goto('/plugins/database/index.html')
   await expect(page.locator('.nav-connections')).toBeAttached()
 }
 
 export async function openNavigation(page) {
   const panel = page.locator('.nav-connections')
+  if (await page.locator('.nav-settings-list').isVisible()) await page.locator('[data-nav="console"]').click()
   const visible = await panel.evaluate(element => { const rect = element.getBoundingClientRect(); return rect.width > 0 && rect.right > 40 && rect.left >= 0 && getComputedStyle(element).visibility !== 'hidden' })
   if (!visible) await page.locator('#side-toggle').click()
   await expect(panel).toBeInViewport()
@@ -142,4 +143,37 @@ export async function setQuery(page, value) {
     const editor = monaco.editor.getEditors()[0]
     editor.executeEdits('test', [{ range: editor.getModel().getFullModelRange(), text }]); editor.setPosition({ lineNumber: 1, column: 1 }); editor.focus()
   }, value)
+}
+
+export async function runQuery(page) {
+  await editorShortcut(page)
+}
+
+export async function editorShortcut(page, chord = process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter') {
+  await page.evaluate(async () => {
+    const { monaco } = await import(performance.getEntriesByType('resource').find(entry => /\/assets\/app\/monaco-[^/]+\.js$/.test(entry.name)).name)
+    monaco.editor.getEditors()[0]?.focus()
+  })
+  await page.keyboard.press(chord)
+}
+
+export async function editorCommand(page, id) {
+  await page.evaluate(id => document.dispatchEvent(new CustomEvent('database-run-command', { detail: { id } })), id)
+}
+
+export async function runCommand(page, id) {
+  if (id === 'documents') {
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+P' : 'Control+Shift+P')
+    const search = page.locator('dialog input[type=search]')
+    await search.fill(id)
+    await page.locator(`dialog [data-command=${JSON.stringify(id)}]`).click()
+    await expect(page.locator('dialog')).toHaveCount(0)
+    return
+  }
+  await editorCommand(page, id)
+}
+
+export async function transaction(page, operation) {
+  await page.locator('.wb-querybar [data-object-transaction]').click()
+  await page.locator(`.ctx-menu [data-k=${JSON.stringify(operation)}]`).click()
 }

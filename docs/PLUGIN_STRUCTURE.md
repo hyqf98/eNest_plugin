@@ -5,7 +5,7 @@
 ## 源码工程
 
 ```text
-plugins/com.example.hello/       # 名称必须等于 manifest.id
+plugins/calculator/       # 名称必须等于 manifest.id
 ├── plugin.json                 # main 固定 index.html
 ├── package.json                # name/version 对齐 manifest；type=module
 ├── index.html                  # 仅引用外部脚本，不写 inline JS
@@ -30,20 +30,20 @@ plugins/com.example.hello/       # 名称必须等于 manifest.id
 
 | 情况 | 壳子读取的入口 | 编译与更新责任 |
 | --- | --- | --- |
-| 原生静态源码 | 根 `plugin.json`、`index.html`；`/src/*` 映射 `src/*`，`/assets/*` 映射 `public/assets/*` | 页面只使用浏览器可执行代码；需要更新时手动重载 |
-| Vite / React / Vue / TS 开发 | 选择同一个源码根，`development.main` 指向已有 HTTP(S) 服务 | 开发者运行 npm，框架服务负责编译与 HMR |
-| 安装发行包 | ZIP 根的 `plugin.json` 与 `index.html` | 运行已构建的离线 JS/CSS，不依赖开发服务器 |
+| 原生静态源码 | 根 `plugin.json`、`index.html`；`/src/*` 映射 `src/*`，`/assets/*` 映射 `public/assets/*` | 页面只使用浏览器可执行代码；壳子监听文件变更自动重载 |
+| Vite / React / Vue / TS 开发 | 选择同一个源码根，`development.main`（或 `enest.dev.url`）指向 HTTP(S) 开发服务 | 壳子按 package.json 解析启动命令自动拉起（已运行则复用），框架服务负责编译与 HMR |
+| prod（正式包）模式 | `enest.output`（缺省 `dist`）产物，标准产物路径 + 生产 CSP | 产物缺失/版本落后时壳子自动执行解析出的构建命令；「重新构建」手动重跑 |
 
-选择文件夹后直接在该目录启动，不安装到源码仓库，也不复制到 `~/.eNest/plugins/`。壳子不扫描猜测 `dist/`、不执行 npm、不建立文件监听器。含裸 npm import、Vue SFC 或 TypeScript 的源码应选择开发服务器方式，不能期望壳子代替 Vite 编译。
+选择文件夹后直接在该目录启动，不安装到源码仓库，也不复制到 `~/.eNest/plugins/`。声明的开发服务未运行时，壳子按插件 `package.json` 解析出的启动命令拉起并等待就绪（进程由壳子管理，忘记插件/退出时回收；端口被占时自动改用空闲端口）。命令解析零预设：包管理器按锁文件检测（pnpm/yarn/bun/npm）或 `enest.dev.manager` 显式声明，脚本按 `scripts.dev` → `scripts.start` 回退，非 node 工具链可写 `enest.dev.command` 原始命令逃生舱。无 `development` 声明且无可用脚本的纯静态插件直接预览源码并监听变更自动重载。含裸 npm import、Vue SFC 或 TypeScript 的源码必须走开发服务方式，壳子不代替框架编译。
 
-`development.main` 是完整 URL，例如 `http://192.168.1.20:5173/`，保持 `main: "index.html"` 不变。不能将磁盘路径放进 `development.main`，不能添加 `development.mode` 或 `development.url`。生产清单由构建脚本自动移除 development，发行检查拒绝它。
+`development.main` 是完整 URL，例如 `http://192.168.1.20:5173/`，保持 `main: "index.html"` 不变。端口须与该插件启动脚本一致且全仓唯一（现按插件分配 5173–5208），加载时若端口被其它进程占用，壳子会自动换用空闲端口，无需手工避让。不能将磁盘路径放进 `development.main`，不能添加 `development.mode` 或 `development.url`（URL 覆盖写 `package.json` 的 `enest.dev.url`）。生产清单由构建脚本自动移除 development，发行检查拒绝它。
 
 ## 构建与框架
 
 ```bash
-npm run dev --workspace com.example.hello
-node scripts/build-plugin.mjs com.example.hello
-node scripts/pack-plugin.mjs com.example.hello
+npm run dev --workspace calculator
+node scripts/build-plugin.mjs calculator
+node scripts/pack-plugin.mjs calculator
 ```
 
 统一构建脚本读取插件自己的 Vite 配置，从根 `index.html` 构建。Vue 项目安装 `vue` 和 `@vitejs/plugin-vue`，React 项目安装 `react`、`react-dom` 及对应 Vite 插件，再在本项目 `vite.config.ts` 注册；HTML、manifest、public 和 dist 契约不变。构建使用相对 base，脚本固定产物目录、文件命名、禁用 Source Map，并拒绝 library/SSR 入口。

@@ -44,10 +44,10 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
     'agent.backups': async () => [], 'agent.sessions.list': async () => [],
     'sys.processes': async () => [{ pid: 4201, name: 'eNest', command: 'eNest', user: 'demo', pcpu: 1.8, rss: 145600 }, { pid: 4210, name: 'Vite', command: 'vite', user: 'demo', pcpu: .6, rss: 68400 }],
     'sys.ports': async () => [{ pid: 4210, name: 'Vite', port: 5173, address: '127.0.0.1', protocol: 'TCP', state: 'LISTEN' }],
-    'localFiles.pick': async () => ['com.enest.batch-rename', 'com.enest.lan-share'].includes(pluginId) ? [
+    'localFiles.pick': async () => ['batch-rename', 'lan-share'].includes(pluginId) ? [
       { id: 'demo-file-1', name: '项目说明.pdf', kind: 'file', size: 142600, displayPath: '演示文件' },
       { id: 'demo-file-2', name: '界面设计.png', kind: 'file', size: 286720, displayPath: '演示文件' }
-    ] : ['com.enest.image-tools', 'com.enest.screen-assistant'].includes(pluginId) ? [{ id: 'demo-image', name: '海岸配色.png', kind: 'file', size: 32768, displayPath: '隔离演示图片' }] : [],
+    ] : ['image-tools', 'screen-assistant'].includes(pluginId) ? [{ id: 'demo-image', name: '海岸配色.png', kind: 'file', size: 32768, displayPath: '隔离演示图片' }] : [],
     'localFiles.read': async ({ handleId }) => {
       if (handleId !== 'demo-image') throw new Error('Unknown demonstration file handle')
       const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 650

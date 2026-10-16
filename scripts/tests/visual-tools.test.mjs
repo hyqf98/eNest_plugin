@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 
@@ -11,8 +11,12 @@ function load(relative, name) {
   vm.runInContext(readFileSync(new URL(relative, root), 'utf8'), context)
   return context[name]
 }
-const color = load('com.enest.color-picker/src/js/color-math.js', 'ColorMath')
-const editor = load('com.enest.screen-assistant/src/js/editor-core.js', 'ScreenEditorCore')
+/** editor-core.js React 迁移后带 ESM 命名导出，vm 不支持 export 语法，走动态 import */
+async function loadEsm(relative) {
+  return import(pathToFileURL(fileURLToPath(new URL(relative, root))).href)
+}
+const color = load('color-picker/src/js/color-math.js', 'ColorMath')
+const editor = await loadEsm('screen-assistant/src/js/editor-core.js')
 const plain = (value) => JSON.parse(JSON.stringify(value))
 
 test('CSS colors support shorthand alpha HEX and modern RGB/HSL syntax', () => {
@@ -69,18 +73,19 @@ test('elapsed recording duration handles hours and negative input', () => {
   assert.equal(editor.elapsed(3661000), '1:01:01')
 })
 
-test('visual tools declare real entry settings and portable shared assets', () => {
-  for (const id of ['com.enest.color-picker', 'com.enest.screen-assistant']) {
+test('visual tools declare real entry settings and portable shared assets', async () => {
+  for (const id of ['color-picker', 'screen-assistant']) {
     const manifest = JSON.parse(readFileSync(new URL(`${id}/plugin.json`, root), 'utf8'))
     assert.ok(manifest.contributes.settings[0].items.length >= 3)
-    const html = readFileSync(new URL(`${id}/index.html`, root), 'utf8')
     const entry = readFileSync(new URL(`${id}/src/entry.js`, root), 'utf8')
-    assert.ok(entry.indexOf("import '@enest/plugin-kit'") < entry.indexOf("import './js/main.js'"))
+    // React 化后的级联契约：业务 CSS 必须先于 plugin-kit CSS（SOP「CSS 级联顺序」）
+    assert.ok(entry.indexOf("import './css/main.css'") < entry.indexOf("import '@enest/plugin-kit/style.css'"))
     assert.match(entry, /@enest\/plugin-kit\/style.css/)
-    const script = readFileSync(new URL(`${id}/src/js/main.js`, root), 'utf8')
-    assert.match(script, /kit\.onMode/)
-    assert.match(script, /kit\.onSettings/)
-    assert.ok(!script.includes('window.confirm('))
-    execFileSync(process.execPath, ['--check', fileURLToPath(new URL(`${id}/src/js/main.js`, root))])
+    assert.match(entry, /jsx\/App\.jsx/)
+    const app = readFileSync(new URL(`${id}/src/jsx/App.jsx`, root), 'utf8')
+    assert.match(app, /kit\.onMode|onModeChange/)
+    assert.match(app, /kit\.onSettings|onSettings/)
+    assert.ok(!app.includes('window.confirm('))
+    execFileSync(process.execPath, ['--check', fileURLToPath(new URL(`${id}/src/entry.js`, root))])
   }
 })

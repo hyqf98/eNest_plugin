@@ -149,17 +149,17 @@ Topic 候选从当前任务连接懒加载；Header 提供常用名称；JSON �
 
 | 模块 | 源码入口与职责 |
 | --- | --- |
-| 数据库引擎 | [sql-intelligence/README.md](../plugins/com.enest.database/src/js/sql-intelligence/README.md)：方言、词法/作用域、纯候选提供器、排序、原子编辑、Worker 与元数据层 |
-| 数据库展示与设置 | [editor.js](../plugins/com.enest.database/src/js/editor.js)、[monacoEditor.js](../plugins/com.enest.database/src/js/monacoEditor.js)、[settings/](../plugins/com.enest.database/src/js/sql-intelligence/settings/)：候选列表、编辑器适配、配置表单 |
-| 数据库执行边界 | [executionRange.js](../plugins/com.enest.database/src/js/executionRange.js)、[executionParser.js](../plugins/com.enest.database/src/js/executionParser.js)：选区/当前执行单元适配、由宿主生成的共享脚本语法与显式边界错误 |
-| SSH 候选与展示 | [commandCompletion.js](../plugins/com.enest.ssh/src/js/commandCompletion.js)、[sshCompletion.js](../plugins/com.enest.ssh/src/js/sshCompletion.js)：本地候选生成、定位、状态校验与接受 |
-| SSH 远端提示 | [remoteCompletion.js](../plugins/com.enest.ssh/src/js/remoteCompletion.js)：路径词法与安全后缀、固定只读 PATH 脚本、SFTP 适配、限量缓存/队列及本地远端候选去重 |
-| SSH 终端与动作 | [term.js](../plugins/com.enest.ssh/src/js/term.js)、[terminalData.js](../plugins/com.enest.ssh/src/js/terminalData.js)、[commandActions.js](../plugins/com.enest.ssh/src/js/commandActions.js)：提示符/回显、会话流解码、捕获目标后的填入/执行 |
-| SSH 导航与设置 | [workspaceNavigation.js](../plugins/com.enest.ssh/src/js/workspaceNavigation.js)、[completionSettings.js](../plugins/com.enest.ssh/src/js/completionSettings.js)、[shortcutPolicy.js](../plugins/com.enest.ssh/src/js/shortcutPolicy.js)：侧栏/抽屉、配置、保留键规则 |
-| 中间件编辑辅助 | [editorAssist.js](../plugins/com.enest.middleware/src/js/editorAssist.js)、[editorSuggestions.js](../plugins/com.enest.middleware/src/js/editorSuggestions.js)：输入控件适配、纯 JSON 建议与换行编辑 |
-| 中间件提示规则 | [completionRules.js](../plugins/com.enest.middleware/src/js/completionRules.js)、[jsonContext.js](../plugins/com.enest.middleware/src/js/jsonContext.js)：声明式规则校验、范围过滤、模板替换与不完整 JSON 的字段/值定位 |
-| 中间件命令与设置 | [commands.js](../plugins/com.enest.middleware/src/js/commands.js)、[preferences.js](../plugins/com.enest.middleware/src/js/preferences.js)、[settings.js](../plugins/com.enest.middleware/src/js/pages/settings.js)、[store.js](../plugins/com.enest.middleware/src/js/store.js)：作用域路由、保留键/冲突校验、配置恢复、独立设置草稿与串行持久化 |
-| 中间件任务归属 | [workspace.js](../plugins/com.enest.middleware/src/js/workspace.js)、[sessionCoordinator.js](../plugins/com.enest.middleware/src/js/sessionCoordinator.js)、[protocol.js](../plugins/com.enest.middleware/src/js/protocol.js)：任务身份、会话、既有协议参数适配 |
+| 数据库引擎 | [sql-intelligence/README.md](../plugins/database/src/js/sql-intelligence/README.md)：方言、词法/作用域、纯候选提供器、排序、原子编辑、Worker 与元数据层 |
+| 数据库展示与设置 | [editor.js](../plugins/database/src/js/editor.js)、[monacoEditor.js](../plugins/database/src/js/monacoEditor.js)、[settings/](../plugins/database/src/js/sql-intelligence/settings/)：候选列表、编辑器适配、配置表单 |
+| 数据库执行边界 | [executionRange.js](../plugins/database/src/js/executionRange.js)、[executionParser.js](../plugins/database/src/js/executionParser.js)：选区/当前执行单元适配、由宿主生成的共享脚本语法与显式边界错误 |
+| SSH 候选与展示 | [commandCompletion.js](../plugins/ssh/src/js/commandCompletion.js)、[sshCompletion.js](../plugins/ssh/src/js/sshCompletion.js)：本地候选生成、定位、状态校验与接受 |
+| SSH 远端提示 | [remoteCompletion.js](../plugins/ssh/src/js/remoteCompletion.js)：路径词法与安全后缀、固定只读 PATH 脚本、SFTP 适配、限量缓存/队列及本地远端候选去重 |
+| SSH 终端与动作 | [term.js](../plugins/ssh/src/js/term.js)、[terminalData.js](../plugins/ssh/src/js/terminalData.js)、[commandActions.js](../plugins/ssh/src/js/commandActions.js)：提示符/回显、会话流解码、捕获目标后的填入/执行 |
+| SSH 导航与设置 | [workspaceNavigation.js](../plugins/ssh/src/js/workspaceNavigation.js)、[completionSettings.js](../plugins/ssh/src/js/completionSettings.js)、[shortcutPolicy.js](../plugins/ssh/src/js/shortcutPolicy.js)：侧栏/抽屉、配置、保留键规则 |
+| 中间件编辑辅助 | [editorAssist.js](../plugins/middleware/src/js/editorAssist.js)、[editorSuggestions.js](../plugins/middleware/src/js/editorSuggestions.js)：输入控件适配、纯 JSON 建议与换行编辑 |
+| 中间件提示规则 | [completionRules.js](../plugins/middleware/src/js/completionRules.js)、[jsonContext.js](../plugins/middleware/src/js/jsonContext.js)：声明式规则校验、范围过滤、模板替换与不完整 JSON 的字段/值定位 |
+| 中间件命令与设置 | [commands.js](../plugins/middleware/src/js/commands.js)、[preferences.js](../plugins/middleware/src/js/preferences.js)、[settings.js](../plugins/middleware/src/js/pages/settings.js)、[store.js](../plugins/middleware/src/js/store.js)：作用域路由、保留键/冲突校验、配置恢复、独立设置草稿与串行持久化 |
+| 中间件任务归属 | [workspace.js](../plugins/middleware/src/js/workspace.js)、[sessionCoordinator.js](../plugins/middleware/src/js/sessionCoordinator.js)、[protocol.js](../plugins/middleware/src/js/protocol.js)：任务身份、会话、既有协议参数适配 |
 
 新增提示能力优先扩展纯候选模块与声明式数据，再通过现有适配层显示；不要把网络请求、全局活动连接或直接执行操作放进候选生成器。
 

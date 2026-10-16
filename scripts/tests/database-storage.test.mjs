@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { toStorageJson } from '../../plugins/com.enest.database/src/js/storageJson.js'
+import { toStorageJson } from '../../plugins/database/src/js/storageJson.js'
 
 test('database JSON boundary omits optional object fields without mutating callers', () => {
   const input = { port: undefined, options: { ssl: false, absent: undefined }, values: [null, { absent: undefined, empty: '' }] }

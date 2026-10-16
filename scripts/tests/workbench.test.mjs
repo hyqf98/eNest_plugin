@@ -2,8 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { SelectionModel, CommandRegistry, normalizeShortcut } from '../../packages/plugin-kit/workbench.js'
-import { qualifiedName, objectQuery } from '../../plugins/com.enest.database/src/js/queryTemplates.js'
-import { compareRows, structureDiff } from '../../plugins/com.enest.database/src/js/comparison.js'
+import { qualifiedName, objectQuery } from '../../plugins/database/src/js/queryTemplates.js'
+import { compareRows, structureDiff } from '../../plugins/database/src/js/comparison.js'
 
 test('selection handles range, toggle and vanished files', () => {
   const selection = new SelectionModel(); selection.select('b', ['a', 'b', 'c', 'd'])
@@ -43,11 +43,11 @@ test('object query snippets preserve dialect quoting and native document syntax'
 
 
 test('database and SSH manifests allow the real Quick viewport and local compiled entries', async () => {
-  for (const id of ['com.enest.database', 'com.enest.ssh']) {
+  for (const id of ['database', 'ssh']) {
     const base = new URL(`../../plugins/${id}/`, import.meta.url)
     const manifest = JSON.parse(await readFile(new URL('plugin.json', base), 'utf8'))
     assert.deepEqual(manifest.window, { width: 720, height: 420, minWidth: 480, minHeight: 240 })
-    if (id === 'com.enest.database') assert.ok(manifest.permissions.includes('shell.openExternal'))
+    if (id === 'database') assert.ok(manifest.permissions.includes('shell.openExternal'))
     const html = await readFile(new URL('index.html', base), 'utf8')
     assert.ok(!html.includes('type="importmap"'))
     assert.match(html, /src="\.\/src\/entry\.js"/)

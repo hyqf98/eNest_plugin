@@ -80,13 +80,14 @@ select:not(.pk-select-native) {
   color: var(--text, #252a32);
 }
 .pk-select { position: relative; display: inline-flex; min-width: 0; }
+/* 参数以壳设置页 .ui-select-* 为标准：surface-2 底、32px 高（与插件表单 input 齐平）、同款弹层 */
 .pk-select-trigger {
   display: inline-flex; align-items: center; gap: 8px;
-  min-height: 28px; max-width: 100%;
-  padding: 4px 10px;
+  min-height: 32px; max-width: 100%;
+  padding: 4px 12px;
   border: 1px solid var(--border, #d9dfe6);
-  border-radius: calc(var(--pk-radius, 8px) - 2px);
-  background: var(--surface, #fff);
+  border-radius: var(--pk-radius, 8px);
+  background: var(--surface-2, #f0f2f5);
   color: var(--text, #252a32);
   font-size: 12.5px; line-height: 1.4;
   transition: border-color var(--pk-speed, 0.15s) ease, background-color var(--pk-speed, 0.15s) ease, transform 0.1s ease;
@@ -110,9 +111,9 @@ select:not(.pk-select-native) {
   min-width: 100%; max-height: 280px;
   overflow: auto; padding: 4px;
   border: 1px solid var(--border, #d9dfe6);
-  border-radius: var(--pk-radius, 8px);
+  border-radius: calc(var(--pk-radius, 8px) + 4px);
   background: var(--surface, #fff);
-  box-shadow: 0 10px 32px rgba(20, 32, 52, 0.16);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 .pk-select-menu.up { top: auto; bottom: calc(100% + 6px); }
 .pk-select-group {
@@ -122,6 +123,7 @@ select:not(.pk-select-native) {
 }
 .pk-select-option {
   display: flex; align-items: center; gap: 8px;
+  min-height: 32px;
   padding: 6px 10px;
   border-radius: calc(var(--pk-radius, 8px) - 3px);
   font-size: 12.5px;

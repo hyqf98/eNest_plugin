@@ -46,10 +46,10 @@ export function archiveMetadata(archive, expected) {
 export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryRoot, 'dist'), baseUrl = '' } = {}) {
   mkdirSync(outDir, { recursive: true })
   const plugins = pluginIds(repositoryRoot).map(id => {
-    const expected = readManifest(join(repositoryRoot, 'plugins', id)), name = `${expected.id}@${expected.version}.enestplugin`
+    const expected = readManifest(join(repositoryRoot, 'plugins', id)), name = `${id}@${expected.version}.enestplugin`
     const archive = readFileSync(join(outDir, name)), { manifest: m, entries } = archiveMetadata(archive, expected)
     const publish = path => {
-      const relative = `${m.id}@${m.version}/${path}`
+      const relative = `${id}@${m.version}/${path}`
       const target = join(outDir, relative)
       mkdirSync(join(target, '..'), { recursive: true }); writeFileSync(target, entries[path])
       return baseUrl + relative.split('/').map(encodeURIComponent).join('/')

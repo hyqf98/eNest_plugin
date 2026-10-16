@@ -1,0 +1,97 @@
+{
+  "id": "com.github.eNest.calculator",
+  "name": "计算器",
+  "version": "1.4.0",
+  "description": "科学计算、变量赋值、Ans 与内存寄存器、百分比双语义、千分位显示、可收藏的本地计算历史。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.write",
+    "shell.openExternal"
+  ],
+  "window": {
+    "width": 760,
+    "height": 480,
+    "minWidth": 420,
+    "minHeight": 280
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "计算器 / 科学计算",
+      "cmds": [
+        "计算器",
+        "calc",
+        "js",
+        {
+          "type": "regex",
+          "label": "计算表达式",
+          "match": "/^(?=[^0-9]*[0-9])(?=[^+*\\/%^-]*[+*\\/%^-])[0-9\\s()+*\\/%.^-]{3,4096}(?![\\s\\S])/",
+          "minLength": 3
+        }
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "计算器",
+      "效率"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "calculator.preferences",
+        "title": "计算器",
+        "items": [
+          {
+            "key": "precision",
+            "type": "number",
+            "label": "显示有效数字",
+            "default": 12
+          },
+          {
+            "key": "historyLimit",
+            "type": "number",
+            "label": "保留未收藏记录数",
+            "default": 100
+          },
+          {
+            "key": "angleUnit",
+            "type": "select",
+            "label": "默认角度单位",
+            "default": "rad",
+            "options": [
+              {
+                "label": "弧度 RAD",
+                "value": "rad"
+              },
+              {
+                "label": "角度 DEG",
+                "value": "deg"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5175/"
+  }
+}

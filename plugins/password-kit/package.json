@@ -1,0 +1,30 @@
+{
+  "name": "password-kit",
+  "version": "1.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5193 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.password-kit",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.password-kit",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.password-kit"
+  },
+  "dependencies": {
+    "@enest/plugin-kit": "1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@radix-ui/react-slot": "^1.5.0",
+    "@radix-ui/react-tooltip": "^1.4.1",
+    "@radix-ui/react-select": "^2.4.1",
+    "@radix-ui/react-switch": "^1.4.1",
+    "@radix-ui/react-checkbox": "^1.4.1",
+    "@radix-ui/react-dialog": "^1.3.1",
+    "@radix-ui/react-popover": "^1.3.1",
+    "@radix-ui/react-toggle-group": "^1.2.1",
+    "@radix-ui/react-slider": "^1.6.1",
+    "@radix-ui/react-dropdown-menu": "^2.2.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

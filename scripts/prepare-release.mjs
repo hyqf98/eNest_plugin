@@ -14,7 +14,7 @@ export function prepareRelease({ repositoryRoot = root, repository, tag, outDir 
   for (const plugin of registry.plugins) {
     const { manifest, entries } = archiveMetadata(readFileSync(join(outDir, plugin.asset.name)), plugin)
     const publish = (path, suffix) => {
-      const filename = `${plugin.id}@${plugin.version}-${suffix}${extname(path).toLowerCase()}`
+      const filename = `${plugin.id.split('.').pop()}@${plugin.version}-${suffix}${extname(path).toLowerCase()}`
       writeFileSync(join(outDir, filename), entries[path]); return base + encodeURIComponent(filename)
     }
     plugin.icon = publish(manifest.icon, 'icon')

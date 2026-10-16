@@ -1,7 +1,7 @@
 import './register-db-alias.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-const { settingsMetadataScope } = await import('../../plugins/com.enest.database/src/js/sql-intelligence/settings/metadataScope.js')
+const { settingsMetadataScope } = await import('../../plugins/database/src/js/sql-intelligence/settings/metadataScope.js')
 const active = { connectionId: 'dev', database: 'working', schema: 'public', consoleId: 'query', sessionKey: 'user', generation: 4, connected: true }
 const connection = { id: 'dev', driver: 'postgres', database: 'default', schema: 'public' }
 

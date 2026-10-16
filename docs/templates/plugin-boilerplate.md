@@ -1,6 +1,6 @@
 # 标准插件起步模板
 
-以 `plugins/com.example.hello` 为最小可运行参考。复制工程时同步修改目录名、`plugin.json.id`、`package.json.name` 和构建命令中的插件 ID；版本也保持一致。完整格式见 [工程结构](../PLUGIN_STRUCTURE.md)。
+按本模板新建 `plugins/<短名>/` 工程（目录名必须等于 `plugin.json.id` 的末段），同步修改 `plugin.json.id`（建议 `com.github.eNest.<短名>`）、`package.json.name`（等于短名）和构建命令中的插件目录名。完整格式见 [工程结构](../PLUGIN_STRUCTURE.md)。
 
 源码 HTML 使用外部入口：
 

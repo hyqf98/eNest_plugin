@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { buildPlugin } from './build-plugin.mjs'
-import { repositoryRoot, pluginIds, readManifest, DSH_ID, DSH_VERSION } from './plugin-contract.mjs'
+import { repositoryRoot, pluginIds, readManifest, DSH_DIR, DSH_VERSION } from './plugin-contract.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 
 export async function packPlugin(id, { outDir = join(repositoryRoot, 'dist'), build = true } = {}) {
@@ -15,12 +15,12 @@ export async function packPlugin(id, { outDir = join(repositoryRoot, 'dist'), bu
   await validateDistribution(directory)
   const manifest = readManifest(directory)
   await mkdir(outDir, { recursive: true })
-  const name = `${manifest.id}@${manifest.version}.enestplugin`, output = join(outDir, name)
+  const name = `${id}@${manifest.version}.enestplugin`, output = join(outDir, name)
   if (resolve(output, '..') !== resolve(outDir)) throw new Error('Invalid package output path')
   await rm(output, { force: true })
   execFileSync('zip', ['-r', '-q', resolve(output), '.'], { cwd: directory })
   const data = await readFile(output)
-  if (id === DSH_ID) {
+  if (id === DSH_DIR) {
     const runtimeName = `dsh-runtime-${DSH_VERSION}-${process.platform}-${process.arch}.tgz`, runtimePath = join(outDir, runtimeName)
     execFileSync('tar', ['-C', join(directory, 'runtime'), '-czf', runtimePath, './node_modules', './package.json'])
     await writeFile(runtimePath + '.sha256', createHash('sha256').update(await readFile(runtimePath)).digest('hex') + '  ' + runtimeName + '\n')

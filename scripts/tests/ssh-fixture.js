@@ -100,7 +100,7 @@ export async function sshFixture(page, mode = 'shell') {
       }
     }
   }, { mode })
-  await page.goto('/plugins/com.enest.ssh/index.html')
+  await page.goto('/plugins/ssh/index.html')
   await expect(page.locator('#app')).toHaveAttribute('data-workbench', 'ready')
 }
 

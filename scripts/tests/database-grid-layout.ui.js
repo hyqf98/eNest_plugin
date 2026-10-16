@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { existsSync } from 'node:fs'
-import { fixture, connect, setQuery } from './database-fixture.js'
+import { fixture, connect, runQuery, setQuery } from './database-fixture.js'
 
 // Headless Chromium otherwise hides scrollbars, which changes sticky gutter
 // geometry and cannot represent a user's draggable horizontal scroll track.
@@ -53,7 +53,7 @@ async function wideGrid(page, { mode = 'shell', width = 1440, height = 900, dela
   }, { delayedMetadata })
   await connect(page)
   await setQuery(page, 'SELECT * FROM customers;')
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   if (mode === 'quick') await page.locator('[data-expand-results]').click()
   await expect(page.locator('.grid-viewport [data-r="0"][data-c="1"]')).toContainText('客户 001')
 }

@@ -1,0 +1,54 @@
+{
+  "id": "com.github.eNest.diff",
+  "name": "文本对比",
+  "version": "1.1.0",
+  "description": "双栏 LCS 行级对比、行内字符细化、差异导航计数、hex 字节对比与 unified diff 导出。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "开发",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "clipboard.write",
+    "clipboard.read"
+  ],
+  "window": {
+    "width": 920,
+    "height": 600,
+    "minWidth": 420,
+    "minHeight": 360
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "两段文本差异对比",
+      "cmds": [
+        "对比",
+        "diff",
+        "db"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "diff",
+      "对比",
+      "开发"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5184/"
+  }
+}

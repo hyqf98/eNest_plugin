@@ -6,7 +6,7 @@
 
 演练通过。示例是仅声明 `storage.local` 的 Vanilla JS 便笺，包含 SDK 类型检查、保存/读取、Quick/主窗切换、关闭与休眠前保存、销毁取消订阅、可见的失败提示及草稿保留。资源包括专用笔记图标 SVG、包内 Markdown 和运行界面截图。
 
-源码采用 `plugins/com.example.notes/` 标准结构；发布包名为 `com.example.notes@0.1.0.enestplugin`。解包后仅有根级 `plugin.json`、`index.html`、`assets/app/*` 与 `assets/market/` 内的图标、README、截图。包内没有 `development` 字段、源码、依赖目录或用户数据。
+源码采用 `plugins/notes/` 标准结构；发布包名为 `notes@0.1.0.enestplugin`。解包后仅有根级 `plugin.json`、`index.html`、`assets/app/*` 与 `assets/market/` 内的图标、README、截图。包内没有 `development` 字段、源码、依赖目录或用户数据。
 
 ## 执行方法
 
@@ -16,7 +16,7 @@
 npm ci --ignore-scripts --no-audit --no-fund
 node scripts/capture-market.mjs com.example.notes --build
 npm run validate
-npx tsc --allowJs --checkJs --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --lib ES2022,DOM --skipLibCheck plugins/com.example.notes/src/main.js
+npx tsc --allowJs --checkJs --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --lib ES2022,DOM --skipLibCheck plugins/notes/src/main.js
 npm run build -- com.example.notes
 node scripts/validate-dist.mjs com.example.notes
 node scripts/pack-plugin.mjs com.example.notes --no-build

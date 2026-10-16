@@ -1,10 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MiddlewareCommands, validateBindings, shortcutError, shortcutFromEvent } from '../../plugins/com.enest.middleware/src/js/commands.js'
-import { validateCompletion, namedSuggestions, jsonRuleSuggestions } from '../../plugins/com.enest.middleware/src/js/completionRules.js'
-import { jsonCompletionContext } from '../../plugins/com.enest.middleware/src/js/jsonContext.js'
-import { readProductivity, validateProductivity } from '../../plugins/com.enest.middleware/src/js/preferences.js'
-import { restoreTasks } from '../../plugins/com.enest.middleware/src/js/workspace.js'
+import { MiddlewareCommands, validateBindings, shortcutError, shortcutFromEvent } from '../../plugins/middleware/src/js/commands.js'
+import { validateCompletion, namedSuggestions, jsonRuleSuggestions } from '../../plugins/middleware/src/js/completionRules.js'
+import { jsonCompletionContext } from '../../plugins/middleware/src/js/jsonContext.js'
+import { readProductivity, validateProductivity } from '../../plugins/middleware/src/js/preferences.js'
+import { restoreTasks } from '../../plugins/middleware/src/js/workspace.js'
 
 const connection = { id: 'orders', kind: 'kafka', name: '订单消息', env: 'dev' }
 const rule = (kind, values = {}) => ({ id: 'rule-a', kind, label: '订单规则', trigger: '', field: '', value: 'order-events', protocol: '', connectionId: '', enabled: true, ...values })
@@ -95,8 +95,8 @@ test('settings restore as one connection-independent work tab without creating a
 })
 
 test('explicit settings save is serialized with layouts and failed persistence does not replace live preferences', async () => {
-  const { default: api } = await import('../../plugins/com.enest.middleware/src/js/api.js')
-  const { default: store } = await import('../../plugins/com.enest.middleware/src/js/store.js')
+  const { default: api } = await import('../../plugins/middleware/src/js/api.js')
+  const { default: store } = await import('../../plugins/middleware/src/js/store.js')
   const storage = api.storage, calls = []
   let fail = true, release
   api.storage = { get: async key => key === 'mw.connections' ? [connection] : { extraSetting: 'kept' }, set: async (key, value) => { if (fail) throw new Error('空间不足'); calls.push(structuredClone(value)); if (!release) await new Promise(resolve => { release = resolve }) } }

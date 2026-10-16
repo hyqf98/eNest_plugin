@@ -1,0 +1,20 @@
+{
+  "name": "sysguard",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5202 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.sysguard",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.sysguard",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.sysguard"
+  },
+  "dependencies": {
+    "@enest/plugin-kit": "1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

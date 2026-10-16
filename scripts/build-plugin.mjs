@@ -5,7 +5,7 @@ import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { build, loadConfigFromFile, mergeConfig } from 'vite'
-import { repositoryRoot as root, pluginIds, readManifest, DSH_ID, DSH_VERSION } from './plugin-contract.mjs'
+import { repositoryRoot as root, pluginIds, readManifest, DSH_DIR, DSH_VERSION } from './plugin-contract.mjs'
 import { validateSource } from './validate-manifests.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 import { buildBackend } from './build-backend.mjs'
@@ -19,6 +19,8 @@ export async function buildPlugin(id, { release = true, runtime = true, reposito
   const loaded = await loadConfigFromFile({ command: 'build', mode: 'production' }, undefined, source)
   const config = mergeConfig(loaded?.config ?? {}, {
     configFile: false, root: source, base: './', publicDir: join(source, 'public'), logLevel: 'warn',
+    // Official plugins are React-based (aligned with the shell); JSX transform must not depend on per-plugin config.
+    esbuild: { jsx: 'automatic' },
     build: { outDir: destination, emptyOutDir: true, target: 'chrome120', sourcemap: false, assetsDir: 'assets/app',
       rollupOptions: { input: join(source, 'index.html'), output: { entryFileNames: 'assets/app/[name]-[hash].js', chunkFileNames: 'assets/app/[name]-[hash].js', assetFileNames: 'assets/app/[name]-[hash][extname]' } } },
     worker: { format: 'es' }
@@ -30,7 +32,7 @@ export async function buildPlugin(id, { release = true, runtime = true, reposito
   delete manifest.development
   await writeFile(join(destination, 'plugin.json'), JSON.stringify(manifest, null, 2) + '\n')
   await buildBackend(source, destination, { root: repositoryRoot })
-  if (runtime && id === DSH_ID) {
+  if (runtime && id === DSH_DIR) {
     // Existing DSH attachment contract is the sole runtime exception. Cache lives only in dist.
     const cache = join(repositoryRoot, 'dist/runtime-cache', `dsh-${DSH_VERSION}`)
     if (!existsSync(join(cache, 'node_modules/@deepseek-ai/dsh/package.json'))) {

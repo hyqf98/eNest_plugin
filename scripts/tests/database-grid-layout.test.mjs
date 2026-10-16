@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { columnAlignment, estimateColumnWidth, createGridLayout } from '../../plugins/com.enest.database/src/js/gridLayout.js'
+import { columnAlignment, estimateColumnWidth, createGridLayout } from '../../plugins/database/src/js/gridLayout.js'
 
 test('column alignment follows declared SQL types without treating IDs or protocol codes as numbers', () => {
   for (const type of ['INT', 'bigint unsigned', 'decimal(18, 8)', 'double precision', 'NUMERIC(12,2)', 'int4', 'Float64', 'Nullable(Int32)']) {

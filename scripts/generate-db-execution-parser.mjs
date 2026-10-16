@@ -11,7 +11,7 @@ let ts
 try { ts = createRequire(join(repository, 'package.json'))('typescript') }
 catch { ts = createRequire(join(host, 'package.json'))('typescript') }
 const input = join(host, 'src/main/database/sqlScript.ts')
-const output = join(repository, 'plugins/com.enest.database/src/js/executionParser.js')
+const output = join(repository, 'plugins/database/src/js/executionParser.js')
 const compiled = ts.transpileModule(readFileSync(input, 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, removeComments: false }
 }).outputText

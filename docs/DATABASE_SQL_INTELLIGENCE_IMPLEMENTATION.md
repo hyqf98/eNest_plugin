@@ -1,6 +1,6 @@
 # 数据库 SQL 智能提示实现
 
-状态：首版及配置、冷启动联想与取消链路补强已实施。日期：2026-10-14。目标插件：`plugins/com.enest.database`。
+状态：首版及配置、冷启动联想与取消链路补强已实施。日期：2026-10-14。目标插件：`plugins/database`。
 
 交互按用户最新决定统一为光标下方候选列表。原先字段展开与整条查询生成的预览确认弹框已取消；类型、备注、函数签名和 SQL 简略内容在候选行内显示，不打开独立的补全详情浮面板。
 
@@ -25,7 +25,7 @@
 
 ## 代码结构
 
-模块边界和扩展步骤见 `plugins/com.enest.database/src/js/sql-intelligence/README.md`。
+模块边界和扩展步骤见 `plugins/database/src/js/sql-intelligence/README.md`。
 
 ```text
 编辑器 / 设置试验区

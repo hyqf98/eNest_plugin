@@ -7,7 +7,7 @@ const cases = [
 const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jStsAAAAASUVORK5CYII='
 for (const [id, button] of cases) {
   test(`${id}: file import reads only authorized host bytes and handles cancellation/denial`, async ({ page }) => {
-    await page.addInitScript(installPreviewFixture, { pluginId: `com.enest.${id}`, mode: 'shell' })
+    await page.addInitScript(installPreviewFixture, { pluginId: `com.github.eNest.${id}`, mode: 'shell' })
     await page.addInitScript(({ pixel }) => {
       window.__fileMode = 'cancel'; window.__fileCalls = []
       const original = window.enest
@@ -27,7 +27,7 @@ for (const [id, button] of cases) {
     let nativeChoosers = 0
     page.on('filechooser', () => nativeChoosers++)
     const errors = []; page.on('pageerror', error => errors.push(error.message))
-    await page.goto(`/plugins/com.enest.${id}/index.html`)
+    await page.goto(`/plugins/${id}/index.html`)
     if (id === 'qrcode') await page.locator('[data-tab="decode"]').click()
     await page.locator(button).click()
     await expect.poll(() => page.evaluate(() => window.__fileCalls.length)).toBe(1)
@@ -56,7 +56,7 @@ for (const [id, button] of cases) {
 }
 for (const id of ['batch-rename', 'lan-share']) {
   test(`${id}: picker uses authorized handles without native file input or unnecessary byte reads`, async ({ page }) => {
-    await page.addInitScript(installPreviewFixture, { pluginId: `com.enest.${id}`, mode: 'shell' })
+    await page.addInitScript(installPreviewFixture, { pluginId: `com.github.eNest.${id}`, mode: 'shell' })
     await page.addInitScript(() => {
       window.__choice = 'cancel'; window.__reads = 0
       const original = window.enest
@@ -73,7 +73,7 @@ for (const id of ['batch-rename', 'lan-share']) {
       } })
     })
     let choosers = 0; page.on('filechooser', () => choosers++)
-    await page.goto(`/plugins/com.enest.${id}/index.html`)
+    await page.goto(`/plugins/${id}/index.html`)
     await page.locator('#pick-btn').click()
     await expect(page.locator('.f-name')).toHaveCount(0)
     await page.evaluate(() => { window.__choice = 'deny' })

@@ -1,0 +1,98 @@
+{
+  "id": "com.github.eNest.color-picker",
+  "name": "取色器",
+  "version": "1.3.0",
+  "description": "屏幕与图片精准取色，HEX/RGB/HSL/OKLCH 一键复制、和谐色生成、WCAG 对比度检查、命名色板与 CSS/JSON 导出。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "设计",
+  "icon": "assets/market/icon.svg",
+  "permissions": [
+    "screen.capture",
+    "clipboard.write",
+    "shell.openExternal"
+  ],
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "屏幕取色",
+      "cmds": [
+        "取色",
+        "颜色",
+        "color"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "取色",
+      "color",
+      "设计"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "window": {
+    "minWidth": 480,
+    "minHeight": 340
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "color-preferences",
+        "title": "取色与色板",
+        "items": [
+          {
+            "key": "copyFormat",
+            "type": "select",
+            "label": "默认复制格式",
+            "default": "hex",
+            "options": [
+              {
+                "label": "HEX",
+                "value": "hex"
+              },
+              {
+                "label": "RGB / RGBA",
+                "value": "rgb"
+              },
+              {
+                "label": "HSL / HSLA",
+                "value": "hsl"
+              }
+            ]
+          },
+          {
+            "key": "autoCopy",
+            "type": "boolean",
+            "label": "取色后自动复制",
+            "default": true
+          },
+          {
+            "key": "historyLimit",
+            "type": "slider",
+            "label": "最近颜色数量",
+            "default": 48,
+            "min": 12,
+            "max": 120,
+            "step": 12
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5181/"
+  }
+}

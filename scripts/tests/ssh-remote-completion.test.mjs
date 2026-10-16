@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { COMMAND_SCAN_COMMAND, pathContext, pathCandidate, commandNames, createRemoteCompletion, RemoteReadCache, mergeSuggestions } from '../../plugins/com.enest.ssh/src/js/remoteCompletion.js'
+import { COMMAND_SCAN_COMMAND, pathContext, pathCandidate, commandNames, createRemoteCompletion, RemoteReadCache, mergeSuggestions } from '../../plugins/ssh/src/js/remoteCompletion.js'
 
 const window = {}
-new Function('window', readFileSync(new URL('../../plugins/com.enest.ssh/src/js/commandCompletion.js', import.meta.url), 'utf8'))(window)
+new Function('window', readFileSync(new URL('../../plugins/ssh/src/js/commandCompletion.js', import.meta.url), 'utf8'))(window)
 const engine = window.SshCommandCompletion
 const preferences = engine.preferences({ remotePaths: true, remoteCommands: true })
 const snapshot = (text, extra = {}) => ({ text, cursor: text.length, promptId: 1, revision: 1, cwd: '/home/developer', ...extra })

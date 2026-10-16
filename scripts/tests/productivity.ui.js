@@ -181,7 +181,7 @@ test('待办迁移、详情编辑、撤销和入口切换保留数据', async ({
       { id: 'old', text: '已有任务', done: false, pinned: true, createdAt: 1 },
     ],
   })
-  await page.goto('/plugins/com.enest.todos/index.html?mode=quick')
+  await page.goto('/plugins/todos/index.html?mode=quick')
   await expect(page.locator('.task-title')).toHaveText('已有任务')
   expect(await page.evaluate(() => window.__store.todos_v1_backup[0].id)).toBe(
     'old',
@@ -222,7 +222,7 @@ test('便签旧数据读取、切颜色及关闭保存不丢最后输入', async
       },
     ],
   })
-  await page.goto('/plugins/com.enest.sticky-notes/index.html')
+  await page.goto('/plugins/sticky-notes/index.html')
   await expect(page.locator('.note-title')).toHaveText('旧版本便签')
   await page.locator('.note-row').click()
   await page.locator('#body').fill('# 项目记录\n\n**保存最后字符**')
@@ -248,7 +248,7 @@ test('便签旧数据读取、切颜色及关闭保存不丢最后输入', async
 
 test('翻译丢弃过期请求，清空使在途请求失效，收藏保存本地', async ({ page }) => {
   await setup(page)
-  await page.goto('/plugins/com.enest.translate/index.html')
+  await page.goto('/plugins/translate/index.html')
   await page.waitForFunction(() => window.__store.translate_prefs_v2_migrated)
   await page.locator('#input').fill('first')
   await page.locator('#run').click()
@@ -294,7 +294,7 @@ test('翻译丢弃过期请求，清空使在途请求失效，收藏保存本�
 test('番茄钟使用宿主状态，切入口保留任务，暂停与跳过分离', async ({ page }) => {
   await setup(page, 'quick')
   await page.setViewportSize({ width: 706, height: 540 })
-  await page.goto('/plugins/com.enest.pomodoro/index.html?mode=quick')
+  await page.goto('/plugins/pomodoro/index.html?mode=quick')
   await expect(page.locator('#toggle')).toBeEnabled()
   await page.locator('#task').fill('审阅设计稿')
   await page.locator('#toggle').click()
@@ -335,7 +335,7 @@ for (const plugin of ['todos', 'sticky-notes', 'pomodoro', 'translate'])
       ],
     })
     await page.setViewportSize({ width: 706, height: 540 })
-    await page.goto(`/plugins/com.enest.${plugin}/index.html?mode=quick`)
+    await page.goto(`/plugins/${plugin}/index.html?mode=quick`)
     await expect(page.locator('html')).toHaveAttribute('data-mode', 'quick')
     await noOverflow(page)
     await page.screenshot({
@@ -362,7 +362,7 @@ test('初始化期间的入口载荷与紧接关闭等待迁移，不覆盖旧�
       { id: 'keep', text: '必须保留的旧便签', createdAt: 1, updatedAt: 1 },
     ],
   })
-  await page.goto('/plugins/com.enest.sticky-notes/index.html?mode=quick')
+  await page.goto('/plugins/sticky-notes/index.html?mode=quick')
   await page.evaluate(() =>
     window.__host.enter({ type: 'text', text: '入口传来的新笔记' }),
   )
@@ -380,7 +380,7 @@ test('壳设置变更即时影响待办视图，false 默认不被当成缺失',
       { id: 'done', text: '已完成的旧任务', done: true, createdAt: 1 },
     ],
   })
-  await page.goto('/plugins/com.enest.todos/index.html')
+  await page.goto('/plugins/todos/index.html')
   await page.waitForFunction(() => window.__store.todos_v2)
   await expect(page.locator('.task-title')).toHaveCount(0)
   await page.evaluate(() => window.enest.settings.set('showCompleted', true))

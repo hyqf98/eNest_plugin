@@ -10,12 +10,14 @@
 
 ```bash
 npm install
-npm run dev --workspace com.example.hello
-# 在 eNest 开发测试中选择 plugins/com.example.hello 源码文件夹。
-# development.main 指向已运行的 http://127.0.0.1:5173/，壳子自动打开插件。
+npm run dev --workspace calculator
+# 在 eNest 开发测试中选择 plugins/calculator 源码文件夹即可，
+# 开发服务未运行时壳子会自动执行 npm run dev 拉起（无需手动启动）。
 ```
 
-开发者可以选择仓库外的源码文件夹。壳子只读标准入口，不复制源码到已安装插件目录，也不启动 npm、不监听源码文件。HMR 由开发者启动的 Vite 服务负责；另一台开发机可用 `--host 0.0.0.0` 启动，并将 `development.main` 配为实际 IP、端口与入口路径。
+开发者可以选择仓库外的源码文件夹。壳子只读标准入口，不复制源码到已安装插件目录。`development.main` 声明的开发服务未运行时，壳子自动拉起并管理进程（忘记插件/退出时回收）；端口被其它进程占用时自动改用空闲端口。插件内 F12/⌘⌥I/Ctrl+Shift+I 开关 DevTools，⌘R 重载。跨机开发可用 `--host 0.0.0.0` 启动，并将 `development.main` 配为实际 IP、端口与入口路径。
+
+每个插件的 dev 端口在各自 `package.json` 的 `scripts.dev` 中声明，且与 `plugin.json` 的 `development.main` 保持一致、全仓唯一（现按插件分配 5173–5208）。
 
 ```bash
 npm run validate                 # 源码清单、包名/版本、市场资源
@@ -74,7 +76,7 @@ plugins/<id>/
 ## 发布
 
 ```bash
-node scripts/pack-plugin.mjs com.example.hello
+node scripts/pack-plugin.mjs calculator
 # 全部插件已打包后，生成本地待发布材料；此命令不会上传
 REPO=hyqf98/eNest_plugin TAG=plugins-local node scripts/prepare-release.mjs
 ```

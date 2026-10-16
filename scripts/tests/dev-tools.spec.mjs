@@ -88,7 +88,7 @@ test(
         page.on("response", (r) => {
           if (r.status() >= 400 && !r.url().endsWith("/favicon.ico")) errors.push("HTTP " + r.status() + " " + r.url());
         });
-        const url = `http://127.0.0.1:${server.address().port}/plugins/com.enest.${plugin.slug}/index.html?mode=quick`;
+        const url = `http://127.0.0.1:${server.address().port}/plugins/${plugin.slug}/index.html?mode=quick`;
         await page.goto(url);
         await page.waitForTimeout(300);
         assert.equal(await page.locator("html").getAttribute("data-mode"), "quick", plugin.slug + " quick mode");
@@ -102,7 +102,7 @@ test(
           plugin.slug + " quick overflow",
         );
         // shell 入口直开再验一遍（容器迁移由壳子负责，这里直接以 ?mode=shell 加载）
-        await page.goto(`http://127.0.0.1:${server.address().port}/plugins/com.enest.${plugin.slug}/index.html?mode=shell`);
+        await page.goto(`http://127.0.0.1:${server.address().port}/plugins/${plugin.slug}/index.html?mode=shell`);
         await page.waitForTimeout(300);
         assert.equal(await page.locator("html").getAttribute("data-mode"), "shell", plugin.slug + " shell mode");
         // hash 桌面形态默认在哈希 Tab，先切到加密 Tab 再断言其入口

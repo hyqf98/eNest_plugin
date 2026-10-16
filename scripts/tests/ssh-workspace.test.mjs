@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isReservedSshShortcut } from '../../plugins/com.enest.ssh/src/js/shortcutPolicy.js'
-import { sidebarWidth } from '../../plugins/com.enest.ssh/src/js/workspaceNavigation.js'
+import { isReservedSshShortcut } from '../../plugins/ssh/src/js/shortcutPolicy.js'
+import { sidebarWidth } from '../../plugins/ssh/src/js/workspaceNavigation.js'
 
 test('SSH workbench shortcuts leave native terminal and completion keys available', () => {
   for (const key of ['Tab', 'Enter', 'ArrowUp', 'Escape', 'Alt+Enter', 'Alt+ArrowDown', 'Mod+V', 'Mod+Space', 'Mod+Shift+W']) {

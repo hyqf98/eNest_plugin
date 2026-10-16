@@ -22,7 +22,7 @@ export function validateSource(directory, { release = true } = {}) {
     assertMediaPaths(manifest)
     localFile(directory, 'index.html')
     const pkg = JSON.parse(readFileSync(localFile(directory, 'package.json'), 'utf8'))
-    if (pkg.name !== manifest.id || pkg.version !== manifest.version || pkg.type !== 'module') throw new Error('package.json name/version/type must match plugin.json')
+    if (pkg.name !== manifest.id.split('.').pop() || pkg.version !== manifest.version || pkg.type !== 'module') throw new Error('package.json name (id 末段)/version/type must match plugin.json')
     if (['assets', 'icon.svg', 'icon.png', 'logo.png', 'README.md', 'settings.html', 'runtime', 'shared'].some(name => existsSync(join(directory, name)))) throw new Error('Legacy root assets/icon/README/runtime are not allowed')
     const publicRoot = join(directory, 'public')
     if (readdirSync(publicRoot).some(name => name !== 'assets')) throw new Error('public may only contain assets/')
@@ -49,7 +49,7 @@ export function validateSource(directory, { release = true } = {}) {
 export function validateAllManifests(repositoryRoot = root) {
   return pluginIds(repositoryRoot).flatMap(id => {
     const directory = join(repositoryRoot, 'plugins', id), manifest = readManifest(directory)
-    return [...(manifest.id === id ? [] : [`${id}: folder name must equal id`]), ...validateSource(directory)]
+    return [...(manifest.id.split('.').pop() === id ? [] : [`${id}: id 末段必须等于目录名`]), ...validateSource(directory)]
   })
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

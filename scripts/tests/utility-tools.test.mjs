@@ -2,22 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { resolve, dirname } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
-import { readFile } from "node:fs/promises";
 import { webcrypto } from "node:crypto";
-import vm from "node:vm";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const core = (id) =>
   import(
     pathToFileURL(
-      resolve(root, "plugins", "com.enest." + id, "src/js/core.mjs"),
+      resolve(root, "plugins", id, "src/js/core.mjs"),
     )
   );
 const calc = await core("calculator"),
   time = await core("timestamp"),
   codec = await core("codec"),
   json = await core("json-tools"),
-  password = await core("password-kit"),
-  qr = await core("qrcode");
+  password = await core("password-kit");
 test("calculator preserves precedence, modulo, floating output and scientific operations", () => {
   assert.equal(calc.calculate("2+3*4"), 14);
   assert.equal(calc.calculate("7%4"), 3);
@@ -175,47 +172,6 @@ test("password generator covers selected sets and exclusions; UUID keeps RFC bit
     /^[A-F0-9]{12}4[A-F0-9]{3}[89AB][A-F0-9]{15}$/,
   );
 });
-test("QR templates escape delimiters, history records explicit commits, SVG contains real modules", async () => {
-  assert.equal(
-    qr.templateText("wifi", {
-      ssid: "A;B",
-      security: "WPA",
-      password: "p:q",
-      hidden: true,
-    }),
-    "WIFI:T:WPA;S:A\\;B;P:p\\:q;H:true;;",
-  );
-  assert.match(qr.templateText("contact", { name: "A\nB" }), /FN:A\\nB/);
-  assert.match(
-    qr.templateText("email", { email: "a@b.com", subject: "hello world" }),
-    /subject=hello%20world/,
-  );
-  assert.equal(qr.decodedType("javascript:alert(1)").url, undefined);
-  assert.equal(
-    qr.decodedType("https://example.com").url,
-    "https://example.com/",
-  );
-  assert.equal(
-    qr.commitHistory([{ text: "a" }, { text: "b" }], { text: "a" }).length,
-    2,
-  );
-  const context = vm.createContext({});
-  vm.runInContext(
-    await readFile(
-      resolve(root, "plugins/com.enest.qrcode/public/assets/vendor/qrcode.min.js"),
-      "utf8",
-    ),
-    context,
-  );
-  const code = context.qrcode(0, "M");
-  code.addData("local QR");
-  code.make();
-  const svg = qr.qrSvg(code, { fg: "#123456", bg: "#ffffff", size: 512 });
-  assert.match(svg, /<path d="M/);
-  assert.match(svg, /viewBox="0 0 29 29"/);
-  assert.throws(() => qr.qrSvg(code, { fg: "url(http://x)" }));
-});
-
 test(
   "utility UI: six plugins operate in Quick and desktop with preserved state",
   { skip: process.env.UTILITY_UI !== "1", timeout: 120000 },
@@ -237,7 +193,6 @@ test(
         "codec",
         "json-tools",
         "password-kit",
-        "qrcode",
       ]) {
         const page = await browser.newPage({
           viewport: { width: 760, height: 520 },
@@ -313,7 +268,7 @@ test(
           };
         });
         await page.goto(
-          `${url}/plugins/com.enest.${slug}/index.html?mode=quick`,
+          `${url}/plugins/${slug}/index.html?mode=quick`,
         );
         await page.waitForTimeout(150);
         assert.equal(
@@ -413,32 +368,6 @@ test(
           );
           await page.locator("[data-kind=password]").click();
           await page.locator("#generate").click();
-        } else {
-          await page.locator("#input").fill("https://example.com/?q=中文");
-          await page.waitForTimeout(350);
-          assert.equal(await page.locator("#copy-image").isDisabled(), false);
-          assert.equal(await page.locator("#history button").count(), 0);
-          await page.locator("#copy-image").click();
-          assert.equal(await page.locator("#history button").count(), 1);
-          await page.locator("[data-tab=decode]").click();
-          await page.locator("#paste-image").click();
-          await page.waitForFunction(() =>
-            document
-              .querySelector("#decode-status")
-              .textContent.includes("1/1"),
-          );
-          assert.match(
-            await page.locator("#decoded-list").textContent(),
-            /https:\/\/example.com/,
-          );
-          await page.locator("[data-tab=batch]").click();
-          await page.locator("#batch-input").fill("hello\n中文");
-          await page.locator("#batch-run").click();
-          await page.waitForFunction(
-            () => document.querySelectorAll(".batch-card").length === 2,
-          );
-          assert.equal(await page.locator(".batch-card svg").count(), 2);
-          await page.locator("[data-tab=generate]").click();
         }
         await page.screenshot({ path: `/tmp/enest-utility-${slug}-quick.png` });
         assert.equal(

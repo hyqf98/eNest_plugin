@@ -1,0 +1,125 @@
+{
+  "id": "com.github.eNest.sysguard",
+  "name": "进程与端口",
+  "version": "1.2.0",
+  "description": "本机进程与端口巡检：概览仪表盘（CPU·内存数据卡 + 迷你趋势 + 阈值告警 + Top 进程）、双表联动、搜索、收藏置顶、结束进程危险确认、滚动曲线、刷新频率可调",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "category": "效率",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.1.0"
+  },
+  "permissions": [
+    "sys.inspect",
+    "sys.control"
+  ],
+  "window": {
+    "width": 760,
+    "height": 420,
+    "minWidth": 480,
+    "minHeight": 240
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "进程与端口巡检",
+      "cmds": [
+        "进程",
+        "port",
+        "jincheng"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "进程",
+      "端口",
+      "系统",
+      "监控"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "contributes": {
+    "settings": [
+      {
+        "id": "sysguard-preferences",
+        "title": "进程与端口",
+        "items": [
+          {
+            "key": "intervalMs",
+            "type": "select",
+            "label": "采样刷新频率",
+            "default": "1500",
+            "options": [
+              {
+                "label": "1.5 秒",
+                "value": "1500"
+              },
+              {
+                "label": "3 秒",
+                "value": "3000"
+              },
+              {
+                "label": "5 秒",
+                "value": "5000"
+              },
+              {
+                "label": "10 秒",
+                "value": "10000"
+              }
+            ]
+          },
+          {
+            "key": "cpuWarn",
+            "type": "slider",
+            "label": "CPU 告警阈值（%）",
+            "default": 70,
+            "min": 30,
+            "max": 95,
+            "step": 5
+          },
+          {
+            "key": "cpuDanger",
+            "type": "slider",
+            "label": "CPU 危险阈值（%）",
+            "default": 90,
+            "min": 40,
+            "max": 100,
+            "step": 5
+          },
+          {
+            "key": "memWarn",
+            "type": "slider",
+            "label": "内存告警阈值（%）",
+            "default": 70,
+            "min": 30,
+            "max": 95,
+            "step": 5
+          },
+          {
+            "key": "memDanger",
+            "type": "slider",
+            "label": "内存危险阈值（%）",
+            "default": 90,
+            "min": 40,
+            "max": 100,
+            "step": 5
+          }
+        ]
+      }
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5202/"
+  }
+}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 const previousWindow = globalThis.window
 globalThis.window = { addEventListener() {} }
-const { isSshCompositionEvent, canRouteSshShortcut } = await import('../../plugins/com.enest.ssh/src/js/workbench.js')
+const { isSshCompositionEvent, canRouteSshShortcut } = await import('../../plugins/ssh/src/js/workbench.js')
 if (previousWindow === undefined) delete globalThis.window
 else globalThis.window = previousWindow
 

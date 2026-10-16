@@ -13,7 +13,7 @@ test('database never forwards old paths and reauthorizes saved handles once per 
     test: async input => { calls.push(['test', structuredClone(input)]); return true }
   } } }
   try {
-    const { DbHost, toConnectionInput } = await import(new URL('com.enest.database/src/js/api.js?handles-test', root))
+    const { DbHost, toConnectionInput } = await import(new URL('database/src/js/api.js?handles-test', root))
     const legacy = { id: 'one', driver: 'sqlite', filePath: '/private/old.db', sqlitePath: '/private/old.db', fileHandleId: 'expired', options: { file: '/private/old.db' } }
     const payload = toConnectionInput(legacy)
     assert.equal('filePath' in payload, false)
@@ -34,7 +34,7 @@ test('SSH local picker and SFTP use opaque capabilities rather than raw paths', 
     upload: async input => calls.push(['upload', input]), download: async input => calls.push(['download', input])
   } } }
   const window = { enest: host }
-  vm.runInNewContext(await readFile(new URL('com.enest.ssh/src/js/api.js', root), 'utf8'), { window })
+  vm.runInNewContext(await readFile(new URL('ssh/src/js/api.js', root), 'utf8'), { window })
   assert.equal(window.SshApi.hasLocalFileHandle('saved-old-handle'), false)
   const handle = await window.SshApi.pickLocalFile({ kind: 'directory', access: 'write' })
   assert.equal(window.SshApi.hasLocalFileHandle(handle.id), true)

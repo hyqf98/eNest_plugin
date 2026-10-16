@@ -31,9 +31,9 @@ test('manifest schema rejects missing rules, unsupported context types and inval
 
 test('sample text handlers keep name commands and bound content recommendations', () => {
   const readPlugin = (id) => JSON.parse(readFileSync(new URL(`../plugins/${id}/plugin.json`, import.meta.url), 'utf8'))
-  const translate = readPlugin('com.enest.translate')
-  const todos = readPlugin('com.enest.todos')
-  const calculator = readPlugin('com.enest.calculator')
+  const translate = readPlugin('translate')
+  const todos = readPlugin('todos')
+  const calculator = readPlugin('calculator')
   for (const plugin of [translate, todos, calculator]) {
     assert.equal(validate(plugin), true, `${plugin.id}: ${JSON.stringify(validate.errors)}`)
   }

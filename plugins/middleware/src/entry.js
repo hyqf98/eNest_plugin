@@ -1,0 +1,15 @@
+/* React 迁移：业务 CSS 必须先于 @enest/plugin-kit/* 加载（复刻原 <link> 级联顺序，像素级一致的命门） */
+import './css/main.css'
+import './css/workbench.css'
+import './css/settings.css'
+import '@enest/plugin-kit/workbench.css'
+import '@enest/plugin-kit/responsive.css'
+import '@enest/plugin-kit/style.css'
+import '@enest/plugin-kit'
+import { createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import { App } from './jsx/App.jsx'
+import './js/workbench.js'
+
+createRoot(document.getElementById('root')).render(createElement(App))
+import './ui/pk-ui.css'

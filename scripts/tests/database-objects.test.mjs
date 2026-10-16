@@ -17,10 +17,10 @@ globalThis.window = { enest: {
     }
   }
 } }
-const { objectPolicy, groupDatabaseObjects, serializeMetadata, listDatabaseObjects, readDatabaseObject, renderDatabaseObjectDetails } = await import('../../plugins/com.enest.database/src/js/databaseObjectDetails.js')
-const { objectInvocationTemplate } = await import('../../plugins/com.enest.database/src/js/queryTemplates.js')
-const { SidePanel } = await import('../../plugins/com.enest.database/src/js/schemaTree.js')
-const { state } = await import('../../plugins/com.enest.database/src/js/store.js')
+const { objectPolicy, groupDatabaseObjects, serializeMetadata, listDatabaseObjects, readDatabaseObject, renderDatabaseObjectDetails } = await import('../../plugins/database/src/js/databaseObjectDetails.js')
+const { objectInvocationTemplate } = await import('../../plugins/database/src/js/queryTemplates.js')
+const { SidePanel } = await import('../../plugins/database/src/js/schemaTree.js')
+const { state } = await import('../../plugins/database/src/js/store.js')
 const connection = { id: 'dev', name: '开发', driver: 'mysql', database: 'orders', readOnly: false }
 function reset() { calls = []; active = 0; maximum = 0; openHook = null; queryHandler = async () => result([]); schemaHandler = async () => []; state.connections = [connection]; state.runtime.sessionKeys.clear(); state.runtime.consoleSessionKeys.clear() }
 

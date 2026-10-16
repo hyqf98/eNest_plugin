@@ -1,0 +1,20 @@
+{
+  "name": "image-tools",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5187 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.image-tools",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.image-tools",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.image-tools"
+  },
+  "dependencies": {
+    "@enest/plugin-kit": "1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

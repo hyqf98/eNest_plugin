@@ -6,9 +6,9 @@ import { CommandRegistry } from '@enest/plugin-kit/workbench'
 
 globalThis.window = { addEventListener() {}, enest: { ui: { toast: async () => {} } } }
 globalThis.document = { addEventListener() {} }
-const { indentEdit, newlineEdit, commentEdit } = await import('../../plugins/com.enest.database/src/js/editor.js')
-const { SqlEditor } = await import('../../plugins/com.enest.database/src/js/monacoEditor.js')
-const { DatabaseWorkbench } = await import('../../plugins/com.enest.database/src/js/workbench.js')
+const { indentEdit, newlineEdit, commentEdit } = await import('../../plugins/database/src/js/editor.js')
+const { SqlEditor } = await import('../../plugins/database/src/js/monacoEditor.js')
+const { DatabaseWorkbench } = await import('../../plugins/database/src/js/workbench.js')
 delete globalThis.window
 delete globalThis.document
 

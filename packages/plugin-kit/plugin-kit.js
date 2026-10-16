@@ -409,7 +409,9 @@
       menu.style.minWidth = rect.width + 'px'
       const below = window.innerHeight - rect.bottom, above = rect.top
       menu.style.maxHeight = Math.min(280, Math.max(150, Math.max(below, above) - 20)) + 'px'
-      menu.classList.toggle('up', below < 220 && above > below)
+      // 与壳 Radix Select 同策略：按弹层实际内容高度判断，仅当下方真正放不下且上方更宽裕时才向上翻
+      const content = Math.min(menu.scrollHeight, 280)
+      menu.classList.toggle('up', below < content && above > below)
     }
     const openMenu = () => {
       if (trigger.disabled || open) return

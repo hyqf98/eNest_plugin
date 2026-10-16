@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-import { fixture, connect, openNavigation, navigate, openObject, setQuery } from './database-fixture.js'
+import { fixture, connect, openNavigation, navigate, openObject, runCommand, runQuery, setQuery } from './database-fixture.js'
 
 test('Quick is keyboard navigable at 480×240 and defers Monaco until query', async ({ page }) => {
   await page.setViewportSize({ width: 480, height: 240 }); const external = []
@@ -14,10 +14,10 @@ test('Quick is keyboard navigable at 480×240 and defers Monaco until query', as
   await connections.first().focus(); await page.keyboard.press('ArrowDown'); await expect(connections.nth(1)).toBeFocused(); await page.keyboard.press('Enter')
   await expect(page.locator('.monaco-editor').first()).toBeVisible()
   await page.evaluate(async () => { const { monaco } = await import(performance.getEntriesByType('resource').find(entry => /\/assets\/app\/monaco-[^/]+\.js$/.test(entry.name)).name); const editor = monaco.editor.getEditors()[0]; editor.executeEdits('test', [{ range: editor.getModel().getFullModelRange(), text: 'SELECT id, name FROM customers;' }]); editor.focus() })
-  await page.locator('[data-action=run]').click()
+  await runQuery(page)
   await expect.poll(() => page.evaluate(() => window.__calls.find((call) => call[0] === 'execute')?.[1]?.maxRows)).toBe(200)
   await page.mouse.move(475, 235)
-  await expect(page.locator('.wb-status')).toBeInViewport({ ratio: 1 }); await expect(page.locator('[data-action=run]')).toBeInViewport({ ratio: 1 })
+  await expect(page.locator('.wb-status')).toBeInViewport({ ratio: 1 }); await expect(page.locator('[data-action=run]')).toHaveCount(0)
   await page.screenshot({ path: 'test-results-db/database-quick-query.png' })
   await page.locator('[data-expand-results]').click(); await expect(page.locator('.grid-viewport')).toBeVisible(); await expect(page.locator('[data-expand-results]')).toHaveText('返回查询'); await page.screenshot({ path: 'test-results-db/database-quick-expanded.png' }); await page.locator('[data-export-results]').click(); await expect.poll(() => page.evaluate(() => window.__calls.find((call) => call[0] === 'saveTextFile')?.[1]?.content)).toContain('阿尔法')
   await page.locator('[data-expand-results]').click(); await page.setViewportSize({ width: 720, height: 420 }); await expect(page.locator('.wb-status')).toBeInViewport({ ratio: 1 }); await page.mouse.move(710, 10); await page.screenshot({ path: 'test-results-db/database-quick-query-720.png' })
@@ -37,14 +37,75 @@ test('mode migration retains model, undo and selection; Quick uses separate sess
   expect(after.id).toBe(before.id); expect(after.selection).toEqual(before.selection); expect(after.text).toBe('SELECT 2;')
 })
 
+test('workbench themes switch, persist and drive Monaco under a light host', async ({ page }) => {
+  const errors = []; page.on('pageerror', (error) => errors.push(error.message))
+  await fixture(page)
+  await expect(page.locator('#app')).toHaveAttribute('data-workbench-theme', 'graphite')
+  await navigate(page, 'settings')
+  await expect(page.getByRole('heading', { name: '界面主题' })).toBeVisible()
+  await expect(page.locator('[data-theme-option=graphite]')).toHaveAttribute('aria-pressed', 'true')
+  await page.locator('[data-theme-option=paper]').click()
+  await expect(page.locator('#app')).toHaveAttribute('data-workbench-theme', 'paper')
+  await expect(page.locator('[data-theme-option=paper]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('#app')).toHaveCSS('background-color', 'rgb(247, 249, 250)')
+  await page.waitForTimeout(400); await page.reload(); await expect(page.locator('.nav-connections')).toBeAttached()
+  await navigate(page, 'settings')
+  await expect(page.locator('#app')).toHaveAttribute('data-workbench-theme', 'paper')
+  await expect(page.locator('[data-theme-option=paper]')).toHaveAttribute('aria-pressed', 'true')
+  await page.locator('[data-back]').click(); await connect(page); await expect(page.locator('.monaco-editor').first()).toBeVisible()
+  await expect(page.locator('.monaco-editor')).toHaveCSS('background-color', 'rgb(237, 241, 244)')
+  await page.locator('#workspace-tabs [role=tab]').first().click(); await navigate(page, 'settings')
+  await page.locator('[data-theme-option=graphite]').click()
+  await expect(page.locator('#app')).toHaveAttribute('data-workbench-theme', 'graphite')
+  await page.locator('[data-back]').click()
+  await expect(page.locator('.monaco-editor')).toHaveCSS('background-color', 'rgb(11, 17, 24)')
+  await expect.poll(() => page.evaluate(() => window.__data['db.ui']?.workbenchTheme)).toBe('graphite')
+  expect(errors).toEqual([])
+})
+
+test('query toolbar keeps state controls only and tabs align close actions', async ({ page }) => {
+  const errors = []; page.on('pageerror', (error) => errors.push(error.message))
+  await fixture(page); await connect(page); await expect(page.locator('.monaco-editor').first()).toBeVisible()
+  await setQuery(page, 'SELECT id, name FROM customers;')
+  for (const action of ['run', 'format', 'templates', 'expandColumns', 'explain', 'begin', 'commit', 'rollback', 'more']) {
+    await expect(page.locator(`.wb-querybar [data-action=${action}]`)).toHaveCount(0)
+  }
+  await expect(page.locator('.wb-querybar [data-action=connect]')).toBeVisible()
+  await expect(page.locator('.wb-querybar [data-object-transaction]')).toBeVisible()
+  await expect(page.locator('.wb-querybar .wb-transaction-status')).toHaveText('自动提交')
+
+  const alignment = await page.evaluate(() => {
+    const tab = document.querySelector('.wb-tab')
+    const label = tab.querySelector('[role=tab]').getBoundingClientRect()
+    const close = tab.querySelector('.wb-tab-close').getBoundingClientRect()
+    return { label: label.top + label.height / 2, close: close.top + close.height / 2, queryBar: document.querySelector('.wb-querybar').getBoundingClientRect().y }
+  })
+  expect(Math.abs(alignment.label - alignment.close)).toBeLessThanOrEqual(1)
+  expect(alignment.queryBar).toBeGreaterThan(0)
+  await page.screenshot({ path: 'test-results-db/database-toolbar.png' })
+
+  await page.evaluate(() => { window.__deferExecution = true })
+  await runQuery(page)
+  await expect(page.locator('.wb-querybar [data-action=cancel]')).toBeVisible()
+  await expect(page.locator('.wb-querybar [data-action=cancel]')).toContainText('取消查询')
+  await page.locator('.wb-querybar [data-action=cancel]').click()
+  await expect(page.locator('.wb-querybar [data-action=cancel]')).toHaveCount(0)
+  await page.evaluate(() => { window.__deferExecution = false })
+  await runQuery(page)
+  await expect(page.locator('.grid-viewport')).toContainText('阿尔法')
+  await runCommand(page, 'format')
+  await expect(page.locator('.monaco-editor')).toContainText('SELECT')
+  expect(errors).toEqual([])
+})
+
 test('workbench resources, settings, structure and comparison are usable', async ({ page }) => {
   const errors = []; page.on('pageerror', (error) => errors.push(error.message))
   await fixture(page); await connect(page); await expect(page.locator('.monaco-editor').first()).toBeVisible()
-  await navigate(page, 'resources'); await expect(page.getByText('本插件创建的连接', { exact: true })).toBeVisible()
+  await page.locator('[data-func=resources]').click(); await expect(page.getByText('本插件客户端', { exact: true })).toBeVisible()
   await page.locator('[data-kind=locks]').click(); await expect(page.getByText('权限不足', { exact: true })).toBeVisible()
   await navigate(page, 'settings'); await expect(page.getByRole('heading', { name: '数据库设置' })).toBeVisible()
   await openObject(page, 'structure'); await expect(page.getByRole('heading', { name: '关系图' })).toBeVisible()
-  await navigate(page, 'compare'); await expect(page.getByRole('heading', { name: '数据与结构比较' })).toBeVisible(); await page.locator('summary').filter({ hasText: '列映射与比较规则' }).click(); await page.locator('[data-add-mapping]').click(); await page.locator('[data-mapping][data-prop=left]').fill('name'); await page.locator('[data-mapping][data-prop=right]').fill('name'); await page.locator('[data-add-mapping]').click(); await page.locator('[data-mapping="1"][data-prop=left]').fill('id'); await page.locator('[data-mapping="1"][data-prop=right]').fill('id'); await page.locator('[data-mapping="1"][data-prop=rule]').selectOption('numeric'); await page.locator('[data-query=left]').fill('SELECT * FROM customers'); await page.locator('[data-query=right]').fill('SELECT * FROM customers'); await page.locator('[data-keys]').fill('id'); await page.locator('[data-compare]').click()
+  await page.locator('[data-func=compare]').click(); await expect(page.getByRole('heading', { name: '数据与结构比较' })).toBeVisible(); await page.locator('summary').filter({ hasText: '列映射与比较规则' }).click(); await page.locator('[data-add-mapping]').click(); await page.locator('[data-mapping][data-prop=left]').fill('name'); await page.locator('[data-mapping][data-prop=right]').fill('name'); await page.locator('[data-add-mapping]').click(); await page.locator('[data-mapping="1"][data-prop=left]').fill('id'); await page.locator('[data-mapping="1"][data-prop=right]').fill('id'); await page.locator('[data-mapping="1"][data-prop=rule]').selectOption('numeric'); await page.locator('[data-query=left]').fill('SELECT * FROM customers'); await page.locator('[data-query=right]').fill('SELECT * FROM customers'); await page.locator('[data-keys]').fill('id'); await page.locator('[data-compare]').click()
   await expect(page.locator('.wb-compare-summary')).toContainText('1 项差异'); await expect(page.locator('[data-pane=left] th').nth(1)).toHaveText('name'); await expect(page.locator('[data-pane=left] tbody tr').first().locator('td').nth(1)).toHaveText('阿尔法'); await expect(page.locator('[data-pane=left]')).toBeVisible(); await expect(page.locator('[data-pane=right]')).toBeVisible()
   await page.locator('[data-export]').click(); await expect.poll(() => page.evaluate(() => window.__calls.filter((call) => call[0] === 'saveTextFile').at(-1)?.[1]?.filename)).toMatch(/comparison\.json$/); await page.screenshot({ path: 'test-results-db/database-comparison.png' }); await page.keyboard.press('Escape')
   await page.locator('#workspace-tabs [role=tab]').first().click(); await page.screenshot({ path: 'test-results-db/database-workbench.png' }); expect(errors).toEqual([])
@@ -74,7 +135,7 @@ test('table design previews structured operations; data paging, sort and filter 
 test('document results open a typed, collapsible inspector and Escape restores the query surface', async ({ page }) => {
   await fixture(page); await connect(page); await expect(page.locator('.monaco-editor').first()).toBeVisible()
   await page.evaluate(async () => { window.__documentResult = true; const { monaco } = await import(performance.getEntriesByType('resource').find(entry => /\/assets\/app\/monaco-[^/]+\.js$/.test(entry.name)).name); monaco.editor.getEditors()[0].setValue('SELECT document FROM records;') })
-  await page.locator('[data-action=run]').click(); await page.locator('.grid-viewport [data-r="0"][data-c="0"]').dblclick(); await expect(page.locator('.wb-document-tree')).toContainText('object'); await page.locator('summary').filter({ hasText: 'user' }).click(); await expect(page.locator('.wb-document-tree')).toContainText('Ada'); await page.screenshot({ path: 'test-results-db/database-document-tree.png' }); await page.keyboard.press('Escape'); await expect(page.locator('dialog')).toHaveCount(0)
+  await runQuery(page); await page.locator('.grid-viewport [data-r="0"][data-c="0"]').dblclick(); await expect(page.locator('.wb-document-tree')).toContainText('object'); await page.locator('summary').filter({ hasText: 'user' }).click(); await expect(page.locator('.wb-document-tree')).toContainText('Ada'); await page.screenshot({ path: 'test-results-db/database-document-tree.png' }); await page.keyboard.press('Escape'); await expect(page.locator('dialog')).toHaveCount(0)
 })
 
 test('SQLite save is durable; storage errors retain input and never announce success', async ({ page }) => {
@@ -98,10 +159,10 @@ test('SQLite save is durable; storage errors retain input and never announce suc
 test('Quick expanded results page and filter migrated loaded data at 480×240', async ({ page }) => {
   await fixture(page); await connect(page); await expect(page.locator('.monaco-editor').first()).toBeVisible()
   await page.evaluate(async () => { window.__manyRows = 1000; const { monaco } = await import(performance.getEntriesByType('resource').find(entry => /\/assets\/app\/monaco-[^/]+\.js$/.test(entry.name)).name); monaco.editor.getEditors()[0].setValue('SELECT id, name FROM customers;') })
-  await page.locator('[data-action=run]').click(); await expect(page.locator('[data-loaded-range]')).toContainText('/ 1000 行')
+  await runQuery(page); await expect(page.locator('[data-loaded-range]')).toContainText('/ 1000 行')
   await page.locator('[data-pager-select=size]').evaluate((select) => { select.value = '50'; select.dispatchEvent(new Event('change', { bubbles: true })) })
   await page.evaluate(() => window.__mode('quick')); await page.setViewportSize({ width: 480, height: 240 }); await page.locator('#workspace-tabs [role=tab]').first().click()
-  await expect(page.locator('.wb-session-note')).toContainText('桌面控制台，请在桌面执行'); await expect(page.locator('[data-action=run]')).toHaveCount(0)
+  await expect(page.locator('.wb-session-note')).toContainText('桌面控制台，请在桌面执行')
   const priorCalls = await page.evaluate(() => window.__calls.filter((call) => ['open', 'execute'].includes(call[0])).length)
   await page.keyboard.press('Meta+Enter'); expect(await page.evaluate(() => window.__calls.filter((call) => ['open', 'execute'].includes(call[0])).length)).toBe(priorCalls)
   await page.screenshot({ path: 'test-results-db/database-quick-desktop-preview.png' }); await page.locator('[data-expand-results]').click()
@@ -111,7 +172,7 @@ test('Quick expanded results page and filter migrated loaded data at 480×240', 
   await page.locator('[data-export-results]').click(); await expect.poll(() => page.evaluate(() => window.__calls.filter((call) => call[0] === 'saveTextFile').at(-1)?.[1]?.content)).toContain('item-999')
   await page.locator('[data-quick-filter-text]').fill('no-such-row'); await expect(page.locator('[data-loaded-range]')).toContainText('0–0 / 0 行'); await page.locator('[data-quick-filter-clear]').click(); await expect(page.locator('[data-loaded-range]')).toContainText('1–50 / 1000')
   await expect(page.locator('.wb-status')).toBeInViewport({ ratio: 1 }); await expect(page.locator('[data-pager=next]')).toBeInViewport({ ratio: 1 }); await expect(page.locator('[data-quick-filter-text]')).toBeInViewport({ ratio: 1 }); await page.mouse.move(470, 232); await page.screenshot({ path: 'test-results-db/database-quick-paging.png' })
-  await page.locator('[data-expand-results]').click(); await page.locator('[data-action=newQuick]').click(); await expect(page.locator('[data-action=run]')).toBeVisible()
+  await page.locator('[data-expand-results]').click(); await page.locator('[data-action=newQuick]').click(); await expect(page.locator('.monaco-editor').first()).toBeVisible()
   const models = await page.evaluate(async () => { const { monaco } = await import(performance.getEntriesByType('resource').find(entry => /\/assets\/app\/monaco-[^/]+\.js$/.test(entry.name)).name); return { active: monaco.editor.getEditors()[0].getValue(), values: monaco.editor.getModels().map((model) => model.getValue()), calls: window.__calls.filter((call) => ['open', 'execute'].includes(call[0])).length } })
   expect(models.active).toBe(''); expect(models.values).toContain('SELECT id, name FROM customers;'); expect(models.calls).toBe(priorCalls)
 })

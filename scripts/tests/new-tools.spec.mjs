@@ -153,7 +153,7 @@ test(
         page.on("pageerror", (e) => errors.push(e.message));
         page.on("response", (r) => { if (r.status() >= 400 && !r.url().endsWith("/favicon.ico")) missing.push(r.url()); });
         try {
-          const url = `http://127.0.0.1:${server.address().port}/plugins/com.enest.${slug}/index.html?mode=quick`;
+          const url = `http://127.0.0.1:${server.address().port}/plugins/${slug}/index.html?mode=quick`;
           await page.goto(url);
           await page.waitForTimeout(300);
           assert.equal(await page.locator("html").getAttribute("data-mode"), "quick", `${slug} initial mode`);

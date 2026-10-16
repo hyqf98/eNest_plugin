@@ -81,14 +81,14 @@ async function setup(page, mode, seed, fakePort) {
   }, { mode, seed, fakePort })
 }
 
-test.describe('com.enest.remote-desktop', () => {
+test.describe('com.github.eNest.remote-desktop', () => {
   let fake
   test.beforeAll(async () => { fake = await startFakeServer() })
   test.afterAll(async () => { await fake.close() })
 
   test('shell：资产 CRUD + 分组', async ({ page }) => {
     await setup(page, 'shell', {}, fake.port)
-    await page.goto('/plugins/com.enest.remote-desktop/index.html')
+    await page.goto('/plugins/remote-desktop/index.html')
     await expect(page.locator('#app')).toHaveAttribute('data-mode', 'shell')
     // 空态引导
     await expect(page.locator('#empty-guide')).toBeVisible()
@@ -115,7 +115,7 @@ test.describe('com.enest.remote-desktop', () => {
 
   test('quick：最近列表 + URI 快速新建（假连接错误态）', async ({ page }) => {
     await setup(page, 'quick', {}, fake.port)
-    await page.goto('/plugins/com.enest.remote-desktop/index.html')
+    await page.goto('/plugins/remote-desktop/index.html')
     await expect(page.locator('#app')).toHaveAttribute('data-mode', 'quick')
     // 侧栏隐藏（quick 单列）
     await expect(page.locator('#side')).toBeHidden()
@@ -133,7 +133,7 @@ test.describe('com.enest.remote-desktop', () => {
 
   test('quick → shell 模式切换后侧栏可见', async ({ page }) => {
     await setup(page, 'quick', {}, fake.port)
-    await page.goto('/plugins/com.enest.remote-desktop/index.html')
+    await page.goto('/plugins/remote-desktop/index.html')
     await expect(page.locator('#side')).toBeHidden()
     await page.evaluate(() => window.__host.mode('shell'))
     await expect(page.locator('#app')).toHaveAttribute('data-mode', 'shell')

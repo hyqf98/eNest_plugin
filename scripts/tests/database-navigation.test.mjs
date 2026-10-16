@@ -6,8 +6,8 @@ globalThis.window = { enest: {
   storage: { get: async key => saved.get(key), set: async (key, value) => { saved.set(key, structuredClone(value)); return true } },
   db: { open: () => assert.fail('restoring navigation must not connect'), execute: () => assert.fail('restoring navigation must not execute') }
 } }
-const { state, flushPendingPersist, loadAll } = await import('../../plugins/com.enest.database/src/js/store.js')
-const { initWorkspace, openWorkspaceTab, moveWorkspaceTab, removeWorkspaceTab, objectTabId } = await import('../../plugins/com.enest.database/src/js/workspaceState.js')
+const { state, flushPendingPersist, loadAll } = await import('../../plugins/database/src/js/store.js')
+const { initWorkspace, openWorkspaceTab, moveWorkspaceTab, removeWorkspaceTab, objectTabId } = await import('../../plugins/database/src/js/workspaceState.js')
 delete globalThis.window
 
 function legacy() {

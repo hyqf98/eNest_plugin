@@ -1,7 +1,7 @@
 import './register-db-alias.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-const { queryColumnSet } = await import('../../plugins/com.enest.database/src/js/sql-intelligence/settings/queryColumnSet.js')
+const { queryColumnSet } = await import('../../plugins/database/src/js/sql-intelligence/settings/queryColumnSet.js')
 const catalog = { tables: [{ name: 'customers', database: 'orders', state: 'ready', columnsLoaded: true, columns: [{ name: 'id' }, { name: 'name' }, { name: 'Customer Name' }] }] }
 const extract = (sql, options = {}, metadata = catalog) => queryColumnSet({ sql: sql.replace('|', ''), cursor: sql.indexOf('|') >= 0 ? sql.indexOf('|') : 0, dialect: 'mysql', connectionId: 'dev', database: 'orders', ...options }, metadata)
 

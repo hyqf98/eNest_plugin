@@ -44,7 +44,7 @@ export async function fixture(page, mode = 'shell') {
       } }
     }
   }, { mode })
-  await page.goto('/plugins/com.enest.middleware/index.html')
+  await page.goto('/plugins/middleware/index.html')
   await expect(page.locator('#nav-toggle')).toBeVisible()
 }
 export async function openConnection(page, id = 'orders') {

@@ -110,7 +110,7 @@ test('pack CLI executes from directories containing spaces and # instead of sile
   await cp(new URL('./pack-plugin.mjs', import.meta.url), join(scripts, 'pack-plugin.mjs'))
   await writeFile(join(scripts, 'build-plugin.mjs'), 'export const buildPlugin=()=>{throw new Error("unexpected build")}')
   await writeFile(join(scripts, 'validate-dist.mjs'), 'export const validateDistribution=async()=>{}')
-  await writeFile(join(scripts, 'plugin-contract.mjs'), `export const repositoryRoot=${JSON.stringify(f.root)}; export const pluginIds=()=>['com.fixture.backend'];export const readManifest=()=>({id:'com.fixture.backend',version:'1.0.0'}); export const DSH_ID='com.enest.dsh', DSH_VERSION='test';`)
+  await writeFile(join(scripts, 'plugin-contract.mjs'), `export const repositoryRoot=${JSON.stringify(f.root)}; export const pluginIds=()=>['com.fixture.backend'];export const readManifest=()=>({id:'com.fixture.backend',version:'1.0.0'}); export const DSH_ID='com.github.eNest.dsh', DSH_DIR='dsh', DSH_VERSION='test';`)
   await mkdir(f.destination, { recursive: true })
   await writeFile(join(f.destination, 'index.html'), 'fixture')
   const output = execFileSync(process.execPath, [join(scripts, 'pack-plugin.mjs'), 'com.fixture.backend', '--no-build'], { encoding: 'utf8' })
