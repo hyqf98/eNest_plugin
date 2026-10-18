@@ -7,6 +7,8 @@ import { unzipSync, strFromU8 } from 'fflate'
 import { repositoryRoot as root, pluginIds, readManifest, assertMediaPaths, validPath, validBackendPath, DSH_ID, MAX_README_BYTES } from './plugin-contract.mjs'
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
 
+const DEFAULT_SOURCE_BASE = 'https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/'
+
 /** Only final ZIP bytes supply registry metadata and media. Source identifies the version to publish. */
 export function archiveMetadata(archive, expected) {
   const names = new Set()
@@ -43,14 +45,15 @@ export function archiveMetadata(archive, expected) {
   return { manifest, entries }
 }
 
-export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryRoot, 'dist'), baseUrl = '' } = {}) {
+export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryRoot, 'dist'), baseUrl = DEFAULT_SOURCE_BASE } = {}) {
   mkdirSync(outDir, { recursive: true })
   const plugins = pluginIds(repositoryRoot).map(id => {
     const expected = readManifest(join(repositoryRoot, 'plugins', id)), name = `${id}@${expected.version}.enestplugin`
     const archive = readFileSync(join(outDir, name)), { manifest: m, entries } = archiveMetadata(archive, expected)
     const publish = path => {
-      const relative = `${id}@${m.version}/${path}`
-      const target = join(outDir, relative)
+      const shortId = id.split('.').pop()
+      const relative = `plugins/${shortId}/public/${path}`
+      const target = join(outDir, `${id}@${m.version}`, path)
       mkdirSync(join(target, '..'), { recursive: true }); writeFileSync(target, entries[path])
       return baseUrl + relative.split('/').map(encodeURIComponent).join('/')
     }
