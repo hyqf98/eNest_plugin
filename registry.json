@@ -1,0 +1,1266 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-18T11:24:10.311Z",
+  "channel": "stable",
+  "categories": [
+    "效率",
+    "开发",
+    "设计",
+    "媒体",
+    "其它"
+  ],
+  "plugins": [
+    {
+      "id": "com.github.eNest.anything",
+      "name": "Anything 文件搜索",
+      "version": "1.1.0",
+      "description": "全盘文件即时搜索：Spotlight / Everything 引擎，关键词高亮、排序分页、文本与图片预览，打开、定位、移入废纸篓。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "anything%401.1.0/assets/market/icon.svg",
+      "readmeUrl": "anything%401.1.0/assets/market/README.md",
+      "screenshots": [
+        "anything%401.1.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "文件搜索",
+        "Spotlight",
+        "Everything",
+        "效率"
+      ],
+      "permissions": [
+        "backend.node",
+        "contribute",
+        "clipboard.write",
+        "shell.openExternal"
+      ],
+      "engines": {
+        "enest": ">=0.2.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "anything@1.1.0.enestplugin",
+        "url": "anything%401.1.0.enestplugin",
+        "size": 136698,
+        "sha256": "7226bac0fc565e30351300d750c385ef1d76fe1612b528971ffdfa36e8216eed"
+      }
+    },
+    {
+      "id": "com.github.eNest.batch-rename",
+      "name": "批量重命名",
+      "version": "1.2.0",
+      "description": "拖入多文件，查找替换（正则）/ 序号 / 日期 / 大小写 / 插入 / 删除片段 / 扩展名规则链实时预览（diff 高亮 + 冲突检测），确认后批量改名，支持撤销。",
+      "author": "eNest Labs",
+      "category": "其它",
+      "icon": "batch-rename%401.2.0/assets/market/icon.svg",
+      "readmeUrl": "batch-rename%401.2.0/assets/market/README.md",
+      "screenshots": [
+        "batch-rename%401.2.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "重命名",
+        "批量",
+        "文件"
+      ],
+      "permissions": [
+        "fs.rename"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "batch-rename@1.2.0.enestplugin",
+        "url": "batch-rename%401.2.0.enestplugin",
+        "size": 106562,
+        "sha256": "03ca4889680753924bebe8df955ad9cfcdde3c8559df7f8a49dbeb64de26b47e"
+      }
+    },
+    {
+      "id": "com.github.eNest.calculator",
+      "name": "计算器",
+      "version": "1.4.0",
+      "description": "科学计算、变量赋值、Ans 与内存寄存器、百分比双语义、千分位显示、可收藏的本地计算历史。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "calculator%401.4.0/assets/market/icon.svg",
+      "readmeUrl": "calculator%401.4.0/assets/market/README.md",
+      "screenshots": [
+        "calculator%401.4.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "计算器",
+        "效率"
+      ],
+      "permissions": [
+        "clipboard.write",
+        "shell.openExternal"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "calculator@1.4.0.enestplugin",
+        "url": "calculator%401.4.0.enestplugin",
+        "size": 133044,
+        "sha256": "b1db7c296da14955a15b0da71296a4a87a035ffa5c517f8f23ed6c8d98106d73"
+      }
+    },
+    {
+      "id": "com.github.eNest.ccswitch",
+      "name": "供应商切换",
+      "version": "1.2.0",
+      "description": "AI CLI 供应商切换台：10 应用配置管理、50+ 预设、切换历史与回退、全量备份、MCP 同步、会话浏览与用量统计（复刻 cc-switch）",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "ccswitch%401.2.0/assets/market/icon.svg",
+      "readmeUrl": "ccswitch%401.2.0/assets/market/README.md",
+      "screenshots": [
+        "ccswitch%401.2.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "AI",
+        "供应商",
+        "MCP",
+        "Claude",
+        "Codex",
+        "开发"
+      ],
+      "permissions": [
+        "net.fetch",
+        "hotkey",
+        "notify",
+        "clipboard.write",
+        "shell.openExternal",
+        "config.agent.read",
+        "config.agent.write",
+        "contribute"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "ccswitch@1.2.0.enestplugin",
+        "url": "ccswitch%401.2.0.enestplugin",
+        "size": 143558,
+        "sha256": "c4c56a1abdf0089d9d8f59ff94db577a0ec3d42ada0d5efe7e755c4c2c8e4914"
+      }
+    },
+    {
+      "id": "com.github.eNest.clipboard",
+      "name": "剪贴板",
+      "version": "1.3.0",
+      "description": "搜索文本、图片与文件历史；快捷回贴，文本变换工具条与暂存片段，批量整理。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "clipboard%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "clipboard%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "clipboard%401.3.0/assets/market/screenshots/01-main.png",
+        "clipboard%401.3.0/assets/market/screenshots/02-images.webp",
+        "clipboard%401.3.0/assets/market/screenshots/03-files.webp"
+      ],
+      "tags": [
+        "剪贴板",
+        "历史",
+        "效率"
+      ],
+      "permissions": [
+        "clipboard.read",
+        "clipboard.write",
+        "clipboard.readImage",
+        "clipboard.writeImage",
+        "clipboard.history",
+        "clipboard.paste"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": true,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "clipboard@1.3.0.enestplugin",
+        "url": "clipboard%401.3.0.enestplugin",
+        "size": 171525,
+        "sha256": "027b695ec41ed6e300eaf4efc2f68d31d29d208686f0cfbf649665359ff3197a"
+      }
+    },
+    {
+      "id": "com.github.eNest.codec",
+      "name": "编解码",
+      "version": "1.3.0",
+      "description": "Base64、URL、Hex、Unicode、HTML 编解码与 JWT、URL 参数、Data URL 查看；逐行批量、错误定位、文件转 Data URL、最近转换记录。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "codec%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "codec%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "codec%401.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "base64",
+        "url",
+        "hex",
+        "开发"
+      ],
+      "permissions": [
+        "clipboard.read",
+        "clipboard.write",
+        "shell.openExternal"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "codec@1.3.0.enestplugin",
+        "url": "codec%401.3.0.enestplugin",
+        "size": 108820,
+        "sha256": "0b68e511fb7c7778326c79dc3df43f0465be6cf09eef9c2b792f34c71838e96a"
+      }
+    },
+    {
+      "id": "com.github.eNest.codex-pets",
+      "name": "Codex 宠物市场",
+      "version": "1.1.0",
+      "description": "浏览 codex-pets.net 社区宠物画廊：搜索、排序、标签筛选与分页；逐帧 sprite 预览与光标跟随动效；一键安装宠物包到本机 Codex（自动检测 ~/.codex），并管理已安装宠物。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "codex-pets%401.1.0/assets/market/icon.svg",
+      "readmeUrl": "codex-pets%401.1.0/assets/market/README.md",
+      "screenshots": [
+        "codex-pets%401.1.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "Codex",
+        "宠物",
+        "sprite",
+        "桌宠",
+        "画廊"
+      ],
+      "permissions": [
+        "net.fetch",
+        "clipboard.write",
+        "config.agent.read",
+        "config.agent.write",
+        "shell.openExternal"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "codex-pets@1.1.0.enestplugin",
+        "url": "codex-pets%401.1.0.enestplugin",
+        "size": 174574,
+        "sha256": "2934d469ee4e760f75640b7d3c432a4775a81fd3778935d2e98f19b8a4da5ae7"
+      }
+    },
+    {
+      "id": "com.github.eNest.color-picker",
+      "name": "取色器",
+      "version": "1.3.0",
+      "description": "屏幕与图片精准取色，HEX/RGB/HSL/OKLCH 一键复制、和谐色生成、WCAG 对比度检查、命名色板与 CSS/JSON 导出。",
+      "author": "eNest Labs",
+      "category": "设计",
+      "icon": "color-picker%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "color-picker%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "color-picker%401.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "取色",
+        "color",
+        "设计"
+      ],
+      "permissions": [
+        "screen.capture",
+        "clipboard.write",
+        "shell.openExternal"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "color-picker@1.3.0.enestplugin",
+        "url": "color-picker%401.3.0.enestplugin",
+        "size": 116134,
+        "sha256": "1313ce289153ae9505d2d595b9219b21c03ce2f2a17f507070b6a86bde693558"
+      }
+    },
+    {
+      "id": "com.github.eNest.cron",
+      "name": "Cron 工具",
+      "version": "1.2.0",
+      "description": "五/六域可视化构建、中文人性化描述、未来执行预览、预设库与 crontab 导出。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "cron%401.2.0/assets/market/icon.svg",
+      "readmeUrl": "cron%401.2.0/assets/market/README.md",
+      "screenshots": [
+        "cron%401.2.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "cron",
+        "定时",
+        "开发"
+      ],
+      "permissions": [
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "cron@1.2.0.enestplugin",
+        "url": "cron%401.2.0.enestplugin",
+        "size": 170097,
+        "sha256": "cb4947db33afd8f6df21dd94edab7c190b7cba8e5ed397509d85542448ecebe1"
+      }
+    },
+    {
+      "id": "com.github.eNest.database",
+      "name": "数据库",
+      "version": "1.3.0",
+      "description": "多数据库工作台：离线编辑器、查询与结果编辑、结构关系、资源中心和只读数据比较",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "database%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "database%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "database%401.3.0/assets/market/screenshots/01-main.png",
+        "database%401.3.0/assets/market/screenshots/02-table-data.webp",
+        "database%401.3.0/assets/market/screenshots/03-table-structure.webp"
+      ],
+      "tags": [
+        "数据库",
+        "SQL",
+        "MySQL",
+        "PostgreSQL",
+        "MongoDB",
+        "TDengine"
+      ],
+      "permissions": [
+        "db.connect",
+        "db.query",
+        "db.schema",
+        "notify",
+        "clipboard.write",
+        "shell.openExternal",
+        "backend.node"
+      ],
+      "engines": {
+        "enest": ">=0.2.0"
+      },
+      "featured": true,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "database@1.3.0.enestplugin",
+        "url": "database%401.3.0.enestplugin",
+        "size": 130323719,
+        "sha256": "7120ff1770bdf5514983be147afe59aac99bb58cdfb0d63bb0af2c027ed53943"
+      }
+    },
+    {
+      "id": "com.github.eNest.diff",
+      "name": "文本对比",
+      "version": "1.1.0",
+      "description": "双栏 LCS 行级对比、行内字符细化、差异导航计数、hex 字节对比与 unified diff 导出。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "diff%401.1.0/assets/market/icon.svg",
+      "readmeUrl": "diff%401.1.0/assets/market/README.md",
+      "screenshots": [
+        "diff%401.1.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "diff",
+        "对比",
+        "开发"
+      ],
+      "permissions": [
+        "clipboard.write",
+        "clipboard.read"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "diff@1.1.0.enestplugin",
+        "url": "diff%401.1.0.enestplugin",
+        "size": 115693,
+        "sha256": "bd182639b0980cac9dd4d3f9145a30cf60f7d7e58d8ab8f6aadf6f7dba29953a"
+      }
+    },
+    {
+      "id": "com.github.eNest.dsh",
+      "name": "DSH 驾驶舱",
+      "version": "0.2.0",
+      "description": "DeepSeek Harness 会话驾驶舱：小窗查看多会话进度并快速对话，大桌面嵌入完整 DSH Web UI；自带运行时（零本地依赖）与热更新、profile 管理、一键备份升级回退",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "dsh%400.2.0/assets/market/icon.svg",
+      "readmeUrl": "dsh%400.2.0/assets/market/README.md",
+      "screenshots": [
+        "dsh%400.2.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "DeepSeek",
+        "DSH",
+        "Agent",
+        "AI",
+        "Harness"
+      ],
+      "permissions": [
+        "dsh.connect",
+        "dsh.chat",
+        "dsh.admin",
+        "shell.openExternal",
+        "notify"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": true,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque"
+      },
+      "asset": {
+        "name": "dsh@0.2.0.enestplugin",
+        "url": "dsh%400.2.0.enestplugin",
+        "size": 157362944,
+        "sha256": "e20900b0d605655f4760709b842fc455023316c635bd3442e468f12264951875"
+      }
+    },
+    {
+      "id": "com.github.eNest.hash",
+      "name": "哈希与加密",
+      "version": "1.3.0",
+      "description": "多算法同屏哈希（SHA 家族/MD5）、文件哈希进度反馈、校验对比 diff、HMAC、AES-GCM 与 RSA 加解密签名、JWT 解码、hex/base64 输出。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "hash%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "hash%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "hash%401.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "哈希",
+        "加密",
+        "开发"
+      ],
+      "permissions": [
+        "clipboard.write",
+        "clipboard.read"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "hash@1.3.0.enestplugin",
+        "url": "hash%401.3.0.enestplugin",
+        "size": 163127,
+        "sha256": "cf2d340361598db8576809c0d14bbc363c3d065357b4ca34995d9b3325bf8c61"
+      }
+    },
+    {
+      "id": "com.github.eNest.image-tools",
+      "name": "图片工具箱",
+      "version": "1.1.0",
+      "description": "图片压缩、格式转换、批量缩放、裁剪旋转、文字水印、EXIF 查看、色板提取与贴图预览。",
+      "author": "eNest Labs",
+      "category": "媒体",
+      "icon": "image-tools%401.1.0/assets/market/icon.svg",
+      "readmeUrl": "image-tools%401.1.0/assets/market/README.md",
+      "screenshots": [
+        "image-tools%401.1.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "图片",
+        "压缩",
+        "格式转换",
+        "水印",
+        "EXIF"
+      ],
+      "permissions": [
+        "pin.create",
+        "clipboard.readImage",
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "image-tools@1.1.0.enestplugin",
+        "url": "image-tools%401.1.0.enestplugin",
+        "size": 146942,
+        "sha256": "d2d1b97640f598870ab627697629438dfe8f4607fe433176b89d7e537045d547"
+      }
+    },
+    {
+      "id": "com.github.eNest.json-tools",
+      "name": "JSON 工具",
+      "version": "1.4.0",
+      "description": "无损数字 JSON 格式化、路径查询、TypeScript 类型生成、统计、树浏览与差异比较。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "json-tools%401.4.0/assets/market/icon.svg",
+      "readmeUrl": "json-tools%401.4.0/assets/market/README.md",
+      "screenshots": [
+        "json-tools%401.4.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "json",
+        "开发",
+        "格式化"
+      ],
+      "permissions": [
+        "clipboard.read",
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "json-tools@1.4.0.enestplugin",
+        "url": "json-tools%401.4.0.enestplugin",
+        "size": 127189,
+        "sha256": "edfe73b47c12309db54f37c5864cada203f30462dec3bf4f683c8c0ef9c2626a"
+      }
+    },
+    {
+      "id": "com.github.eNest.lan-share",
+      "name": "局域网传件",
+      "version": "1.1.0",
+      "description": "同一 Wi-Fi 下把文件发给手机：取件码 + 二维码即扫即下，限时自动关闭，下载实时日志。",
+      "author": "eNest Labs",
+      "category": "其它",
+      "icon": "lan-share%401.1.0/assets/market/icon.svg",
+      "readmeUrl": "lan-share%401.1.0/assets/market/README.md",
+      "screenshots": [
+        "lan-share%401.1.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "局域网",
+        "传文件",
+        "分享"
+      ],
+      "permissions": [
+        "lan.share",
+        "notify",
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "lan-share@1.1.0.enestplugin",
+        "url": "lan-share%401.1.0.enestplugin",
+        "size": 144731,
+        "sha256": "93a813cb59cb429784c25b4638248cbf0cdbeb9349e7ea273af41ce3926b1dd7"
+      }
+    },
+    {
+      "id": "com.github.eNest.markdown",
+      "name": "Markdown 笔记",
+      "version": "1.1.0",
+      "description": "分组笔记树、实时预览、全文搜索、图片附件、模板与导出；Quick 速记直落收件箱。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "markdown%401.1.0/assets/market/icon.svg",
+      "readmeUrl": "markdown%401.1.0/assets/market/README.md",
+      "screenshots": [
+        "markdown%401.1.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "笔记",
+        "Markdown",
+        "效率"
+      ],
+      "permissions": [
+        "clipboard.write",
+        "clipboard.readImage"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "markdown@1.1.0.enestplugin",
+        "url": "markdown%401.1.0.enestplugin",
+        "size": 153209,
+        "sha256": "575911c54f18021e7a4a4a9ee418184882c887e7ad950d5a1af62f2988a137ff"
+      }
+    },
+    {
+      "id": "com.github.eNest.middleware",
+      "name": "中间件控制台",
+      "version": "0.3.0",
+      "description": "Kafka / RabbitMQ / MQTT / RocketMQ 统一控制台：连接管理、Topic 与队列、消息查询溯源与实时监听、消费组与监控",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "middleware%400.3.0/assets/market/icon.svg",
+      "readmeUrl": "middleware%400.3.0/assets/market/README.md",
+      "screenshots": [
+        "middleware%400.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "中间件",
+        "Kafka",
+        "RabbitMQ",
+        "MQTT",
+        "RocketMQ",
+        "消息队列"
+      ],
+      "permissions": [
+        "mw.connect",
+        "mw.query",
+        "mw.admin",
+        "notify",
+        "clipboard.write",
+        "shell.openExternal",
+        "backend.node"
+      ],
+      "engines": {
+        "enest": ">=0.2.0"
+      },
+      "featured": true,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "middleware@0.3.0.enestplugin",
+        "url": "middleware%400.3.0.enestplugin",
+        "size": 2294257,
+        "sha256": "5b369428995f8a855d8c0b70166567154d1b1e11e4479887eb279f5afa325c83"
+      }
+    },
+    {
+      "id": "com.github.eNest.net-kit",
+      "name": "网络调试台",
+      "version": "1.1.0",
+      "description": "HTTP / TCP / WebSocket 调试工作台：流式响应与 SSE、十六进制字节流、编解码策略、断言、curl 导入导出、集合与历史",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "net-kit%401.1.0/assets/market/icon.svg",
+      "readmeUrl": "net-kit%401.1.0/assets/market/README.md",
+      "screenshots": [
+        "net-kit%401.1.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "HTTP",
+        "TCP",
+        "WebSocket",
+        "curl",
+        "SSE",
+        "调试"
+      ],
+      "permissions": [
+        "net.fetch",
+        "net.socket",
+        "clipboard.write",
+        "shell.openExternal"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "net-kit@1.1.0.enestplugin",
+        "url": "net-kit%401.1.0.enestplugin",
+        "size": 128674,
+        "sha256": "5c9d85a79bfcfaeb330e9d9a13a98b80bf4b4d12a1e74f0d2e2b8e57d13fd0d7"
+      }
+    },
+    {
+      "id": "com.github.eNest.password-kit",
+      "name": "密码工具箱",
+      "version": "1.3.0",
+      "description": "随机密码、密码短语与 PIN 生成，强度检查（熵 + 破解时间估算），UUID v4 批量与本地生成历史。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "password-kit%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "password-kit%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "password-kit%401.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "密码",
+        "uuid",
+        "安全"
+      ],
+      "permissions": [
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "password-kit@1.3.0.enestplugin",
+        "url": "password-kit%401.3.0.enestplugin",
+        "size": 132842,
+        "sha256": "885aefaca3e9b511491d3dfc0e24093db19c14ac0262939a15175966d6aeddac"
+      }
+    },
+    {
+      "id": "com.github.eNest.pomodoro",
+      "name": "番茄钟",
+      "version": "1.3.0",
+      "description": "主进程后台专注计时，长短休息、时长预设、完成提示音与本地统计。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "pomodoro%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "pomodoro%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "pomodoro%401.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "番茄钟",
+        "专注",
+        "效率"
+      ],
+      "permissions": [
+        "notify"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "pomodoro@1.3.0.enestplugin",
+        "url": "pomodoro%401.3.0.enestplugin",
+        "size": 124746,
+        "sha256": "54e27a28fa8a62417beba7aec1f4bedfe8c500be2a569e45b57b3ac78c0b5740"
+      }
+    },
+    {
+      "id": "com.github.eNest.regex",
+      "name": "正则工作台",
+      "version": "1.1.0",
+      "description": "正则实时匹配高亮、捕获分组、替换预览、常用片段库与元字符速查。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "regex%401.1.0/assets/market/icon.svg",
+      "readmeUrl": "regex%401.1.0/assets/market/README.md",
+      "screenshots": [
+        "regex%401.1.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "正则",
+        "开发",
+        "调试"
+      ],
+      "permissions": [
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "regex@1.1.0.enestplugin",
+        "url": "regex%401.1.0.enestplugin",
+        "size": 143886,
+        "sha256": "55533466b010393e2b5a3e4550768ee1feef6116849382343aced120e36eeb3c"
+      }
+    },
+    {
+      "id": "com.github.eNest.remote-desktop",
+      "name": "远程桌面",
+      "version": "1.2.0",
+      "description": "VNC / RDP 远程桌面：资产管理、SSH 隧道、多会话画布、剪贴板互通与连接诊断",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "remote-desktop%401.2.0/assets/market/icon.svg",
+      "readmeUrl": "remote-desktop%401.2.0/assets/market/README.md",
+      "screenshots": [
+        "remote-desktop%401.2.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "远程桌面",
+        "VNC",
+        "RDP",
+        "开发",
+        "运维"
+      ],
+      "permissions": [
+        "net.socket",
+        "ssh.session",
+        "clipboard.read",
+        "clipboard.write",
+        "clipboard.readImage",
+        "clipboard.writeImage",
+        "pin.create",
+        "shell.openExternal",
+        "notify",
+        "backend.node"
+      ],
+      "engines": {
+        "enest": ">=0.2.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "remote-desktop@1.2.0.enestplugin",
+        "url": "remote-desktop%401.2.0.enestplugin",
+        "size": 2544098,
+        "sha256": "1e47b68401ef292249dbc218dd2287d6767384753a554494cdfb53043d1d7456"
+      }
+    },
+    {
+      "id": "com.github.eNest.screen-assistant",
+      "name": "屏幕助手",
+      "version": "1.4.0",
+      "description": "截图与原图历史、裁剪箭头文字马赛克标注（含工具快捷键）、区域录屏和贴图管理；粘性半透明工具头，小窗快速操作，桌面展开完整编辑。",
+      "author": "eNest Labs",
+      "category": "媒体",
+      "icon": "screen-assistant%401.4.0/assets/market/icon.svg",
+      "readmeUrl": "screen-assistant%401.4.0/assets/market/README.md",
+      "screenshots": [
+        "screen-assistant%401.4.0/assets/market/screenshots/01-main.png",
+        "screen-assistant%401.4.0/assets/market/screenshots/02-annotation.webp"
+      ],
+      "tags": [
+        "截图",
+        "录屏",
+        "贴图"
+      ],
+      "permissions": [
+        "screen.capture",
+        "screen.record",
+        "pin.create",
+        "clipboard.readImage",
+        "clipboard.writeImage",
+        "clipboard.write",
+        "shell.openExternal"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": true,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "screen-assistant@1.4.0.enestplugin",
+        "url": "screen-assistant%401.4.0.enestplugin",
+        "size": 191667,
+        "sha256": "75395c3e4984be612dcffad61fefed03b9b882ea5c495296690b7010a521d659"
+      }
+    },
+    {
+      "id": "com.github.eNest.ssh",
+      "name": "SSH管理",
+      "version": "1.3.0",
+      "description": "SSH 工作台：快速连接、终端提示、远程文件、三平台资源与进程端口、服务容器、传输和隧道",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "ssh%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "ssh%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "ssh%401.3.0/assets/market/screenshots/01-main.png",
+        "ssh%401.3.0/assets/market/screenshots/02-remote-files.webp"
+      ],
+      "tags": [
+        "SSH",
+        "终端",
+        "运维",
+        "开发",
+        "SFTP"
+      ],
+      "permissions": [
+        "ssh.session",
+        "ssh.exec",
+        "ssh.sftp",
+        "notify",
+        "clipboard.write",
+        "shell.openExternal",
+        "ssh.agent",
+        "backend.node"
+      ],
+      "engines": {
+        "enest": ">=0.2.0"
+      },
+      "featured": true,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "ssh@1.3.0.enestplugin",
+        "url": "ssh%401.3.0.enestplugin",
+        "size": 2019410,
+        "sha256": "10cdc5998f3b2fa1b517c64177743fc013f6ccb0fb7aa0dfe14329f94b5060cb"
+      }
+    },
+    {
+      "id": "com.github.eNest.sticky-notes",
+      "name": "备忘录",
+      "version": "1.3.0",
+      "description": "快速记录、Markdown 预览、颜色筛选、标签整理、归档回收与本地备份。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "sticky-notes%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "sticky-notes%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "sticky-notes%401.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "备忘录",
+        "便签",
+        "笔记"
+      ],
+      "permissions": [
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "sticky-notes@1.3.0.enestplugin",
+        "url": "sticky-notes%401.3.0.enestplugin",
+        "size": 158674,
+        "sha256": "d3d90cfcf627da7439b0b1d17e712dbb24aca455e4523c42f947deb586ad6075"
+      }
+    },
+    {
+      "id": "com.github.eNest.sysguard",
+      "name": "进程与端口",
+      "version": "1.2.0",
+      "description": "本机进程与端口巡检：概览仪表盘（CPU·内存数据卡 + 迷你趋势 + 阈值告警 + Top 进程）、双表联动、搜索、收藏置顶、结束进程危险确认、滚动曲线、刷新频率可调",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "sysguard%401.2.0/assets/market/icon.svg",
+      "readmeUrl": "sysguard%401.2.0/assets/market/README.md",
+      "screenshots": [
+        "sysguard%401.2.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "进程",
+        "端口",
+        "系统",
+        "监控"
+      ],
+      "permissions": [
+        "sys.inspect",
+        "sys.control"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "sysguard@1.2.0.enestplugin",
+        "url": "sysguard%401.2.0.enestplugin",
+        "size": 106547,
+        "sha256": "f9a5e7e98a1dc6e42c147f5850cc19452a7e2ab5d8ce1fb507f84c09d87a0e45"
+      }
+    },
+    {
+      "id": "com.github.eNest.timestamp",
+      "name": "时间戳",
+      "version": "1.3.0",
+      "description": "时间戳与时区转换、多时区时钟、格式模板、批量转换、日期加减与时间差。",
+      "author": "eNest Labs",
+      "category": "开发",
+      "icon": "timestamp%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "timestamp%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "timestamp%401.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "时间戳",
+        "开发",
+        "日期"
+      ],
+      "permissions": [
+        "clipboard.write",
+        "shell.openExternal"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "timestamp@1.3.0.enestplugin",
+        "url": "timestamp%401.3.0.enestplugin",
+        "size": 147497,
+        "sha256": "a7844eae0965af37dd06f30fc379f72737b682c4cc185a28df581b7998c7b337"
+      }
+    },
+    {
+      "id": "com.github.eNest.todos",
+      "name": "待办清单",
+      "version": "1.3.0",
+      "description": "任务清单、拖拽排序、截止日期、优先级、子任务进度与标签；快捷记录，桌面完整整理。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "todos%401.3.0/assets/market/icon.svg",
+      "readmeUrl": "todos%401.3.0/assets/market/README.md",
+      "screenshots": [
+        "todos%401.3.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "待办",
+        "清单",
+        "效率"
+      ],
+      "permissions": [],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "todos@1.3.0.enestplugin",
+        "url": "todos%401.3.0.enestplugin",
+        "size": 151494,
+        "sha256": "841417eda119517e30f0720b66a9d13d028e4206af9e62f750b331042e515508"
+      }
+    },
+    {
+      "id": "com.github.eNest.translate",
+      "name": "翻译",
+      "version": "1.4.0",
+      "description": "多引擎翻译、原文译文对照即时翻译（防抖）、语言快捷切换、历史与收藏、双语复制导出。",
+      "author": "Lingua",
+      "category": "效率",
+      "icon": "translate%401.4.0/assets/market/icon.svg",
+      "readmeUrl": "translate%401.4.0/assets/market/README.md",
+      "screenshots": [
+        "translate%401.4.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "翻译",
+        "谷歌",
+        "效率"
+      ],
+      "permissions": [
+        "net.fetch",
+        "clipboard.read",
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": true,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "translate@1.4.0.enestplugin",
+        "url": "translate%401.4.0.enestplugin",
+        "size": 113302,
+        "sha256": "38dc140ee780a819c80fba9e2b207a5982487f158bb5c955d0bdfc46cc5321f4"
+      }
+    },
+    {
+      "id": "com.github.eNest.unit-convert",
+      "name": "单位与汇率",
+      "version": "1.2.0",
+      "description": "长度/面积/体积/质量/温度/速度/数据量/时间/压力/能量/进制/汇率同屏联动换算，公式展示与常用单位置顶，人民币大写。",
+      "author": "eNest Labs",
+      "category": "效率",
+      "icon": "unit-convert%401.2.0/assets/market/icon.svg",
+      "readmeUrl": "unit-convert%401.2.0/assets/market/README.md",
+      "screenshots": [
+        "unit-convert%401.2.0/assets/market/screenshots/01-main.png"
+      ],
+      "tags": [
+        "单位",
+        "汇率",
+        "换算"
+      ],
+      "permissions": [
+        "net.fetch",
+        "clipboard.write"
+      ],
+      "engines": {
+        "enest": ">=0.1.0"
+      },
+      "featured": false,
+      "ui": {
+        "chrome": "none",
+        "themeAware": true,
+        "background": "opaque",
+        "preferredColorScheme": "auto"
+      },
+      "asset": {
+        "name": "unit-convert@1.2.0.enestplugin",
+        "url": "unit-convert%401.2.0.enestplugin",
+        "size": 111829,
+        "sha256": "3c991473ea5ee7a2a5f0e2f4ad5a9120c27688f0d9051eaae7601dae1dc32185"
+      }
+    }
+  ]
+}

@@ -339,14 +339,14 @@ export function App() {
         return
       }
       const text = typeof payload === 'string' ? payload : payload?.type === 'text' && typeof payload.text === 'string' ? payload.text : ''
-      if (code === 'find' && text) {
+      if ((code === 'find' || code === 'find-selection') && text) {
         setQuery(text)
         const input = queryRef.current
         if (input) input.value = text
         kit.setQuery(text)
         stateRef.current = { ...stateRef.current, query: text }
         void searchRef.current(true)
-      } else if (code === 'find' && kit.mode === 'shell') {
+      } else if ((code === 'find' || code === 'find-selection') && kit.mode === 'shell') {
         queryRef.current?.focus()
       }
     })

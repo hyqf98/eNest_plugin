@@ -24,7 +24,7 @@
   },
   "features": [
     {
-      "code": "find",
+      "code": "find-selection",
       "explain": "全局文件搜索与预览",
       "cmds": [
         "anything",
