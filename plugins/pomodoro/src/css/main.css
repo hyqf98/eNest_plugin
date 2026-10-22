@@ -212,7 +212,7 @@
       }
       .controls {
         display: flex;
-        align-items: center;
+        align-items: stretch;
         gap: 10px;
       }
       .primary {
@@ -508,7 +508,8 @@
       }
       @media (max-width: 850px) {
         [data-mode='shell'] .workspace {
-          grid-template-columns: 1fr;
+          grid-template-columns: minmax(0, 1fr);
+          align-content: start;
           overflow: auto;
         }
         [data-mode='shell'] .journal {
@@ -517,6 +518,7 @@
           min-height: 390px;
         }
         [data-mode='shell'] .focus-panel {
+          min-width: 0;
           overflow: visible;
         }
       }

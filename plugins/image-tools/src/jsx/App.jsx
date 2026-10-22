@@ -819,12 +819,12 @@ export function App() {
                 <button type="button" data-mode="quality" aria-pressed={compressMode === 'quality'}
                   onClick={() => setCompressMode('quality')}>固定质量</button>
               </div>
-              <label className="field" id="target-field" hidden={compressMode !== 'target'}>
+              <label className="field" id="target-field" htmlFor="target-range" hidden={compressMode !== 'target'}>
                 <span className="field-label">目标体积上限 <output id="target-kb">{targetKb}</output> KB</span>
                 <input id="target-range" type="range" min="20" max="2048" step="20" value={targetKb}
                   onChange={(e) => setTargetKb(Number(e.target.value))} />
               </label>
-              <label className="field" id="quality-field" hidden={compressMode !== 'quality'}>
+              <label className="field" id="quality-field" htmlFor="quality-range" hidden={compressMode !== 'quality'}>
                 <span className="field-label">质量 <output id="quality-value">{quality}</output>%</span>
                 <input id="quality-range" type="range" min="5" max="100" step="5" value={quality}
                   onChange={(e) => setQuality(Number(e.target.value))} />
@@ -844,7 +844,7 @@ export function App() {
                     onClick={() => setConvertFormat(value)}>{label}</button>
                 ))}
               </div>
-              <label className="field">
+              <label className="field" htmlFor="convert-quality">
                 <span className="field-label">质量（JPEG / WebP）<output id="convert-quality-value">{convertQuality}</output>%</span>
                 <input id="convert-quality" type="range" min="5" max="100" step="5" value={convertQuality}
                   onChange={(e) => setConvertQuality(Number(e.target.value))} />
@@ -859,7 +859,7 @@ export function App() {
                 <button type="button" data-resize="percent" aria-pressed={resizeMode === 'percent'}
                   onClick={() => { setResizeMode('percent'); resizeModeRef.current = 'percent'; syncResizeRange() }}>百分比</button>
               </div>
-              <label className="field">
+              <label className="field" htmlFor="resize-range">
                 <span className="field-label"><span id="resize-label">{resizeMode === 'percent' ? '缩放比例' : '最长边'}</span> <output id="resize-value">{resizeValue}</output> px</span>
                 <input id="resize-range" type="range" min="16" max={resizeMode === 'percent' ? 200 : 4000}
                   step={resizeMode === 'percent' ? '5' : '16'} value={resizeValue}
@@ -906,10 +906,10 @@ export function App() {
                 <input id="wm-text" maxLength={60} placeholder="例如：@eNest" value={wmText}
                   onChange={(e) => setWmText(e.target.value)} /></label>
               <div className="grid-2">
-                <label className="field"><span className="field-label">透明度 <output id="wm-opacity-value">{wmOpacity}</output>%</span>
+                <label className="field" htmlFor="wm-opacity"><span className="field-label">透明度 <output id="wm-opacity-value">{wmOpacity}</output>%</span>
                   <input id="wm-opacity" type="range" min="5" max="100" step="5" value={wmOpacity}
                     onChange={(e) => setWmOpacity(Number(e.target.value))} /></label>
-                <label className="field"><span className="field-label">字号 <output id="wm-size-value">{wmSize}</output> px</span>
+                <label className="field" htmlFor="wm-size"><span className="field-label">字号 <output id="wm-size-value">{wmSize}</output> px</span>
                   <input id="wm-size" type="range" min="10" max="200" step="2" value={wmSize}
                     onChange={(e) => setWmSize(Number(e.target.value))} /></label>
               </div>

@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { resolve, join, dirname, extname, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { init, parse } from 'es-module-lexer'
-import { repositoryRoot, pluginIds, readManifest, localFile, validPath, validBackendPath, DSH_ID } from './plugin-contract.mjs'
+import { repositoryRoot, pluginIds, readManifest, localFile, validPath, validBackendPath, pluginHtmlEntries, DSH_ID } from './plugin-contract.mjs'
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
 import { resolveMarketAssets, markdownImagePaths } from './market-assets.mjs'
 
@@ -14,6 +14,8 @@ export async function validateDistribution(directory, { release = true, requireR
   if (manifest.development) throw new Error('Published manifest must not contain development')
   resolveMarketAssets(manifest, directory, { release })
   localFile(directory, 'index.html')
+  const homeEntries = new Set(pluginHtmlEntries(manifest))
+  for (const entry of homeEntries) localFile(directory, entry)
   if (manifest.backend) localFile(directory, manifest.backend.entry)
   const files = []
   async function walk(path, prefix = '') {
@@ -22,7 +24,9 @@ export async function validateDistribution(directory, { release = true, requireR
       if ((await lstat(absolute)).isSymbolicLink()) throw new Error(`Symlink forbidden: ${relative}`)
       if (relative === 'runtime' && manifest.id === DSH_ID) continue
       const backend = !!manifest.backend && (relative === 'backend' || relative.startsWith('backend/'))
-      if ((!backend && relative.split('/').some(part => ['src', 'tests', 'node_modules'].includes(part))) || !(backend ? validBackendPath(relative) : validPath(relative)) || (!prefix && !['plugin.json', 'index.html', 'assets', ...(manifest.backend ? ['backend'] : [])].includes(entry.name)) || /\.(map|tsx?|vue)$/i.test(relative)) throw new Error(`File outside distribution contract: ${relative}`)
+      const declaredHome = homeEntries.has(relative) || (entry.isDirectory() && [...homeEntries].some(home => home.startsWith(`${relative}/`)))
+      const publicAsset = relative === 'assets' || relative.startsWith('assets/')
+      if ((!backend && relative.split('/').some(part => ['src', 'tests', 'node_modules'].includes(part))) || !(backend ? validBackendPath(relative) : validPath(relative)) || (!backend && !declaredHome && !publicAsset && !['plugin.json', 'index.html'].includes(relative)) || /\.(map|tsx?|vue)$/i.test(relative)) throw new Error(`File outside distribution contract: ${relative}`)
       if (entry.isDirectory()) await walk(absolute, relative + '/')
       else files.push(relative)
     }

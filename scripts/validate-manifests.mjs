@@ -3,14 +3,15 @@ import { readdirSync, readFileSync, existsSync, lstatSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import Ajv2020 from 'ajv/dist/2020.js'
-import { repositoryRoot as root, pluginIds, assertMediaPaths, localFile, readManifest } from './plugin-contract.mjs'
+import { repositoryRoot as root, pluginIds, assertMediaPaths, localFile, readManifest, pluginHtmlEntries } from './plugin-contract.mjs'
 import { resolveMarketAssets } from './market-assets.mjs'
+import { homeContributionErrors } from '../packages/plugin-sdk/src/validate.mjs'
 
 export function loadManifestValidator() {
   return new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync(join(root, 'docs/plugin-manifest.schema.json'), 'utf8')))
 }
 export function validateManifest(validator, manifest, label) {
-  return validator(manifest) ? [] : validator.errors.map(error => `${label}: ${error.instancePath || '(root)'} ${error.message}`)
+  return validator(manifest) ? homeContributionErrors(manifest).map(error => `${label}: ${error}`) : validator.errors.map(error => `${label}: ${error.instancePath || '(root)'} ${error.message}`)
 }
 export function validateSource(directory, { release = true } = {}) {
   const errors = []
@@ -20,7 +21,7 @@ export function validateSource(directory, { release = true } = {}) {
     errors.push(...validateManifest(loadManifestValidator(), manifest, manifest.id))
     if (errors.length) return errors
     assertMediaPaths(manifest)
-    localFile(directory, 'index.html')
+    for (const entry of pluginHtmlEntries(manifest)) localFile(directory, entry)
     const pkg = JSON.parse(readFileSync(localFile(directory, 'package.json'), 'utf8'))
     if (pkg.name !== manifest.id.split('.').pop() || pkg.version !== manifest.version || pkg.type !== 'module') throw new Error('package.json name (id 末段)/version/type must match plugin.json')
     if (['assets', 'icon.svg', 'icon.png', 'logo.png', 'README.md', 'settings.html', 'runtime', 'shared'].some(name => existsSync(join(directory, name)))) throw new Error('Legacy root assets/icon/README/runtime are not allowed')

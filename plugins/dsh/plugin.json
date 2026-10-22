@@ -2,7 +2,7 @@
   "id": "com.github.eNest.dsh",
   "name": "DSH 驾驶舱",
   "version": "0.2.0",
-  "description": "DeepSeek Harness 会话驾驶舱：小窗查看多会话进度并快速对话，大桌面嵌入完整 DSH Web UI；自带运行时（零本地依赖）与热更新、profile 管理、一键备份升级回退",
+  "description": "DeepSeek Harness 会话驾驶舱与管理中心：完整 Web UI、快速对话、内核升级与多版本切换、Profile 环境配置与同步、进程启停和安全备份清理",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
@@ -35,6 +35,16 @@
         "驾驶舱",
         "会话进度",
         "deepseek harness"
+      ]
+    },
+    {
+      "code": "manage",
+      "explain": "DSH 管理中心：内核版本、Profiles、环境同步与维护",
+      "cmds": [
+        "dsh设置",
+        "dsh管理",
+        "dsh profiles",
+        "dsh内核"
       ]
     }
   ],

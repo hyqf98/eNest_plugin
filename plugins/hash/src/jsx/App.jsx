@@ -16,6 +16,9 @@ import { Select } from '../ui/index.jsx'
 const api = window.enest || window.zapi
 const ENC_KEY = 'hash_encoding_v1'
 const RSA_KEY_REF = 'rsa_keypair_b64_v1'
+const TABS = ['hash', 'crypto', 'jwt']
+const tabForMode = (tab, mode) =>
+  TABS.includes(tab) && !(mode === 'quick' && tab === 'crypto') ? tab : 'hash'
 
 const HMAC_ALGS = [
   { value: 'SHA-256', label: 'HMAC-SHA-256' },
@@ -72,6 +75,10 @@ export function App() {
   const [hashText, setHashText] = useState('')
   const [hashValues, setHashValues] = useState(() => Object.fromEntries(HASH_ALGOS.map((a) => [a.id, { value: '', empty: true }])))
   const [encoding, setEncoding] = useState('hex')
+  const [mode, setMode] = useState(() =>
+    api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell',
+  )
+  const modeRef = useRef(mode)
   const [tab, setTab] = useState('hash')
   const [fileResult, setFileResult] = useState(null) // { html } | { text } | null
   const [dropBusy, setDropBusy] = useState(false)
@@ -116,6 +123,21 @@ export function App() {
 
   const toast = useCallback((message, type) => kitRef.current?.toast(message, type), [])
   const copy = useCallback((value) => kitRef.current?.copy(value).catch((err) => kitRef.current?.toast(err.message, 'error')), [])
+  const pickTab = useCallback((next) => setTab(tabForMode(next, modeRef.current)), [])
+  const onTabKeyDown = useCallback((event) => {
+    const tabs = TABS.filter((id) => tabForMode(id, modeRef.current) === id)
+    const current = tabs.indexOf(event.target.id.replace('tab-', ''))
+    if (current < 0) return
+    let next
+    if (event.key === 'ArrowRight') next = tabs[(current + 1) % tabs.length]
+    else if (event.key === 'ArrowLeft') next = tabs[(current + tabs.length - 1) % tabs.length]
+    else if (event.key === 'Home') next = tabs[0]
+    else if (event.key === 'End') next = tabs[tabs.length - 1]
+    else return
+    event.preventDefault()
+    pickTab(next)
+    document.getElementById(`tab-${next}`)?.focus()
+  }, [pickTab])
 
   /* ── 哈希计算（等价原 computeHash/hexOf） ── */
   const computeHash = useCallback(async (algo, text) => {
@@ -340,6 +362,17 @@ export function App() {
       },
     })
     kitRef.current = kit
+    const syncMode = (nextMode) => {
+      modeRef.current = nextMode
+      setMode(nextMode)
+      setTab((current) => tabForMode(current, nextMode))
+      if (nextMode === 'quick' && document.activeElement?.closest('#tab-crypto, #page-crypto')) {
+        document.getElementById('tab-hash')?.focus()
+      }
+    }
+    // 先同步初始模式，后续模式切换也不能停留在隐藏的加密页。
+    const offMode = kit.onMode(syncMode)
+    syncMode(kit.mode)
 
     // 隐藏原生 file input 的宿主选择器接管（等价原 bindFileInput）
     if (fileInputRef.current) {
@@ -363,7 +396,11 @@ export function App() {
     })()
     return () => {
       alive = false
+      offMode()
       cleanupFileInputRef.current?.()
+      cleanupFileInputRef.current = null
+      kit.destroy()
+      if (kitRef.current === kit) kitRef.current = null
     }
   }, [restoreRsaKeys])
 
@@ -538,10 +575,10 @@ export function App() {
   return (
     <main className="hash-app">
       <header className="topbar">
-        <nav className="tabs" role="tablist" aria-label="功能区">
-          <button role="tab" id="tab-hash" aria-selected={tab === 'hash'} onClick={() => setTab('hash')}>哈希</button>
-          <button role="tab" id="tab-crypto" aria-selected={tab === 'crypto'} onClick={() => setTab('crypto')}>加密</button>
-          <button role="tab" id="tab-jwt" aria-selected={tab === 'jwt'} onClick={() => setTab('jwt')}>JWT</button>
+        <nav className="tabs" role="tablist" aria-label="功能区" onKeyDown={onTabKeyDown}>
+          <button type="button" role="tab" id="tab-hash" aria-controls="page-hash" aria-selected={tab === 'hash'} tabIndex={tab === 'hash' ? 0 : -1} onClick={() => pickTab('hash')}>哈希</button>
+          <button type="button" role="tab" id="tab-crypto" aria-controls="page-crypto" aria-selected={tab === 'crypto'} tabIndex={tab === 'crypto' ? 0 : -1} hidden={mode === 'quick'} onClick={() => pickTab('crypto')}>加密</button>
+          <button type="button" role="tab" id="tab-jwt" aria-controls="page-jwt" aria-selected={tab === 'jwt'} tabIndex={tab === 'jwt' ? 0 : -1} onClick={() => pickTab('jwt')}>JWT</button>
         </nav>
         <div className="spacer"></div>
         <div className="encoding segmented" id="encoding-row" role="group" aria-label="输出编码">
@@ -700,7 +737,7 @@ export function App() {
       </section>
 
       {/* ── 加密区 ─────────────────────── */}
-      <section className="page" id="page-crypto" role="tabpanel" aria-labelledby="tab-crypto" hidden={tab !== 'crypto'}>
+      <section className="page" id="page-crypto" role="tabpanel" aria-labelledby="tab-crypto" hidden={mode === 'quick' || tab !== 'crypto'}>
         <details className="block" open>
           <summary>HMAC 签名 <span className="hint">算法 + 密钥，随哈希输入联动</span></summary>
           <div className="block-body">

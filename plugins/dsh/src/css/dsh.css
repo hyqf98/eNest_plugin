@@ -36,7 +36,14 @@ button {
   cursor: pointer;
   padding: 0;
 }
-button:active { transform: scale(0.98); }
+button:active:not(:disabled) { transform: scale(0.98); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button:disabled { cursor: default; }
+.dsh-spacer { flex: 1; }
+.dsh-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dsh-error { padding: 12px; border-radius: 8px; background: color-mix(in srgb, var(--danger, #b64b48) 8%, var(--surface)); }
+.dsh-error p { margin: 0 0 8px; color: var(--danger, #b64b48); overflow-wrap: anywhere; }
+.dsh-error-text { color: var(--danger, #b64b48); }
 
 /* 主按钮：实心墨色（深色下用反白面），无投影 */
 .btn {
@@ -145,6 +152,16 @@ select.field { appearance: none; padding-right: 24px; }
 }
 .icon-btn:hover { color: var(--text); background: var(--surface-2); }
 .icon-btn svg { width: 16px; height: 16px; }
+.icon-btn:disabled { opacity: 0.35; }
+:root[data-anim='low'] .dsh-enter,
+:root[data-anim='low'] .dot-run { animation: none; }
+:root[data-anim='medium'] .dsh-enter { animation-duration: 0.25s; }
+@media (max-width: 600px) {
+  .shellbar { gap: 7px; }
+  .shellbar .port { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cockpit-head { gap: 7px; }
+  .cockpit-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 
 /* 会话条：横向文字 chips（小尺寸允许胶囊），发丝线分隔 */
 .sessions {
@@ -237,7 +254,7 @@ select.field { appearance: none; padding-right: 24px; }
 /* ========== 大桌面（完全体） ========== */
 .shellbar {
   flex: none;
-  height: 30px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -254,18 +271,24 @@ select.field { appearance: none; padding-right: 24px; }
 /* ========== 引导/空态 ========== */
 .guide {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
   display: flex;
-  align-items: center;
+  align-items: safe center;
   justify-content: center;
   padding: 24px;
 }
 .guide-card {
+  flex: none;
+  min-width: 0;
   max-width: 420px;
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 28px 28px 24px;
   background: var(--surface);
+  overflow-wrap: anywhere;
 }
 .guide-title { font-size: 16px; font-weight: 650; margin: 0 0 6px; letter-spacing: -0.01em; }
 .guide-text { font-size: 13px; color: var(--text-2); margin: 0 0 14px; }

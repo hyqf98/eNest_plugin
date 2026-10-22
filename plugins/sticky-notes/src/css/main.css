@@ -86,6 +86,7 @@
       .library {
         display: flex;
         min-height: 0;
+        min-width: 0;
         flex-direction: column;
         border-right: 1px solid var(--line);
         background: var(--chrome-bg);
@@ -227,7 +228,14 @@
       .library-tools {
         padding: 8px 16px;
         display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        min-width: 0;
         gap: 7px;
+      }
+      .library-tools .pk-select {
+        min-width: 0;
+        max-width: min(150px, 100%);
       }
       /* select 已升级为自定义下拉：原尺寸规则迁移到触发器 */
       .library-tools .pk-select-trigger {
@@ -289,9 +297,22 @@
       .note-meta {
         font-size: 10px;
         display: flex;
+        align-items: baseline;
         justify-content: space-between;
+        min-width: 0;
         gap: 8px;
         color: var(--muted);
+      }
+      .note-meta > span {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .note-meta > time {
+        flex: none;
+        white-space: nowrap;
       }
       .library footer {
         padding: 10px 16px;
@@ -302,6 +323,7 @@
       }
       .editor {
         min-height: 0;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         background: var(--paper);
@@ -309,12 +331,19 @@
       .editor-top {
         padding: 14px 22px;
         display: flex;
+        flex: none;
+        flex-wrap: wrap;
+        min-width: 0;
         align-items: center;
         gap: 6px;
         border-bottom: 1px solid var(--line);
         background: var(--chrome-bg);
         backdrop-filter: var(--chrome-blur);
         -webkit-backdrop-filter: var(--chrome-blur);
+      }
+      .editor-top > button {
+        flex: none;
+        white-space: nowrap;
       }
       .editor-top .spacer {
         flex: 1;
@@ -434,6 +463,8 @@
       }
       .colors {
         display: flex;
+        flex: none;
+        align-items: center;
         gap: 6px;
       }
       .color {
@@ -454,7 +485,7 @@
       }
       #notes.grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
         gap: 8px;
         align-content: start;
       }

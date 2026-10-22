@@ -1277,7 +1277,7 @@ export function App() {
           <div className="model-bars">
             {data.models.slice(0, 12).map((m) => (
               <div className="model-bar" key={m.model}>
-                <span className="mono">{m.model}</span>
+                <span className="mono" title={m.model}>{m.model}</span>
                 <span className="bar"><i style={{ width: `${(m.tokens / maxM) * 100}%` }}></i></span>
                 <span className="n">{fmtTokens(m.tokens)}</span>
               </div>

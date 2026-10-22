@@ -1,6 +1,21 @@
 /** Isolated visual fixtures: no real files, credentials, network, clipboard or OS processes. */
 export function installPreviewFixture({ pluginId, mode = 'shell' }) {
   const events = new Map(), values = new Map(), now = 1791856800000
+  window.__appearanceSnapshot ||= {
+    version: 2,
+    revision: 1,
+    theme: { source: 'enest.builtin', id: 'tech', name: '刻度', version: 1, legacy: false },
+    requestedMode: 'light',
+    mode: 'light',
+    tokens: {},
+    fonts: { body: 'Avenir Next, PingFang SC, sans-serif', heading: 'Songti SC, serif', mono: 'Menlo, monospace', scale: 1 },
+    components: { controlRadius: 6, cardRadius: 8, panelRadius: 7, borderWidth: 1 },
+    background: { media: null, effect: 'structure', texture: 'grid', intensity: .5, speed: 1, direction: 0 },
+    layout: { variant: 'tech', density: 1, gap: 10, sidebarWidth: 220, contentWidth: 1200, columns: 4 },
+    animation: { requested: 'medium', effective: 'medium', continuous: true },
+    home: { source: 'enest.builtin', id: 'home', variant: 'tech' },
+    diagnostics: []
+  }
   const listener = (name, callback) => { if (!events.has(name)) events.set(name, new Set()); events.get(name).add(callback); return () => events.get(name)?.delete(callback) }
   const seed = {
     'db.connections': [{ id: 'demo-postgres', name: '产品分析 · 演示', driver: 'postgres', host: 'analytics.example.test', port: 5432, database: 'workspace', username: 'readonly', readOnly: true, env: 'dev', favorite: true }],
@@ -33,6 +48,12 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
     'storage.blobs.get': async id => values.get('blob:' + id) ?? null,
     'storage.blobs.remove': async id => values.delete('blob:' + id),
     'settings.get': async () => null,
+    'theme.getAppearance': async () => structuredClone(window.__appearanceSnapshot),
+    'theme.onAppearanceChange': callback => {
+      window.__appearanceListeners ||= new Set()
+      window.__appearanceListeners.add(callback)
+      return () => window.__appearanceListeners.delete(callback)
+    },
     'clipboard.readText': async () => 'eNest，让常用工具回到工作流里。',
     'clipboard.readImage': async () => null,
     'clipboard.history.list': async () => [{ id: 'clip-demo', type: 'text', text: '让常用工具回到工作流里。', content: '让常用工具回到工作流里。', createdAt: now, timestamp: now, pinned: true }],

@@ -18,11 +18,7 @@
     }
   }
   async function setPref(key, value) {
-    try {
-      await api.storage.set(`dsh.${key}`, value)
-    } catch {
-      /* 存储不可用时静默降级（内存态） */
-    }
+    await api.storage.set(`dsh.${key}`, value)
   }
 
   function onDshEvent(cb) {

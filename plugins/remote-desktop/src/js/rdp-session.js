@@ -212,8 +212,10 @@
 
     const mouseEvent = (type, event) => {
       const rect = canvas.getBoundingClientRect()
-      const x = Math.round((event.clientX - rect.left) * (canvas.width / rect.width))
-      const y = Math.round((event.clientY - rect.top) * (canvas.height / rect.height))
+      if (!rect.width || !rect.height || !canvas.width || !canvas.height) return
+      // The live rect already includes local scroll offsets; do not add scrollLeft/Top again.
+      const x = Math.max(0, Math.min(canvas.width - 1, Math.round((event.clientX - rect.left) * (canvas.width / rect.width))))
+      const y = Math.max(0, Math.min(canvas.height - 1, Math.round((event.clientY - rect.top) * (canvas.height / rect.height))))
       const wasm = wasmModule
       if (!wasm) return
       let deviceEvent

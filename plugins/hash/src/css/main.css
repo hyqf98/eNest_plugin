@@ -514,6 +514,8 @@ html[data-mode="quick"] .encoding .hint {
 html[data-mode="quick"] .hash-file,
 html[data-mode="quick"] .verify,
 html[data-mode="quick"] .empty-state,
+/* 加密页在 Quick 隐藏，对应 tab 一并隐藏，避免点出空白面板 */
+html[data-mode="quick"] #tab-crypto,
 html[data-mode="quick"] #page-crypto,
 html[data-mode="quick"] .jwt-part:nth-child(3) {
   display: none;

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createHash } from 'node:crypto'
 import { unzipSync, strFromU8 } from 'fflate'
-import { repositoryRoot as root, pluginIds, readManifest, assertMediaPaths, validPath, validBackendPath, DSH_ID, MAX_README_BYTES } from './plugin-contract.mjs'
+import { repositoryRoot as root, pluginIds, readManifest, assertMediaPaths, validPath, validBackendPath, pluginHtmlEntries, DSH_ID, MAX_README_BYTES } from './plugin-contract.mjs'
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
 
 const DEFAULT_SOURCE_BASE = 'https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/'
@@ -14,6 +14,7 @@ export function archiveMetadata(archive, expected) {
   const names = new Set()
   let hasRuntime = false
   const backendPaths = new Set()
+  const homeCandidates = []
   const entries = unzipSync(new Uint8Array(archive), { filter: file => {
     const path = file.name.replace(/\/$/, '')
     if (names.has(file.name)) throw new Error(`Duplicate archive entry: ${file.name}`)
@@ -24,7 +25,8 @@ export function archiveMetadata(archive, expected) {
       return false
     }
     if (path.startsWith('runtime/') || path === 'runtime') { hasRuntime = true; return false }
-    if (!validPath(path) || !['plugin.json', 'index.html', 'assets'].includes(path.split('/')[0])) throw new Error(`Invalid archive entry: ${file.name}`)
+    if (!validPath(path)) throw new Error(`Invalid archive entry: ${file.name}`)
+    if (!['plugin.json', 'index.html', 'assets'].includes(path.split('/')[0])) homeCandidates.push({ path, directory: file.name.endsWith('/') })
     if (path.split('/').some(part => ['src', 'tests', 'node_modules'].includes(part)) || /\.(map|tsx?|vue)$/i.test(path)) throw new Error(`Development file in archive: ${file.name}`)
     if (path === 'assets/market/README.md' && file.originalSize > MAX_README_BYTES) throw new Error('README exceeds 512 KiB')
     return file.name === 'plugin.json' || (!file.name.endsWith('/') && file.name.startsWith('assets/market/'))
@@ -34,6 +36,13 @@ export function archiveMetadata(archive, expected) {
   const manifest = JSON.parse(strFromU8(entries['plugin.json']))
   const errors = validateManifest(loadManifestValidator(), manifest, manifest.id)
   if (errors.length) throw new Error(errors.join('\n'))
+  const homeEntries = new Set(pluginHtmlEntries(manifest))
+  for (const candidate of homeCandidates) {
+    if (!homeEntries.has(candidate.path) && !(candidate.directory && [...homeEntries].some(entry => entry.startsWith(`${candidate.path}/`)))) {
+      throw new Error(`Invalid archive entry: ${candidate.path}`)
+    }
+  }
+  for (const entry of homeEntries) if (!names.has(entry)) throw new Error(`Declared home entry missing from archive: ${entry}`)
   assertMediaPaths(manifest)
   if (hasRuntime && manifest.id !== DSH_ID) throw new Error('runtime is only permitted for DSH')
   if (backendPaths.size && !manifest.backend) throw new Error('Undeclared plugin backend')

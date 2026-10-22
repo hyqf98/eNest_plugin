@@ -21,7 +21,10 @@ export class SqlEditor extends LightweightEditor {
     this.instance?.updateOptions(this.editorFontOptions())
   }
   editorFontOptions() {
-    return { fontSize: this.fontSize, suggestFontSize: this.fontSize, suggestLineHeight: Math.max(28, Math.ceil(this.fontSize * 1.7)) }
+    const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-size-base'))
+    const scale = Number.isFinite(base) ? Math.min(1.3, Math.max(.85, base / 13)) : 1
+    const fontSize = this.fontSize * scale
+    return { fontSize, suggestFontSize: fontSize, suggestLineHeight: Math.max(28, Math.ceil(fontSize * 1.7)) }
   }
   async setSurface(surface, connected) {
     if (surface === 'quick' && this.usingMonaco) this.syncTextArea()
@@ -169,7 +172,7 @@ export class SqlEditor extends LightweightEditor {
       const bg = color('--bg', dark ? '#202228' : '#ffffff'), fg = color('--text', dark ? '#dedee3' : '#252932'), accent = color('--accent', '#517ad4')
       monaco.editor.defineTheme('enest-workbench', { base: dark ? 'vs-dark' : 'vs', inherit: true, rules: [], colors: { 'editor.background': bg, 'editor.foreground': fg, 'editorGutter.background': bg, 'editorLineNumber.foreground': color('--text-3', '#8d9098'), 'editorCursor.foreground': accent, 'editor.selectionBackground': accent + '40', 'editorWidget.background': color('--surface', bg), 'editorWidget.border': color('--border', '#999999'), 'focusBorder': accent } })
       monaco.editor.setTheme('enest-workbench')
-      this.instance.updateOptions({ fontFamily: style.getPropertyValue('--mono') })
+      this.instance.updateOptions({ fontFamily: style.getPropertyValue('--mono'), ...this.editorFontOptions() })
     }
     syncTheme()
     this.themeObserver = new MutationObserver(syncTheme)

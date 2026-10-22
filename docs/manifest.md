@@ -96,7 +96,7 @@
 
 `ui` 默认相当于 `chrome: "none"`、`themeAware: true`、`background: "opaque"`、`preferredColorScheme: "auto"`。`minimal` 请求宿主细条；弃用值 `default` 等价于 none。插件使用宿主注入的 token 和字体，不能在切换主题时保留不适配的固定背景。
 
-主题插件同样遵守工程与发行结构，声明 `theme` 权限，通过 `contributes.themePacks` 提供安装即可发现的主题，或通过 `enest.theme.register(pack)` 动态注册。主题的 source 由宿主绑定插件 ID；不应直接修改宿主 DOM 或设置文件。主题开发细则见 [主题开发](developer/themes.md)。
+第三方主题插件同样遵守工程与发行结构，无需声明额外 `theme` 权限，通过 `contributes.themePacks` 提供安装即可发现的主题，或通过 `enest.theme.register(pack)` 动态注册。主题的 source 由宿主绑定插件 ID；不应直接修改宿主 DOM 或设置文件。主题参数表单由壳渲染，主题只用 `presentation`、选项 `preview` 与 pack 级 `palettes` 表达外观意图，不提供表单 HTML/CSS/JS。主题开发细则见 [主题开发](developer/themes.md)。
 
 ## contributes
 

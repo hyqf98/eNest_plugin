@@ -11,6 +11,10 @@ import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/workbench.css'
 import '@enest/plugin-kit/style.css'
 import '@enest/plugin-kit'
+window.PluginKit.useAppearanceLayout({
+  plugin: 'database', family: 'workbench', scope: '#root',
+  regions: { navigation: '.side', toolbar: '.wb-querybar,.mid-chrome', main: '.workspace', auxiliary: '.right-panel', status: '.wb-status' }
+})
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './jsx/App.jsx'

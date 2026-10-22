@@ -1,4 +1,55 @@
+/* Derived from the host's src/shared/theme/scrollbar.css for standalone SDK/plugin-kit pages.
+   Read the semantic tokens on each scroller; never force overflow or reveal hidden tabs. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { border-radius: 999px; background: transparent; }
+::-webkit-scrollbar-track:hover { background: color-mix(in srgb, var(--text, CanvasText) 4%, transparent); }
+::-webkit-scrollbar-thumb {
+  min-width: 24px;
+  min-height: 24px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-color: color-mix(in srgb, var(--text-3, var(--text, CanvasText)) 55%, transparent);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--text-2, var(--text, CanvasText)) 72%, transparent); }
+::-webkit-scrollbar-thumb:active { background-color: var(--accent, var(--text, CanvasText)); }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+@supports not selector(::-webkit-scrollbar) {
+  :where(*) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-3, var(--text, CanvasText)) 55%, transparent) transparent;
+  }
+  @media (forced-colors: active) { :where(*) { scrollbar-color: auto; } }
+}
+@media (forced-colors: active) {
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track:hover,
+  ::-webkit-scrollbar-corner { background: Canvas; }
+  ::-webkit-scrollbar-thumb { background-color: ButtonText; }
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active { background-color: Highlight; }
+}
+
 :root { color-scheme: light dark; --pk-radius: 8px; --pk-speed: 120ms; }
+/* Appearance bridge. The host injects these names; fallbacks keep direct/browser use readable. */
+:root {
+  --font-heading: var(--font, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif);
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --appearance-control-radius: var(--pk-radius);
+  --appearance-card-radius: calc(var(--pk-radius) + 4px);
+  --appearance-panel-radius: var(--pk-radius);
+  --appearance-border-width: 1px;
+  --appearance-density: 1;
+  --appearance-gap: 12px;
+  --appearance-sidebar-width: 232px;
+  --appearance-content-width: 1440px;
+  --appearance-columns: 3;
+  --appearance-bg-effect: none;
+  --appearance-bg-texture: none;
+  --appearance-bg-intensity: .45;
+  --appearance-bg-speed: 1;
+}
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 100%; height: 100%; }
 body { font-family: var(--font, var(--font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif)); font-size: var(--font-size-base, 13px); background: var(--bg, #f6f7f9); color: var(--text, #252a32); }
@@ -12,7 +63,8 @@ button:active:not(:disabled) { filter: brightness(.96); }
 [hidden] { display: none !important; }
 :root[data-mode="quick"] .shell-only, :root[data-mode="shell"] .quick-only { display: none !important; }
 .pk-muted { color: var(--text-2, #747c88); }
-.pk-mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.pk-mono { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace); font-variant-numeric: tabular-nums; }
+#plugin-notice { position: fixed; z-index: 30; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: min(90%, 520px); padding: 9px 14px; border: 1px solid var(--border, #d9dfe6); border-radius: 9px; background: var(--surface, #fff); color: var(--text, #252a32); box-shadow: 0 6px 24px #14203420; pointer-events: none; }
 #plugin-notice { position: fixed; z-index: 30; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: min(90%, 520px); padding: 9px 14px; border: 1px solid var(--border, #d9dfe6); border-radius: 9px; background: var(--surface, #fff); color: var(--text, #252a32); box-shadow: 0 6px 24px #14203420; pointer-events: none; }
 #plugin-notice[data-type="error"] { border-color: var(--danger, #b44c50); }
 dialog::backdrop { background: #10182455; }
@@ -35,7 +87,7 @@ dialog { color: var(--text); background: var(--surface); border: 1px solid var(-
 .pk-table tbody tr:hover td { background: var(--bg, #f6f7f9); }
 .pk-table-wrap.pk-empty::after { content: attr(data-empty, "暂无数据"); display: block; padding: 18px; text-align: center; color: var(--text-2, #747c88); }
 /* hex dump */
-.pk-hexdump { margin: 0; padding: 10px 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.55; overflow: auto; background: var(--surface, #fff); color: var(--text, #252a32); border: 1px solid var(--border, #d9dfe6); border-radius: var(--pk-radius); }
+.pk-hexdump { margin: 0; padding: 10px 12px; font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 12px; line-height: 1.55; overflow: auto; background: var(--surface, #fff); color: var(--text, #252a32); border: 1px solid var(--border, #d9dfe6); border-radius: var(--pk-radius); }
 /* 双栏工作台（容器查询窄容器折叠侧栏） */
 .pk-workbench { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 12px; width: 100%; height: 100%;  }
 .pk-workbench-side { min-width: 0; overflow: auto; border: 1px solid var(--border, #d9dfe6); border-radius: var(--pk-radius); background: var(--surface, #fff); padding: 8px; }
@@ -68,6 +120,166 @@ dialog { color: var(--text); background: var(--surface); border: 1px solid var(-
 .pk-palette-item.pk-active .pk-palette-label { color: var(--accent, #3579dd); }
 .pk-palette-hint { color: var(--text-2, #747c88); font-size: 12px; }
 .pk-palette-list.pk-empty::after { content: "无匹配命令"; display: block; padding: 14px; text-align: center; color: var(--text-2, #747c88); }
+
+/* —— Appearance family adapters ——
+   Every rule is additive and scoped to a plugin root that explicitly opted in.
+   Imperative terminals, editors, canvases, and connection streams are never rearranged. */
+
+/* Workbench family maps each plugin's stable region contract. Widths are not forced
+   globally because database/SSH persist user-resized panels and use imperative fit. */
+.pk-appearance[data-layout-family="workbench"] {
+  --workbench-sidebar: var(--appearance-sidebar-width);
+  --workbench-gap: var(--appearance-gap);
+  --workbench-row: calc(30px * var(--appearance-density));
+}
+.pk-appearance[data-plugin="database"] .side { width: var(--side-w, var(--workbench-sidebar)); }
+.pk-appearance[data-plugin="database"] .workspace { gap: var(--workbench-gap); }
+.pk-appearance[data-plugin="database"] .right-panel,
+.pk-appearance[data-plugin="database"] .side { border-radius: var(--appearance-panel-radius); }
+.pk-appearance[data-plugin="middleware"] .tree { width: var(--tree-w, var(--workbench-sidebar)); }
+.pk-appearance[data-plugin="middleware"] .app-body { gap: var(--workbench-gap); }
+.pk-appearance[data-plugin="middleware"] .tree,
+.pk-appearance[data-plugin="middleware"] .content { border-radius: var(--appearance-panel-radius); }
+.pk-appearance[data-plugin="ssh"] .app { --ssh-sidebar-width: var(--workbench-sidebar); }
+.pk-appearance[data-plugin="ssh"] .wb-session-context,
+.pk-appearance[data-plugin="ssh"] .wb-statusbar { min-height: var(--workbench-row); }
+.pk-appearance[data-plugin="remote-desktop"] .side { width: var(--side-w, var(--workbench-sidebar)); }
+.pk-appearance[data-plugin="remote-desktop"] .workspace,
+.pk-appearance[data-plugin="remote-desktop"] .main { gap: var(--workbench-gap); }
+.pk-appearance[data-plugin="remote-desktop"] .side,
+.pk-appearance[data-plugin="remote-desktop"] .recent { border-radius: var(--appearance-panel-radius); }
+.pk-appearance[data-plugin="net-kit"] .nk-split { gap: var(--workbench-gap); }
+.pk-appearance[data-plugin="net-kit"] .nk-col,
+.pk-appearance[data-plugin="net-kit"] .nk-card { gap: var(--workbench-gap); border-radius: var(--appearance-card-radius); }
+.pk-appearance[data-plugin="net-kit"] .nk-foot { min-height: var(--workbench-row); }
+.pk-appearance[data-plugin="dsh"] .settings,
+.pk-appearance[data-plugin="dsh"] .sessions { gap: calc(var(--workbench-gap) * .66); }
+.pk-appearance[data-plugin="dsh"] .sessions { padding-block: calc(var(--workbench-gap) * .18) calc(var(--workbench-gap) * .8); }
+.pk-appearance[data-plugin="dsh"] .settings-nav { width: clamp(150px, 16vw, var(--workbench-sidebar)); }
+.pk-appearance[data-plugin="dsh"] .activity,
+.pk-appearance[data-plugin="dsh"] .composer { padding-inline: calc(var(--workbench-gap) * 1.1); }
+.pk-appearance[data-plugin="dsh"] .statusbar { min-height: var(--workbench-row); }
+.pk-appearance[data-plugin="database"] .side,
+.pk-appearance[data-plugin="database"] .right-panel,
+.pk-appearance[data-plugin="middleware"] .tree,
+.pk-appearance[data-plugin="remote-desktop"] .side,
+.pk-appearance[data-plugin="dsh"] .shellbar { border-width: var(--appearance-border-width); }
+
+/* Atmosphere stays behind interaction surfaces and never makes a plugin transparent. */
+.pk-appearance[data-layout-family="workbench"] { position: relative; isolation: isolate; }
+.pk-appearance[data-layout-family="workbench"]::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  opacity: var(--appearance-bg-intensity, .45);
+  background: none;
+}
+
+/* The default layout adds a quiet material over the shared geometry hooks. */
+:root[data-appearance-layout="warm"] .pk-appearance[data-layout-family="workbench"] { --workbench-gap: 16px; --workbench-sidebar: clamp(210px, 19vw, 300px); }
+:root[data-appearance-layout="warm"] .pk-appearance[data-layout-family="workbench"]::before { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 11%, transparent), transparent 38%), radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--ok) 8%, transparent), transparent 30%); }
+/* Quick keeps the single-task form inherited from each plugin; family grids are shell-only. */
+:root[data-mode="quick"] .pk-appearance[data-layout-family="workbench"]::before { opacity: 0; }
+:root[data-mode="quick"] .pk-appearance[data-plugin="net-kit"] .nk-split { grid-template-columns: minmax(0, 1fr); }
+
+/* Editor/transform: keep the mutable document first; references move to the periphery. */
+.pk-appearance[data-layout-family="editor"] {
+  --editor-gap: var(--appearance-gap);
+  --editor-rail: minmax(190px, 20vw);
+}
+.pk-appearance[data-plugin="codec"] .panes,
+.pk-appearance[data-plugin="diff"] .editor,
+.pk-appearance[data-plugin="json-tools"] .editors,
+.pk-appearance[data-plugin="regex"] .workbench { gap: var(--editor-gap); }
+.pk-appearance[data-plugin="codec"] .history { border-radius: var(--appearance-panel-radius); }
+.pk-appearance[data-plugin="json-tools"] .tree-panel,
+.pk-appearance[data-plugin="diff"] .pane,
+.pk-appearance[data-plugin="codec"] .pane { border-radius: var(--appearance-card-radius); }
+.pk-appearance[data-plugin="translate"] .workspace,
+.pk-appearance[data-plugin="markdown"] .workspace { gap: var(--editor-gap); }
+.pk-appearance[data-plugin="hash"] .page { gap: calc(var(--editor-gap) * .75); }
+
+/* Collection/manager: navigation remains stable while lists absorb density changes. */
+.pk-appearance[data-layout-family="collection"] {
+  --collection-gap: var(--appearance-gap);
+  --collection-nav: minmax(175px, 18vw);
+  --collection-row: calc(34px * var(--appearance-density));
+}
+.pk-appearance[data-plugin="anything"] .workspace,
+.pk-appearance[data-plugin="clipboard"] .workspace,
+.pk-appearance[data-plugin="todos"] .workspace,
+.pk-appearance[data-plugin="ccswitch"] .app { gap: var(--collection-gap); }
+@container (min-width: 741px) {
+  .pk-appearance[data-plugin="ccswitch"] .nav { width: clamp(172px, 17vw, 264px); }
+}
+.pk-appearance[data-plugin="ccswitch"] .grid { border-radius: var(--appearance-panel-radius); }
+.pk-appearance[data-plugin="clipboard"] .history,
+.pk-appearance[data-plugin="todos"] .list-pane,
+.pk-appearance[data-plugin="anything"] .results-col { border-radius: var(--appearance-panel-radius); }
+.pk-appearance[data-plugin="clipboard"] .entry,
+.pk-appearance[data-plugin="todos"] .task,
+.pk-appearance[data-plugin="anything"] .row { min-height: var(--collection-row); }
+.pk-appearance[data-plugin="codex-pets"] .cp { gap: var(--collection-gap); }
+.pk-appearance[data-plugin="codex-pets"] .cp-grid { gap: var(--collection-gap); }
+.pk-appearance[data-plugin="sticky-notes"] .app { gap: var(--collection-gap); }
+.pk-appearance[data-plugin="sysguard"] .sg { gap: var(--collection-gap); }
+
+/* Instruments are task-first: controls and readouts share one calibrated rhythm. */
+.pk-appearance[data-layout-family="instrument"] {
+  --instrument-gap: var(--appearance-gap);
+  --instrument-column: minmax(230px, 26vw);
+}
+.pk-appearance[data-plugin="calculator"] .workbench,
+.pk-appearance[data-plugin="cron"] .workbench,
+.pk-appearance[data-plugin="password-kit"] .layout,
+.pk-appearance[data-plugin="timestamp"] .workspace,
+.pk-appearance[data-plugin="unit-convert"] .uc { gap: var(--instrument-gap); }
+.pk-appearance[data-plugin="calculator"] .keypad,
+.pk-appearance[data-plugin="cron"] .builder,
+.pk-appearance[data-plugin="password-kit"] .board,
+.pk-appearance[data-plugin="timestamp"] .pane-scroll,
+.pk-appearance[data-plugin="unit-convert"] .pane { border-radius: var(--appearance-panel-radius); }
+
+/* Asset/flow: queues and inspectors move to the edge without obscuring live previews. */
+.pk-appearance[data-layout-family="flow"] {
+  --flow-gap: var(--appearance-gap);
+  --flow-side: minmax(210px, 22vw);
+}
+.pk-appearance[data-plugin="batch-rename"] .rn-workbench,
+.pk-appearance[data-plugin="color-picker"] .color-layout,
+.pk-appearance[data-plugin="image-tools"] .work-layout,
+.pk-appearance[data-plugin="screen-assistant"] .editor-layout,
+.pk-appearance[data-plugin="lan-share"] .layout { gap: var(--flow-gap); }
+.pk-appearance[data-plugin="batch-rename"] .panel,
+.pk-appearance[data-plugin="color-picker"] .work-panel,
+.pk-appearance[data-plugin="image-tools"] .editor-panel,
+.pk-appearance[data-plugin="screen-assistant"] .editor-main,
+.pk-appearance[data-plugin="lan-share"] .stage { border-radius: var(--appearance-panel-radius); }
+
+/* Default family geometry; host tokens continue to flow through shared hooks. */
+:root[data-appearance-layout="warm"] .pk-appearance[data-layout-family="editor"] { --editor-gap: 16px; --editor-rail: minmax(205px, 22vw); }
+:root[data-appearance-layout="warm"] .pk-appearance[data-layout-family="collection"] { --collection-gap: 16px; --collection-nav: minmax(196px, 21vw); }
+@container (min-width: 561px) {
+  :root[data-appearance-layout="warm"] .pk-appearance[data-plugin="ccswitch"] .grid { grid-template-columns: repeat(auto-fill, minmax(min(265px, 100%), 1fr)); }
+}
+:root[data-appearance-layout="warm"] .pk-appearance[data-layout-family="instrument"] { --instrument-gap: 16px; --instrument-column: minmax(255px, 30vw); }
+:root[data-appearance-layout="warm"] .pk-appearance[data-layout-family="flow"] { --flow-gap: 16px; --flow-side: minmax(230px, 25vw); }
+
+/* Atmosphere and structural accents for the remaining families. */
+.pk-appearance[data-layout-family]:not([data-layout-family="workbench"]) { position: relative; isolation: isolate; }
+.pk-appearance[data-layout-family]:not([data-layout-family="workbench"])::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--appearance-bg-intensity, .45); background: none; }
+:root[data-appearance-layout="warm"] .pk-appearance[data-layout-family]:not([data-layout-family="workbench"])::before { background: linear-gradient(142deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 35%), radial-gradient(circle at 86% 8%, color-mix(in srgb, var(--ok) 8%, transparent), transparent 28%); }
+:root[data-mode="quick"] .pk-appearance[data-layout-family]:not([data-layout-family="workbench"])::before { opacity: 0; }
+
+/* Existing generic components adopt appearance controls without page rewrites. */
+.pk-btn, .pk-quickbar-input, .pk-palette-input, select:not(.pk-select-native) {
+  border-width: var(--appearance-border-width);
+  border-radius: var(--appearance-control-radius);
+}
+.pk-table-wrap, .pk-hexdump, .pk-palette { border-radius: var(--appearance-card-radius); }
+.pk-workbench-side { border-radius: var(--appearance-panel-radius); }
+.pk-select-menu { border-radius: var(--appearance-panel-radius); }
+.pk-mono { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace); }
+h1, h2, h3 { font-family: var(--font-heading); }
+.pk-palette-label { font-family: var(--font-heading); }
 
 /* —— 统一表单控件：自定义下拉（upgradeSelects 自动接管原生 <select>） —— */
 select.pk-select-native { display: none !important; }
@@ -175,4 +387,124 @@ select:not(.pk-select-native) {
 @media (prefers-reduced-transparency: reduce) {
   .pk-select-menu { box-shadow: 0 0 0 1px var(--border, #d9dfe6); }
   .pk-btn.ghost { background: var(--surface-2, #f0f2f5); }
+}
+
+/* Shared geometry operates on stable containers, never editor/terminal children. */
+:root[data-appearance-layout] {
+  --pk-radius: var(--appearance-control-radius);
+  --font-family: var(--font);
+  --font-sans: var(--font);
+  --mono: var(--font-mono);
+  --appearance-inset: 0px;
+  --appearance-rail-factor: 1;
+  --appearance-primary-track: 1fr;
+  --appearance-secondary-track: 1fr;
+}
+:root[data-appearance-layout="warm"] { --appearance-inset: 16px; --appearance-rail-factor: 1.02; --appearance-primary-track: 1.08fr; }
+:root[data-appearance-layout] .pk-appearance[data-layout-family] {
+  --workbench-gap: var(--appearance-gap);
+  --editor-gap: var(--appearance-gap);
+  --collection-gap: var(--appearance-gap);
+  --instrument-gap: var(--appearance-gap);
+  --flow-gap: var(--appearance-gap);
+  --workbench-sidebar: clamp(180px, calc(var(--appearance-sidebar-width) * var(--appearance-rail-factor)), 340px);
+  --editor-rail: clamp(160px, calc(var(--appearance-sidebar-width) * var(--appearance-rail-factor) * .72), 290px);
+  --collection-nav: clamp(175px, calc(var(--appearance-sidebar-width) * var(--appearance-rail-factor)), 340px);
+  --instrument-column: clamp(210px, calc(var(--appearance-sidebar-width) * var(--appearance-rail-factor)), 340px);
+  --flow-side: clamp(210px, calc(var(--appearance-sidebar-width) * var(--appearance-rail-factor)), 360px);
+}
+.pk-appearance [data-appearance-region] { min-width: 0; }
+:root[data-appearance-layout] .pk-appearance[data-layout-family]::before {
+  opacity: calc(var(--appearance-bg-intensity, .45) * var(--appearance-bg-wash, .35));
+  background-size: calc(32px * var(--appearance-bg-scale, 1)) calc(32px * var(--appearance-bg-scale, 1));
+  filter: sepia(calc(var(--appearance-bg-warmth, .5) * .35));
+}
+:root[data-appearance-layout="warm"] .pk-appearance[data-layout-family]::before { background-size: 100% 100%; }
+:root[data-appearance-layout] .pk-appearance[data-layout-family]::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  opacity: calc(var(--appearance-bg-grain, .12) * .18);
+  background: repeating-linear-gradient(var(--appearance-bg-direction, 0deg), var(--text) 0 .5px, transparent .5px 5px);
+}
+:root[data-appearance-effect="none"] .pk-appearance[data-layout-family]::before,
+:root[data-appearance-texture="blank"] .pk-appearance[data-layout-family]::after,
+:root[data-appearance-texture="none"] .pk-appearance[data-layout-family]::after,
+:root[data-mode="quick"] .pk-appearance[data-layout-family]::before,
+:root[data-mode="quick"] .pk-appearance[data-layout-family]::after { opacity: 0; }
+@keyframes pk-appearance-drift { from { background-position: 0 0; } to { background-position: 12px -12px; } }
+:root[data-appearance-continuous="true"][data-anim="medium"] .pk-appearance[data-layout-family]::before,
+:root[data-appearance-continuous="true"][data-anim="high"] .pk-appearance[data-layout-family]::before {
+  animation: pk-appearance-drift calc(32s / var(--appearance-bg-speed, 1)) ease-in-out infinite alternate;
+}
+:root[data-mode="quick"] .pk-appearance[data-layout-family]::before,
+:root[data-appearance-effect="none"] .pk-appearance[data-layout-family]::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { .pk-appearance[data-layout-family]::before { animation: none !important; } }
+.pk-appearance :is(button, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, .pk-select-trigger) {
+  border-radius: var(--appearance-control-radius);
+  border-width: var(--appearance-border-width);
+}
+.pk-appearance :is(.pk-btn, .pk-select-trigger, .pk-quickbar-input, .pk-palette-input) {
+  border-width: var(--appearance-border-width);
+}
+.pk-appearance[data-plugin="sysguard"] .sg-desktop { padding-bottom: calc(var(--collection-gap) * .4); }
+.pk-appearance[data-plugin="unit-convert"] .uc { row-gap: var(--instrument-gap); }
+.pk-appearance[data-plugin="pomodoro"] .workspace { gap: var(--instrument-gap); }
+
+/* Compact/Quick pages retain their own single-task rules. User-resized workbench
+   panels still take precedence through the existing --side-w/--tree-w contracts. */
+@media (min-width: 900px) {
+  :root:not([data-mode="quick"]):not([data-launch-mode="quick"]) .pk-appearance[data-plugin="database"] .workspace,
+  :root:not([data-mode="quick"]):not([data-launch-mode="quick"]) .pk-appearance[data-plugin="middleware"] .app-body,
+  :root:not([data-mode="quick"]):not([data-launch-mode="quick"]) .pk-appearance[data-plugin="remote-desktop"] .workspace,
+  :root:not([data-mode="quick"]):not([data-launch-mode="quick"]) .pk-appearance[data-plugin="ssh"] .app,
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="dsh"] .settings,
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="sysguard"] .sg,
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="unit-convert"] .uc { padding: var(--appearance-inset); }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="hash"] .page { padding-inline: calc(var(--appearance-gap) + var(--appearance-inset)); }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="codex-pets"] .cp-grid { padding-inline: var(--appearance-inset); }
+  :root:not([data-mode="quick"]):not([data-launch-mode="quick"]) .pk-appearance[data-plugin="codec"] .panes,
+  :root:not([data-mode="quick"]):not([data-launch-mode="quick"]) .pk-appearance[data-plugin="diff"] .editor,
+  :root:not([data-mode="quick"]):not([data-launch-mode="quick"]) .pk-appearance[data-plugin="json-tools"] .editors,
+  :root:not([data-mode="quick"]):not([data-launch-mode="quick"]) .pk-appearance[data-plugin="regex"] .workbench {
+    grid-template-columns: minmax(0, var(--appearance-primary-track)) minmax(0, var(--appearance-secondary-track));
+  }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="translate"] .workspace { grid-template-columns: minmax(0, 1fr) var(--editor-rail); }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="markdown"] .workspace { grid-template-columns: clamp(220px, calc(var(--appearance-sidebar-width) * var(--appearance-rail-factor)), 320px) minmax(0, 1fr); }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="anything"] .workspace,
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="clipboard"] .workspace {
+    grid-template-columns: minmax(280px, var(--appearance-primary-track)) minmax(0, var(--appearance-secondary-track));
+  }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="todos"] .workspace { grid-template-columns: var(--collection-nav) minmax(0, 1fr) minmax(230px, .65fr); }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="sticky-notes"] .app:not(.grid-layout) { grid-template-columns: var(--collection-nav) minmax(0, 1fr); }
+  @container (min-width: 741px) {
+    :root:not([data-mode="quick"]) .pk-appearance[data-plugin="ccswitch"] .nav { width: var(--collection-nav); }
+  }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="codex-pets"] .cp-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(190px, calc(var(--appearance-sidebar-width) * var(--appearance-rail-factor)), 310px)), 1fr));
+  }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="calculator"] .workbench,
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="pomodoro"] .workspace {
+    grid-template-columns: minmax(340px, var(--appearance-primary-track)) minmax(280px, var(--appearance-secondary-track));
+  }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="cron"] .workbench,
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="password-kit"] .layout,
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="timestamp"] .workspace {
+    grid-template-columns: var(--instrument-column) minmax(0, 1fr);
+  }
+  @container (min-width: 1081px) {
+    :root:not([data-mode="quick"]) .pk-appearance[data-plugin="batch-rename"] .rn-workbench {
+      grid-template-columns: minmax(300px, var(--appearance-primary-track)) minmax(360px, var(--appearance-secondary-track));
+    }
+  }
+  @container work (min-width: 741px) {
+    :root:not([data-mode="quick"]) .pk-appearance[data-plugin="image-tools"] .work-layout {
+      grid-template-columns: minmax(300px, var(--appearance-primary-track)) minmax(360px, var(--appearance-secondary-track));
+    }
+  }
+  @container colorpick (min-width: 761px) {
+    :root:not([data-mode="quick"]) .pk-appearance[data-plugin="color-picker"] .color-layout { grid-template-columns: var(--flow-side) minmax(0, 1fr); }
+  }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="screen-assistant"] .editor-layout { grid-template-columns: minmax(0, 1fr) var(--flow-side); }
+  @container (min-width: 721px) {
+    :root:not([data-mode="quick"]) .pk-appearance[data-plugin="lan-share"] .layout { grid-template-columns: minmax(0, 1fr) var(--flow-side); }
+  }
 }

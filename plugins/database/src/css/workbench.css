@@ -61,8 +61,7 @@ button,input,select,textarea{font:inherit}button{touch-action:manipulation}butto
 .wb-json-node small { color: var(--text-3); margin-right: 12px; font-size: 10px; }
 .wb-json-children { margin-left: 12px; padding-left: 14px; border-left: 1px solid var(--border); }
 .wb-json-value { overflow-wrap: anywhere; white-space: pre-wrap; color: var(--text-2); }
-.wb-json-value.wb-json-value
-body:has(.app[data-surface=quick]) .wb-document-inspector { width: calc(100vw - 8px); height: calc(100vh - 8px); max-height: none; margin: 4px; }
+body:has(.app[data-surface=quick]) dialog.wb-document-inspector { inset: 4px; width: auto; height: auto; max-width: none; max-height: none; margin: 0; }
 body:has(.app[data-surface=quick]) .wb-document-inspector .wb-dialog-head { padding: 5px 10px; }
 body:has(.app[data-surface=quick]) .wb-document-inspector .wb-dialog-body { padding: 5px 10px; }
 

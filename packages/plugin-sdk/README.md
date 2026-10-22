@@ -2,7 +2,7 @@
 
 eNest 插件开发者 SDK —— 两个核心交付：
 
-1. **`window.enest` 运行时 API 类型**（`enest-api.d.ts`）：由壳子仓库 `scripts/generate-api-types.mjs` 从 `src/preload/pluginPreload.ts` 自动生成，与壳子实际注入的 API 严格一致。
+1. **运行时 API 类型**（`index.d.ts`）：由插件仓库 `scripts/generate-api-types.mjs` 从壳 preload/shared 契约自动生成，包含普通插件 `EnestPluginApi`、主题工作区 `EnestWorkspaceApi` 与兼容 `EnestHomeApi`。
 2. **`plugin.json` manifest 校验**：ajv (2020-12) + 自含 schema 复制（上游 `eNest_plugin/docs/plugin-manifest.schema.json`），提供编程接口与 CLI。
 
 ## 安装
@@ -15,7 +15,7 @@ npm i -D @enest/plugin-sdk
 npm i -D ../../eNest/packages/plugin-sdk
 ```
 
-未接线 workspaces 时，可直接复制 `src/enest-api.d.ts` 到你的插件工程（零依赖，纯类型）。
+未接线 workspaces 时，可直接引用 `index.d.ts`（零依赖，纯类型）。
 
 ## 1. window.enest 类型接入
 
@@ -24,7 +24,7 @@ npm i -D ../../eNest/packages/plugin-sdk
 **方式 A：triple-slash reference（任意 JS/TS 工程）**
 
 ```ts
-/// <reference path="./node_modules/@enest/plugin-sdk/src/enest-api.d.ts" />
+/// <reference path="./node_modules/@enest/plugin-sdk/index.d.ts" />
 
 const api = window.enest
 await api.ui.setTitle('我的插件')
@@ -58,6 +58,8 @@ if (!api) {
 ```
 
 类型声明会同时为 `Window` 补上 `enest` / `zapi` 两个全局属性声明（`zapi` 带 `@deprecated` JSDoc）。
+
+主题工作区使用可选的 `window.enestWorkspace`（`enestHome` 是兼容别名），实现目录、已安装、详情、设置四路由及渲染 ACK。设置只通过安全描述符提交，不注入 `enest` 或 `shellApi`；普通插件通过 `enest.home.register()` 只能确认自己的精确 manifest 声明，不能自动激活或注册未声明入口。完整契约见 `docs/developer/home.md`；SDK/CLI 同时校验 source 归属与重复 ID，打包器验证并构建全部首页 HTML。
 
 ## 2. manifest 校验 CLI
 

@@ -340,7 +340,11 @@ export function App() {
   function chooseTool(value) {
     setTool(value)
     stateRef.current.tool = value
-    if (value !== 'text') document.documentElement.dataset.editing = String(stateRef.current.editingOpen)
+    if (value === 'text') {
+      setEditingOpen(true)
+      stateRef.current.editingOpen = true
+    }
+    document.documentElement.dataset.editing = String(stateRef.current.editingOpen)
   }
   const toggleEditor = () => {
     const open = document.documentElement.dataset.editing !== 'true'
@@ -804,7 +808,7 @@ export function App() {
         <div className="editor-layout">
           <div className="editor-main">
             <div className="result-toolbar">
-              <span id="image-meta">{imageMeta}</span>
+              <span id="image-meta" title={imageMeta}>{imageMeta}</span>
               <button id="toggle-editor" onClick={toggleEditor}>{editingOpen ? '收起标注' : '标注'}</button>
               <button
                 id="copy-image"

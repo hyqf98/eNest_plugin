@@ -23,7 +23,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
+html, body, #root { height: 100%; }
 body {
   font: calc(var(--font-size-base, 13px) * 1)/1.55 var(--font); color: var(--text); background: var(--bg);
   background-image: radial-gradient(var(--bg-dot, rgba(139, 148, 168, .10)) 1px, transparent 1px);
@@ -38,7 +38,7 @@ input, select, textarea { font: inherit; color: var(--text); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* ===== 应用框架 ===== */
-.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.app { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .app-body { flex: 1; display: flex; min-height: 0; }
 
 /* —— 连接 Tab 条 —— */

@@ -19,7 +19,7 @@
 以上是需要合并到完整 manifest 的字段。`main` 仍为 `index.html`。后端入口必须是插件包内 `backend/` 下的真实 `.cjs`、`.mjs` 或 `.js` 文件；宿主拒绝符号链接、越界路径和不存在的入口。仓库构建工具统一输出 `backend/index.cjs`。`backend/` 只供进程启动器读取，不能通过 `enest://` 页面资源协议访问。
 
 ```text
-plugins/worker/
+plugins/com.example.worker/
 ├── plugin.json
 ├── package.json
 ├── index.html

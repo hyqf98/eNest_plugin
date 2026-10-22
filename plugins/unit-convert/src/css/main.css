@@ -60,7 +60,9 @@ input:disabled { opacity: .45; }
 .eyebrow { font-size: 11px; color: var(--faint); }
 .grow { flex: 1; }
 
-.uc { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+/* 单位与汇率/RMB 共用内容行；矮窗滚动兜底，不为 hidden 节点预留轨道或间距。 */
+.uc { height: 100%; min-width: 0; display: grid; grid-template-rows: auto minmax(100px, 1fr) auto; overflow: auto; }
+.uc-content { min-width: 0; min-height: 0; overflow: auto; }
 
 .tabs {
   display: flex;
@@ -91,8 +93,8 @@ input:disabled { opacity: .45; }
 .chip.active.has-fav::after { opacity: 1; }
 
 .pane {
+  min-width: 0;
   min-height: 0;
-  overflow: auto;
   padding: 4px 14px 10px;
   display: grid;
   gap: 10px;
@@ -119,7 +121,7 @@ input:disabled { opacity: .45; }
 .rows { display: grid; gap: 6px; }
 .row {
   display: grid;
-  grid-template-columns: 22px 110px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(88px, 110px) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   min-height: 40px;
@@ -136,7 +138,8 @@ input:disabled { opacity: .45; }
 .presets .eyebrow { width: 100%; }
 .preset { font-size: 11.5px; color: var(--muted); border-radius: var(--radius-pill, 999px); height: 24px; padding: 0 10px; min-height: 24px; }
 
-.fx { border-top: 1px solid var(--line); padding: 10px 14px; overflow: auto; display: grid; gap: 8px; }
+/* container-type 让下方 @container 的 .fx 双列→单列折叠真正成立 */
+.fx { container-type: inline-size; border-top: 1px solid var(--line); padding: 10px 14px; display: grid; gap: 8px; }
 .fx-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
 .fx-head label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .fx-head input { width: 110px; text-align: right; }

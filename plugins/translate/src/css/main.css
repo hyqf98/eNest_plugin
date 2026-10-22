@@ -128,12 +128,16 @@ body,
       .translator {
         display: flex;
         flex-direction: column;
+        min-width: 0;
         min-height: 0;
+        overflow: auto;
       }
       .language-bar {
         padding: 16px 24px;
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
+        min-width: 0;
         gap: 8px;
       }
       .language-bar select,
@@ -142,6 +146,9 @@ body,
         min-width: 0;
       }
       .language-bar .pk-select-trigger {
+        min-width: 0;
+        min-height: 28px;
+        max-width: 100%;
         border: 0;
         background: transparent;
         padding: 5px 6px;
@@ -335,6 +342,7 @@ body,
         padding: 14px 15px;
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 5px;
       }
       .history-head button[data-history] {
@@ -343,8 +351,9 @@ body,
         font-size: 12px;
         border-radius: 999px;
       }
-      #close-history {
+      .history-head #close-history {
         margin-left: auto;
+        min-height: 24px;
       }
       .history-search {
         padding: 0 15px 12px;
@@ -469,7 +478,7 @@ body,
       [data-mode='quick'] .actions {
         padding: 8px 12px;
       }
-      [data-mode='quick'] .history.open {
+      :root[data-mode='quick'] .history.open {
         display: flex !important;
         position: absolute;
         inset: 0;

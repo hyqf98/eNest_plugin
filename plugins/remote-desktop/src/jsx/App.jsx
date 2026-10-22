@@ -141,7 +141,9 @@ export function App() {
         <button class="ghost" data-cmd="close" title="断开">断开</button>
       </div>
       <div class="canvas-wrap" data-zoom="fit">
-        <canvas tabindex="0" aria-label="远程桌面画布"></canvas>
+        <div class="canvas-viewport" role="region" aria-label="远程桌面视口" title="1:1 时可用滚动条移动视口；滚轮仍发送到远端">
+          <canvas tabindex="0" aria-label="远程桌面画布"></canvas>
+        </div>
         <div class="session-overlay">
           <div class="skeleton"></div>
           <div>正在建立${profile.protocol === 'rdp' ? ' RDP' : ' VNC'} 连接…</div>
@@ -162,6 +164,8 @@ export function App() {
       session: null, input: null, zoom: 'fit', startedAt: Date.now(), connectedAt: 0
     }
     sessions.set(id, entry)
+
+    const viewport = wrap.querySelector('.canvas-viewport')
 
     const factory = profile.protocol === 'rdp' ? window.RdpSession : window.VncSession
     const session = factory.create(profile, {
@@ -186,7 +190,7 @@ export function App() {
       if (phase === 'connected') {
         entry.connectedAt = Date.now()
         overlay.hidden = true
-        canvas.focus()
+        canvas.focus({ preventScroll: true })
       } else if (phase === 'error') {
         overlay.hidden = false
         overlay.innerHTML = `<div class="reason">${esc(reason || '连接失败')}</div>
@@ -237,6 +241,7 @@ export function App() {
       btn.onclick = () => {
         entry.zoom = btn.dataset.zoom
         wrap.querySelector('.canvas-wrap').dataset.zoom = entry.zoom
+        if (entry.zoom !== '1:1') viewport.scrollTo(0, 0)
         wrap.querySelectorAll('.zoom-seg button').forEach((b) => b.classList.toggle('active', b === btn))
         session.setZoom?.(entry.zoom)
       }

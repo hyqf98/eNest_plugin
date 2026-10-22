@@ -4,7 +4,7 @@
 
 ## 工程准备
 
-使用插件仓库的 workspace 工程，或者遵循[标准目录](structure.md)创建 `notes/`。Node 版本需满足仓库 package.json 和 Vite 的要求。React、Vue、vanilla 只影响前端编译，不改变包格式。
+使用插件仓库的 workspace 工程，或者遵循[标准目录](structure.md)创建 `com.example.notes/`。Node 版本需满足仓库 package.json 和 Vite 的要求。React、Vue、vanilla 只影响前端编译，不改变包格式。
 
 ```json
 {

@@ -296,6 +296,10 @@ h1 {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
 }
+/* 仅可见的逐行结果分配第三行，输入区与普通结果不留空轨道。 */
+.pane:has(> .batch:not([hidden])) {
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 38%);
+}
 .pane + .pane {
   border-left: 1px solid var(--line);
 }
@@ -343,7 +347,8 @@ textarea {
 
 /* ── 逐行结果：行号 + 值，失败行高亮 ── */
 .batch {
-  max-height: 38%;
+  min-height: 0;
+  max-height: 100%;
   overflow: auto;
   border-top: 1px solid var(--line);
   padding: 6px 10px;

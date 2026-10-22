@@ -132,15 +132,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .nk-tab-add:hover { color: var(--accent); background: var(--surface-2); }
 
 /* ———— 主体三栏（桌面）/ 单列（Quick 与窄容器）———— */
-.nk-body { min-height: 0; min-width: 0; container-type: inline-size; }
+.nk-body { min-height: 0; min-width: 0; }
 .nk-split {
   height: 100%;
   display: grid;
-  grid-template-columns: 208px minmax(240px, 5fr) minmax(280px, 6fr);
+  grid-template-columns: minmax(0, min(var(--workbench-sidebar, 208px), 24%)) minmax(0, 5fr) minmax(0, 6fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 8px;
   padding: 8px;
+  overflow: auto;
 }
-.nk-single { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 8px; gap: 8px; }
+.nk-single { height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); padding: 8px; gap: 8px; }
+.nk-session { grid-column: 2 / 4; }
+.nk-col.nk-quick-http { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+:root[data-mode='quick'] .nk { grid-template-rows: auto minmax(0, 1fr) auto; }
 
 .nk-col {
   min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px;
@@ -313,10 +318,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .nk-img-preview { max-width: 100%; max-height: 320px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: repeating-conic-gradient(var(--surface-2) 0 25%, var(--surface) 0 50%) 0 0 / 16px 16px; }
 
 /* ———— TCP 双向面板 ———— */
-.nk-duplex { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 8px; height: 100%; }
+.nk-duplex { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 45%); gap: 8px; height: 100%; }
 .nk-duplex-top { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; min-height: 0; }
-.nk-duplex-bottom { display: grid; grid-template-rows: auto auto auto; gap: 6px; max-height: 45%; overflow: auto; }
-.nk-stream { flex: 1; min-height: 120px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.nk-duplex-bottom { display: grid; grid-template-rows: auto auto auto; gap: 6px; min-height: 0; overflow: auto; }
+.nk-stream { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 
 /* 循环发送行 */
 .nk-loop { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -347,17 +352,17 @@ dialog#dlg::backdrop { background: rgba(16, 24, 36, 0.4); }
 /* dialog 内下拉：菜单弹出期间放开裁切，避免 pk-select-menu 被切掉 */
 dialog#dlg:has(.pk-select-menu:not([hidden])) { overflow: visible; }
 
-/* ———— 响应式：≤740px 单列（容器查询） ———— */
-@container (max-width: 740px) {
-  .nk-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+/* ———— 窄容器堆叠请求与响应，较矮窗口保留局部滚动 ———— */
+@container net-workbench (max-width: 899px) {
+  .nk-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: minmax(180px, 1fr); }
   .nk-split .nk-col-tree { display: none; }
+  .nk-split .nk-session { grid-column: auto; }
 }
 :root[data-mode='quick'] .nk-split { grid-template-columns: minmax(0, 1fr); }
 :root[data-mode='quick'] .nk-col-tree { display: none; }
 :root[data-mode='quick'] .shell-only { display: none !important; }
 
-.nk { width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr); container-type: inline-size; }
-.nk-body { container-type: normal; }
+.nk { width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr); container: net-workbench / inline-size; }
 @media (max-width: 740px) {
   .nk-top, .nk-foot { flex-wrap: wrap; }
   .nk-modes { max-width: 100%; overflow-x: auto; }

@@ -95,6 +95,9 @@ h1 {
 }
 .segmented {
   display: inline-flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--line);
@@ -106,6 +109,8 @@ h1 {
   .segmented { background: var(--raise); }
 }
 .segmented button {
+  flex: none;
+  white-space: nowrap;
   border: 0;
   background: transparent;
   border-radius: calc(var(--pk-radius) - 3px);
@@ -228,8 +233,14 @@ button:disabled {
   border-left: 1px solid var(--line);
   position: relative;
 }
+.result-pane > .view,
+.result-empty {
+  grid-area: 2 / 1;
+}
 .pane-head {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 6px;
   padding: 7px 12px;
@@ -248,6 +259,8 @@ button:disabled {
   margin-right: auto;
 }
 .pane-head > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
@@ -309,6 +322,8 @@ textarea:focus {
 }
 .view-actions {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -335,6 +350,8 @@ textarea:focus {
 }
 .ts-root {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 6px;
   font-size: 12px;
@@ -366,6 +383,8 @@ textarea:focus {
 /* ── 树视图 ── */
 .tree-toolbar {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -643,9 +662,10 @@ textarea:focus {
 
 /* ── 空状态 ── */
 .result-empty {
-  position: absolute;
-  inset: auto 0 0;
-  top: 40px;
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
   display: grid;
   place-content: center;
   gap: 4px;
@@ -661,6 +681,7 @@ textarea:focus {
 }
 .empty-desc {
   margin: 0;
+  overflow-wrap: anywhere;
   font-size: 12px;
   line-height: 1.7;
   color: var(--muted);
@@ -752,6 +773,8 @@ html[data-mode="quick"] footer {
 /* ── 文本视图：高亮 + 行号 + 折叠 ── */
 .code-tools {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 6px;
   flex: none;

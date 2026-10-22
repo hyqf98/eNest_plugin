@@ -1,6 +1,8 @@
 /* 局域网传件 — 主题 token 驱动；8px 圆角上限；分段双模式；容器查询单列。
    层级用阴影编码：投放区与二维码是舞台级（重阴影），面板是结构级（浅阴影）。 */
 
+html, body, #root { height: 100%; }
+
 .lan-app {
   display: flex;
   flex-direction: column;

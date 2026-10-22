@@ -697,6 +697,17 @@ export function App() {
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
+  // Quick 单栏可见性跟随 editor，卸载时恢复根属性。
+  useEffect(() => {
+    const root = document.documentElement
+    const previous = root.dataset.editor
+    root.dataset.editor = editor
+    return () => {
+      if (previous === undefined) delete root.dataset.editor
+      else root.dataset.editor = previous
+    }
+  }, [editor])
+
   /* —— 生命周期：PluginKit 一次初始化 + latest-ref 桥接 —— */
   useEffect(() => {
     let alive = true

@@ -98,11 +98,19 @@ footer,
   gap: 8px;
 }
 header {
+  flex-wrap: wrap;
   padding: 16px 22px;
   border-bottom: 1px solid var(--line);
 }
 .toolbar {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   margin-left: auto;
+}
+.toolbar button {
+  flex: none;
+  white-space: nowrap;
 }
 .sub,
 .caption,
@@ -124,6 +132,7 @@ footer {
 }
 .calculation {
   padding: 28px;
+  min-width: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -162,12 +171,17 @@ footer {
   flex-wrap: wrap;
 }
 .memory span {
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin-left: auto;
 }
 .keypad {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
+  /* 保持 5 列键序，宽栏限制按键尺寸。 */
+  width: min(100%, 420px);
+  margin-inline: auto;
 }
 .keypad button {
   height: 44px;
@@ -195,6 +209,8 @@ footer {
   min-height: 0;
 }
 .history-head {
+  flex-wrap: wrap;
+  min-width: 0;
   padding: 18px 16px 10px;
 }
 .history-head h2 {

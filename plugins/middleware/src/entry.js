@@ -6,6 +6,10 @@ import '@enest/plugin-kit/workbench.css'
 import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/style.css'
 import '@enest/plugin-kit'
+window.PluginKit.useAppearanceLayout({
+  plugin: 'middleware', family: 'workbench', scope: '#root',
+  regions: { navigation: '.tree', toolbar: '.workbench-head', main: '.content', auxiliary: '.suggestions', status: '.status-bar' }
+})
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './jsx/App.jsx'

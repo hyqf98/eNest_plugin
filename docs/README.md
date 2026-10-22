@@ -8,7 +8,7 @@
 4. [调试方式](developer/debug.md)：选择任意源码目录、本地或远程 HMR；dev（HMR/源码预览）与 prod（正式包）两种模式，启动命令按插件 package.json 解析（[enest 段 Schema](enest-package.schema.json)），壳子不预设工具链。
 5. [API](developer/api.md)、[TypeScript 类型](developer/api-types.md)、[权限](developer/permissions.md)：基础能力直接可用，敏感资源通过宿主授权访问；[能力分类快照](plugin-permission-policy.json)由SDK生成工具同步。
 6. [大小窗布局](developer/ui-standard.md)、[生命周期](developer/lifecycle.md)：迁移、销毁、后台与资源释放。
-7. [主题插件](developer/themes.md)：主题声明、注册和卸载。
+7. [主题插件](developer/themes.md) 与 [首页提供者](developer/home.md)：外观包、配套首页声明、受限 bridge 和多入口发布。
 8. [宿主开发](developer/host-development.md)：main/preload/renderer 边界和能力扩展。
 
 `developer/` 是宿主权威指南的同步副本，由 `docs:sync` / `docs:check` 管理；公共 API 类型由 `api:generate` / `api:check` 管理。不要在副本中单独修改 API 合同。

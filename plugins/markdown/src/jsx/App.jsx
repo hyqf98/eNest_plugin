@@ -161,7 +161,7 @@ export function App() {
                 const title = s.query.trim() && hit.hit ? hit.title : esc(n.title)
                 const snippetHtml = s.query.trim() && hit.hit ? `<span class="note-snippet">${hit.snippet}</span>` : ''
                 return `<div class="note-row ${s.currentId === n.id ? 'active' : ''}" role="treeitem" data-id="${esc(n.id)}" tabindex="0">
-  <span class="note-title">${title || '<em>无标题</em>'}${snippetHtml}</span>
+  <span class="note-title"><span>${title || '<em>无标题</em>'}</span>${snippetHtml}</span>
   <span class="note-meta mono">${new Date(n.updatedAt).toLocaleDateString()}</span>
   <button class="row-delete" data-del="${esc(n.id)}" title="删除笔记">×</button>
 </div>`

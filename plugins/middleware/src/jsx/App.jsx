@@ -17,6 +17,7 @@ export function App() {
       <div className="app" id="app">
         <div className="workbench-head"><button id="nav-toggle" className="icon-button" aria-label="显示连接导航" aria-controls="tree" title="连接导航">☰</button><span>中间件</span><span className="workbench-head-hint">连接与消息工作台</span><button id="open-shell" className="btn sm" hidden>在桌面打开</button></div>
         <div className="app-body">
+          <button id="nav-scrim" aria-label="收起连接导航" hidden></button>
           {/* 左：连接树（按类型分组） */}
           <aside className="tree" id="tree"></aside>
           <div className="resizer tree-resizer" id="resizer-tree" role="separator" aria-label="连接导航宽度" aria-orientation="vertical" tabIndex={0}></div>
@@ -29,8 +30,6 @@ export function App() {
         </div>
         <footer className="status-bar" id="status-bar"></footer>
       </div>
-
-      <button id="nav-scrim" aria-label="收起连接导航" hidden></button>
     </>
   )
 }

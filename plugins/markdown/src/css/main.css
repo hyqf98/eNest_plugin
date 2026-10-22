@@ -255,6 +255,7 @@ header {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 200px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 /* 三视图：编辑 / 编辑+大纲+预览 / 仅预览 */
 .editor-body[data-view='edit'] { grid-template-columns: minmax(0, 1fr); }
@@ -272,6 +273,7 @@ header {
   font-size: 13px;
   line-height: 1.75;
   min-width: 0;
+  min-height: 0;
 }
 #editor:disabled { opacity: 0.45; cursor: default; }
 #editor:focus-visible { outline: none; }
@@ -421,8 +423,9 @@ footer {
 :root[data-mode='quick'] .workspace { grid-template-columns: 1fr; }
 :root[data-mode='quick'] .tree-pane { display: none; }
 :root[data-mode='quick'] .editor-toolbar button:not(#attach-image):not(.mode-switch button) { display: none; }
-:root[data-mode='quick'] .mode-switch { display: none; }
+:root[data-mode='quick'] .mode-switch { display: inline-flex; }
 :root[data-mode='quick'] .editor-body { grid-template-columns: minmax(0, 1fr); }
+:root[data-mode='quick'] .editor-body[data-view='split'] { grid-template-rows: repeat(2, minmax(0, 1fr)); }
 :root[data-mode='quick'] .outline { display: none; }
 :root[data-mode='quick'] .preview { border-left: 0; padding: 14px 16px; }
 :root[data-mode='quick'] footer .shell-only { display: none; }
@@ -431,6 +434,7 @@ footer {
   .workspace { grid-template-columns: 1fr; }
   .tree-pane { display: none; }
   .editor-body, .editor-body[data-view='split'] { grid-template-columns: minmax(0, 1fr); }
+  .editor-body[data-view='split'] { grid-template-rows: repeat(2, minmax(0, 1fr)); }
   .outline { display: none; }
   #editor { border-right: 0; }
   .preview { border-left: 1px solid var(--line); }

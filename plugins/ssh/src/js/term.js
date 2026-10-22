@@ -25,11 +25,12 @@
   }
 
   function termThemeFromCss() {
+    const appearance = document.documentElement.hasAttribute('data-appearance-layout')
     return {
-      background: cssVar('--term-bg', '#0b0f14'),
-      foreground: cssVar('--term-fg', '#e8eef7'),
-      cursor: cssVar('--term-cursor', '#e8ecf4'),
-      cursorAccent: cssVar('--term-bg', '#0b0f14'),
+      background: cssVar(appearance ? '--surface' : '--term-bg', '#0b0f14'),
+      foreground: cssVar(appearance ? '--text' : '--term-fg', '#e8eef7'),
+      cursor: cssVar(appearance ? '--accent' : '--term-cursor', '#e8ecf4'),
+      cursorAccent: cssVar(appearance ? '--surface' : '--term-bg', '#0b0f14'),
       selectionBackground: cssVar('--accent-soft', 'rgba(232,236,244,0.22)'),
       black: '#1c2330',
       red: '#ff6b7a',
@@ -108,7 +109,7 @@
     const opts = SshStore?.state?.ui || {}
     const fontSize = Number(opts.fontSize) || 13
     const fontFamily =
-      'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "PingFang SC", monospace'
+      cssVar('--mono', 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "PingFang SC", monospace')
 
     const TermCtor = global.Terminal
     const FitClass =
@@ -290,6 +291,18 @@
         if (handlers && handlers.onResize) handlers.onResize(cols, rows)
       }
 
+      const syncAppearance = () => {
+        term.options.theme = termThemeFromCss()
+        term.options.fontFamily = cssVar('--mono', fontFamily)
+        const base = parseFloat(cssVar('--font-size-base', '13'))
+        const scale = Number.isFinite(base) ? Math.min(1.3, Math.max(.85, base / 13)) : 1
+        term.options.fontSize = (Number(SshStore?.state?.ui?.fontSize) || fontSize) * scale
+        resizeNow()
+      }
+      const appearanceObserver = new MutationObserver(syncAppearance)
+      appearanceObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-theme', 'data-appearance-layout'] })
+      syncAppearance()
+
       // 延迟 fit，确保布局完成
       requestAnimationFrame(() => resizeNow())
 
@@ -357,11 +370,12 @@
           return { cols: term.cols || 80, rows: term.rows || 24 }
         },
         setTheme() {
-          try { term.options.theme = termThemeFromCss() } catch { /* ignore */ }
+          try { syncAppearance() } catch { /* ignore */ }
         },
         setFontSize(px) {
           try {
-            term.options.fontSize = px
+            const base = parseFloat(cssVar('--font-size-base', '13'))
+            term.options.fontSize = px * (Number.isFinite(base) ? Math.min(1.3, Math.max(.85, base / 13)) : 1)
             resizeNow()
           } catch { /* ignore */ }
         },
@@ -417,6 +431,7 @@
         },
         dispose() {
           disposed = true; invalidateCommand()
+          appearanceObserver.disconnect()
           container.removeEventListener('compositionstart', onCompositionStart, true)
           container.removeEventListener('compositionend', onCompositionEnd, true)
           container.removeEventListener('paste', onPaste, true)

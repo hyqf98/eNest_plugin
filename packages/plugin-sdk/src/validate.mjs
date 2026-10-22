@@ -61,6 +61,18 @@ function prettyError(e) {
   return `${at} ${e.message ?? 'invalid'}${params}`.replace(/\s+/g, ' ').trim()
 }
 
+/** Cross-field ownership is not expressible by the portable JSON Schema alone. */
+export function homeContributionErrors(manifest) {
+  const errors = [], ids = new Set()
+  for (const [index, home] of (manifest?.contributes?.homePages ?? []).entries()) {
+    const at = `/contributes/homePages/${index}`
+    if (home.source !== manifest.id) errors.push(`${at}/source must equal plugin id`)
+    if (ids.has(home.id)) errors.push(`${at}/id duplicates another home declaration`)
+    ids.add(home.id)
+  }
+  return errors
+}
+
 /**
  * 校验 manifest 对象。
  * @param {unknown} obj — 解析后的 plugin.json 对象
@@ -74,7 +86,10 @@ export async function validateManifest(obj) {
   } catch (e) {
     return { ok: false, errors: [String(e?.message ?? e)] }
   }
-  if (validator(obj)) return { ok: true, errors: [] }
+  if (validator(obj)) {
+    const errors = homeContributionErrors(obj)
+    return { ok: errors.length === 0, errors }
+  }
   const errors = (validator.errors ?? []).map(prettyError)
   return { ok: false, errors: errors.length ? errors : ['manifest invalid (unknown reason)'] }
 }

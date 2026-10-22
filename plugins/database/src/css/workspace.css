@@ -112,7 +112,7 @@
 .app .wb-section-heading { flex-wrap: wrap; }
 .app .wb-settings { max-width: 1000px; margin: 0; }
 .app .wb-settings-grid { gap: 24px; }
-.app .wb-diff-scroll { height: max(240px, calc(100vh - 440px)); }
+.app .wb-diff-scroll { height: max(240px, calc(100dvh - 440px)); }
 .app[data-surface=shell][data-result-dock=right] .query-surface { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .app[data-surface=shell][data-result-dock=right] .query-surface .wb-querybar { grid-column: 1 / -1; grid-row: 1; }
 .app[data-surface=shell][data-result-dock=right] .query-surface .editor-pane { grid-column: 1; grid-row: 2; }
@@ -283,9 +283,11 @@ body:has(.nav-toolrail-button:hover) .enest-float-tip, body:has(.nav-toolrail-bu
 .app .nav-connection-actions > [data-connect] { font-size: 9px; padding-inline: 3px; }
 @media(max-height:300px) { .nav-toolrail { gap: 2px; padding-block: 4px; } .nav-toolrail-button { height: 29px; } }
 /* Inspect values beside the data; focused tasks retain native dialog keyboard behavior. */
-body:has(.app) dialog.wb-document-inspector { position: fixed; inset: 8px 8px 8px auto; margin: 0; width: min(540px, calc(100vw - 24px)); height: calc(100dvh - 16px); max-height: none; border-radius: 12px; }
+body:has(.app) dialog.wb-document-inspector { position: fixed; inset: 8px 8px 8px auto; margin: 0; width: min(540px, calc(100% - 16px)); height: auto; max-width: none; max-height: none; border-radius: 12px; }
+body:has(.app) dialog.wb-document-inspector[open] { display: flex; flex-direction: column; }
 body:has(.app) dialog.wb-document-inspector::backdrop { background: #10182418; backdrop-filter: none; }
-body:has(.app) dialog.wb-document-inspector .wb-dialog-body { flex: 1; min-height: 0; overflow: auto; }
+body:has(.app) dialog.wb-document-inspector .wb-dialog-head { flex: none; }
+body:has(.app) dialog.wb-document-inspector .wb-dialog-body { flex: 1; min-height: 0; max-height: none; overflow: auto; }
 body:has(.app) .wb-export-dialog { width: min(360px, calc(100vw - 24px)); }
 body:has(.app) .wb-import-dialog { width: min(780px, calc(100vw - 24px)); }
 body:has(.app) .wb-import-dialog .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -294,7 +296,7 @@ body:has(.app) .wb-import-dialog .form-grid :is(input,select) { width: 100%; min
 body:has(.app) .wb-import-dialog .form-grid .full { grid-column: 1 / -1; }
 body:has(.app) .wb-export-dialog .export-menu { display: grid; gap: 5px; }
 body:has(.app) .wb-export-dialog .export-menu .btn { justify-content: flex-start; text-align: left; width: 100%; }
-@media(max-width:600px) { body:has(.app) dialog.wb-document-inspector { inset: 4px; width: calc(100vw - 8px); height: calc(100dvh - 8px); } body:has(.app) .wb-import-dialog .form-grid { grid-template-columns: 1fr; } }
+@media(max-width:600px) { body:has(.app) dialog.wb-document-inspector { inset: 4px; width: auto; height: auto; } body:has(.app) .wb-import-dialog .form-grid { grid-template-columns: 1fr; } }
 .wb-object-state { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 9px; min-height: 80px; padding: 24px; color: var(--text-2); text-align: center; }
 .wb-object-state strong { font-size: 13px; font-weight: 550; }
 .wb-object-state p { margin: 0; max-width: 460px; font-size: 12px; color: var(--text-3); line-height: 1.6; overflow-wrap: anywhere; }

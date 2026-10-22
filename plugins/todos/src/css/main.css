@@ -24,6 +24,11 @@ body {
   overflow: hidden;
   font-variant-numeric: tabular-nums;
 }
+#root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 button {
   display: inline-flex;
   align-items: center;
@@ -107,6 +112,9 @@ textarea {
 }
 header {
   display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 12px;
   padding: 18px 24px 13px;
@@ -128,6 +136,9 @@ h1 {
 }
 header .grow {
   flex: 1;
+}
+header > button {
+  flex: none;
 }
 /* —— 完成度统计条 —— */
 .progress-wrap {
@@ -164,8 +175,12 @@ header .grow {
   font-weight: 650;
 }
 .workspace {
-  height: calc(100% - 78px);
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
   grid-template-columns: 180px minmax(280px, 1fr) 288px;
 }
 nav {
@@ -224,6 +239,7 @@ nav hr {
 }
 .list-pane {
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -433,6 +449,8 @@ nav hr {
 .batch {
   padding: 7px 18px;
   display: flex;
+  flex-wrap: wrap;
+  flex: none;
   gap: 5px;
   border-top: 1px solid var(--line);
 }
@@ -546,6 +564,9 @@ nav hr {
 }
 footer {
   display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 12px;
   font-size: 11px;
@@ -562,6 +583,7 @@ footer {
 }
 .search {
   width: 220px;
+  max-width: 100%;
 }
 #undo {
   color: var(--mark);
@@ -575,7 +597,6 @@ footer {
   }
 }
 [data-mode='quick'] .workspace {
-  height: 100%;
   grid-template-columns: 1fr;
 }
 [data-mode='quick'] .filters {
@@ -606,6 +627,12 @@ footer {
 [data-mode='quick'] .batch {
   display: none;
 }
+[data-mode='quick'] .task .remove {
+  opacity: 1;
+}
+[data-mode='quick'] .progress-wrap {
+  display: none;
+}
 @media (max-width: 900px) {
   [data-mode='shell'] .workspace {
     grid-template-columns: 145px 1fr;
@@ -613,9 +640,9 @@ footer {
   [data-mode='shell'] .detail {
     position: absolute;
     right: 0;
-    top: 78px;
+    top: 0;
     bottom: 0;
-    width: 310px;
+    width: min(310px, 100%);
     background: var(--paper);
     z-index: 5;
   }

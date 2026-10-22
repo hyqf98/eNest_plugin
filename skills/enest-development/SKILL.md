@@ -29,7 +29,7 @@ description: 开发、调试和验收 eNest Electron 宿主、通用前端插件
 - 页面没有 Node 权限，浏览器原生网络/系统 API 也不是权限失败后的备选通道。window.enest 的私有存储、UI、设置、主题、声明式入口和私有密钥保存直接可用，不需声明/弹窗；仅敏感能力声明最小权限并由用户授权；动态Quick provider读取全局查询，仍需contribute授权，分类以 docs/plugin-permission-policy.json 为准。文件靠宿主选择器签发的运行代次句柄，displayPath 仅展示；业务数据用 storage API，不能拼 HOME 或写源码目录。
 - 开发者启动 npm run dev，宿主连接精确配置的 origin；不安装源码、不运行 npm、不监听文件做自动刷新。静态源码只映射 index.html、src、public/assets；生产预览明确选 dist。
 - Quick/主窗由启动模式决定，断点只调整空间。持久化失败可见；在 onBeforeClose 保存，关闭后宿主统一释放资源。活动任务用 lease，不靠空转计时器逃避休眠。
-- 主题沿用普通包并提供预览入口；运行时注册属于基础能力，禁用/卸载按 source 撤销。DSH runtime 是单独保留的专属例外，不可复制为新插件能力。
+- 默认主题是宿主源码 `src/shared/theme/defaultTheme/package.ts` 内置包，直接加载外观与启动动画，不在插件仓发布，也没有首启选主题门禁。第三方主题仍沿用普通包并提供预览入口；运行时注册属于基础能力，禁用/卸载按 source 撤销。主题设置表单由壳渲染：只声明 `presentation`、`options[].preview` 和 pack 级 `palettes`（自定义氛围配色，id 不得覆盖内置 8 个），不得注入 HTML/CSS/JS 或选择器改设置界面。DSH runtime 是单独保留的专属例外，不可复制为新插件能力。
 
 ## 验证与交付
 

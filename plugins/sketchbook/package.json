@@ -1,0 +1,14 @@
+{
+  "name": "sketchbook",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5210 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs sketchbook",
+    "pack": "node ../../scripts/pack-plugin.mjs sketchbook"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

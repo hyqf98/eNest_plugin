@@ -37,13 +37,15 @@ html, body {
 .cp {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   min-width: 0;
 }
 
 /* ---------- 顶栏 ---------- */
 .cp-top {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   align-items: center;
   gap: 12px;
   padding: 8px 14px;
@@ -84,7 +86,7 @@ html, body {
   border-radius: 8px; padding: 6px 10px; font-size: 13px; outline: none;
 }
 .cp-search input:focus { border-color: var(--accent); }
-.cp-sorts { display: flex; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; }
+.cp-sorts { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; }
 .cp-sort {
   border: 0; background: transparent; color: var(--text-2);
   padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
@@ -170,17 +172,23 @@ html, body {
 }
 .cp-installed-mark { right: 6px; }
 .cp-legacy-mark { left: 6px; background: var(--surface-3); color: var(--text-3); }
+.cp-card-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cp-card-title { font-size: 14px; margin: 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-card-title:hover { color: var(--accent); }
-.cp-card-by { margin: 0; color: var(--text-3); font-size: 11px; }
-.cp-card-stats { display: flex; gap: 10px; margin: 0; color: var(--text-2); font-size: 11px; }
+.cp-card-by {
+  margin: 0; min-width: 0; color: var(--text-3); font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cp-card-stats { display: flex; flex-wrap: wrap; gap: 4px 10px; min-width: 0; margin: 0; color: var(--text-2); font-size: 11px; }
+.cp-card-stats > span { max-width: 100%; overflow-wrap: anywhere; }
 .cp-card-desc {
-  margin: 0; color: var(--text-2); font-size: 12px;
+  margin: 0; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .cp-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
-.cp-card-actions { display: flex; gap: 6px; margin-top: auto; }
-.cp-card-actions .cp-btn { flex: 1; padding: 5px 6px; }
+.cp-card-tags .cp-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.cp-card-actions .cp-btn { flex: 1 0 auto; padding: 5px 6px; white-space: nowrap; }
 
 /* ============================================================
    sprite 引擎 — 复刻 codex-pets.net：
@@ -254,15 +262,17 @@ html, body {
 }
 @media (max-width: 720px) { .cp-detail { grid-template-columns: 1fr; } }
 .cp-detail-hero, .cp-detail-install {
+  min-width: 0;
+  overflow-wrap: anywhere;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 16px;
 }
 .cp-detail-id { margin: 0 0 4px; color: var(--text-3); font-size: 12px; }
 .cp-detail-title { margin: 0 0 6px; font-size: 20px; }
 .cp-detail-desc { margin: 0 0 10px; color: var(--text-2); }
-.cp-detail-share { display: flex; gap: 8px; margin-top: 12px; }
+.cp-detail-share { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
-.cp-stage { display: flex; align-items: flex-start; gap: 14px; margin: 12px 0; }
+.cp-stage { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; margin: 12px 0; }
 .cp-stage-frame {
   width: 288px; height: 312px; overflow: hidden; flex: none;
   border-radius: var(--radius); border: 1px solid var(--border);
@@ -303,7 +313,7 @@ html, body {
 .cp-detail-install h3 { margin: 0; font-size: 15px; }
 .cp-install-main { padding: 9px 14px; font-size: 13px; }
 .cp-cmd { display: flex; flex-direction: column; gap: 6px; }
-.cp-cmd-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
+.cp-cmd-head { display: flex; flex-wrap: wrap; min-width: 0; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
 .cp-cmd-head > span:first-child { flex: 1; }
 .cp-cmd-body {
   margin: 0; background: var(--bg); border: 1px solid var(--border);
@@ -312,7 +322,7 @@ html, body {
   color: var(--ok); white-space: pre;
 }
 .cp-pkg {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr)); gap: 6px 10px;
   margin: 0; font-size: 11px;
 }
 .cp-pkg > div { background: var(--surface-2); border-radius: 6px; padding: 6px 8px; min-width: 0; }
@@ -325,12 +335,13 @@ html, body {
 .cp-more h2 { font-size: 15px; margin: 0 0 10px; }
 .cp-more-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .cp-more-card {
-  display: flex; flex-direction: column; gap: 4px; align-items: center;
+  display: flex; flex-direction: column; gap: 4px; align-items: center; min-width: 0;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 10px; cursor: pointer; color: var(--text);
 }
 .cp-more-card:hover { border-color: var(--accent); }
 .cp-more-poster { width: 96px; height: 104px; object-fit: contain; image-rendering: pixelated; }
+.cp-more-name, .cp-more-by { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-more-name { font-size: 12px; font-weight: 600; }
 .cp-more-by { font-size: 11px; color: var(--text-3); }
 
@@ -345,7 +356,6 @@ html, body {
   .cp-stage { flex-direction: column; align-items: stretch; }
   .cp-stage-frame { width: 100%; max-width: 288px; }
   .cp-detail { padding: 0; }
-  .cp-pkg { grid-template-columns: repeat(2, 1fr); }
 }
 :root[data-mode="quick"] .cp-logo { font-size: 13px; }
 :root[data-mode="quick"] .cp-origin { display: none; }

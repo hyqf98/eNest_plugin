@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5185 --strictPort",
-    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.dsh",
-    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.dsh",
-    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.dsh"
+    "build": "node ../../scripts/build-plugin.mjs dsh",
+    "pack": "node ../../scripts/pack-plugin.mjs dsh",
+    "prod": "node ../../scripts/build-plugin.mjs dsh"
   },
   "dependencies": {
     "@enest/plugin-kit": "1.0.0",

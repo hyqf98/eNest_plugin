@@ -1425,17 +1425,17 @@ export function App() {
         {active && modeRef.current === 'shell' && active.kind === 'tcp' && (
           <>
             {renderTreeCol()}
-            <div className="nk-col" style={{ gridColumn: '2 / 4' }}>{renderTcpPanel(active)}</div>
+            <div className="nk-col nk-session">{renderTcpPanel(active)}</div>
           </>
         )}
         {active && modeRef.current === 'shell' && active.kind === 'ws' && (
           <>
             {renderTreeCol()}
-            <div className="nk-col" style={{ gridColumn: '2 / 4' }}>{renderWsPanel(active)}</div>
+            <div className="nk-col nk-session">{renderWsPanel(active)}</div>
           </>
         )}
         {active && modeRef.current === 'quick' && (
-          <div className="nk-col" style={active.kind === 'http' ? { display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)' } : undefined}>
+          <div className={`nk-col${active.kind === 'http' ? ' nk-quick-http' : ''}`}>
             {active.kind === 'http' ? <>{renderHttpBuilder(active)}{renderHttpRespCol(active)}</> : active.kind === 'tcp' ? renderTcpPanel(active) : renderWsPanel(active)}
           </div>
         )}

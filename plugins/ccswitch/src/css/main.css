@@ -34,7 +34,7 @@ button { font: inherit; color: inherit; }
 input, textarea, select { font: inherit; color: var(--text); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-.app { display: flex; height: 100vh; overflow: hidden; }
+.app { display: flex; height: 100%; overflow: hidden; }
 #root { height: 100%; }
 
 /* ================ 三区之一：左导航（半透明材质，内容从其下滚过） ================ */
@@ -311,7 +311,7 @@ textarea { width: 100%; resize: vertical; }
   border: 1px solid var(--border); color: var(--text-2);
   flex: none;
 }
-.card-actions { display: flex; gap: 6px; align-items: center; margin-top: 2px; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 2px; }
 .card-actions .spacer { flex: 1; }
 .drag-handle { cursor: grab; color: var(--text-2); flex: none; }
 
@@ -364,7 +364,7 @@ textarea { width: 100%; resize: vertical; }
 .modal[hidden] { display: none; }
 .modal-card {
   width: min(560px, calc(100vw - 48px));
-  max-height: min(660px, calc(100vh - 48px));
+  max-height: min(660px, calc(100dvh - 48px));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -532,7 +532,8 @@ textarea { width: 100%; resize: vertical; }
 .chart-box h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
 canvas { width: 100%; display: block; }
 .model-bars { display: flex; flex-direction: column; gap: 6px; }
-.model-bar { display: grid; grid-template-columns: 180px 1fr 72px; gap: 8px; align-items: center; font-size: 12px; }
+.model-bar { display: grid; grid-template-columns: minmax(0, 180px) minmax(0, 1fr) 72px; gap: 8px; align-items: center; font-size: 12px; }
+.model-bar .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-bar .bar { height: 8px; border-radius: 4px; background: var(--surface-2, var(--border)); overflow: hidden; }
 .model-bar .bar > i { display: block; height: 100%; background: var(--accent); }
 .model-bar .n { text-align: right; font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
@@ -589,6 +590,8 @@ canvas { width: 100%; display: block; }
 @container (max-width: 560px) {
   .drawer-panel { width: 100vw; border-left: none; }
   .grid { grid-template-columns: 1fr; }
+  .model-bar { grid-template-columns: minmax(0, 1fr) 72px; }
+  .model-bar .bar { grid-column: 1 / -1; grid-row: 2; }
 }
 
 /* ================ 无障碍与档位 ================ */

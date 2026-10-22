@@ -11,12 +11,18 @@ const api = window.enest || window.zapi
 const FX_URL = 'https://open.er-api.com/v6/latest/USD'
 const FAV_KEY = 'unit-convert.favorites.v1'
 const PREF_KEY = 'unit-convert.prefs.v1'
+const tabForMode = (tab, mode) =>
+  core.TAB_ORDER.includes(tab) && !(mode === 'quick' && tab === 'fx') ? tab : 'length'
 
 export function App() {
   const kitRef = useRef(null)
   const rowsRef = useRef(null)
   const presetFocusRef = useRef(null) // 预设点击后需聚焦并赋值的单位
 
+  const [mode, setMode] = useState(() =>
+    api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell',
+  )
+  const modeRef = useRef(mode)
   const [activeTab, setActiveTab] = useState('length')
   const [favorites, setFavorites] = useState([])
   const [precision, setPrecision] = useState(12)
@@ -33,9 +39,8 @@ export function App() {
   const [footNote, setFootNote] = useState('')
 
   const stateRef = useRef({})
-  stateRef.current = { activeTab, favorites, precision, scientific, editingField, fxBase, fxAmount, fxRates, fxInfo }
+  stateRef.current = { ...stateRef.current, activeTab, favorites, precision, scientific, editingField, fxBase, fxAmount, fxRates, fxInfo }
   const unitValuesRef = useRef({}) // 各单位行当前值（联动写回）
-  const readyRef = useRef(false)
 
   const isSpecial = (tab) => tab === 'temp' || tab === 'radix' || tab === 'fx'
   const favId = (tab, unit) => `${tab}:${unit}`
@@ -210,13 +215,13 @@ export function App() {
 
   // —— Tabs 切换（等价原 tabs click） ——//
   const pickTab = useCallback((tab) => {
-    setActiveTab((prev) => {
-      if (tab === prev) return prev
-      kitRef.current?.save(PREF_KEY, { ...stateRef.current.savedPrefs, lastTab: tab }).catch(() => {})
-      setEditingField('')
-      setFormula({ text: '', hidden: true })
-      return tab
-    })
+    const next = tabForMode(tab, modeRef.current)
+    if (next === stateRef.current.activeTab) return
+    stateRef.current.activeTab = next
+    setActiveTab(next)
+    kitRef.current?.save(PREF_KEY, { ...stateRef.current.savedPrefs, lastTab: next }).catch(() => {})
+    setEditingField('')
+    setFormula({ text: '', hidden: true })
   }, [])
 
   /* —— 生命周期：PluginKit 一次初始化 + latest-ref 桥接 —— */
@@ -228,7 +233,25 @@ export function App() {
       defaults: { baseCurrency: 'USD' },
     })
     kitRef.current = kit
+    const syncMode = (nextMode) => {
+      modeRef.current = nextMode
+      setMode(nextMode)
+      const currentTab = stateRef.current.activeTab
+      const nextTab = tabForMode(currentTab, nextMode)
+      if (nextTab !== currentTab) {
+        const focusHidden = document.activeElement?.closest('#tab-fx, #fx-section, #rmb-section')
+        stateRef.current.activeTab = nextTab
+        setActiveTab(nextTab)
+        setEditingField('')
+        setFormula({ text: '', hidden: true })
+        if (focusHidden) document.getElementById(`tab-${nextTab}`)?.focus()
+      }
+    }
+    // 初始模式与后续切换都先归一 Tab，不能只隐藏汇率入口。
+    const offMode = kit.onMode(syncMode)
+    syncMode(kit.mode)
     let alive = true
+    let offSettings
     void (async () => {
       const savedFav = await kit.load(FAV_KEY, [])
       if (!alive) return
@@ -243,21 +266,22 @@ export function App() {
       }
       setPrecision(prefs.precision)
       setScientific(prefs.scientific)
-      if (prefs.lastTab) setActiveTab(prefs.lastTab)
+      if (prefs.lastTab) {
+        const nextTab = tabForMode(prefs.lastTab, modeRef.current)
+        stateRef.current.activeTab = nextTab
+        setActiveTab(nextTab)
+        setEditingField('')
+        setFormula({ text: '', hidden: true })
+      }
       stateRef.current.savedPrefs = prefs
       await kit.ready
       if (!alive) return
-      readyRef.current = true
       setFxBase(String(kit.settings.baseCurrency || 'USD'))
-      kit.onSettings(() => {
+      offSettings = kit.onSettings(() => {
         if (stateRef.current.activeTab === 'fx') setFxBase(String(kit.settings.baseCurrency || 'USD'))
       })
     })()
-    kit.onMode(() => {
-      if (!readyRef.current) return
-      // DOM 由 React 数据驱动，无需重渲染动作
-    })
-    api?.onEnter?.(async (event) => {
+    const offEnter = api?.onEnter?.(async (event) => {
       const payload = event?.payload
       const text = typeof payload === 'string' ? payload : payload?.text
       if (text && !Number.isNaN(core.parseInput(core.normalizeDigits(String(text))))) {
@@ -267,6 +291,11 @@ export function App() {
     })
     return () => {
       alive = false
+      offMode()
+      offSettings?.()
+      offEnter?.()
+      kit.destroy()
+      if (kitRef.current === kit) kitRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -279,13 +308,13 @@ export function App() {
   const ensureFxRef = useRef(ensureFx)
   ensureFxRef.current = ensureFx
   useEffect(() => {
-    if (activeTab === 'fx') void ensureFxRef.current()
-  }, [activeTab])
+    if (activeTab === 'fx' && mode !== 'quick') void ensureFxRef.current()
+  }, [activeTab, mode])
 
   /* —— 表格行渲染数据 —— */
   const rows = unitRows(activeTab)
   const isRadix = activeTab === 'radix'
-  const isFx = activeTab === 'fx'
+  const isFx = activeTab === 'fx' && mode !== 'quick'
 
   /* —— 联动值：非受控行使用 unitValuesRef；React 重渲染时保持输入框值 —— */
   const rowValue = (id) => unitValuesRef.current[id] ?? ''
@@ -335,11 +364,14 @@ export function App() {
         {core.TAB_ORDER.map((id) => (
           <button
             key={id}
+            id={`tab-${id}`}
             type="button"
             role="tab"
             aria-selected={activeTab === id}
+            aria-controls="uc-content"
+            hidden={id === 'fx' && mode === 'quick'}
             data-tab={id}
-            className={'chip' + (activeTab === id ? ' active' : '') + (core.CATEGORIES[id].units.some((u) => isFav(id, u.id)) ? ' has-fav' : '')}
+            className={'chip' + (activeTab === id ? ' active' : '') + (core.CATEGORIES[id].units.some((u) => isFav(id, u.id)) ? ' has-fav' : '') + (id === 'fx' ? ' shell-only' : '')}
             onClick={() => pickTab(id)}
           >
             {core.CATEGORIES[id].name}
@@ -347,7 +379,8 @@ export function App() {
         ))}
       </nav>
 
-      <section className="pane" id="pane">
+      <div className="uc-content" id="uc-content" role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
+      <section className="pane" id="pane" hidden={isFx}>
         <div className="display-bar shell-only">
           <label className="ctl">
             精度
@@ -524,6 +557,7 @@ export function App() {
           </div>
         </div>
       </section>
+      </div>
 
       <footer>
         <span id="foot-note">{footNote}</span>

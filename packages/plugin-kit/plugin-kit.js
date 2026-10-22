@@ -1,5 +1,145 @@
 /* Small host adapters, not a page template. Each plugin owns its layout. */
-(() => {
+const PluginKit = (() => {
+  const APPEARANCE_PROPERTIES = [
+    'font', 'font-heading', 'font-mono', 'font-size-base', 'appearance-control-radius', 'appearance-card-radius',
+    'appearance-panel-radius', 'appearance-border-width', 'appearance-density', 'appearance-gap',
+    'appearance-sidebar-width', 'appearance-content-width', 'appearance-columns',
+    'appearance-bg-effect', 'appearance-bg-texture', 'appearance-bg-intensity', 'appearance-bg-speed',
+    'appearance-bg-direction', 'appearance-bg-warmth', 'appearance-bg-grain', 'appearance-bg-scale', 'appearance-bg-wash'
+  ]
+
+  function safeAttribute(value) {
+    return String(value ?? '').replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 128)
+  }
+
+  function cssNumber(value, fallback, minimum, maximum, unit = '') {
+    const number = Number(value)
+    const bounded = Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback
+    return `${bounded}${unit}`
+  }
+
+  /** Host tokens remain authoritative; this adapter only normalizes safe derived CSS values. */
+  function applyAppearance(appearance) {
+    if (!appearance || typeof appearance !== 'object' || appearance.version !== 2) return null
+    const revision = Number(appearance.revision)
+    if (Number.isFinite(revision)) {
+      if (revision < appearanceRevision) return null
+      appearanceRevision = revision
+    }
+    const root = document.documentElement
+    const theme = appearance.theme || {}
+    const mode = appearance.mode === 'dark' ? 'dark' : 'light'
+    const legacy = Boolean(theme.legacy || theme.id === 'legacy-custom')
+    const requestedVariant = appearance.layout?.variant
+    const variant = typeof requestedVariant === 'string' && /^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(requestedVariant)
+      ? requestedVariant : legacy ? 'warm' : 'default'
+    const bodyScale = Number(appearance.fonts?.scale)
+    const scale = Number.isFinite(bodyScale) ? Math.min(1.3, Math.max(.85, bodyScale)) : 1
+    // Clear the previous bridge before applying either derived or host token values.
+    for (const property of APPEARANCE_PROPERTIES) root.style.removeProperty(`--${property}`)
+    for (const property of appearanceTokenKeys) root.style.removeProperty(property)
+    appearanceTokenKeys = []
+    root.dataset.theme = mode
+    root.dataset.appearanceTheme = safeAttribute(theme.id || 'legacy-custom')
+    root.dataset.appearanceLayout = variant
+    root.style.colorScheme = mode
+    root.style.setProperty('--font', String(appearance.fonts?.body || ''))
+    root.style.setProperty('--font-heading', String(appearance.fonts?.heading || appearance.fonts?.body || ''))
+    root.style.setProperty('--font-mono', String(appearance.fonts?.mono || ''))
+    root.style.setProperty('--font-size-base', `${13 * scale}px`)
+    root.style.setProperty('--appearance-control-radius', cssNumber(appearance.components?.controlRadius, 8, 0, 24, 'px'))
+    root.style.setProperty('--appearance-card-radius', cssNumber(appearance.components?.cardRadius, 12, 0, 32, 'px'))
+    root.style.setProperty('--appearance-panel-radius', cssNumber(appearance.components?.panelRadius, 10, 0, 40, 'px'))
+    root.style.setProperty('--appearance-border-width', cssNumber(appearance.components?.borderWidth, 1, 0, 6, 'px'))
+    root.style.setProperty('--appearance-density', cssNumber(appearance.layout?.density, 1, .8, 1.2))
+    root.style.setProperty('--appearance-gap', cssNumber(appearance.layout?.gap, 12, 0, 32, 'px'))
+    root.style.setProperty('--appearance-sidebar-width', cssNumber(appearance.layout?.sidebarWidth, 232, 220, 440, 'px'))
+    root.style.setProperty('--appearance-content-width', cssNumber(appearance.layout?.contentWidth, 1440, 640, 1440, 'px'))
+    root.style.setProperty('--appearance-columns', String(Math.round(Math.min(6, Math.max(1, Number(appearance.layout?.columns) || 3)))))
+    root.style.setProperty('--appearance-bg-effect', safeAttribute(appearance.background?.effect || 'none'))
+    root.style.setProperty('--appearance-bg-texture', safeAttribute(appearance.background?.texture || 'none'))
+    root.style.setProperty('--appearance-bg-intensity', cssNumber(appearance.background?.intensity, .45, 0, 1))
+    root.style.setProperty('--appearance-bg-speed', cssNumber(appearance.background?.speed, 1, .25, 2))
+    root.style.setProperty('--appearance-bg-direction', cssNumber(appearance.background?.direction, 0, 0, 360, 'deg'))
+    root.style.setProperty('--appearance-bg-warmth', cssNumber(appearance.background?.warmth, .5, 0, 1))
+    root.style.setProperty('--appearance-bg-grain', cssNumber(appearance.background?.grain, .12, 0, 1))
+    root.style.setProperty('--appearance-bg-scale', cssNumber(appearance.background?.scale, 1, .25, 2))
+    root.style.setProperty('--appearance-bg-wash', cssNumber(appearance.background?.wash, .35, 0, 1))
+    root.dataset.appearanceEffect = safeAttribute(appearance.background?.effect || 'none')
+    root.dataset.appearanceTexture = safeAttribute(appearance.background?.texture || 'none')
+    root.dataset.appearanceContinuous = String(appearance.animation?.continuous === true)
+    root.dataset.anim = ['low', 'medium', 'high'].includes(appearance.animation?.effective) ? appearance.animation.effective : 'medium'
+    for (const [property, value] of Object.entries(appearance.tokens || {})) {
+      if (/^--[A-Za-z0-9_-]{1,126}$/.test(property) && value != null) root.style.setProperty(property, String(value))
+      if (/^--[A-Za-z0-9_-]{1,126}$/.test(property)) appearanceTokenKeys.push(property)
+    }
+    return appearance
+  }
+
+  const appearanceListeners = new Set()
+  const appearanceAdapter = { initialized: false, unsubscribe: null, frame: 0 }
+  let appearanceRevision = -1
+  let appearanceTokenKeys = []
+
+  /** Explicit opt-in: family marks a stable root without replacing a plugin-owned layout. */
+  function useAppearanceLayout({ family = 'workbench', scope = '#root', plugin = '', regions = {} } = {}) {
+    const safeFamily = ['workbench', 'editor', 'collection', 'instrument', 'flow'].includes(family) ? family : 'workbench'
+    const target = document.querySelector(scope) || document.documentElement
+    target.dataset.layoutFamily = safeFamily
+    const query = new URLSearchParams(location.search)
+    const identity = plugin || query.get('pid')?.split('.').at(-1) || query.get('plugin') || location.pathname.split('/').filter(Boolean).at(-2) || ''
+    target.dataset.plugin = safeAttribute(identity)
+    target.classList.add('pk-appearance')
+    const tagRegions = () => {
+      for (const [region, selector] of Object.entries(regions)) {
+        if (!['navigation', 'toolbar', 'main', 'auxiliary', 'status'].includes(region) || typeof selector !== 'string') continue
+        for (const element of target.querySelectorAll(selector)) element.dataset.appearanceRegion = region
+      }
+    }
+    // React mounts after this entrypoint. Region tags never move or replace engine DOM.
+    requestAnimationFrame(tagRegions)
+    appearanceListeners.add(tagRegions)
+    const host = window.enest || window.zapi
+    const receive = appearance => {
+      const safe = applyAppearance(appearance)
+      if (!safe) return
+      for (const listener of appearanceListeners) listener(safe)
+      cancelAnimationFrame(appearanceAdapter.frame)
+      appearanceAdapter.frame = requestAnimationFrame(() => {
+        // Existing ResizeObserver/fit paths keep connections and editor models intact.
+        window.dispatchEvent(new Event('resize'))
+      })
+    }
+    if (!appearanceAdapter.initialized) {
+      appearanceAdapter.initialized = true
+      // contextBridge owns a non-configurable window.enest. Never redefine it.
+      // Subscribe before the read, so a delayed initial response cannot erase an event.
+      appearanceAdapter.unsubscribe = host?.theme?.onAppearanceChange?.(receive) || null
+      Promise.resolve(host?.theme?.getAppearance?.()).then(receive).catch(() => {})
+      host?.onDestroy?.(() => {
+        if (typeof appearanceAdapter.unsubscribe === 'function') appearanceAdapter.unsubscribe()
+        cancelAnimationFrame(appearanceAdapter.frame)
+        appearanceListeners.clear()
+      })
+    }
+    const ownListeners = new Set()
+    return {
+      root: target,
+      family: safeFamily,
+      onChange(listener) {
+        if (typeof listener !== 'function') return () => {}
+        ownListeners.add(listener)
+        appearanceListeners.add(listener)
+        return () => { ownListeners.delete(listener); appearanceListeners.delete(listener) }
+      },
+      destroy() {
+        appearanceListeners.delete(tagRegions)
+        for (const listener of ownListeners) appearanceListeners.delete(listener)
+        ownListeners.clear()
+      },
+    }
+  }
+
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   function create(options = {}) {
     const api = window.enest || window.zapi
@@ -493,8 +633,33 @@
     selectUpgradeTimer = setTimeout(() => upgradeSelects(), 60)
   }).observe(document.documentElement, { childList: true, subtree: true })
 
-  window.PluginKit = {
-    create, escape, upgradeSelects,
+  // Layout-only consumers do not call create(), but share the root mode selectors.
+  const hostMirror = window.enest || window.zapi
+  const mirrorLaunchMode = next => {
+    const raw = next && typeof next === 'object' ? next.mode : next
+    if (raw === 'quick' || raw === 'shell') document.documentElement.dataset.mode = raw
+  }
+  const offMirrorMode = hostMirror?.onModeChange?.(mirrorLaunchMode)
+  const offMirrorEnter = hostMirror?.onEnter?.(event => mirrorLaunchMode(event?.mode))
+  mirrorLaunchMode(hostMirror?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
+  let mirrorDisposed = false
+  let offMirrorDestroy
+  const disposeModeMirror = () => {
+    if (mirrorDisposed) return
+    mirrorDisposed = true
+    offMirrorMode?.()
+    offMirrorEnter?.()
+    offMirrorDestroy?.()
+    window.removeEventListener('pagehide', disposeModeMirror)
+  }
+  offMirrorDestroy = hostMirror?.onDestroy?.(disposeModeMirror)
+  window.addEventListener('pagehide', disposeModeMirror, { once: true })
+  if (import.meta.hot) import.meta.hot.dispose(disposeModeMirror)
+
+  return {
+    create, escape, upgradeSelects, useAppearanceLayout,
     dataTable, hexDump, workbench, badge, quickBar, commandPalette
   }
 })()
+window.PluginKit = PluginKit
+export default PluginKit

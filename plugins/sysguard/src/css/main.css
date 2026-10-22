@@ -138,7 +138,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
    阈值告警通过 data-level 换卡面色与数值色，克制（只动边框与文字色）。 */
 .sg-dash {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(180px, 1fr);
   gap: 10px;
   height: 100%;
   min-height: 0;
@@ -146,7 +146,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 }
 .sg-dash-cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: 8px;
 }
 .sg-card {
@@ -236,12 +236,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .sg-spacer { flex: 1; }
 .sg-search {
   padding: 4px 8px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
-  background: var(--bg); color: var(--text); width: 200px;
+  background: var(--bg); color: var(--text); width: min(200px, 100%);
 }
-.sg-body { min-height: 0; display: grid; padding: 8px; overflow: hidden; }
+.sg-body { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr); padding: 8px; overflow: hidden; }
 
 /* 表格容器（复用 pk-table；行高锁定 36px、列头对齐） */
-.sg-table-wrap { height: 100%; display: flex; flex-direction: column; }
+.sg-table-wrap { height: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .sg-table-wrap .pk-table-wrap { flex: 1; min-height: 0; }
 .sg-table .pk-table th, .sg-table .pk-table td { height: 36px; padding: 0 10px; }
 .sg-table tr.linked td { background: var(--accent-soft) !important; }
@@ -298,10 +298,9 @@ dialog#dlg::backdrop { background: rgba(16, 24, 36, 0.4); }
 .sg-dlg-meta dt { color: var(--text-2); }
 .sg-dlg-meta dd { margin: 0; font-family: var(--mono); word-break: break-all; }
 
-/* 窄容器：≤740px 单列（隐藏次表与图例装饰；卡片 2 列、Top 单列） */
+/* 窄容器保留指标卡片自适应列数，Top 列表改为单列。 */
 @container (max-width: 740px) {
   .sg-logo { display: none; }
   .sg-search { width: 140px; }
-  .sg-dash-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sg-dash-tops { grid-template-columns: 1fr; }
 }

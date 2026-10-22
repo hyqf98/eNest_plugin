@@ -32,6 +32,10 @@ export function localFile(root, path) {
   return absolute
 }
 export function readManifest(directory) { return JSON.parse(readFileSync(join(directory, 'plugin.json'), 'utf8')) }
+export function pluginHtmlEntries(manifest) {
+  return [...new Set(['index.html', ...(manifest.contributes?.homePages ?? []).map(home => home.entry),
+    ...(manifest.contributes?.themePacks ?? []).flatMap(pack => pack.schemaVersion === 2 && pack.quick ? [pack.quick.entry] : [])])]
+}
 export function assertMediaPaths(manifest) {
   if (manifest.main !== 'index.html') throw new Error('main must be index.html')
   if (manifest.icon !== 'assets/market/icon.svg') throw new Error('icon must be assets/market/icon.svg')

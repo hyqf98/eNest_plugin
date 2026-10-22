@@ -72,7 +72,7 @@ header input{margin-left:auto;flex:1;max-width:460px}
 #list{flex:1;min-height:0;overflow:auto;padding:3px 8px;outline-offset:-2px}
 
 /* —— 历史条目：类型徽标 + 悬停显示操作 —— */
-.entry{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:11px 10px;border:1px solid transparent;border-bottom-color:color-mix(in srgb,var(--line) 72%,transparent);border-radius:6px;cursor:default;transition:background-color var(--speed)}
+.entry{position:relative;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:11px 10px;border:1px solid transparent;border-bottom-color:color-mix(in srgb,var(--line) 72%,transparent);border-radius:6px;cursor:default;transition:background-color var(--speed)}
 .entry:hover{background:var(--soft)}
 .entry.active{background:color-mix(in srgb,var(--blue) 8%,var(--paper));border-color:color-mix(in srgb,var(--blue) 55%,var(--line))}
 .entry .check{width:15px;height:15px;accent-color:var(--blue)}
@@ -145,7 +145,7 @@ html[data-mode="quick"] .entry .check{display:none}
 html[data-mode="quick"] .entry .preview{-webkit-line-clamp:2}
 html[data-mode="quick"] footer{padding:8px 12px}
 html[data-mode="quick"] .entry img{width:46px;height:40px}
-html[data-mode="quick"] .entry{grid-template-columns:minmax(0,1fr) auto}
+html[data-mode="quick"] .entry{grid-template-columns:auto minmax(0,1fr) auto}
 html[data-mode="quick"] .entry:has(img){grid-template-columns:46px minmax(0,1fr) auto}
 html[data-mode="quick"] .capability{font-size:10px}
 html[data-mode="quick"] .tools{grid-template-columns:1fr;max-height:46vh}

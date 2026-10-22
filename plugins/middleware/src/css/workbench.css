@@ -72,7 +72,7 @@ table.grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .metric-card .v { font-size: calc(var(--font-size-base, 13px) * 1.538462); font-variant-numeric: tabular-nums; }
 .status-bar { padding: 3px 12px; min-height: 24px; font-size: calc(var(--font-size-base, 13px) * 0.846154); gap: 12px; }
 :where(button, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-#nav-scrim { position: fixed; inset: 38px 0 0; z-index: 80; background: rgba(0,0,0,.2); }
+#nav-scrim { position: absolute; inset: 0; z-index: 80; background: rgba(0,0,0,.2); }
 .navigation-compact .tree { position: absolute; left: 0; top: 0; bottom: 0; width: min(280px, calc(100vw - 52px)) !important; z-index: 90; box-shadow: var(--shadow-float); transform: translateX(-105%); visibility: hidden; transition: transform 160ms cubic-bezier(.2,.8,.2,1), visibility 160ms; }
 .navigation-compact.navigation-open .tree { transform: translateX(0); visibility: visible; }
 .navigation-compact .tree-resizer { display: none; }

@@ -149,7 +149,7 @@ footer .text-button { font-size: 11px; padding: 0; }
 :root[data-mode="quick"] .eyebrow, :root[data-mode="quick"] h1, :root[data-mode="quick"] .desktop, :root[data-mode="quick"] footer > span:last-child { display: none; }
 :root[data-mode="quick"] .app-head > div { display: none; }
 :root[data-mode="quick"] .app-head #status { margin-right: auto; max-width: none; }
-:root[data-mode="quick"] .color-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 14px; }
+:where(:root[data-mode="quick"]) .color-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 14px; }
 :root[data-mode="quick"] .color-stage { height: auto; min-height: 150px; }
 :root[data-mode="quick"] .work-seg { flex-wrap: wrap; }
 :root[data-mode="quick"] .control-body { padding: 12px; }
