@@ -12,7 +12,8 @@
   },
   "permissions": [
     "sys.inspect",
-    "sys.control"
+    "sys.control",
+    "clipboard.write"
   ],
   "window": {
     "width": 760,

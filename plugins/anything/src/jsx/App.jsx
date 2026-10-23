@@ -6,6 +6,7 @@
  * 结果数据流（backend 回调 → React state）经 latest-ref 桥接，避免闭包陷阱。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 import { backend, backendReady } from '../js/backend.js'
 import { fileIcon } from '../js/icons.js'
 import { formatSize, formatWhen, highlightName, parseQuery } from '../js/query.js'
@@ -27,6 +28,7 @@ export function App() {
   const previewRef = useRef(null) // preview 面板容器
   const previewApiRef = useRef(null)
   const dlgRef = useRef(null)
+  const trashTargetRef = useRef(null)
 
   // —— 与原 state 对象一一对应 ——
   const [query, setQuery] = useState('')
@@ -197,25 +199,30 @@ export function App() {
     if (file) void kitRef.current?.copy(file.path)
   }, [])
 
-  const askTrash = useCallback(() => {
-    const file = resultsRef.current[selectedRef.current]
-    if (!file) return
+  const askTrashFor = useCallback((file) => {
+    if (!file?.path) return
+    trashTargetRef.current = file
     setTrashText(`${file.name}（${file.path}）将移入系统废纸篓，可在废纸篓中恢复。`)
-    dlgRef.current?.showModal()
+    if (dlgRef.current) {
+      dlgRef.current.returnValue = ''
+      dlgRef.current.showModal()
+    }
   }, [])
+  const askTrash = () => askTrashFor(resultsRef.current[selectedRef.current])
 
   const confirmTrash = useCallback(async () => {
-    const current = resultsRef.current
-    const index = selectedRef.current
-    const file = index >= 0 ? current[index] : null
+    const file = trashTargetRef.current
+    trashTargetRef.current = null
     if (!file) return
     try {
       await backend.trash(file.path)
       kitRef.current?.toast('已移入废纸篓', 'success')
-      const next = current.slice()
-      next.splice(index, 1)
+      const current = resultsRef.current
+      const selectedPath = current[selectedRef.current]?.path
+      const next = current.filter((row) => row.path !== file.path)
+      const nextIndex = next.findIndex((row) => row.path === selectedPath)
       setResults(next)
-      setSelected((prev) => (prev >= next.length ? next.length - 1 : prev))
+      setSelected(nextIndex >= 0 ? nextIndex : Math.min(selectedRef.current, next.length - 1))
       setTimeout(previewSelected, 0)
     } catch (error) {
       kitRef.current?.toast(error.message, 'error')
@@ -427,7 +434,7 @@ export function App() {
         ) : (
           <span id="engine-badge" className="engine-badge" hidden></span>
         )}
-        <button data-open-settings>偏好设置</button>
+        <button data-open-settings className="pk-btn pk-btn-ghost">偏好设置</button>
       </header>
       <section className="searchbar shell-only">
         <input
@@ -435,7 +442,7 @@ export function App() {
           placeholder='搜索文件名，如 报告 pdf　"精确"　-排除　*.sketch'
           aria-label="搜索文件" data-input-context="editor" {...inputHandlers}
         />
-        <button id="scope-pick" title={scopeTitle} onClick={pickScope}>{scopeLabel}</button>
+        <button id="scope-pick" className="pk-btn pk-btn-ghost pk-btn-sm" title={scopeTitle} onClick={pickScope}>{scopeLabel}</button>
         <select id="sort" aria-label="排序" value={sort} onChange={onSortChange}>
           <option value="relevance">相关度</option>
           <option value="name">名称</option>
@@ -449,6 +456,7 @@ export function App() {
           <div
             id="list" ref={listRef} role="listbox" tabIndex={0} aria-label="搜索结果"
             onKeyDown={(e) => {
+              if (e.defaultPrevented || e.isComposing || e.target.closest('button, [role="menu"], [role="menuitem"]')) return
               if (e.key === 'ArrowDown') { e.preventDefault(); move(1) }
               else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1) }
               else if (e.key === 'Enter') { e.preventDefault(); void activateSelected() }
@@ -484,6 +492,7 @@ export function App() {
                   className={'row' + (index === selected ? ' active' : '')}
                   role="option"
                   aria-selected={index === selected ? 'true' : 'false'}
+                  data-row-actions
                   style={{ '--i': Math.min(index, 16) }}
                   onClick={() => {
                     if (mode === 'quick') {
@@ -497,6 +506,23 @@ export function App() {
                     }
                   }}
                   onDoubleClick={() => { if (mode !== 'quick') void activateSelected() }}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    setSelected(index)
+                    selectedRef.current = index
+                    PluginKit.openMenu(event, [
+                      ['open', '打开'],
+                      ['reveal', '在文件夹中定位'],
+                      ['copy-path', '复制路径'],
+                      { sep: true },
+                      ['trash', '移入废纸篓', { danger: true }],
+                    ], (key) => {
+                      if (key === 'open') void openTarget(file.path, true)
+                      if (key === 'reveal') void backend.reveal(file.path).then(() => kitRef.current?.toast('已在文件管理器中定位', 'success')).catch((error) => kitRef.current?.toast(error.message, 'error'))
+                      if (key === 'copy-path') void kitRef.current?.copy(file.path)
+                      if (key === 'trash') askTrashFor(file)
+                    }, { align: 'end' })
+                  }}
                 >
                   <span className="ficon-slot" dangerouslySetInnerHTML={{ __html: fileIcon(file) }}></span>
                   <span className="row-main">
@@ -506,11 +532,14 @@ export function App() {
                   <span className="meta">
                     {[formatWhen(file.mtimeMs), formatSize(file.size, file.isDirectory)].filter(Boolean).join(' · ')}
                   </span>
+                  <span className="pk-row-actions row-actions" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
+                    <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void openTarget(file.path, true)}>打开</button>
+                  </span>
                 </div>
               ))
             )}
           </div>
-          <button id="more" hidden={!hasMore} onClick={() => void runSearch(false)}>载入更多</button>
+          <button id="more" className="pk-btn" hidden={!hasMore} onClick={() => void runSearch(false)}>载入更多</button>
         </section>
         <aside id="preview" className="shell-only" ref={previewRef}>
           <div className="empty">选择左侧文件查看预览</div>
@@ -522,18 +551,28 @@ export function App() {
           <span className="quick-only"><kbd>↵</kbd> 打开　<kbd>↑</kbd><kbd>↓</kbd> 选择　<kbd>Esc</kbd> 收起</span>
         </div>
         <div className="actions">
-          <button id="copy-path" onClick={copySelectedPath}>复制路径</button>
-          <button id="reveal" onClick={() => void revealSelected()}>所在目录</button>
-          <button id="trash" className="danger" onClick={askTrash}>移入废纸篓</button>
-          <button id="open" className="primary" onClick={() => void activateSelected()}>打开 <kbd>↵</kbd></button>
+          <MoreMenu
+            label="更多"
+            ariaLabel="文件更多操作"
+            buttonClassName="footer-more shell-only"
+            items={[
+              { key: 'copy-path', label: '复制路径', onSelect: copySelectedPath },
+              { key: 'trash', label: '移入废纸篓', danger: true, onSelect: askTrash },
+            ]}
+          />
+          <button id="reveal" className="pk-btn" onClick={() => void revealSelected()}>所在目录</button>
+          <button id="open" className="pk-btn pk-btn-primary" onClick={() => void activateSelected()}>打开 <kbd>↵</kbd></button>
         </div>
       </footer>
-      <dialog id="confirm-trash" ref={dlgRef}>
+      <dialog id="confirm-trash" ref={dlgRef} onClose={(event) => {
+        if (event.currentTarget.returnValue === 'ok') void confirmTrash()
+        else trashTargetRef.current = null
+      }}>
         <h2>移入废纸篓</h2>
         <p id="trash-text">{trashText}</p>
         <div className="dialog-actions">
-          <button id="trash-cancel" onClick={() => dlgRef.current?.close('')}>取消</button>
-          <button id="trash-ok" className="danger" onClick={() => dlgRef.current?.close('ok')}>移入废纸篓</button>
+          <button id="trash-cancel" className="pk-btn" onClick={() => dlgRef.current?.close('')}>取消</button>
+          <button id="trash-ok" className="pk-btn pk-btn-danger" onClick={() => dlgRef.current?.close('ok')}>移入废纸篓</button>
         </div>
       </dialog>
     </main>

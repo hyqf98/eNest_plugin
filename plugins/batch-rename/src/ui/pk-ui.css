@@ -287,6 +287,17 @@ select.pk-select-native { display: none !important; }
 }
 .pk-slider-thumb:focus-visible { outline: 2px solid var(--accent, #3579dd); outline-offset: 3px; }
 
+/* —— DropdownMenu：弹层复用 plugin-kit 的 .pk-menu-* 视觉；Radix 状态用 data-* —— */
+.pk-menu.pk-menu-radix {
+  position: relative;
+  min-width: min(max(var(--radix-dropdown-menu-trigger-width, 0px), 160px), calc(100vw - 24px));
+  max-height: min(420px, var(--radix-dropdown-menu-content-available-height, calc(100dvh - 24px)));
+}
+.pk-btn.pk-btn-sm { min-height: 24px; padding: 2px 9px; font-size: 12px; }
+.pk-menu-item[data-highlighted] { background: color-mix(in srgb, var(--accent, #3579dd) 9%, transparent); outline: none; }
+.pk-menu-item.danger[data-highlighted] { background: color-mix(in srgb, var(--danger, #b44c50) 10%, transparent); }
+.pk-menu-item[data-disabled] { color: var(--text-2, #747c88); opacity: 0.55; cursor: not-allowed; }
+
 /* —— 动画档位对齐 plugin-kit —— */
 :root[data-anim='low'] .pk-btn, :root[data-anim='low'] .pk-switch-thumb { transition-duration: 0ms; }
 @media (prefers-reduced-motion: reduce) {

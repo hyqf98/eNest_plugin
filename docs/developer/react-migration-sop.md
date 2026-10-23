@@ -58,8 +58,19 @@
   `upgradeSelects` 自动升级（kit 参数）；React 层新表单用 pk-ui 的 Radix Select
   （`.pk-select-trigger` 已与 kit 参数完全一致：28px / 4px 10px / surface 底 / 弹层 280px）。
   两通道视觉相同，按场景选择：模板字符串 HTML 用原生 select，JSX 表单用 pk-select。
-- **迁移后必须 `import './ui/pk-ui.css'`**（entry.js 末尾，保持最后加载）——所有 37 个
-  官方插件已就位；新插件从 calculator 复制 `src/ui/` 模板即含。
+- **迁移后必须 `import './ui/pk-ui.css'`**（业务 CSS、kit CSS 与 App 导入之后，保持最后加载）。
+  官方工具插件共用这套模板；主题展示插件保留自己的设计系统。新插件从 calculator 复制 `src/ui/` 模板。
+
+## 精简工具栏与悬停导航
+
+- 常用操作留在当前页面；导入、导出、复制变体和管理操作归入 `MoreMenu`。不为减少按钮数量隐藏必需的状态、连接信息或编辑工具。
+- 列表与卡片的右键菜单必须同时有可点击的「更多」入口。`.pk-row-actions` 在 hover / focus-within 时显示，在触屏下常显；隐藏时不截获点击，但键盘可以聚焦进入。
+- `DropdownMenu` / `MoreMenu` 从壳 `components/ui/DropdownMenu.tsx` 派生，行为使用已安装的 Radix DropdownMenu。`MoreMenu` 接受 `{key,label,onSelect,disabled?,danger?,hint?}`，勾选项使用 `as: 'check'` / `checked`；分隔符使用 `{sep:true}`。触发按钮与 portal 内容不向列表父项冒泡点击和键盘事件。
+- 命令式引擎使用 `PluginKit.openMenu(eventOrAnchor, items, onPick, options)`，支持相同的危险项、禁用项与勾选状态；Shift+F10 / 方向键 / Esc 入口由绑定辅助方法提供。业务确认对话框仍由原处理函数负责，不得因为移动到菜单就跳过确认。
+- 收起侧栏的小导航菜单使用 `PluginKit.hoverFlyout(anchor, getItems, options)`；需要预览现有列表的侧栏使用 `PluginKit.bindHoverPanel(anchor, panel, options)`，通过 `data-peek="true"` 设置临时浮层样式，禁止克隆或重新挂载编辑器、终端与连接视图。
+- 悬停默认 120ms 展开、移出 300ms 收起；指针移入面板或键盘焦点在面板内时保持展开。鼠标悬停不抢焦点，方向键可显式进入，Esc / 窗口失焦 / 外部点击收起。`enabled` 可传函数读取当前折叠状态；已有点击展开逻辑使用 `handleClick:false`，保留鼠标点击与触屏路径。卸载时调用 `destroy()`，临时浮层不写入持久设置。
+- 菜单的颜色、字体和圆角跟随宿主 token；实际内容中的颜色（用户色板、语法高亮、终端 ANSI）不属于界面强调色，不做批量替换。窗口变窄时菜单限高滚动，不能让最后几项落在窗口外。
+- 构建命令使用插件目录短名，例如 `node scripts/build-plugin.mjs diff`，不是完整插件 ID。构建与静态检查不等于交互验收；测试、截图及原生功能操作按用户明确要求执行。
 
 ## 环境要点（踩过的坑）
 

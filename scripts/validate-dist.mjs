@@ -4,11 +4,11 @@ import { existsSync } from 'node:fs'
 import { resolve, join, dirname, extname, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { init, parse } from 'es-module-lexer'
-import { repositoryRoot, pluginIds, readManifest, localFile, validPath, validBackendPath, pluginHtmlEntries, DSH_ID } from './plugin-contract.mjs'
+import { repositoryRoot, pluginIds, readManifest, localFile, validPath, validBackendPath, pluginHtmlEntries, DSH_ID, DSH_BUNDLED_RUNTIME } from './plugin-contract.mjs'
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
 import { resolveMarketAssets, markdownImagePaths } from './market-assets.mjs'
 
-export async function validateDistribution(directory, { release = true, requireRuntime = true } = {}) {
+export async function validateDistribution(directory, { release = true, requireRuntime = DSH_BUNDLED_RUNTIME } = {}) {
   const manifest = readManifest(directory), errors = validateManifest(loadManifestValidator(), manifest, manifest.id)
   if (errors.length) throw new Error(errors.join('\n'))
   if (manifest.development) throw new Error('Published manifest must not contain development')

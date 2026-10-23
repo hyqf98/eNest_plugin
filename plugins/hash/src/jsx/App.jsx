@@ -679,15 +679,17 @@ export function App() {
             >
               <div className="card-head">
                 <span className="algo">{a.label}</span>
-                <button
-                  data-copy={a.id}
-                  className="card-copy"
-                  disabled={hashValues[a.id]?.empty}
-                  onClick={() => {
-                    const value = hashValues[a.id]?.value
-                    if (value && !hashValues[a.id]?.empty) copy(value)
-                  }}
-                >复制</button>
+                <span className="pk-row-actions">
+                  <button
+                    data-copy={a.id}
+                    className="card-copy"
+                    disabled={hashValues[a.id]?.empty}
+                    onClick={() => {
+                      const value = hashValues[a.id]?.value
+                      if (value && !hashValues[a.id]?.empty) copy(value)
+                    }}
+                  >复制</button>
+                </span>
               </div>
               <span className={'value' + (hashValues[a.id]?.empty ? ' empty' : '')} data-algo={a.id}>
                 {hashValues[a.id]?.value || '—'}
@@ -765,9 +767,11 @@ export function App() {
                 </div>
               </div>
             </div>
-            <div className="result-row">
+            <div className="result-row" data-row-actions>
               <output id="hmac-out" className="mono">{hmacOut}</output>
-              <button id="hmac-copy" disabled={hmacCopyDisabled} onClick={() => copy(lastOutputRef.current.hmac)}>复制</button>
+              <span className="pk-row-actions">
+                <button id="hmac-copy" disabled={hmacCopyDisabled} onClick={() => copy(lastOutputRef.current.hmac)}>复制</button>
+              </span>
             </div>
           </div>
         </details>
@@ -799,11 +803,13 @@ export function App() {
                 placeholder="加密时输入明文；解密时粘贴 base64 密文"
                 value={aesText} onChange={(e) => setAesText(e.target.value)} />
             </div>
-            <div className="result-row">
+            <div className="result-row" data-row-actions>
               <output id="aes-out" className="mono">{aesOut}</output>
               <button id="aes-encrypt" onClick={aesEncrypt}>加密</button>
               <button id="aes-decrypt" onClick={aesDecrypt}>解密</button>
-              <button id="aes-copy" disabled={!aesOut} onClick={() => copy(lastOutputRef.current.aes)}>复制</button>
+              <span className="pk-row-actions">
+                <button id="aes-copy" disabled={!aesOut} onClick={() => copy(lastOutputRef.current.aes)}>复制</button>
+              </span>
             </div>
             <p id="aes-error" className="error-bar" role="alert" hidden={!aesError}>{aesError}</p>
           </div>
@@ -823,22 +829,26 @@ export function App() {
                 placeholder="公钥加密明文；私钥解密 base64 密文"
                 value={rsaText} onChange={(e) => setRsaText(e.target.value)} />
             </div>
-            <div className="result-row">
+            <div className="result-row" data-row-actions>
               <output id="rsa-out" className="mono">{rsaOut}</output>
               <button id="rsa-encrypt" disabled={!rsaReady} onClick={rsaEncrypt}>公钥加密</button>
               <button id="rsa-decrypt" disabled={!rsaReady} onClick={rsaDecrypt}>私钥解密</button>
               <button id="rsa-sign" disabled={!rsaReady} onClick={rsaSign}>私钥签名</button>
               <button id="rsa-verify" disabled={!rsaReady} onClick={rsaVerify}>公钥验签</button>
-              <button id="rsa-copy" disabled={!rsaReady || !rsaOut} onClick={() => copy(lastOutputRef.current.rsa)}>复制</button>
+              <span className="pk-row-actions">
+                <button id="rsa-copy" disabled={!rsaReady || !rsaOut} onClick={() => copy(lastOutputRef.current.rsa)}>复制</button>
+              </span>
             </div>
             <p id="rsa-error" className="error-bar" role="alert" hidden={!rsaError}>{rsaError}</p>
           </div>
         </details>
 
-        <div className="utils">
+        <div className="utils" data-row-actions>
           <button id="gen-random" onClick={() => { lastOutputRef.current.random = randomB64(16); setRandomOut(lastOutputRef.current.random) }}>随机盐 / IV 生成器</button>
           <output id="random-out" className="mono">{randomOut}</output>
-          <button id="random-copy" disabled={randomCopyDisabled} onClick={() => copy(lastOutputRef.current.random)}>复制</button>
+          <span className="pk-row-actions">
+            <button id="random-copy" disabled={randomCopyDisabled} onClick={() => copy(lastOutputRef.current.random)}>复制</button>
+          </span>
         </div>
       </section>
 

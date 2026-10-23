@@ -3,20 +3,20 @@ import { DbHost } from './api.js'
 import { state, bumpCompletionUsage, bumpScopedCompletionUsage } from './store.js'
 
 const KIND_META = {
-  keyword: { color: '#c792ea', label: '关键字', mark: 'K' },
-  table: { color: '#82aaff', label: '表', mark: 'T' },
-  view: { color: '#82aaff', label: '视图', mark: 'V' },
-  column: { color: '#c3e88d', label: '列', mark: 'C' },
-  function: { color: '#ffcb6b', label: '函数', mark: 'F' },
-  database: { color: '#89ddff', label: '库', mark: 'D' },
-  schema: { color: '#89ddff', label: '库', mark: 'S' },
-  snippet: { color: '#f78c6c', label: '模板', mark: 'S' },
-  alias: { color: '#f07178', label: '别名', mark: 'A' },
-  measurement: { color: '#82aaff', label: '时序表', mark: 'M' }
+  keyword: { color: 'var(--tok-kw)', label: '关键字', mark: 'K' },
+  table: { color: 'var(--tok-table)', label: '表', mark: 'T' },
+  view: { color: 'var(--tok-table)', label: '视图', mark: 'V' },
+  column: { color: 'var(--tok-str)', label: '列', mark: 'C' },
+  function: { color: 'var(--tok-fn)', label: '函数', mark: 'F' },
+  database: { color: 'var(--tok-identq)', label: '库', mark: 'D' },
+  schema: { color: 'var(--tok-identq)', label: '库', mark: 'S' },
+  snippet: { color: 'var(--tok-num)', label: '模板', mark: 'S' },
+  alias: { color: 'var(--tok-alias)', label: '别名', mark: 'A' },
+  measurement: { color: 'var(--tok-table)', label: '时序表', mark: 'M' }
 }
 
 export function kindMeta(kind) {
-  return KIND_META[kind] || { color: '#9aa7b8', label: kind || '其它' }
+  return KIND_META[kind] || { color: 'var(--text-3)', label: kind || '其它' }
 }
 
 // Thin compatibility facade. Engines and metadata stay independent of the store/editor.

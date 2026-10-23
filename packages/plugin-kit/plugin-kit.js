@@ -1,3 +1,5 @@
+import { openMenu, closeMenu, attachContextMenu, hoverFlyout, bindHoverPanel } from './menus.js'
+
 /* Small host adapters, not a page template. Each plugin owns its layout. */
 const PluginKit = (() => {
   const APPEARANCE_PROPERTIES = [
@@ -207,7 +209,7 @@ const PluginKit = (() => {
       safely(api?.ui?.setInputContext?.(context || (overlay ? 'overlay' : editor ? 'editor' : 'workbench')))
     }
     const keyboard = event => {
-      if (event.isComposing || event.defaultPrevented) return
+      if (event.isComposing || event.defaultPrevented || event.target?.closest?.('[role="menu"], [data-input-context="overlay"]')) return
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !event.shiftKey && !event.altKey && kit.mode === 'quick' && !document.querySelector('dialog[open], [role="dialog"]')) {
         event.preventDefault(); safely(api?.ui?.openInShell?.()); return
       }
@@ -256,6 +258,7 @@ const PluginKit = (() => {
   function dataTable(options) {
     const columns = options.columns || []
     const sortState = { key: options.sortBy || null, dir: options.sortDir || 'asc' }
+    let currentRows = options.rows || []
     const root = el('div', 'pk-table-wrap')
     const table = el('table', 'pk-table')
     const thead = el('thead'), headRow = el('tr')
@@ -271,7 +274,7 @@ const PluginKit = (() => {
           th.addEventListener('click', () => {
             if (sortState.key === col.key) sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc'
             else { sortState.key = col.key; sortState.dir = col.num ? 'desc' : 'asc' }
-            update(options.rows || [], true)
+            update(currentRows, true)
           })
         }
         headCells.set(col.key, th)
@@ -312,10 +315,12 @@ const PluginKit = (() => {
       })
     }
     const update = (rows, keepSort) => {
+      currentRows = rows
       if (!keepSort && !sortState.key) { sortState.key = options.sortBy || null }
       renderHead()
       renderRows(applySort(rows))
       root.classList.toggle('pk-empty', !rows.length)
+      options.onRowsRendered?.()
     }
     update(options.rows || [])
     return { el: root, update, sortBy: () => ({ ...sortState }) }
@@ -658,7 +663,8 @@ const PluginKit = (() => {
 
   return {
     create, escape, upgradeSelects, useAppearanceLayout,
-    dataTable, hexDump, workbench, badge, quickBar, commandPalette
+    dataTable, hexDump, workbench, badge, quickBar, commandPalette,
+    openMenu, closeMenu, attachContextMenu, hoverFlyout, bindHoverPanel
   }
 })()
 window.PluginKit = PluginKit

@@ -9,9 +9,13 @@
  */
 import { useEffect } from 'react'
 import { boot, fatal } from '../js/workbench.js'
+import { disposeNavigation } from '../js/tree.js'
 
 export function App() {
-  useEffect(() => { boot().catch(fatal) }, [])
+  useEffect(() => {
+    void boot().catch(fatal)
+    return () => disposeNavigation()
+  }, [])
   return (
     <>
       <div className="app" id="app">

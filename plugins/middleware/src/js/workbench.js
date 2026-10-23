@@ -9,7 +9,7 @@ import api from './api.js'
 import store from './store.js'
 import { closeContextMenu } from './components.js'
 import { renderAll, setMode as setTabsMode, closeTaskTab, disposePanels, openSettings } from './tabs.js'
-import { renderTree, applyTreeWidth, initializeNavigation, closeNavigation } from './tree.js'
+import { renderTree, applyTreeWidth, initializeNavigation, closeNavigation, disposeNavigation } from './tree.js'
 import { refreshStatus, setMode as setStatusMode } from './status.js'
 
 let mode = 'shell'
@@ -115,12 +115,14 @@ async function boot() {
     } catch { /* ignore */ }
   })
   api.onDestroy(() => {
+    disposeNavigation()
     disposePanels()
     try {
       void store.flush()
     } catch { /* ignore */ }
   })
   window.addEventListener('pagehide', () => {
+    disposeNavigation()
     try {
       void store.flush()
     } catch { /* ignore */ }

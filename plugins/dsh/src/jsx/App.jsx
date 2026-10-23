@@ -3,6 +3,7 @@ import '@dsh/js/api.js'
 import '@dsh/js/state.js'
 import { Button } from '@dsh/ui/index.jsx'
 import { SettingsView } from './SettingsView.jsx'
+import { KernelSetupDialog } from './KernelSetupDialog.jsx'
 import { IconGear, IconExternal, IconRestart, IconPlus, IconPower } from './icons.jsx'
 
 const api = window.enest || window.zapi
@@ -128,7 +129,7 @@ function CockpitView({ state, onGoSettings, onGoShell, onNewSession, onPickSessi
   )
 }
 
-function ShellView({ state, onGoSettings, autoStartRef }) {
+function ShellView({ state, onGoSettings, autoStartRef, kernelGuide }) {
   const web = state.status?.web
   const ready = Boolean(web?.running && web?.readyUrl)
   const [pending, setPending] = useState('')
@@ -141,8 +142,10 @@ function ShellView({ state, onGoSettings, autoStartRef }) {
   useEffect(() => {
     if (!state.ready || !autoStartRef.current) return
     autoStartRef.current = false
+    // The first-run kernel guide owns the install flow; auto-start only once a runtime exists.
+    if (kernelGuide) return
     if (state.runtime?.available) void run('start', () => window.DshState.ensureWeb())
-  }, [state.ready]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.ready, kernelGuide]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const error = web?.lastError || state.webTail || state.statusError
   const booting = Boolean(state.webBooting || pending === 'start' || pending === 'restart')
@@ -182,6 +185,7 @@ export function App() {
   const initialCode = api.getEnterCode?.()
   const [route, setRoute] = useState(initialCode === 'manage' ? 'settings' : 'main')
   const [mode, setMode] = useState(api.getLaunchMode?.() || 'shell')
+  const [kernelGuide, setKernelGuide] = useState(false)
   const [, setRevision] = useState(0)
   const kitRef = useRef(null)
   const routeRef = useRef(route)
@@ -238,9 +242,14 @@ export function App() {
     const offClose = api.onBeforeClose?.(() => window.DshState.stopPolling())
     if (offClose) disposers.push(offClose)
     let disposed = false
-    void window.DshState.boot().then(() => {
+    void window.DshState.boot().then(async () => {
       if (disposed) return
       window.DshState.startPolling()
+      const guideMark = await window.DshApi.getPref('kernelGuide', '')
+      if (!window.DshState.state.runtime?.available && !guideMark && routeRef.current === 'main') {
+        setKernelGuide(true)
+        return
+      }
       if (routeRef.current === 'main' && api.getLaunchMode?.() === 'quick') {
         void window.DshState.ensureSdk().catch((error) => window.DshApi.notice(errorText(error), 'error'))
       }
@@ -257,15 +266,30 @@ export function App() {
     autoStartRef.current = false
     setRoute('settings')
   }
+  const closeKernelGuide = () => {
+    setKernelGuide(false)
+    autoStartRef.current = false
+    void window.DshState.detect()
+    void window.DshState.refreshStatus()
+  }
+  const overlay = kernelGuide && route !== 'settings' ? <KernelSetupDialog state={state} onClose={closeKernelGuide} /> : null
   if (route === 'settings') return <SettingsView state={state} onBack={() => setRoute('main')} />
   if (mode === 'quick') return (
-    <CockpitView
-      state={state} onGoSettings={goSettings}
-      onGoShell={() => void Promise.resolve(api.ui.openInShell()).catch((error) => window.DshApi.notice(errorText(error), 'error'))}
-      onNewSession={() => void window.DshState.newQuickSession().catch((error) => window.DshApi.notice(errorText(error), 'error'))}
-      onPickSession={(sessionId) => void window.DshState.loadSession(sessionId)}
-      onSend={sendComposer}
-    />
+    <>
+      {overlay}
+      <CockpitView
+        state={state} onGoSettings={goSettings}
+        onGoShell={() => void Promise.resolve(api.ui.openInShell()).catch((error) => window.DshApi.notice(errorText(error), 'error'))}
+        onNewSession={() => void window.DshState.newQuickSession().catch((error) => window.DshApi.notice(errorText(error), 'error'))}
+        onPickSession={(sessionId) => void window.DshState.loadSession(sessionId)}
+        onSend={sendComposer}
+      />
+    </>
   )
-  return <ShellView state={state} onGoSettings={goSettings} autoStartRef={autoStartRef} />
+  return (
+    <>
+      {overlay}
+      <ShellView state={state} onGoSettings={goSettings} autoStartRef={autoStartRef} kernelGuide={kernelGuide} />
+    </>
+  )
 }

@@ -5,6 +5,7 @@
  * 复用 core.mjs（未改动）；原生 select 仍由 plugin-kit upgradeSelects 接管。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '../ui/index.jsx'
 import { parseTime, timeRows, formatZoned, formatTemplates, durationText, zoneOffsetText } from '../js/core.mjs'
 
 const api = window.enest || window.zapi
@@ -326,7 +327,7 @@ export function App() {
           <button type="button" data-tab="batch" role="tab" aria-selected={tab === 'batch'} onClick={() => setTab('batch')}>批量</button>
           <button type="button" data-tab="date" role="tab" aria-selected={tab === 'date'} onClick={() => setTab('date')}>日期计算</button>
         </nav>
-        <button id="pause" type="button" className="ghost" aria-pressed={paused} onClick={pauseToggle}>{paused ? '继续' : '暂停'}</button>
+        <Button id="pause" variant="ghost" size="sm" pressed={paused} onClick={pauseToggle}>{paused ? '继续' : '暂停'}</Button>
       </header>
       <div className="workspace">
         <aside className="clock-panel">

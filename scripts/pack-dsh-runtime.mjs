@@ -42,6 +42,7 @@ export async function packDshRuntime(directory, { outDir = join(repositoryRoot, 
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const directory = await buildPlugin(DSH_DIR)
+  // Native runtime assets are built explicitly; release plugin archives no longer embed them.
+  const directory = await buildPlugin(DSH_DIR, { runtime: true })
   console.log(JSON.stringify(await packDshRuntime(directory)))
 }

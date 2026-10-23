@@ -1,41 +1,13 @@
 import { Button } from '@dsh/ui/index.jsx'
 import { IconRestart, IconUp } from './icons.jsx'
-import { EmptyState, InlineMessage, LoadingBlock, Panel, SectionHeading } from './SettingsPrimitives.jsx'
+import { EmptyState, InlineMessage, InstallProgress, LoadingBlock, Panel, SectionHeading } from './SettingsPrimitives.jsx'
 import { formatTime, listData, sourceLabel, versionKey } from './SettingsController.jsx'
-
-const PHASES = {
-  'upgrade-start': '准备升级', backup: '创建备份', 'download-start': '准备下载', download: '下载资产',
-  verify: '校验资产', extract: '解包安装', installed: '安装完成', 'health-check': '健康检查',
-  activated: '激活完成', 'upgrade-done': '升级完成', rollback: '正在回滚', error: '操作失败',
-}
-const STAGES = [
-  { label: '备份', phases: ['upgrade-start', 'backup'] },
-  { label: '下载与校验', phases: ['download-start', 'download', 'verify'] },
-  { label: '安装', phases: ['extract', 'installed'] },
-  { label: '检查与激活', phases: ['health-check', 'activated', 'upgrade-done'] },
-]
-
-function InstallProgress({ progress, pending }) {
-  if (!progress && !pending) return null
-  const percent = Number.isFinite(progress?.percent) ? Math.max(0, Math.min(100, progress.percent)) : null
-  return (
-    <section className="dsh-settings-install-progress" aria-live="polite">
-      <div className="dsh-settings-row">
-        <strong>{pending ? '操作进度' : '最近一次安装进度'}</strong>
-        {percent != null && <span className="dsh-settings-mono">{percent}%</span>}
-      </div>
-      <ol className="dsh-settings-stages" aria-label="宿主报告的当前阶段">
-        {STAGES.map((stage) => <li key={stage.label} aria-current={stage.phases.includes(progress?.phase) ? 'step' : undefined}>{stage.label}</li>)}
-      </ol>
-      <p>{progress ? PHASES[progress.phase] || progress.phase : pending}{progress?.detail && <span className="dsh-settings-progress-detail">{progress.detail}</span>}</p>
-    </section>
-  )
-}
 
 export function SettingsVersions({ state, controller }) {
   const { resources, pending, call, run, ask, requireLoad, refreshHost } = controller
   const installed = listData(resources.versions.data)
   const remote = listData(resources.remote.data)
+  const hasBundled = installed.some((item) => (item.channel || item.source) === 'bundled')
   const blocked = Boolean(pending)
   const refreshLocal = () => run('读取本地内核', () => requireLoad(controller.loadVersions()))
   const refreshRemote = () => run('获取远程版本', () => requireLoad(controller.loadRemote()))
@@ -57,7 +29,7 @@ export function SettingsVersions({ state, controller }) {
   })
   const remove = (version) => ask({
     title: `移除 v${version.version} 的本地安装？`,
-    description: '宿主会先停止 Web 与 SDK，再删除此内核安装。Profile、凭据、会话与备份保留。内置版与当前使用版本不可移除。',
+    description: '宿主会先停止 Web 与 SDK，再删除此内核安装。Profile、凭据、会话与备份保留。当前使用版本不可移除。',
     label: '移除安装', danger: true,
     task: async () => {
       await call('runtime.remove', { version: version.version })
@@ -92,7 +64,7 @@ export function SettingsVersions({ state, controller }) {
         <div className="dsh-settings-stack">
           <Panel
             title="本地内核"
-            description="按来源区分同版本安装。存在兼容的内置内核时，可切回内置版。"
+            description={hasBundled ? '按来源区分同版本安装。存在兼容的内置内核时，可切回内置版。' : '发行包不再内置内核；本地版本来自你的在线安装。'}
             actions={<Button variant="ghost" disabled={blocked || resources.versions.loading} onClick={() => void refreshLocal()}><span className="dsh-settings-icon" aria-hidden="true"><IconRestart /></span>刷新</Button>}
           >
             <InlineMessage>{resources.versions.error}</InlineMessage>
@@ -116,7 +88,7 @@ export function SettingsVersions({ state, controller }) {
                   )
                 })}
               </div>
-            ) : !resources.versions.error && <EmptyState title="未发现本地内核">先获取远程版本并下载可校验的资产，或检查插件内置内核。</EmptyState>}
+            ) : !resources.versions.error && <EmptyState title="未发现本地内核">{hasBundled ? '先获取远程版本并下载可校验的资产，或检查插件内置内核。' : '在下方获取远程版本，下载带校验信息的资产安装即可。'}</EmptyState>}
           </Panel>
           <Panel
             title="远程版本"
@@ -157,7 +129,7 @@ export function SettingsVersions({ state, controller }) {
           <div className="dsh-settings-note">
             <h3>下载与升级的区别</h3>
             <p>「仅下载」只安装文件，不激活内核。「备份并升级」包含停止、备份与健康检查。</p>
-            <p>回退到内置版会保留 DSH_HOME。内核兼容性问题与配置问题应分别处理。</p>
+            <p>回退到内置版（存在时）会保留 DSH_HOME。内核兼容性问题与配置问题应分别处理。</p>
           </div>
         </aside>
       </div>

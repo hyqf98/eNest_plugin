@@ -75,7 +75,7 @@ export default {
     }, '预览')
 
     /* —— kind 自适应字段组 —— */
-    const form = el('div', { style: 'flex:1;min-height:0;display:flex;flex-direction:column;padding:14px 18px;overflow:auto' }, [
+    const form = el('div', { class: 'publish-form' }, [
       el('div', { class: 'form-cols' }, [
         el('div', { class: 'form-row' }, [
           el('label', {}, [TOPIC_LABEL[kind] + ' ', el('span', { style: 'color:var(--accent)' }, '*')]), topicIn
@@ -94,7 +94,7 @@ export default {
         el('div', { class: 'form-row' }, [el('label', {}, 'QoS'), qosSel]),
         el('div', { class: 'form-row' }, [
           el('label', {}, 'Retained'),
-          el('div', { class: 'switch-row', style: 'padding-top:2px' }, [retainSwitch, el('span', { class: 'sl' }, '保留消息（新订阅者立即收到）')])
+          el('div', { class: 'switch-row publish-retain-row' }, [retainSwitch, el('span', { class: 'sl' }, '保留消息（新订阅者立即收到）')])
         ])
       ]) : null,
       kind === 'mqtt' ? el('div', { class: 'editor-status' }, '当前 MQTT 驱动支持 Topic、QoS 与 Retained，不转发自定义发布属性。') : el('div', { class: 'form-row', style: 'margin-bottom:8px' }, [
@@ -102,7 +102,7 @@ export default {
         kvBody,
         el('button', { class: 'btn ghost sm', style: 'margin-top:6px', onclick: () => addKvRow() }, '＋ 添加一项')
       ]),
-      el('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:8px;flex:none' }, [
+      el('div', { class: 'publish-editor-toolbar' }, [
         el('label', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.923077);color:var(--text-2)' }, 'Payload'),
         el('span', { style: 'flex:1' }),
         jsonFormatBtn, formatBtn
@@ -113,7 +113,7 @@ export default {
 
     const sendBtn = el('button', { class: 'btn primary write', onclick: doSend }, '发送消息')
     const hint = el('span', { class: 'publish-status', role: 'status' }, `${displayShortcut(commands.shortcut('mw.send'))} 发送 · Enter 换行 · 发送后保留表单`)
-    const foot = el('div', { class: 'toolbar', style: 'flex-wrap:nowrap;align-items:center;border-top:1px solid var(--border);padding:10px 18px' }, [
+    const foot = el('div', { class: 'toolbar publish-footer' }, [
       hint,
       el('span', { style: 'flex:1' }),
       sendBtn

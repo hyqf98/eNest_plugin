@@ -106,6 +106,7 @@ export class SidePanel {
     const hideRailTip = () => { this.railTip.hidden = true; this.root.querySelectorAll('[aria-describedby]').forEach((button) => button.removeAttribute('aria-describedby')) }
     const showRailTip = (event) => {
       const button = event.target.closest('.nav-toolrail-button'); if (!button) return
+      if (this.root.closest('.app')?.dataset.navCollapsed === 'true' && window.PluginKit?.hoverFlyout) { hideRailTip(); return }
       this.railTip.textContent = button.getAttribute('aria-label'); this.railTip.hidden = false; button.setAttribute('aria-describedby', this.railTip.id)
       const rect = button.getBoundingClientRect(); this.railTip.style.left = `${Math.min(rect.right + 9, window.innerWidth - this.railTip.offsetWidth - 6)}px`; this.railTip.style.top = `${Math.max(4, Math.min(rect.top + (rect.height - this.railTip.offsetHeight) / 2, window.innerHeight - this.railTip.offsetHeight - 4))}px`
     }

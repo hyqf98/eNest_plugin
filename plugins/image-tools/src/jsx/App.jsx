@@ -5,6 +5,7 @@
  * drawWatermark/crop 映射）经 state + ref 复用；文件选择仍走 bindFileInput 宿主选择器。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 import { bindFileInput, readDroppedFiles } from '@enest/plugin-kit/file-inputs'
 
 const api = window.enest || window.zapi
@@ -639,6 +640,14 @@ export function App() {
     setLastResult(null); setStatusText('队列已清空')
     void persist([])
   }
+  const removeFromQueue = (id) => {
+    thumbsMapRef.current.delete(id)
+    const next = itemsRef.current.filter((entry) => entry.id !== id)
+    setItems(next)
+    if (activeId === id) { setActiveId(''); setLastResult(null) }
+    publishThumbs()
+    void persist(next)
+  }
 
   /* ---------- Quick 行为（latest-ref 桥接 PluginKit） ---------- */
   const onQueryRef = useRef(null)
@@ -737,22 +746,26 @@ export function App() {
       <header className="app-head">
         <div><span className="eyebrow">图片处理</span><h1>图片工具箱</h1></div>
         <span id="status" role="status">{statusText}</span>
-        <button id="add-files" type="button" className="primary" onClick={pickFiles}>添加图片</button>
-        <button id="from-clipboard" type="button" onClick={pickClipboard}>从剪贴板</button>
+        <button id="add-files" type="button" className="pk-btn pk-btn-primary" onClick={pickFiles}>添加图片</button>
+        <button id="from-clipboard" type="button" className="pk-btn" onClick={pickClipboard}>从剪贴板</button>
         <input id="file-input" ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
       </header>
 
       <div className="drop-hint" id="drop-hint" aria-hidden="true"><span>松开以导入图片</span></div>
 
       <section id="empty-state" className="empty-state" hidden={hasItems}>
-        <div className="drop-zone" id="drop-zone" tabIndex={0} role="button" aria-label="拖拽或点击添加图片" onClick={pickFiles}>
+        <div className="drop-zone" id="drop-zone" tabIndex={0} role="button" aria-label="拖拽或点击添加图片" onClick={pickFiles}
+          onKeyDown={(e) => {
+            if (e.defaultPrevented || e.isComposing || e.target !== e.currentTarget) return
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickFiles() }
+          }}>
           <div className="drop-mark" aria-hidden="true"></div>
           <h2>把图片拖到这里</h2>
           <p>支持 PNG、JPEG、WebP，可多选；也可从剪贴板粘贴截图</p>
           <div className="empty-actions">
-            <button id="empty-add" type="button" className="primary"
+            <button id="empty-add" type="button" className="pk-btn pk-btn-primary"
               onClick={(e) => { e.stopPropagation(); pickFiles() }}>选择文件</button>
-            <button id="empty-clipboard" type="button"
+            <button id="empty-clipboard" type="button" className="pk-btn"
               onClick={(e) => { e.stopPropagation(); pickClipboard() }}>读剪贴板</button>
           </div>
         </div>
@@ -762,13 +775,34 @@ export function App() {
         <section className="queue-panel" aria-label="图片队列">
           <div className="section-head">
             <h2>队列</h2><span id="queue-count" className="pk-muted">{`${items.length} 张`}</span>
-            <button id="clear-queue" type="button" className="text-button" disabled={!hasItems} onClick={clearQueue}>清空</button>
+            <MoreMenu
+              label="⋯"
+              ariaLabel="队列操作"
+              buttonClassName="pk-btn-sm queue-more"
+              items={[
+                { key: 'clear', label: '清空队列', danger: true, disabled: !hasItems, onSelect: clearQueue },
+              ]}
+            />
           </div>
           <div id="thumb-grid" className="thumb-grid" aria-label="图片缩略图">
             {items.map((item) => (
-              <button key={item.id} type="button"
+              <div key={item.id} role="button" data-row-actions
                 className={`thumb${item.id === activeId ? ' selected' : ''}${item.busy ? ' processing' : ''}`}
-                aria-label={`选择 ${item.name}`} onClick={() => void run(() => openItem(item))}>
+                tabIndex={0} aria-label={`选择 ${item.name}`} onClick={() => void run(() => openItem(item))}
+                onKeyDown={(e) => {
+                  if (e.defaultPrevented || e.isComposing || e.target !== e.currentTarget) return
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void run(() => openItem(item)) }
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  PluginKit.openMenu(event, [
+                    ['open', '打开编辑'],
+                    ['remove', '移出队列', { danger: true }],
+                  ], (key) => {
+                    if (key === 'open') void run(() => openItem(item))
+                    if (key === 'remove') removeFromQueue(item.id)
+                  }, { align: 'end' })
+                }}>
                 <span className="box"><img src={thumbs[item.id] || ''} alt="" /></span>
                 <span className="meta">
                   <span className="name">{item.name}</span>
@@ -777,16 +811,27 @@ export function App() {
                     {`${item.width}×${item.height} · ${core.formatBytes(item.bytes)}`}
                   </span>
                 </span>
-              </button>
+                <span className="pk-row-actions thumb-actions" onClick={(event) => event.stopPropagation()}>
+                  <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" aria-label={`移出队列 ${item.name}`}
+                    onClick={() => removeFromQueue(item.id)}>×</button>
+                </span>
+              </div>
             ))}
           </div>
           <div className="bulk-bar">
             <span className="bulk-label">批量操作</span>
             <span id="bulk-progress" className="pk-mono pk-muted bulk-progress" role="status">{bulkProgress}</span>
             <div className="bulk-actions">
-              <button id="bulk-shrink" type="button" disabled={disabledBulk} onClick={bulkShrink}>批量压缩</button>
-              <button id="bulk-convert" type="button" disabled={disabledBulk} onClick={bulkConvert}>转 WebP</button>
-              <button id="export-all" type="button" disabled={disabledBulk} onClick={exportAll}>全部另存</button>
+              <button id="bulk-shrink" type="button" className="pk-btn" disabled={disabledBulk} onClick={bulkShrink}>批量压缩</button>
+              <MoreMenu
+                label="更多"
+                ariaLabel="批量更多操作"
+                buttonClassName="pk-btn-sm"
+                items={[
+                  { key: 'convert', label: '转 WebP', disabled: disabledBulk, onSelect: bulkConvert },
+                  { key: 'export', label: '全部另存', disabled: disabledBulk, onSelect: exportAll },
+                ]}
+              />
             </div>
           </div>
         </section>
@@ -830,7 +875,7 @@ export function App() {
                   onChange={(e) => setQuality(Number(e.target.value))} />
               </label>
               <div className="action-row">
-                <button id="run-compress" type="button" className="primary" onClick={runCompress}>开始压缩</button>
+                <button id="run-compress" type="button" className="pk-btn pk-btn-primary" onClick={runCompress}>开始压缩</button>
                 <span id="compress-progress" className="pk-muted" role="status">{compressProgress}</span>
               </div>
               <p className="error" id="compress-error" role="alert" hidden></p>
@@ -849,7 +894,7 @@ export function App() {
                 <input id="convert-quality" type="range" min="5" max="100" step="5" value={convertQuality}
                   onChange={(e) => setConvertQuality(Number(e.target.value))} />
               </label>
-              <div className="action-row"><button id="run-convert" type="button" className="primary" onClick={runConvert}>转换格式</button></div>
+              <div className="action-row"><button id="run-convert" type="button" className="pk-btn pk-btn-primary" onClick={runConvert}>转换格式</button></div>
             </section>
 
             <section id="tab-resize" className="tool-tab" hidden={tab !== 'resize'} aria-label="批量缩放">
@@ -871,18 +916,22 @@ export function App() {
                 ))}
               </div>
               <div className="action-row">
-                <button id="run-resize" type="button" className="primary" onClick={runResize}>应用缩放</button>
-                <button id="preview-resize" type="button" onClick={previewResize}>预览尺寸</button>
+                <button id="run-resize" type="button" className="pk-btn pk-btn-primary" onClick={runResize}>应用缩放</button>
+                <button id="preview-resize" type="button" className="pk-btn" onClick={previewResize}>预览尺寸</button>
               </div>
               <p id="resize-preview" className="helper pk-mono">{resizePreview}</p>
             </section>
 
             <section id="tab-transform" className="tool-tab" hidden={tab !== 'transform'} aria-label="旋转与裁剪">
               <div className="action-row">
-                <button id="rotate-cw" type="button" title="顺时针 90°" onClick={() => setRotate((r) => (r + 90) % 360)}>旋转 90°</button>
-                <button id="flip-x" type="button" title="水平翻转" onClick={() => setFlipX((v) => !v)}>翻转 ⇄</button>
-                <button id="flip-y" type="button" title="垂直翻转" onClick={() => setFlipY((v) => !v)}>翻转 ⇅</button>
-                <button id="reset-transform" type="button" className="text-button" onClick={resetTransformState}>复位</button>
+                <button id="rotate-cw" type="button" className="pk-btn" title="顺时针 90°" onClick={() => setRotate((r) => (r + 90) % 360)}>旋转 90°</button>
+                <button id="flip-x" type="button" className="pk-btn" title="水平翻转" onClick={() => setFlipX((v) => !v)}>翻转 ⇄</button>
+                <button id="flip-y" type="button" className="pk-btn" title="垂直翻转" onClick={() => setFlipY((v) => !v)}>翻转 ⇅</button>
+                <MoreMenu
+                  label="⋯"
+                  ariaLabel="变换更多操作"
+                  items={[{ key: 'reset', label: '复位变换', onSelect: resetTransformState }]}
+                />
               </div>
               <span className="field-label">裁剪：在预览图上拖出框选区域（松开完成）</span>
               <div className="crop-stage" id="crop-stage" ref={cropStageRef}
@@ -897,7 +946,7 @@ export function App() {
               </div>
               <div className="action-row">
                 <span id="crop-info" className="pk-muted pk-mono">{cropInfo}</span>
-                <button id="apply-crop" type="button" disabled={!(crop && crop.width > 1 && crop.height > 1)} onClick={applyCrop}>应用裁剪</button>
+                <button id="apply-crop" type="button" className="pk-btn" disabled={!(crop && crop.width > 1 && crop.height > 1)} onClick={applyCrop}>应用裁剪</button>
               </div>
             </section>
 
@@ -921,15 +970,19 @@ export function App() {
                 ))}
               </div>
               <div className="action-row">
-                <button id="wm-toggle" type="button" aria-pressed={wmPreview} onClick={toggleWmPreview}>{wmPreview ? '关闭预览' : '叠加预览'}</button>
-                <button id="wm-apply" type="button" className="primary" onClick={applyWatermark}>写入水印</button>
+                <button id="wm-toggle" type="button" className="pk-btn" aria-pressed={wmPreview} onClick={toggleWmPreview}>{wmPreview ? '关闭预览' : '叠加预览'}</button>
+                <button id="wm-apply" type="button" className="pk-btn pk-btn-primary" onClick={applyWatermark}>写入水印</button>
               </div>
             </section>
 
             <section id="tab-exif" className="tool-tab" hidden={tab !== 'exif'} aria-label="EXIF 元数据">
               <div className="action-row">
-                <button id="exif-read" type="button" onClick={readExif}>读取 EXIF</button>
-                <button id="exif-export" type="button" className="primary" onClick={exportNoExif}>清除元数据导出</button>
+                <button id="exif-read" type="button" className="pk-btn" onClick={readExif}>读取 EXIF</button>
+                <MoreMenu
+                  label="⋯"
+                  ariaLabel="EXIF 更多操作"
+                  items={[{ key: 'export', label: '清除元数据导出', onSelect: exportNoExif }]}
+                />
               </div>
               <div id="exif-list" className="exif-list" aria-live="polite">
                 {exifRows && (exifRows.length === 0
@@ -942,7 +995,7 @@ export function App() {
             </section>
 
             <section id="tab-palette" className="tool-tab" hidden={tab !== 'palette'} aria-label="色板提取">
-              <div className="action-row"><button id="palette-run" type="button" className="primary" onClick={runPalette}>提取主色</button></div>
+              <div className="action-row"><button id="palette-run" type="button" className="pk-btn pk-btn-primary" onClick={runPalette}>提取主色</button></div>
               <div id="palette-list" className="palette-list" aria-live="polite">
                 {palette && (palette.length === 0
                   ? <p className="helper">点击「提取主色」生成 6 色色板。</p>
@@ -964,9 +1017,16 @@ export function App() {
                 {lastResult ? `${lastResult.width}×${lastResult.height} · ${core.formatBytes(lastResult.bytes)} · ${lastResult.label}` : ''}
               </span>
               <span className="result-actions">
-                <button id="use-result" type="button" disabled={busy} onClick={useResult}>替换当前图</button>
-                <button id="save-result" type="button" disabled={busy} onClick={saveResult}>另存</button>
-                <button id="pin-result" type="button" disabled={busy} onClick={pinResult}>贴图</button>
+                <button id="use-result" type="button" className="pk-btn pk-btn-primary" disabled={busy} onClick={useResult}>替换当前图</button>
+                <MoreMenu
+                  label="更多"
+                  ariaLabel="结果另存"
+                  buttonClassName="pk-btn-sm"
+                  items={[
+                    { key: 'save', label: '另存结果', disabled: busy, onSelect: saveResult },
+                    { key: 'pin', label: '贴图', disabled: busy, onSelect: pinResult },
+                  ]}
+                />
               </span>
             </div>
           </div>

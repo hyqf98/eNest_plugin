@@ -5,6 +5,7 @@
  * PluginKit.dataTable（DOM 工厂）在 useEffect 中等价触发；采样器卸载时清理。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 import {
   formatKb, formatPct, isSystemProc, searchProc, searchPort,
   makeSampler, SampleRing, drawSparkline, shortName,
@@ -185,7 +186,7 @@ export function App() {
     span.textContent = '结束进程'
     head.append(span)
     const x = document.createElement('button')
-    x.className = 'sg-btn tiny ghost'
+    x.className = 'pk-btn pk-btn-ghost pk-btn-sm'
     x.textContent = '✕'
     x.addEventListener('click', () => dlg.close())
     head.append(x)
@@ -194,6 +195,12 @@ export function App() {
     const warn = document.createElement('div')
     warn.innerHTML = `确认结束进程 <b class="mono">#${proc.pid}</b>「${escapeHtml(shortName(proc.command))}」？<br><span class="pk-muted">该操作将发送 TERM 信号，进程未保存的数据可能丢失。</span>`
     body.append(warn)
+    if (isSystemProc(proc.user)) {
+      const safety = document.createElement('p')
+      safety.className = 'sg-system-warning'
+      safety.textContent = '这是系统进程，结束后可能影响系统稳定性。请确认进程用途后再继续。'
+      body.append(safety)
+    }
     const meta = document.createElement('dl')
     meta.className = 'sg-dlg-meta'
     const addMeta = (k, v) => {
@@ -207,13 +214,13 @@ export function App() {
     addMeta('命令', proc.command)
     body.append(meta)
     const row = document.createElement('div')
-    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;'
+    row.className = 'sg-dialog-actions'
     const cancel = document.createElement('button')
-    cancel.className = 'sg-btn'
+    cancel.className = 'pk-btn'
     cancel.textContent = '取消'
     cancel.addEventListener('click', () => dlg.close())
     const ok = document.createElement('button')
-    ok.className = 'sg-btn danger'
+    ok.className = 'pk-btn pk-btn-danger'
     ok.textContent = `结束 #${proc.pid}`
     ok.addEventListener('click', async () => {
       ok.disabled = true
@@ -237,6 +244,34 @@ export function App() {
   }, [])
   const killRef = useRef(showKillDialog)
   killRef.current = showKillDialog
+
+  /** 进程行右键：结束进程（danger）/ 复制 PID / 复制命令行 / 收藏置顶 */
+  const rowMenu = useCallback((event, proc) => {
+    const fav = st.favs.has(proc.pid)
+    window.PluginKit.openMenu(
+      event,
+      [
+        ['fav', fav ? '取消置顶' : '收藏置顶'],
+        ['copy-pid', '复制 PID', { hint: String(proc.pid) }],
+        ['copy-cmd', '复制命令行'],
+        'sep',
+        ['kill', '结束进程', { danger: true }],
+      ],
+      (key) => {
+        if (key === 'fav') {
+          fav ? st.favs.delete(proc.pid) : st.favs.add(proc.pid)
+          void persistRef.current()
+          updateProcTableRef.current()
+        }
+        if (key === 'copy-pid') void kitRef.current?.copy(String(proc.pid)).catch(() => {})
+        if (key === 'copy-cmd') void kitRef.current?.copy(proc.command).catch(() => {})
+        if (key === 'kill') killRef.current(proc)
+      },
+      { align: 'end' },
+    )
+  }, [st])
+  const rowMenuRef = useRef(rowMenu)
+  rowMenuRef.current = rowMenu
 
   // —— 桌面：进程表 / 端口表（PluginKit.dataTable 等价触发）——
   const procPaneRef = useRef(null)
@@ -280,24 +315,33 @@ export function App() {
         nameTd.replaceChildren(span)
       }
       if (opTd && !opTd.firstElementChild) {
+        const actions = document.createElement('span')
+        actions.className = 'pk-row-actions'
         const btn = document.createElement('button')
-        btn.className = 'kill'
+        btn.type = 'button'
+        btn.className = 'pk-btn pk-btn-danger pk-btn-sm'
         btn.textContent = '结束'
-        btn.setAttribute('data-danger', '')
         btn.addEventListener('click', (e) => { e.stopPropagation(); killRef.current(row) })
-        opTd.replaceChildren(btn)
+        const more = document.createElement('button')
+        more.type = 'button'
+        more.className = 'pk-btn pk-btn-ghost pk-btn-sm'
+        more.textContent = '⋯'
+        more.setAttribute('aria-label', `进程 ${row.pid} 更多操作`)
+        more.setAttribute('aria-haspopup', 'menu')
+        more.addEventListener('click', event => { event.stopPropagation(); rowMenuRef.current(more, row) })
+        actions.append(btn, more)
+        opTd.replaceChildren(actions)
       }
       tr.classList.toggle('linked', st.linkedPid === row.pid)
       tr.classList.toggle('fav', st.favs.has(row.pid))
     }
   }, [persist, st])
 
+  const decorateProcRowsRef = useRef(decorateProcRows)
+  decorateProcRowsRef.current = decorateProcRows
   const updateProcTable = useCallback(() => {
-    const table = procTableRef.current
-    if (!table) return
-    table.update(procRows())
-    decorateProcRows()
-  }, [decorateProcRows])
+    procTableRef.current?.update(procRows())
+  }, [st])
   const updateProcTableRef = useRef(updateProcTable)
   updateProcTableRef.current = updateProcTable
 
@@ -518,6 +562,8 @@ export function App() {
       sortBy: 'pcpu',
       sortDir: 'desc',
       onRowClick: (row) => killRef.current(row),
+      onRowContextMenu: (event, row) => rowMenuRef.current(event, row),
+      onRowsRendered: () => decorateProcRowsRef.current(),
       columns: [
         { key: 'fav', label: '', sortable: false, width: '30px' },
         { key: 'pid', label: 'PID', num: true, sortable: true, width: '84px' },
@@ -525,7 +571,7 @@ export function App() {
         { key: 'user', label: '用户', sortable: true, width: '96px' },
         { key: 'pcpu', label: 'CPU%', num: true, sortable: true, width: '84px' },
         { key: 'rss', label: '内存', num: true, sortable: true, width: '96px', render: (row) => formatKb(row.rss) },
-        { key: 'op', label: '', sortable: false, width: '72px' },
+        { key: 'op', label: '', sortable: false, width: '108px' },
       ],
     })
     procTableRef.current = table
@@ -606,9 +652,10 @@ export function App() {
   }, [])
 
   // —— 事件处理器（与原 wireDom 对应）——
-  const onHideSys = async (e) => {
-    st.hideSys = e.target.checked
-    setHideSys(e.target.checked)
+  /** ⋯ 菜单勾选项「隐藏系统进程」：按当前值翻转并持久化 */
+  const toggleHideSys = async () => {
+    st.hideSys = !st.hideSys
+    setHideSys(st.hideSys)
     await persist()
     updateProcTable()
   }
@@ -655,7 +702,7 @@ export function App() {
             <span className="mono">{r.address}</span>
             <span className="name">{r.name}</span>
             <span className="num">{`#${r.pid}`}</span>
-            <button className="sg-btn tiny danger" type="button" onClick={() => killRef.current(r.proc)}>结束</button>
+            <button className="pk-btn pk-btn-danger pk-btn-sm" type="button" onClick={() => killRef.current(r.proc)}>结束</button>
           </div>
         )
       }
@@ -665,7 +712,7 @@ export function App() {
           <span className="name">{r.name}</span>
           <span className="num">{r.cpu}</span>
           <span className="num">{r.mem}</span>
-          <button className="sg-btn tiny danger" type="button" onClick={() => killRef.current(r.proc)}>结束</button>
+          <button className="pk-btn pk-btn-danger pk-btn-sm" type="button" onClick={() => killRef.current(r.proc)}>结束</button>
         </div>
       )
     })
@@ -679,7 +726,7 @@ export function App() {
           <input id="q-input" type="search" placeholder="输入端口号查占用，或进程名 / pid 搜索"
             onInput={onQuickInput} onKeyDown={onQuickKeydown}
           />
-          <button type="button" className="sg-btn primary" id="q-search"
+          <button type="button" className="pk-btn pk-btn-primary" id="q-search"
             onClick={(e) => renderQuickListRef.current(e.target.previousElementSibling?.value ?? '')}>查询</button>
         </div>
         <div className="sg-quick-list" id="q-list">
@@ -692,8 +739,8 @@ export function App() {
             <canvas id="q-canvas" ref={quickCanvasRef} height="56" aria-label="CPU / 内存曲线"></canvas>
           </div>
           <div className="sg-quick-legend">
-            <span><i className="dot" style={{ background: 'var(--accent)' }}></i>CPU <b id="q-cpu">-</b></span>
-            <span><i className="dot" style={{ background: 'var(--ok)' }}></i>内存 <b id="q-mem">-</b></span>
+            <span><i className="dot dot-accent"></i>CPU <b id="q-cpu">-</b></span>
+            <span><i className="dot dot-ok"></i>内存 <b id="q-mem">-</b></span>
             <span className="sg-quick-procs" id="q-procs"></span>
           </div>
         </div>
@@ -712,15 +759,25 @@ export function App() {
             ))}
           </nav>
           <div className="sg-spacer"></div>
-          <label className="sg-check" title="隐藏 uid<500 或 root 的系统进程">
-            <input type="checkbox" id="hide-sys" checked={hideSys} onChange={onHideSys} /> 隐藏系统进程
-          </label>
           <label className="sg-check sg-check-select" title="采样刷新频率">
             <select id="interval" aria-label="刷新频率" value={String(intervalMs)} onChange={onInterval}>
-              {INTERVALS.map((v) => <option key={v} value={String(v)}>{`${v / 1000} 秒`.replace('1.5 秒', '1.5 秒')}</option>)}
+              {INTERVALS.map((v) => <option key={v} value={String(v)}>{`${v / 1000} 秒`}</option>)}
             </select>
           </label>
-          <button type="button" className="sg-btn" id="refresh" onClick={() => void refresh()}>刷新</button>
+          <button type="button" className="pk-btn pk-btn-ghost" id="refresh" onClick={() => void refresh()}>刷新</button>
+          <MoreMenu
+            ariaLabel="列表显示选项"
+            items={[
+              {
+                key: 'hide-sys',
+                label: '隐藏系统进程',
+                as: 'check',
+                checked: hideSys,
+                hint: 'uid<500',
+                onSelect: () => void toggleHideSys(),
+              },
+            ]}
+          />
         </header>
         <div className="sg-body" id="tab-body">
           {mode === 'shell' && st.error ? (
@@ -795,7 +852,7 @@ export function App() {
             <div className="sg-chart">
               <div className="sg-chart-card">
                 <div className="sg-chart-head">
-                  <span style={{ color: 'var(--accent)' }}>■</span>
+                  <span className="chart-swatch accent">■</span>
                   {' CPU 总占用 '}
                   <b id="sg-cpu-v">-</b>
                 </div>
@@ -803,15 +860,15 @@ export function App() {
               </div>
               <div className="sg-chart-card">
                 <div className="sg-chart-head">
-                  <span style={{ color: 'var(--ok)' }}>■</span>
+                  <span className="chart-swatch ok">■</span>
                   {' 物理内存合计 '}
                   <b id="sg-mem-v">-</b>
                 </div>
                 <canvas id="sg-mem-cv" ref={chartMemRef}></canvas>
               </div>
               <div className="sg-chart-legend">
-                <span><i className="dot" style={{ background: 'var(--accent)' }}></i>CPU%（0-100）</span>
-                <span><i className="dot" style={{ background: 'var(--ok)' }}></i>内存（自适应满刻度）</span>
+                <span><i className="dot dot-accent"></i>CPU%（0-100）</span>
+                <span><i className="dot dot-ok"></i>内存（自适应满刻度）</span>
                 <span className="pk-muted">滚动窗口 · 隐藏自动暂停</span>
               </div>
             </div>

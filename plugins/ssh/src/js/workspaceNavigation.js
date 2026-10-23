@@ -15,12 +15,16 @@ const icon = key => `<svg viewBox="0 0 24 24" width="17" height="17" fill="none"
 export function createWorkspaceNavigation({ app, bridge, changeView, openSettings, onLayout }) {
   const store = bridge.store, sidebar = app.querySelector('#sidebar'), rail = app.querySelector('#side-rail')
   const narrowQuery = matchMedia('(max-width: 719px)')
-  let mode = 'shell', opened = false, returnFocus = null, drag = null
+  let mode = 'shell', opened = false, returnFocus = null, drag = null, currentView = 'terminal', lastCompact, disposed = false
+  let flyouts = []
   const sideBody = app.querySelector('#side-body')
   let overlayPosition = -1, overlayVelocity = 0, overlayTarget = -1, overlayFrame = 0, overlayTime = 0
   let width = sidebarWidth(store.state.ui.sidebarWidth)
   rail.setAttribute('aria-label', 'SSH 工作区导航')
-  rail.innerHTML = [['connections','连接'],['terminal','终端'],['files','文件'],['resources','资源']].map(([id,label]) => `<button class="rail-btn" data-navigation="${id}" aria-label="${label}" data-tip="${label}">${icon(id)}</button>`).join('') + '<div class="rail-spacer"></div>' + [['history','历史'],['snippets','常用命令'],['settings','设置']].map(([id,label]) => `<button class="rail-btn" data-navigation="${id}" aria-label="${label}" data-tip="${label}">${icon(id)}</button>`).join('')
+  rail.innerHTML = [['connections','连接'],['terminal','终端'],['files','文件'],['resources','资源']].map(([id,label]) => `<button type="button" class="rail-btn" data-navigation="${id}" aria-label="${label}" data-tip="${label}">${icon(id)}</button>`).join('') + '<div class="rail-spacer"></div>' + [['history','历史'],['snippets','常用命令'],['settings','设置']].map(([id,label]) => `<button type="button" class="rail-btn" data-navigation="${id}" aria-label="${label}" data-tip="${label}">${icon(id)}</button>`).join('') + '<button type="button" class="rail-btn" id="rail-more" data-more aria-label="更多操作" data-tip="更多操作">⋯</button>'
+  // 全插件唯一的「更多」入口：rail 在侧栏展开与收起两种状态下都存在，
+  // 顶栏不再重复放 ⋯（会话级动作另有会话标签右键菜单）。
+  rail.querySelector('[data-more]').onclick = event => bridge.showMoreMenu(event.currentTarget)
   const connectionButton = rail.querySelector('[data-navigation="connections"]')
   connectionButton.setAttribute('aria-controls', 'side-body')
   const resize = document.createElement('div'); resize.className = 'wb-sidebar-resize'; resize.tabIndex = 0; resize.setAttribute('role', 'separator'); resize.setAttribute('aria-label', '连接面板宽度'); resize.setAttribute('aria-orientation', 'vertical'); resize.setAttribute('aria-valuemin', '220'); resize.setAttribute('aria-valuemax', '360'); sidebar.append(resize)
@@ -48,8 +52,11 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     }
     paintOverlay(); overlayFrame = requestAnimationFrame(step)
   }
+  function hideFlyouts() { flyouts.forEach(flyout => flyout.hide()) }
   function layout() {
     const collapsed = compact() ? !opened : !!store.state.ui.sidebarCollapsed
+    if (lastCompact !== compact() || !collapsed) hideFlyouts()
+    lastCompact = compact()
     app.dataset.compactNavigation = String(compact()); app.dataset.sidebarOpen = String(!collapsed)
     sidebar.dataset.collapsed = collapsed ? '1' : '0'; app.classList.toggle('side-collapsed', collapsed)
     app.style.setProperty('--ssh-sidebar-width', `${width}px`)
@@ -67,18 +74,65 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     layout(); if (restoreFocus) (returnFocus?.isConnected ? returnFocus : connectionButton).focus()
   }
   function revealConnections() {
+    hideFlyouts()
     returnFocus = document.activeElement
     if (compact()) opened = true
     else store.setUi({ sidebarCollapsed: false })
     layout(); app.querySelector('#search-input')?.focus()
   }
+  function navigate(target) {
+    hideFlyouts()
+    if (target === 'connections') return revealConnections()
+    if (compact()) closeConnections(false)
+    if (target === 'settings') return openSettings()
+    if (target === 'history' || target === 'snippets') return bridge.openCollection(target)
+    return changeView(target)
+  }
   for (const button of rail.querySelectorAll('[data-navigation]')) button.onclick = () => {
     const target = button.dataset.navigation
-    if (target === 'connections') return app.dataset.sidebarOpen === 'true' ? closeConnections() : revealConnections()
-    if (compact()) closeConnections(false)
-    if (target === 'settings') openSettings()
-    else if (target === 'history' || target === 'snippets') bridge.openCollection(target)
-    else changeView(target)
+    if (target === 'connections' && app.dataset.sidebarOpen === 'true') return closeConnections()
+    return navigate(target)
+  }
+  function flyoutItems() {
+    const drawerOpen = app.querySelector('#drawer')?.classList.contains('open')
+    const items = [
+      { key: 'connections', label: '连接与搜索', hint: `${store.state.profiles.length} 个连接` },
+      { key: 'terminal', label: '终端', checked: currentView === 'terminal' },
+      { key: 'files', label: '文件', checked: currentView === 'files' },
+      { key: 'resources', label: '资源', checked: currentView === 'resources' },
+      'sep',
+      { key: 'history', label: '命令历史', checked: drawerOpen && store.state.ui.rightTab === 'history' },
+      { key: 'snippets', label: '常用命令', checked: drawerOpen && store.state.ui.rightTab === 'snippets' },
+      { key: 'settings', label: '设置', checked: currentView === 'settings' },
+      'sep',
+      { key: 'new', label: '新建连接' }
+    ]
+    const profiles = [...store.state.profiles].sort((a, b) => Number(b.id === store.state.ui.selectedProfileId) - Number(a.id === store.state.ui.selectedProfileId) || Number(b.favorite) - Number(a.favorite))
+    if (profiles.length) items.push('sep', ...profiles.slice(0, 6).map(profile => ({
+      key: `connect:${profile.id}`, label: `打开 ${profile.name || profile.host || profile.id}`,
+      checked: profile.id === bridge.activeSession()?.profileId, hint: profile.host || undefined,
+      disabled: [...bridge.sessions.values()].some(session => session.profileId === profile.id && session.status === 'connecting')
+    })))
+    return items
+  }
+  function pickFlyout(key) {
+    const item = flyoutItems().find(entry => entry.key === key)
+    if (!item || item.disabled) return
+    return Promise.resolve().then(async () => {
+      if (key === 'new') return bridge.openProfileForm(null)
+      if (!key.startsWith('connect:')) return navigate(key)
+      const profile = store.findProfile(key.slice('connect:'.length))
+      if (!profile) return
+      store.setUi({ selectedProfileId: profile.id }); bridge.renderLeft()
+      const session = [...bridge.sessions.values()].find(entry => entry.profileId === profile.id && entry.status === 'connected')
+      if (session) bridge.setActiveTab(session.tabId)
+      else await bridge.connectProfile(profile)
+      navigate('terminal')
+    }).catch(error => bridge.api.toast(error.message || String(error), 'error'))
+  }
+  if (window.PluginKit?.hoverFlyout) {
+    const options = { enabled: () => !disposed && app.dataset.sidebarOpen === 'false', handleClick: false, onPick: pickFlyout, side: 'right', delay: 120, hideDelay: 300, ariaLabel: 'SSH 工作区导航与连接' }
+    flyouts = [window.PluginKit.hoverFlyout(connectionButton, flyoutItems, options)]
   }
   scrim.onclick = () => closeConnections()
   function setWidth(value, persist = true) { width = sidebarWidth(value); layout(); if (persist) store.setUi({ sidebarWidth: width }) }
@@ -93,12 +147,19 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     if (app.querySelector('#drawer.open') && !document.querySelector('.modal-root.show,dialog[open]')) { event.preventDefault(); bridge.setDrawerOpen(false); rail.querySelector(`[data-navigation="${store.state.ui.rightTab || 'history'}"]`)?.focus(); return }
     if (compact() && opened && !document.querySelector('.modal-root.show,dialog[open]')) { event.preventDefault(); closeConnections() }
   }
+  function dispose() {
+    if (disposed) return
+    disposed = true
+    flyouts.forEach(flyout => flyout.destroy()); flyouts = []
+    document.removeEventListener('keydown', onKey, true); narrowQuery.removeEventListener('change', layout); window.removeEventListener('pagehide', dispose); stopResize(true); cancelAnimationFrame(overlayFrame)
+  }
   document.addEventListener('keydown', onKey, true)
   narrowQuery.addEventListener('change', layout)
+  window.addEventListener('pagehide', dispose)
   layout()
   return {
-    setMode(next) { mode = next; opened = false; layout() }, revealConnections, closeConnections,
-    setView(view) { for (const button of rail.querySelectorAll('[data-navigation]')) if (button !== connectionButton) { const selected = button.dataset.navigation === view; button.classList.toggle('active', selected); button.setAttribute('aria-current', selected ? 'page' : 'false') } },
-    dispose() { document.removeEventListener('keydown', onKey, true); narrowQuery.removeEventListener('change', layout); stopResize(true); cancelAnimationFrame(overlayFrame) },
+    setMode(next) { hideFlyouts(); mode = next; opened = false; layout() }, revealConnections, closeConnections,
+    setView(view) { currentView = view; for (const button of rail.querySelectorAll('[data-navigation]')) if (button !== connectionButton) { const selected = button.dataset.navigation === view; button.classList.toggle('active', selected); button.setAttribute('aria-current', selected ? 'page' : 'false') } },
+    dispose,
   }
 }

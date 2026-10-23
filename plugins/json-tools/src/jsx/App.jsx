@@ -20,6 +20,7 @@ import {
   HIGHLIGHT_LINE_LIMIT,
 } from '../js/core.mjs'
 import { queryJson, jsonStats, toTypeScript } from '../js/extra.mjs'
+import { MoreMenu } from '../ui/index.jsx'
 
 const api = window.enest || window.zapi
 const esc = PluginKit.escape
@@ -837,8 +838,13 @@ export function App() {
               ))}
             </nav>
             <button id="copy" className="ghost" onClick={() => (resultRef.current ? copy(resultRef.current) : kitRef.current.toast('先生成结果', 'info'))}>复制</button>
-            <button id="refill" className="ghost" onClick={refill}>回填</button>
-            <button id="save" className="ghost" onClick={() => resultRef.current && saveText('formatted.json', resultRef.current)}>导出</button>
+            <MoreMenu
+              ariaLabel="结果操作"
+              items={[
+                { key: 'refill', label: '回填', onSelect: refill },
+                { key: 'save', label: '导出', onSelect: () => resultRef.current && saveText('formatted.json', resultRef.current) },
+              ]}
+            />
           </div>
           <div className="view text-view" data-content="text" hidden={view !== 'text'}>
             <div className="code-tools" id="code-tools" hidden={!codeToolsVisible}>

@@ -1,6 +1,6 @@
 /* com.github.eNest.ssh — minimalist shell-aligned UI
-   Tokens: shell light #f3f4f6/#fff/#1a1f2e · dark #0d1118/#161b24/#e8ecf4
-   LESS chrome · soft lists · hairlines only when needed */
+   Tokens: 宿主注入的语义 token 为唯一权威；本文件 :root 仅提供壳外回退，
+   取值对齐 eNest 默认主题（中性灰 + 铜橙 accent）。规则层禁止裸 hex。 */
 
 /* 悬停提示由 JS 浮动层渲染（fixed 挂 body），避免被 overflow/边框裁切 */
 [data-tip] { position: relative; }
@@ -10,23 +10,29 @@
 :root {
   color-scheme: light;
 
-  --bg: #f3f4f6;
+  /* 壳外回退调色板（宿主 inline token 优先级更高，壳内不生效） */
+  --bg: #f6f6f4;
   --surface: #ffffff;
-  --surface-2: #f0f2f5;
-  --surface-3: #e8ebf0;
-  --border: rgba(15, 23, 42, 0.08);
-  --border-strong: rgba(15, 23, 42, 0.14);
-  --text: #0f1420;
-  --text-2: #5c6578;
-  --text-3: #8b93a5;
-  --accent: #1a1f2e;
-  --accent-soft: rgba(26, 31, 46, 0.08);
-  --ok: #0d9f6e;
-  --ok-soft: rgba(13, 159, 110, 0.1);
-  --warn: #c47b12;
-  --warn-soft: rgba(196, 123, 18, 0.12);
-  --danger: #e11d48;
-  --danger-soft: rgba(225, 29, 72, 0.1);
+  --surface-2: #eeefed;
+  --surface-3: #e5e7e4;
+  --border: color-mix(in srgb, var(--text) 8%, transparent);
+  --border-strong: color-mix(in srgb, var(--text) 16%, transparent);
+  --text: #292c2e;
+  --text-2: #666c70;
+  --text-3: #82888b;
+  --accent: #bd542b;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --ok: #318469;
+  --ok-soft: color-mix(in srgb, var(--ok) 12%, transparent);
+  --warn: #b07c2a;
+  --warn-soft: color-mix(in srgb, var(--warn) 12%, transparent);
+  --danger: #c54f46;
+  --danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
+
+  /* 品牌层跟随主题 accent（api.js 注入壳子 accent 时同步覆盖） */
+  --brand: var(--accent);
+  --brand-strong: var(--accent);
+  --brand-soft: var(--accent-soft);
 
   --radius-xl: 24px;
   --radius-lg: 18px;
@@ -35,13 +41,16 @@
   --radius-xs: 6px;
   --radius-pill: 999px;
 
-  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
-  --shadow-float: 0 16px 40px rgba(15, 23, 42, 0.1);
+  --shadow-soft: 0 1px 2px color-mix(in srgb, var(--text) 4%, transparent), 0 8px 24px color-mix(in srgb, var(--text) 5%, transparent);
+  --shadow-float: 0 16px 40px color-mix(in srgb, var(--text) 12%, transparent);
 
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 
-  --term-bg: #0d1118;
+  /* 终端底色：默认使用主题 surface；--term-fg 供降级终端文本使用 */
+  --term-bg: var(--surface);
+  --term-fg: var(--text);
+  --scrim: light-dark(var(--text), var(--bg));
 
   --sidebar-expanded: 240px;
   --sidebar-collapsed: 52px;
@@ -50,26 +59,28 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0d1118;
-  --surface: #161b24;
-  --surface-2: #1c2230;
-  --surface-3: #252d3d;
-  --border: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --text: #f3f5f9;
-  --text-2: #b4bdcf;
-  --text-3: #7c879c;
-  --accent: #e8ecf4;
-  --accent-soft: rgba(232, 236, 244, 0.1);
-  --ok: #3dd68c;
-  --ok-soft: rgba(61, 214, 140, 0.14);
+  /* 壳外回退调色板（深色） */
+  --bg: #17191b;
+  --surface: #202326;
+  --surface-2: #292d31;
+  --surface-3: #33383d;
+  --border: color-mix(in srgb, var(--text) 9%, transparent);
+  --border-strong: color-mix(in srgb, var(--text) 16%, transparent);
+  --text: #f2f3f3;
+  --text-2: #adb3b8;
+  --text-3: #7e878f;
+  --accent: #e98654;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --ok: #77bfa4;
+  --ok-soft: color-mix(in srgb, var(--ok) 14%, transparent);
   --warn: #f5b942;
-  --warn-soft: rgba(245, 185, 66, 0.14);
-  --danger: #ff7a8e;
-  --danger-soft: rgba(255, 122, 142, 0.14);
-  --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 28px rgba(0, 0, 0, 0.4);
-  --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.55);
-  --term-bg: #0b0f14;
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
+  --danger: #e79589;
+  --danger-soft: color-mix(in srgb, var(--danger) 14%, transparent);
+  --shadow-soft: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent) inset, 0 8px 28px color-mix(in srgb, var(--scrim) 40%, transparent);
+  --shadow-float: 0 16px 48px color-mix(in srgb, var(--scrim) 55%, transparent);
+  --term-bg: var(--surface);
+  --term-fg: var(--text);
 }
 
 * { box-sizing: border-box; }
@@ -573,7 +584,7 @@ dialog .pk-select.wb-split-target {
   width: 18px;
   height: 18px;
   border-radius: 6px;
-  border: 1px solid rgba(0,0,0,0.12);
+  border: 1px solid var(--border-strong);
   cursor: pointer;
   padding: 0;
   flex: none;
@@ -603,17 +614,22 @@ dialog .pk-select.wb-split-target {
   flex: none;
 }
 
-/* 统一按钮层级：常规 1px 边框 + surface 底；ghost 5% wash 不裸文本；primary/danger 语义 */
+/* 统一按钮层级：参数对齐 pk-btn（28px / sm 24px），ghost 5% wash 不裸文本 */
 .btn {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   min-height: 28px;
-  padding: 7px 14px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
   font-weight: 500;
+  line-height: 1.4;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -624,7 +640,7 @@ dialog .pk-select.wb-split-target {
 .btn.primary {
   background: var(--brand-strong);
   border-color: var(--brand-strong);
-  color: var(--accent-contrast, #fff);
+  color: var(--accent-contrast, var(--surface));
   font-weight: 600;
 }
 .btn.primary:hover:not(:disabled) { background: var(--brand); border-color: var(--brand); filter: brightness(1.06); }
@@ -644,7 +660,7 @@ dialog .pk-select.wb-split-target {
   border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, transparent);
   color: var(--text);
 }
-.btn.sm { min-height: 24px; padding: 5px 10px; font-size: 11px; border-radius: 8px; }
+.btn.sm { min-height: 24px; padding: 2px 9px; font-size: 12px; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .icon-btn {
@@ -655,7 +671,7 @@ dialog .pk-select.wb-split-target {
   min-width: 28px;
   height: 28px;
   padding: 0 7px;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
   display: inline-flex;
@@ -663,11 +679,12 @@ dialog .pk-select.wb-split-target {
   justify-content: center;
   line-height: 1;
   flex: none;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 .icon-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text) 5%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
   color: var(--text);
-  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  border-color: transparent;
 }
 .icon-btn:active:not(:disabled) { transform: scale(0.97); }
 .icon-btn.active { color: var(--brand-strong); background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
@@ -856,7 +873,7 @@ dialog .pk-select.wb-split-target {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #d7e0ea;
+  color: var(--term-fg, var(--text));
   background: transparent;
   outline: none;
 }
@@ -1106,7 +1123,7 @@ dialog .pk-select.wb-split-target {
 .sftp-list .name.dir { color: var(--accent); }
 
 /* ========== Drawer (overlay) ========== */
-/* 不覆盖顶栏：从 topbar 底缘起浮，避免关闭 × 与顶栏「更多操作」⋯ 命中区叠合 */
+/* 不覆盖顶栏：从 topbar 底缘起浮，避免关闭 × 与顶栏状态/会话标签命中区叠合 */
 .drawer {
   position: fixed;
   top: 40px; /* = .topbar min-height */
@@ -1129,7 +1146,7 @@ dialog .pk-select.wb-split-target {
   inset: 0;
   top: 40px; /* 与 .drawer 对齐，不挡顶栏 */
   z-index: 35;
-  background: rgba(0, 0, 0, 0.18);
+  background: color-mix(in srgb, var(--scrim) 18%, transparent);
 }
 .drawer-scrim[hidden] { display: none !important; }
 
@@ -1338,7 +1355,7 @@ dialog .pk-select.wb-split-target {
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.28);
+  background: color-mix(in srgb, var(--scrim) 28%, transparent);
   backdrop-filter: blur(4px);
   padding: 16px;
 }
@@ -1476,20 +1493,8 @@ dialog .pk-select.wb-split-target {
 
 /* ══════════════════════════════════════════════════════════
    Design v2 — 现代清爽工具风（与数据库插件同语言）
-   品牌蓝 accent、环境徽章、空状态、滚动条、focus、SFTP 文件管理器化
+   品牌 accent 直接取主题 --accent（见文件顶部 :root），不再内置蓝色
    ══════════════════════════════════════════════════════════ */
-
-/* —— 品牌色（壳子注入品牌 token 时以壳子为准） —— */
-:root {
-  --brand: #3b82f6;
-  --brand-strong: #2563eb;
-  --brand-soft: rgba(59, 130, 246, 0.12);
-}
-:root[data-theme="dark"] {
-  --brand: #60a5fa;
-  --brand-strong: #3b82f6;
-  --brand-soft: rgba(96, 165, 250, 0.14);
-}
 
 /* focus ring */
 :focus-visible {
@@ -1540,7 +1545,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 /* .btn.primary 已在基础层品牌化；此处仅保留 fab/chip/icon/rail 的品牌态 */
 .fab {
   background: var(--brand-strong);
-  color: var(--accent-contrast, #fff);
+  color: var(--accent-contrast, var(--surface));
   width: 36px;
   height: 36px;
   font-size: 15px;
@@ -1758,7 +1763,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
     transparent 7.5px
   );
 }
-.drawer { box-shadow: -12px 0 40px rgba(0, 0, 0, 0.14); }
+.drawer { box-shadow: -12px 0 40px color-mix(in srgb, var(--scrim) 14%, transparent); }
 
 /* —— 微交互 —— */
 .btn, .icon-btn, .rail-btn, .ctx-item, .chip, .session-tab {

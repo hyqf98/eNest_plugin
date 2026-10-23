@@ -191,10 +191,10 @@ label {
 
 .page {
   overflow: auto;
-  padding: 16px 20px 24px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-height: 0;
 }
 .field-head {
@@ -319,15 +319,9 @@ label {
 .card-copy {
   font-size: 11px;
   padding: 2px 8px;
-  opacity: 0;
-  transition: opacity var(--hs-speed);
 }
-.hash-card:hover .card-copy,
-.hash-card:focus-within .card-copy {
-  opacity: 1;
-}
-.card-copy:disabled {
-  opacity: 0 !important;
+.hash-card .card-copy:disabled {
+  display: none;
 }
 .hash-card .value {
   font-family: var(--mono);
@@ -433,7 +427,7 @@ label {
 .result-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .result-row output {

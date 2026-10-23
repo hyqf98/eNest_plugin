@@ -103,7 +103,10 @@ export function App() {
       void addFiles(e.dataTransfer?.files)
     },
     onClick: (e) => { if (e.target === e.currentTarget || e.target.closest('.dz-title,.dz-sub,.dz-glyph')) pickFiles() },
-    onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickFiles() } },
+    onKeyDown: (e) => {
+      if (e.defaultPrevented || e.isComposing || e.target !== e.currentTarget) return
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickFiles() }
+    },
   }
 
   /* —— 二维码绘制（等价原 drawQr，canvas 逻辑原样） —— */

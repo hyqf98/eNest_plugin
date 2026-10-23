@@ -7,6 +7,7 @@
  * 业务核心 store.js / connection.js / vnc-session.js / rdp-session.js / novnc-loader.js 原样复用。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 import '../js/novnc-loader.js'
 import '../js/store.js'
 import '../js/connection.js'
@@ -96,7 +97,9 @@ export function App() {
   }, [bump])
 
   const onTreeItemKeyDown = useCallback((event, p) => {
-    if (event.key === 'Enter') void openSession(p)
+    if (event.target !== event.currentTarget || event.isComposing || !['Enter', ' '].includes(event.key)) return
+    event.preventDefault()
+    void openSession(p)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onTreeItemClick = useCallback((event, p) => {
@@ -106,6 +109,30 @@ export function App() {
     else if (act === 'test') { event.stopPropagation(); safely(() => runTest(p))() }
     else void openSession(p)
   }, [safely]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function profileMenuItems(p) {
+    return [
+      { key: 'connect', label: '连接', onSelect: safely(() => openSession(p)) },
+      { key: 'test', label: '连接测试', onSelect: safely(() => runTest(p)) },
+      { key: 'edit', label: '编辑', onSelect: () => openProfileDialog(p) },
+      { key: 'copy', label: '复制地址', hint: `${p.host}:${p.port}`, onSelect: safely(async () => {
+        await host.clipboard.writeText(`${p.host}:${p.port}`)
+        toast('已复制地址', 'success')
+      }) },
+      { sep: true },
+      { key: 'remove', label: '删除', danger: true, onSelect: safely(() => removeProfileFlow(p)) },
+    ]
+  }
+
+  /** 右键与可点击菜单都绑定当前资产，保留真实连接测试。 */
+  const onTreeItemMenu = (event, p) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const items = profileMenuItems(p)
+    window.PluginKit.openMenu(event, items, key => {
+      void items.find(item => item.key === key)?.onSelect?.()
+    }, { align: 'end' })
+  }
 
   /* ── 最近列表（原 renderRecent / reconnectRecent 等价） ── */
   const reconnectRecent = useCallback(async (entry) => {
@@ -134,11 +161,10 @@ export function App() {
         <div class="zoom-seg" role="group" aria-label="缩放">
           <button data-zoom="fit">适应</button><button data-zoom="1:1">1:1</button><button data-zoom="stretch">拉伸</button>
         </div>
-        <button class="ghost" data-cmd="info" title="会话信息">信息</button>
-        <button class="ghost" data-cmd="shot" title="截图保存">截图</button>
-        <button class="ghost" data-cmd="pin" title="贴图">贴图</button>
-        <button class="ghost" data-cmd="reconnect" title="重连">重连</button>
-        <button class="ghost" data-cmd="close" title="断开">断开</button>
+        <button class="pk-btn pk-btn-ghost pk-btn-sm" data-cmd="info" title="会话信息">信息</button>
+        <button class="pk-btn pk-btn-ghost pk-btn-sm" data-cmd="reconnect" title="重连">重连</button>
+        <button class="pk-btn pk-btn-ghost pk-btn-sm" data-cmd="more" title="截图 / 贴图" aria-haspopup="menu">⋯</button>
+        <button class="pk-btn pk-btn-danger pk-btn-sm" data-cmd="close" title="断开">断开</button>
       </div>
       <div class="canvas-wrap" data-zoom="fit">
         <div class="canvas-viewport" role="region" aria-label="远程桌面视口" title="1:1 时可用滚动条移动视口；滚轮仍发送到远端">
@@ -194,8 +220,8 @@ export function App() {
       } else if (phase === 'error') {
         overlay.hidden = false
         overlay.innerHTML = `<div class="reason">${esc(reason || '连接失败')}</div>
-          <button class="primary" data-retry>重试</button>
-          <button class="ghost" data-back>返回</button>`
+          <button class="pk-btn pk-btn-primary" data-retry>重试</button>
+          <button class="pk-btn pk-btn-ghost" data-back>返回</button>`
         overlay.querySelector('[data-retry]').onclick = () => { overlay.hidden = true; session.reconnectNow() }
         overlay.querySelector('[data-back]').onclick = () => void closeSession(id)
       } else if (phase === 'reconnecting') {
@@ -203,7 +229,7 @@ export function App() {
         overlay.innerHTML = `<div class="skeleton"></div><div>${esc(reason || '重连中…')}</div><div class="hint">重连不清屏，画面保留</div>`
       } else if (phase === 'closed') {
         overlay.hidden = false
-        overlay.innerHTML = `<div>${esc(reason || '已断开')}</div><button class="ghost" data-back>返回</button>`
+        overlay.innerHTML = `<div>${esc(reason || '已断开')}</div><button class="pk-btn pk-btn-ghost" data-back>返回</button>`
         overlay.querySelector('[data-back]').onclick = () => void closeSession(id)
       }
       bump()
@@ -235,8 +261,15 @@ export function App() {
     wrap.querySelector('[data-cmd="close"]').onclick = () => void closeSession(id)
     wrap.querySelector('[data-cmd="reconnect"]').onclick = () => session.reconnectNow()
     wrap.querySelector('[data-cmd="info"]').onclick = () => infoPop.classList.toggle('show')
-    wrap.querySelector('[data-cmd="shot"]').onclick = safely(() => saveScreenshot(entry))
-    wrap.querySelector('[data-cmd="pin"]').onclick = safely(() => pinScreenshot(entry))
+    wrap.querySelector('[data-cmd="more"]').onclick = (event) => {
+      window.PluginKit.openMenu(event.currentTarget, [
+        ['shot', '截图保存'],
+        ['pin', '贴图到桌面'],
+      ], (key) => {
+        if (key === 'shot') safely(() => saveScreenshot(entry))()
+        if (key === 'pin') safely(() => pinScreenshot(entry))()
+      }, { align: 'end' })
+    }
     for (const btn of wrap.querySelectorAll('.zoom-seg button')) {
       btn.onclick = () => {
         entry.zoom = btn.dataset.zoom
@@ -297,7 +330,7 @@ export function App() {
     const groups = store.state.groups
     dialog.innerHTML = `
       <form method="dialog">
-        <div class="dlg-head"><h3>${isEdit ? '编辑连接' : '新建连接'}</h3><button type="button" class="ghost" data-close>✕</button></div>
+        <div class="dlg-head"><h3>${isEdit ? '编辑连接' : '新建连接'}</h3><button type="button" class="pk-btn pk-btn-ghost pk-btn-sm" data-close>✕</button></div>
         <div class="dlg-body">
           <div class="form-grid">
             <div class="form-row"><label for="f-name">名称</label><input id="f-name" name="name" value="${esc(value.name)}" placeholder="如：办公机" required data-input-context="editor" /></div>
@@ -316,24 +349,24 @@ export function App() {
             <div class="form-row"><label for="f-port">端口</label><input id="f-port" name="port" type="number" min="1" max="65535" value="${value.port}" class="mono" required data-input-context="editor" /></div>
             <div class="form-row"><label for="f-host">主机</label><input id="f-host" name="host" value="${esc(value.host)}" placeholder="host 或 IP" required data-input-context="editor" /></div>
             <div class="form-row"><label for="f-username">用户名</label><input id="f-username" name="username" value="${esc(value.username)}" autocomplete="off" data-input-context="editor" /></div>
-            <div class="form-row" style="grid-column: 1 / -1"><label for="f-password">密码 ${isEdit && value.hasPassword ? '（已保存，留空 = 不修改）' : ''}</label><input id="f-password" name="password" type="password" autocomplete="new-password" placeholder="${isEdit && value.hasPassword ? '••••••（不修改请留空）' : '无密码可留空'}" data-input-context="editor" /></div>
-            <div class="form-row" style="grid-column: 1 / -1"><label for="f-tags">标签（逗号分隔）</label><input id="f-tags" name="tags" value="${esc((value.tags || []).join(', '))}" placeholder="生产, 内网" data-input-context="editor" /></div>
+            <div class="form-row form-row-full"><label for="f-password">密码 ${isEdit && value.hasPassword ? '（已保存，留空 = 不修改）' : ''}</label><input id="f-password" name="password" type="password" autocomplete="new-password" placeholder="${isEdit && value.hasPassword ? '••••••（不修改请留空）' : '无密码可留空'}" data-input-context="editor" /></div>
+            <div class="form-row form-row-full"><label for="f-tags">标签（逗号分隔）</label><input id="f-tags" name="tags" value="${esc((value.tags || []).join(', '))}" placeholder="生产, 内网" data-input-context="editor" /></div>
             <label class="form-check"><input type="checkbox" name="tunnelEnabled" ${value.tunnel?.enabled ? 'checked' : ''} />经 SSH 隧道（需先在 SSH 插件连接）</label>
             <label class="form-check"><input type="checkbox" name="viewOnly" ${value.viewOnly ? 'checked' : ''} />只读（禁止远端键鼠）</label>
           </div>
           <div class="form-hint">密码经 vault 加密保存，任何界面不回读明文。</div>
         </div>
         <div class="dlg-foot">
-          ${isEdit ? '<button type="button" class="ghost danger" id="f-delete" style="margin-right:auto">删除</button>' : ''}
-          <button type="button" class="ghost" data-close>取消</button>
-          <button type="submit" class="primary">保存</button>
+          ${isEdit ? '<button type="button" class="pk-btn pk-btn-danger f-delete" id="f-delete">删除</button>' : ''}
+          <button type="button" class="pk-btn pk-btn-ghost" data-close>取消</button>
+          <button type="submit" class="pk-btn pk-btn-primary">保存</button>
         </div>
       </form>`
     dialog.showModal()
     const protocolSel = dialog.querySelector('#f-protocol')
     const portInput = dialog.querySelector('#f-port')
     protocolSel.onchange = () => { portInput.value = protocolSel.value === 'rdp' ? 3389 : 5901 }
-    dialog.querySelector('[data-close]').onclick = () => dialog.close()
+    dialog.querySelectorAll('[data-close]').forEach(button => { button.onclick = () => dialog.close() })
     const deleteBtn = dialog.querySelector('#f-delete')
     if (deleteBtn) deleteBtn.onclick = safely(async () => { await store.removeProfile(profile.id); dialog.close(); bump(); toast('已删除', 'success') })
     dialog.querySelector('form').onsubmit = safely(async (event) => {
@@ -471,29 +504,30 @@ export function App() {
           {mode !== 'quick' && [...sessionsRef.current.values()].map((entry) => {
             const phase = entry.session?.state?.phase || 'connecting'
             return (
-              <button
-                key={entry.id}
-                className={'tab' + (entry.id === activeId ? ' active' : '')}
-                onClick={(event) => {
-                  if (event.target?.classList?.contains('close')) { void closeSession(entry.id); return }
-                  activateSession(entry.id)
-                }}
-              >
-                <span className={`dot ${phase}`}></span>
-                <span className="label">{esc(entry.profile.name)}</span>
-                <span className="proto">{entry.profile.protocol.toUpperCase()}</span>
-                <span className="close" title="关闭">✕</span>
-              </button>
+              <div key={entry.id} className={'tab' + (entry.id === activeId ? ' active' : '')}>
+                <button type="button" className="tab-select" aria-pressed={entry.id === activeId} onClick={() => activateSession(entry.id)}>
+                  <span className={`dot ${phase}`}></span>
+                  <span className="label">{entry.profile.name}</span>
+                  <span className="proto">{entry.profile.protocol.toUpperCase()}</span>
+                </button>
+                <button type="button" className="close" title="关闭" aria-label={'关闭 ' + entry.profile.name}
+                  onClick={() => void closeSession(entry.id)}>✕</button>
+              </div>
             )
           })}
         </nav>
         <div className="topbar-end">
-          <button className="ghost" id="btn-new" title="新建连接" onClick={() => openProfileDialog(null)}>＋ 新建</button>
-          <button className="ghost" id="btn-test" title="连接测试">测试</button>
-          <button className="ghost" id="btn-import" title="导入 JSON / 粘贴 URI" onClick={safely(importFlow)}>导入</button>
-          <button className="ghost" id="btn-export" title="导出 JSON（密码为空）" onClick={safely(exportFlow)}>导出</button>
+          <button className="pk-btn pk-btn-ghost" id="btn-new" title="新建连接" onClick={() => openProfileDialog(null)}>＋ 新建</button>
+          <MoreMenu
+            ariaLabel="更多操作"
+            items={[
+              { key: 'import', label: '导入 JSON / 粘贴 URI', onSelect: safely(importFlow) },
+              // quick 模式沿用原行为：不暴露导出（单窗口无落盘入口）
+              mode === 'quick' ? null : { key: 'export', label: '导出 JSON（密码为空）', onSelect: safely(exportFlow) },
+            ].filter(Boolean)}
+          />
           <span className="spacer"></span>
-          <button className="ghost" id="btn-shell-expand" title="在桌面展开" hidden={mode !== 'quick'} onClick={() => host?.ui?.openInShell?.()}>↗ 展开</button>
+          <button className="pk-btn pk-btn-ghost" id="btn-shell-expand" title="在桌面展开" hidden={mode !== 'quick'} onClick={() => host?.ui?.openInShell?.()}>↗ 展开</button>
         </div>
       </header>
 
@@ -522,11 +556,12 @@ export function App() {
                     <GroupBlock
                       key={g.groupId || '__ungrouped'} label={g.label} items={g.items} groupId={g.groupId}
                       onToggle={toggleGroup} onItemClick={onTreeItemClick} onItemKeyDown={onTreeItemKeyDown}
+                      onItemMenu={onTreeItemMenu} menuItems={profileMenuItems}
                     />
                   )
                 })}
                 {treeEmpty && store.state.ui.selectedGroupId && (
-                  <div className="empty">没有匹配的资产<button className="ghost" style={{ marginLeft: 8 }} id="tree-empty-new" onClick={() => openProfileDialog(null)}>新建连接</button></div>
+                  <div className="empty">没有匹配的资产<button className="pk-btn pk-btn-ghost pk-btn-sm tree-empty-new" id="tree-empty-new" onClick={() => openProfileDialog(null)}>新建连接</button></div>
                 )}
               </>
             )}
@@ -551,20 +586,27 @@ export function App() {
                   aria-label="快速连接 URI" data-input-context="editor"
                   onKeyDown={(event) => { if (event.key === 'Enter') safely(uriGo)() }}
                 />
-                <button className="primary" id="btn-uri-go" onClick={safely(uriGo)}>连接</button>
+                <button className="pk-btn pk-btn-primary" id="btn-uri-go" onClick={safely(uriGo)}>连接</button>
               </div>
             </div>
             <div className="recent" id="recent-panel" hidden={recentHidden}>
-              <div className="panel-head"><h3>最近连接</h3><button className="ghost danger" id="btn-clear-recent" title="清空最近记录" onClick={safely(async () => { await store.clearRecent(); bump() })}>清空</button></div>
+              <div className="panel-head"><h3>最近连接</h3><MoreMenu buttonClassName="pk-btn-sm" ariaLabel="最近连接更多操作" items={[
+                { key: 'clear', label: '清空最近记录', danger: true, onSelect: safely(async () => { await store.clearRecent(); bump() }) },
+              ]} /></div>
               <div className="recent-list" id="recent-list">
                 {recent.length === 0 ? <div className="empty">暂无最近连接</div> : recent.slice(0, 10).map((r, index) => {
                   const when = new Date(r.when)
                   const hhmm = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`
                   const dur = r.durationMs > 0 ? formatDuration(r.durationMs) : ''
                   return (
-                    <div key={`${r.profileId}-${r.when}-${index}`} className="recent-row" data-index={index} onClick={safely(() => reconnectRecent(recent[index]))}>
+                    <div key={`${r.profileId}-${r.when}-${index}`} className="recent-row" data-index={index} role="button" tabIndex={0}
+                      onClick={safely(() => reconnectRecent(r))}
+                      onKeyDown={event => {
+                        if (event.isComposing || !['Enter', ' '].includes(event.key)) return
+                        event.preventDefault(); safely(() => reconnectRecent(r))()
+                      }}>
                       <span className="proto-badge">{r.protocol.toUpperCase()}</span>
-                      <span className="name">{esc(r.name)} <span className="mono" style={{ color: 'var(--text-3)' }}>{esc(r.host)}:{r.port}</span></span>
+                      <span className="name">{esc(r.name)} <span className="mono recent-addr">{esc(r.host)}:{r.port}</span></span>
                       <span className="dur">{dur}</span>
                       <span className="when mono">{hhmm}</span>
                     </div>
@@ -574,7 +616,7 @@ export function App() {
             </div>
             <div className="empty-guide" id="empty-guide" hidden={emptyGuideHidden}>
               <p>还没有连接资产。</p>
-              <button className="primary" id="btn-empty-new" onClick={() => openProfileDialog(null)}>新建连接</button>
+              <button className="pk-btn pk-btn-primary" id="btn-empty-new" onClick={() => openProfileDialog(null)}>新建连接</button>
             </div>
           </section>
           <div className="sessions" id="sessions" ref={sessionsElRef} hidden={!hasSessions}></div>
@@ -589,23 +631,27 @@ export function App() {
   )
 }
 
-/* 资产树分组块：group-head + 展开的 tree-item 列表（结构对应原 appendGroup） */
-function GroupBlock({ label, items, groupId, onToggle, onItemClick, onItemKeyDown }) {
+/* 资产树分组块：group-head + 展开的 tree-item 列表。
+   行内更多菜单与右键共用连接 / 测试 / 编辑 / 复制地址 / 删除动作。 */
+function GroupBlock({ label, items, groupId, onToggle, onItemClick, onItemKeyDown, onItemMenu, menuItems }) {
   return (
     <>
       <div className="group-head" onClick={() => onToggle(groupId)}>
         <span>▾</span><span>{esc(label)}</span><span className="count mono">{items.length}</span>
       </div>
       {items.map((p) => (
-        <div key={p.id} className="tree-item" tabIndex={0} onClick={(e) => onItemClick(e, p)} onKeyDown={(e) => onItemKeyDown(e, p)}>
+        <div
+          key={p.id} className="tree-item" tabIndex={0} role="group" aria-label={p.name} data-row-actions
+          onClick={(e) => onItemClick(e, p)}
+          onKeyDown={(e) => onItemKeyDown(e, p)}
+          onContextMenu={(e) => onItemMenu(e, p)}
+        >
           <span className="proto-badge">{p.protocol.toUpperCase()}</span>
           <span className="name" title={esc(p.name)}>{esc(p.name)}</span>
           {p.tunnel.enabled ? <span className="tunnel" title="经 SSH 隧道"> tunnel</span> : null}
           <span className="meta mono">{esc(p.host)}:{p.port}</span>
-          <span className="actions">
-            <button data-act="test" title="连接测试">测</button>
-            <button data-act="edit" title="编辑">改</button>
-            <button data-act="remove" title="删除">删</button>
+          <span className="pk-row-actions">
+            <MoreMenu buttonClassName="pk-btn-sm" ariaLabel={p.name + ' 的更多操作'} items={menuItems(p)} />
           </span>
         </div>
       ))}

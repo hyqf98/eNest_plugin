@@ -3,6 +3,35 @@ import {
   Button, Input, Dialog, DialogOverlay, DialogContent, DialogTitle, DialogDescription,
 } from '@dsh/ui/index.jsx'
 
+export const INSTALL_PHASES = {
+  'upgrade-start': '准备升级', backup: '创建备份', 'download-start': '准备下载', download: '下载资产',
+  verify: '校验资产', extract: '解包安装', installed: '安装完成', 'health-check': '健康检查',
+  activated: '激活完成', 'upgrade-done': '升级完成', rollback: '正在回滚', error: '操作失败',
+}
+export const INSTALL_STAGES = [
+  { label: '备份', phases: ['upgrade-start', 'backup'] },
+  { label: '下载与校验', phases: ['download-start', 'download', 'verify'] },
+  { label: '安装', phases: ['extract', 'installed'] },
+  { label: '检查与激活', phases: ['health-check', 'activated', 'upgrade-done'] },
+]
+
+export function InstallProgress({ progress, pending, title }) {
+  if (!progress && !pending) return null
+  const percent = Number.isFinite(progress?.percent) ? Math.max(0, Math.min(100, progress.percent)) : null
+  return (
+    <section className="dsh-settings-install-progress" aria-live="polite">
+      <div className="dsh-settings-row">
+        <strong>{title || (pending ? '操作进度' : '最近一次安装进度')}</strong>
+        {percent != null && <span className="dsh-settings-mono">{percent}%</span>}
+      </div>
+      <ol className="dsh-settings-stages" aria-label="宿主报告的当前阶段">
+        {INSTALL_STAGES.map((stage) => <li key={stage.label} aria-current={stage.phases.includes(progress?.phase) ? 'step' : undefined}>{stage.label}</li>)}
+      </ol>
+      <p>{progress ? INSTALL_PHASES[progress.phase] || progress.phase : pending}{progress?.detail && <span className="dsh-settings-progress-detail">{progress.detail}</span>}</p>
+    </section>
+  )
+}
+
 export function SectionHeading({ title, description, actions }) {
   return (
     <header className="dsh-settings-section-heading">

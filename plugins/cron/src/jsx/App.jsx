@@ -15,6 +15,7 @@ import {
   describe,
   parseCrontabLine,
 } from '../js/core.mjs'
+import { MoreMenu } from '../ui/index.jsx'
 
 const api = window.enest || window.zapi
 
@@ -164,7 +165,7 @@ export function App() {
 
   /* ── crontab（等价原 parse/export） ── */
   const parseCrontab = useCallback(() => {
-    const lines = stateRef.current.crontabRef.value.split('\n')
+    const lines = crontabText.split('\n')
     const parsed = []
     const errors = []
     for (const [i, line] of lines.entries()) {
@@ -194,18 +195,15 @@ export function App() {
     }
     setCrontabStatus(`已解析 ${parsed.length} 行，构建器载入第 ${first.line} 行`)
     kitRef.current?.toast(`已载入第 ${first.line} 行表达式`, 'success')
-  }, [applyExpressionToFields])
+  }, [applyExpressionToFields, crontabText])
 
   const exportCrontab = useCallback(() => {
     const source = stateRef.current.expression
-    const lines = stateRef.current.crontabRef.value.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && !l.startsWith('@'))
+    const lines = crontabText.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && !l.startsWith('@'))
     const body = lines.length ? lines.map((l) => `${l}  # 由构建器保留`).join('\n') : ''
     const entry = `${source}  # ${humanize || 'eNest Cron 构建器'}`
     kitRef.current?.copy(body ? `${body}\n${entry}` : entry).catch((e) => kitRef.current?.toast(e.message, 'error'))
-  }, [humanize])
-
-  const crontabRef = useRef(null)
-  stateRef.current.crontabRef = crontabRef
+  }, [crontabText, humanize])
 
   /* ── Quick / 初始化（latest-ref 桥接；hooks 规则：effect 在条件 return 之前） ── */
   const onQueryRef = useRef(null)
@@ -259,7 +257,6 @@ export function App() {
             <button id="mode-6" type="button" className={withSeconds ? 'active' : ''} aria-pressed={withSeconds}
               onClick={() => { setWithSeconds(true); applyExpressionToFields(expression, true) }}>6 域（秒）</button>
           </div>
-          <button id="toggle-presets" type="button" className="ghost shell-only">预设库</button>
         </div>
       </header>
 
@@ -287,7 +284,12 @@ export function App() {
           </ul>
           <div className="presets-foot">
             <button id="preset-save" type="button" disabled={!schedule} onClick={savePreset}>保存当前为预设</button>
-            <button id="preset-reset" type="button" className="ghost" onClick={resetPresets}>恢复内置</button>
+            <MoreMenu
+              ariaLabel="预设库操作"
+              items={[
+                { key: 'reset', label: '恢复内置', disabled: !userPresets.length, onSelect: resetPresets },
+              ]}
+            />
           </div>
         </aside>
 
@@ -389,7 +391,12 @@ export function App() {
               <span id="crontab-status" className="hint">{crontabStatus || (schedule ? `当前：${schedule.raw}` : '表达式无效，无法导出')}</span>
               <span className="spacer"></span>
               <button id="crontab-parse" type="button" onClick={parseCrontab}>解析到构建器</button>
-              <button id="crontab-export" type="button" disabled={!schedule} onClick={exportCrontab}>导出复制</button>
+              <MoreMenu
+                ariaLabel="crontab 操作"
+                items={[
+                  { key: 'export', label: '导出复制', disabled: !schedule, onSelect: exportCrontab },
+                ]}
+              />
             </div>
           </section>
         </section>

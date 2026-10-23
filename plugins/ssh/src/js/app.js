@@ -227,8 +227,8 @@ import { decodeTerminalData } from './terminalData.js'
     // 抽屉盖在终端区之上（z-index:40 > term-search 所在层）；
     // 打开时收起终端搜索浮层，关闭时恢复，避免搜索 UI 半截被埋在抽屉下
     if (isOpen && termSearch.visible) closeTermSearch()
-    document.querySelectorAll('#btn-top-drawer, #rail-drawer').forEach((b) => {
-      if (b) b.classList.toggle('active', isOpen)
+    document.querySelectorAll('#rail-drawer, [data-navigation="history"], [data-navigation="snippets"]').forEach((button) => {
+      button.classList.toggle('active', isOpen && (!button.dataset.navigation || button.dataset.navigation === store.state.ui.rightTab))
     })
     if (persist !== false) store.setUi({ drawerOpen: isOpen })
   }
@@ -738,7 +738,11 @@ import { decodeTerminalData } from './terminalData.js'
     ]
   }
 
+  /* 唯一的「更多」菜单：导航动作 + 当前会话动作。
+     rail 在侧栏收起/展开两种状态下都可见，因此它承担全插件唯一的 ⋯ 入口；
+     会话级动作同时在会话标签右键菜单里可达（sessionTabMenuItems）。 */
   function sideMoreItems() {
+    const s = activeSession()
     return [
       { primary: true, label: '新建连接', onAct: () => openProfileForm(null) },
       { label: '新建分组', onAct: () => void newGroup() },
@@ -751,27 +755,14 @@ import { decodeTerminalData } from './terminalData.js'
         },
       },
       { sep: true },
-      { label: '历史', onAct: () => toggleDrawer() },
+      { label: '历史与常用', onAct: () => toggleDrawer() },
       { label: '导出', onAct: () => void exportAssets(true) },
       { label: '导入', onAct: () => void importAssets() },
-    ]
-  }
-
-  function topMoreItems() {
-    const s = activeSession()
-    return [
-      { primary: true, label: '新建连接', onAct: () => openProfileForm(null) },
-      {
-        label: '打开终端',
-        disabled: !store.state.profiles.length,
-        onAct: () => void fabAction(),
-      },
-      { label: '历史', onAct: () => toggleDrawer() },
       { sep: true },
       {
         label: '重连',
         disabled: !s,
-        onAct: () => { setActiveTab(tabId); void connectActive(true) },
+        onAct: () => { if (!s || sessions.get(s.tabId) !== s) return; setActiveTab(s.tabId); void connectActive(true) },
       },
       {
         label: '断开',
@@ -781,7 +772,6 @@ import { decodeTerminalData } from './terminalData.js'
           await disconnectSession(s)
         },
       },
-      { sep: true },
       {
         label: '监控',
         disabled: !s,
@@ -804,42 +794,6 @@ import { decodeTerminalData } from './terminalData.js'
       },
       { label: '字号 +', onAct: () => bumpFont(1) },
       { label: '字号 −', onAct: () => bumpFont(-1) },
-      { sep: true },
-      { label: '导出', onAct: () => void exportAssets(true) },
-      { label: '导入', onAct: () => void importAssets() },
-    ]
-  }
-
-  function hintMoreItems() {
-    const s = activeSession()
-    return [
-      { primary: true, label: '补全', onAct: () => void runCompletion(true) },
-      { sep: true },
-      {
-        label: '重连',
-        disabled: !s,
-        onAct: () => { setActiveTab(tabId); void connectActive(true) },
-      },
-      {
-        label: '断开',
-        disabled: !(s && s.sessionId),
-        onAct: async () => {
-          if (!s) return
-          await disconnectSession(s)
-        },
-      },
-      {
-        label: '清屏',
-        disabled: !s?.term,
-        onAct: () => {
-          s?.term?.clear?.()
-        },
-      },
-      {
-        label: '复制输出',
-        disabled: !s,
-        onAct: () => void copyTerm(),
-      },
     ]
   }
 
@@ -3644,14 +3598,6 @@ import { decodeTerminalData } from './terminalData.js'
     }
     $('rail-drawer').onclick = () => toggleDrawer()
     $('rail-more').onclick = (ev) => showMenuFromEl(ev.currentTarget, sideMoreItems())
-    $('btn-side-more').onclick = (ev) => showMenuFromEl(ev.currentTarget, sideMoreItems())
-
-    $('btn-top-search').onclick = () => {
-      setSidebarCollapsed(false)
-      setTimeout(() => $('search-input')?.focus(), 50)
-    }
-    $('btn-top-drawer').onclick = () => toggleDrawer()
-    $('btn-top-more').onclick = (ev) => showMenuFromEl(ev.currentTarget, topMoreItems())
 
     $('btn-drawer-close').onclick = () => setDrawerOpen(false)
     $('drawer-scrim').onclick = () => setDrawerOpen(false)
@@ -3927,7 +3873,7 @@ import { decodeTerminalData } from './terminalData.js'
     if (!api.raw) toast('预览模式：功能未就绪', 'warn')
     else if (!hostSshReady) toast('功能未就绪', 'warn')
 
-    window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, runHint, navigateHistory: (direction, target) => { getCompletion().hide(); return commandActions.history(direction, target) }, completionVisible: () => getCompletion().isOpen(), completionMove: delta => getCompletion().move(delta), completionAccept: () => getCompletion().accept(), openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, toggleDrawer, openCollection, setDrawerOpen, setSidebarCollapsed, api, store }
+    window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, runHint, navigateHistory: (direction, target) => { getCompletion().hide(); return commandActions.history(direction, target) }, completionVisible: () => getCompletion().isOpen(), completionMove: delta => getCompletion().move(delta), completionAccept: () => getCompletion().accept(), openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, showMoreMenu: (el) => showMenuFromEl(el, sideMoreItems()), toggleDrawer, openCollection, setDrawerOpen, setSidebarCollapsed, api, store }
     window.dispatchEvent(new Event('ssh-workbench-ready'))
     setInterval(renderTopStatus, 30000)
   }

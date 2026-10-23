@@ -6,7 +6,7 @@
         --muted: var(--text-2, #77847e);
         --ink: var(--text, #26302c);
         --focus: var(--accent, #598774);
-        --rest: #7b9ebc;
+        --rest: var(--pomodoro-rest, #7b9ebc);
         --focus-soft: color-mix(in srgb, var(--focus) 12%, transparent);
         /* 层级阴影：随主题文本色着色，避免纯黑投影 */
         --shadow-1: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);

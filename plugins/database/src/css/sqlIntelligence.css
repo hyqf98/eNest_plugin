@@ -67,7 +67,7 @@ body:has(.app) .monaco-editor .suggest-widget,
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 7px;
-  box-shadow: 0 3px 8px #0000000a, 0 12px 28px #00000018;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--db-scrim) 4%, transparent), 0 12px 28px color-mix(in srgb, var(--db-scrim) 9%, transparent);
   max-width: min(480px, calc(100vw - 16px));
   overflow: hidden;
   font-family: var(--mono);
@@ -96,7 +96,14 @@ body:has(.app) .monaco-editor .suggest-widget .monaco-highlighted-label .highlig
 body:has(.app) .monaco-editor :is(.suggest-details-container, .suggest-widget .readMore) { display: none !important; }
 .app .completion-popup { min-width: min(340px, calc(100vw - 16px)); max-height: 300px; overflow-y: auto; padding: 3px 0; z-index: 40; }
 .app .comp-item { grid-template-columns: 18px minmax(0, 1fr) auto; gap: 6px; min-height: 28px; padding: 4px 10px 4px 7px; border-radius: 0; font-size: var(--db-type-unit, 13px); line-height: 1.5; }
-.app .comp-kind { display: grid; place-items: center; width: 16px; height: 16px; border: 1px solid var(--border-strong); border-radius: 3px; color: var(--text-2); font: 10px/1 var(--mono); }
+.app .comp-kind { display: grid; place-items: center; width: 16px; height: 16px; border: 1px solid color-mix(in srgb, currentColor 35%, var(--border)); border-radius: 3px; color: var(--text-2); background: color-mix(in srgb, currentColor 10%, transparent); font: 10px/1 var(--mono); }
+.app .comp-kind[data-kind=keyword] { color: var(--tok-kw); }
+.app .comp-kind:is([data-kind=table], [data-kind=view], [data-kind=measurement]) { color: var(--tok-table); }
+.app .comp-kind[data-kind=column] { color: var(--tok-str); }
+.app .comp-kind[data-kind=function] { color: var(--tok-fn); }
+.app .comp-kind:is([data-kind=database], [data-kind=schema]) { color: var(--tok-identq); }
+.app .comp-kind[data-kind=snippet] { color: var(--tok-num); }
+.app .comp-kind[data-kind=alias] { color: var(--tok-alias); }
 .app .comp-label { white-space: nowrap; }
 .app .comp-type { margin-left: 8px; color: var(--text-2); font-size: .85em; }
 .app .comp-detail { max-width: 220px; color: var(--text-2); font: .85em/1.5 var(--font); }

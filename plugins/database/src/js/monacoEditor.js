@@ -166,8 +166,8 @@ export class SqlEditor extends LightweightEditor {
       provideDocumentRangeFormattingEdits: (model, range) => formattingEdits(model, range)
     }))
     const syncTheme = () => {
-      const app = document.querySelector('#app'), theme = app?.dataset.workbenchTheme
-      const style = getComputedStyle(app || document.documentElement), dark = theme === 'graphite' || (!theme && document.documentElement.dataset.theme === 'dark')
+      const app = document.querySelector('#app')
+      const style = getComputedStyle(app || document.documentElement), dark = style.colorScheme === 'dark' || document.documentElement.dataset.scheme === 'dark' || document.documentElement.dataset.theme === 'dark'
       const color = (key, fallback) => { const v = style.getPropertyValue(key).trim(); if (/^#[a-f\d]{3}$/i.test(v)) return '#' + v.slice(1).split('').map((c) => c + c).join(''); if (/^#[a-f\d]{6,8}$/i.test(v)) return v.slice(0, 7); const match = v.match(/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)/); return match ? '#' + match.slice(1).map((n) => Number(n).toString(16).padStart(2, '0')).join('') : fallback }
       const bg = color('--bg', dark ? '#202228' : '#ffffff'), fg = color('--text', dark ? '#dedee3' : '#252932'), accent = color('--accent', '#517ad4')
       monaco.editor.defineTheme('enest-workbench', { base: dark ? 'vs-dark' : 'vs', inherit: true, rules: [], colors: { 'editor.background': bg, 'editor.foreground': fg, 'editorGutter.background': bg, 'editorLineNumber.foreground': color('--text-3', '#8d9098'), 'editorCursor.foreground': accent, 'editor.selectionBackground': accent + '40', 'editorWidget.background': color('--surface', bg), 'editorWidget.border': color('--border', '#999999'), 'focusBorder': accent } })

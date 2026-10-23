@@ -5,6 +5,7 @@
  * 原生 select 仍由 plugin-kit upgradeSelects 接管。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button } from '../ui/index.jsx'
 import * as core from '../js/core.js'
 
 const api = window.enest || window.zapi
@@ -402,11 +403,11 @@ export function App() {
               <option value="15">15 位</option>
             </select>
           </label>
-          <button
+          <Button
             id="scientific"
-            type="button"
-            className="ghost"
-            aria-pressed={scientific}
+            variant="ghost"
+            size="sm"
+            pressed={scientific}
             title="科学计数法切换"
             onClick={() => {
               setScientific((prev) => {
@@ -417,7 +418,7 @@ export function App() {
             }}
           >
             科学计数
-          </button>
+          </Button>
           <span id="formula" className="formula mono" aria-live="polite" hidden={formula.hidden}>
             {formula.text}
           </span>
@@ -498,7 +499,7 @@ export function App() {
           <label>
             金额<input id="fx-amount" className="mono" inputMode="decimal" value={fxAmount} onInput={(e) => setFxAmount(e.target.value)} onChange={() => {}} />
           </label>
-          <button id="fx-refresh" type="button" className="pk-btn" onClick={() => void refreshFx()}>刷新汇率</button>
+          <Button id="fx-refresh" onClick={() => void refreshFx()}>刷新汇率</Button>
           <span id="fx-state" className="muted">
             {fxState ||
               (fxInfo.source === 'live'
@@ -548,12 +549,12 @@ export function App() {
           <div className="rmb-row">
             <span className="cap">票据大写</span>
             <span id="rmb-upper" className="mono">{rmbText.upper || '—'}</span>
-            <button type="button" data-copy-target="rmb-upper" className="pk-btn ghost" onClick={() => rmbText.upper && rmbText.upper !== '—' && copyText(rmbText.upper, '已复制')}>复制</button>
+            <Button variant="ghost" size="sm" data-copy-target="rmb-upper" onClick={() => rmbText.upper && rmbText.upper !== '—' && copyText(rmbText.upper, '已复制')}>复制</Button>
           </div>
           <div className="rmb-row">
             <span className="cap">中文数字</span>
             <span id="rmb-cn" className="mono">{rmbText.cn || '—'}</span>
-            <button type="button" data-copy-target="rmb-cn" className="pk-btn ghost" onClick={() => rmbText.cn && rmbText.cn !== '—' && copyText(rmbText.cn, '已复制')}>复制</button>
+            <Button variant="ghost" size="sm" data-copy-target="rmb-cn" onClick={() => rmbText.cn && rmbText.cn !== '—' && copyText(rmbText.cn, '已复制')}>复制</Button>
           </div>
         </div>
       </section>
@@ -562,7 +563,7 @@ export function App() {
       <footer>
         <span id="foot-note">{footNote}</span>
         <span className="grow"></span>
-        <button id="copy-all" type="button" className="pk-btn shell-only" onClick={copyAll}>复制全部结果</button>
+        <Button id="copy-all" size="sm" variant="ghost" className="shell-only" onClick={copyAll}>复制全部结果</Button>
       </footer>
     </main>
   )

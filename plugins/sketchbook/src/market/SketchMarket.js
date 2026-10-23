@@ -122,6 +122,7 @@ export function createMarketView(controller) {
   // 环与 scroll 是同级；底部裁切留给宿主原生设置 dock，不制造替代入口。
   root.append(paper, scroll, binding())
 
+  const seenPlugins = new Set()
   let lastCatalogKey = ''
   let lastSearchKey = ''
   let lastDetailKey = ''
@@ -132,6 +133,12 @@ export function createMarketView(controller) {
   let returnFocus = null
   let closing = false
   let latestState = controller.getState()
+
+  // 隐藏预热期间的重建不消耗首次入场；可见后同一插件的卡片与推荐项不再重播。
+  function rememberVisiblePlugins() {
+    if (!latestState.visible || !latestState.appearance || document.hidden) return
+    for (const node of contentSlot.querySelectorAll('[data-entry-plugin]')) seenPlugins.add(node.dataset.entryPlugin)
+  }
 
   /** 宿主已完成真正开屏，首次可见只让内容轻移入场，不再放全屏覆盖层。 */
   function maybeEnter(state) {
@@ -243,7 +250,8 @@ export function createMarketView(controller) {
     }, '打开插件', icon('spark', 13)) : null
     open?.addEventListener('click', () => handlers.open(item.pluginId))
     return h('article', {
-      class: `sk-feature ${lead ? 'is-lead' : 'is-index'}`,
+      class: `sk-feature ${lead ? 'is-lead' : 'is-index'}${seenPlugins.has(item.pluginId) ? '' : ' is-new'}`,
+      dataset: { entryPlugin: item.pluginId },
       style: { '--i': index, '--feat-ink': inkFor(item.category) },
     }, tape(), detail, open)
   }
@@ -268,7 +276,8 @@ export function createMarketView(controller) {
     })
 
     return h('article', {
-      class: `sk-card${busy ? ' is-busy' : ''}${disabled ? ' is-disabled' : ''}`,
+      class: `sk-card${busy ? ' is-busy' : ''}${disabled ? ' is-disabled' : ''}${seenPlugins.has(item.pluginId) ? '' : ' is-new'}`,
+      dataset: { entryPlugin: item.pluginId },
       style: { '--i': index, '--card-ink': inkFor(item.category) },
     },
     tape(),
@@ -414,7 +423,10 @@ export function createMarketView(controller) {
     const perms = detail.permissions ?? []
 
     const actionButton = (label, className, onClick, isDisabled = false) => {
-      const button = h('button', { type: 'button', class: `sk-btn ${className}`.trim(), disabled: isDisabled || busy }, label)
+      const button = h('button', {
+        type: 'button', class: `sk-btn ${className}`.trim(), disabled: isDisabled || busy,
+        'aria-busy': String(busy), dataset: { actionDisabled: String(Boolean(isDisabled)) },
+      }, label)
       button.addEventListener('click', onClick)
       return button
     }
@@ -553,7 +565,13 @@ export function createMarketView(controller) {
       scroll.setAttribute('aria-hidden', 'true')
       close.focus({ preventScroll: true })
     }
-    const key = JSON.stringify([state.route.pluginId, state.detailStatus, state.detail, state.readme, state.notice, [...state.busy].sort()])
+    // busy 只改变当前详情的动作按钮，不拆走正文、截图或焦点节点。
+    const busy = state.busy.has(state.route.pluginId)
+    for (const button of modal.body.querySelectorAll('.sk-detail-actions button')) {
+      button.disabled = button.dataset.actionDisabled === 'true' || busy
+      button.setAttribute('aria-busy', String(busy))
+    }
+    const key = JSON.stringify([state.route.pluginId, state.detailStatus, state.detail, state.readme, state.notice])
     if (key === lastDetailKey) return
     lastDetailKey = key
     const { body, dialog, close, label } = modal
@@ -578,8 +596,8 @@ export function createMarketView(controller) {
     maybeEnter(state)
     updateSearch(state)
 
-    // detail/readme/appearance/quickResults 不属于 catalog key；弹框期间保留真实底层节点。
-    const key = JSON.stringify([state.basePage, state.category, state.loading, state.refreshing,
+    // detail/readme/appearance/quickResults/refreshing 不属于 catalog key；弹框期间保留真实底层节点。
+    const key = JSON.stringify([state.basePage, state.category, state.loading,
       state.catalog?.revision, state.query, state.notice, [...state.busy].sort()])
     if ((!modal || state.route.page !== 'detail') && key !== lastCatalogKey) {
       lastCatalogKey = key
@@ -592,11 +610,19 @@ export function createMarketView(controller) {
       scroll.scrollTop = top
       if (active && !active.isConnected) restoreFocus(active, focusKey)
     }
+    const refresh = headerSlot.querySelector('.sk-round')
+    if (refresh) {
+      refresh.disabled = state.refreshing
+      refresh.setAttribute('aria-busy', String(state.refreshing))
+      refresh.title = state.refreshing ? '正在刷新…' : '刷新市场目录'
+    }
+    rememberVisiblePlugins()
     updateDetail(state)
   }
 
   function onVisibility() {
-    // 宿主恢复可见时只校正焦点，不以此延迟预热渲染或 ACK。
+    // 宿主恢复可见时只校正焦点与入场记录，不以此延迟预热渲染或 ACK。
+    rememberVisiblePlugins()
     if (!document.hidden && latestState.visible && modal) modal.close.focus({ preventScroll: true })
   }
   document.addEventListener('visibilitychange', onVisibility)

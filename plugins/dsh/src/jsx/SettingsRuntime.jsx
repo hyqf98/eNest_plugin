@@ -175,7 +175,7 @@ export function SettingsRuntime({ state, controller }) {
               ['引擎', state.runtime?.engine],
               ['Web 启动于', state.status?.web?.startedAt ? formatTime(state.status.web.startedAt) : '未运行'],
             ]} />
-            <p className="dsh-settings-help">更换内核、回退内置版与下载校验请前往「内核版本」。</p>
+            <p className="dsh-settings-help">安装、切换内核与下载校验请前往「内核版本」。</p>
             <Button variant="ghost" disabled={Boolean(pending)} onClick={() => controller.setSection('versions')}>管理内核版本</Button>
           </Panel>
         </div>

@@ -4,6 +4,7 @@
  * 业务核心复用 src/js/*（api/providers/history/mcp/sessions/usage/snapshot/presets，语义未改动）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 import {
   toast as AToast, notify as ANotify, errMsg as AErrMsg,
   agentApps, agentRead, agentBackups, agentRestore,
@@ -34,6 +35,15 @@ import { aggregate as aggregateUsage, drawDaily, drawHeatmap, fmtTokens, testEnd
 import { PRESETS, instantiate } from '../js/presets.js'
 
 const PROJECTS_KEY = 'ccswitch.projects.v1'
+const NAV_ITEMS = [
+  ['history', '◷', '切换历史'],
+  ['mcp', '⌗', 'MCP'],
+  ['sessions', '❯', '会话'],
+  ['usage', '▤', '用量'],
+  ['backups', '⏱', '备份'],
+  ['projects', '❖', '项目预设'],
+  ['settings', '⚙', '设置'],
+]
 
 function host(hostname) {
   try { return new URL(hostname).host } catch { return hostname || '—' }
@@ -115,6 +125,10 @@ export function App() {
   const [modalMcpTpl, setModalMcpTpl] = useState(false)
   const [modalConfirm, setModalConfirm] = useState(null) // { title, text, hint, okText, danger, resolve }
   const drawerRef = useRef(null)
+  const navRef = useRef(null)
+  const navCollapseRef = useRef(null)
+  const navigationRef = useRef(null)
+  const [navCollapsed, setNavCollapsed] = useState(false)
 
   const showToast = useCallback((msg, type) => {
     AToast(msg, type)
@@ -301,6 +315,34 @@ export function App() {
       await renderProviders()
       undoToast(p.name, snapshotItem)
     } catch (e) { showToast(AErrMsg(e), 'error') }
+  }
+
+  async function duplicateProvider(p) {
+    const copy = { ...p, id: '', name: p.name + ' 副本', isDefault: false }
+    await upsertProvider(copy)
+    showToast('已复制 ' + p.name, 'success')
+    await renderProviders()
+  }
+
+  function providerMenuItems(p, isCurrent, mode) {
+    return [
+      { key: 'switch', label: isCurrent ? '当前使用中' : mode === 'additive' ? '添加到应用' : '启用', disabled: isCurrent, onSelect: () => switchProvider(p) },
+      { key: 'edit', label: '编辑', onSelect: () => openProviderModal(p) },
+      { key: 'duplicate', label: '复制', onSelect: () => duplicateProvider(p) },
+      { key: 'test', label: '测速', onSelect: () => testProviderLatency(p) },
+      { sep: true },
+      { key: 'delete', label: '删除', danger: true, disabled: p.isDefault || isCurrent, onSelect: () => confirmDeleteProvider(p) },
+    ]
+  }
+
+  // 右键与可点击菜单共用逐项闭包，菜单打开后不会跟随另一张卡片。
+  function providerCardMenu(event, p, isCurrent, mode) {
+    event.preventDefault()
+    const items = providerMenuItems(p, isCurrent, mode)
+    window.PluginKit.openMenu(event, items, (key) => {
+      const action = items.find((item) => item.key === key)
+      if (action && !action.disabled) void action.onSelect?.()
+    }, { align: 'end' })
   }
 
   /* —— 切换流程：diff 预览 → 确认 → write → 历史记录 —— */
@@ -516,6 +558,22 @@ export function App() {
     if (state.page === 'providers') renderSummary()
   }
 
+  /** 卡片右键「测速」：对供应商 Base URL 探测一次并回写摘要条 */
+  async function testProviderLatency(p) {
+    const url = (p.baseUrl || '').trim()
+    if (!url) { showToast('该供应商使用官方默认端点，无需测速', 'info'); return }
+    showToast('测速中…', 'info')
+    const r = await testEndpoint(url)
+    if (r.ok) {
+      state.latencyCache.set(url, { ok: true, latency: r.latency, status: r.status, ts: Date.now() })
+      showToast(`${p.name} 可达 · ${r.latency}ms · HTTP ${r.status}`, 'success')
+    } else {
+      state.latencyCache.set(url, { ok: false, ts: Date.now() })
+      showToast(`${p.name} 不可达：${r.error}`, 'error')
+    }
+    renderSummary()
+  }
+
   /* ================ 预设库 ================ */
   const renderPresetGrid = useCallback((q) => {
     let list = PRESETS.filter((p) => {
@@ -667,6 +725,42 @@ export function App() {
       env: spec.env ? JSON.stringify(spec.env) : '',
       json: JSON.stringify(spec, null, 2),
     })
+  }
+
+  async function deleteMcpEntry(entry) {
+    const ok = await confirmDialog({
+      title: '删除 MCP',
+      text: `删除 MCP「${entry.id}」？`,
+      hint: '将从所有已启用应用的配置文件中同步移除。',
+      okText: '删除',
+      danger: true,
+    })
+    if (!ok) return
+    await removeMcp(entry.id)
+    for (const appId of Object.keys(entry.apps || {})) {
+      if (entry.apps[appId] && state.installed.has(appId)) {
+        try { await syncToApp(appId) } catch { /* best-effort */ }
+      }
+    }
+    await renderMcp()
+  }
+
+  /** MCP 卡片右键：编辑 / 删除（danger） */
+  function mcpCardMenu(event, entry) {
+    event.preventDefault()
+    window.PluginKit.openMenu(
+      event,
+      [
+        ['edit', '编辑'],
+        'sep',
+        ['delete', '删除', { danger: true }],
+      ],
+      (key) => {
+        if (key === 'edit') openMcpModal(entry)
+        if (key === 'delete') void deleteMcpEntry(entry)
+      },
+      { align: 'end' },
+    )
   }
 
   async function saveMcpModal() {
@@ -858,6 +952,34 @@ export function App() {
     if (loader) Promise.resolve(loader()).catch((e) => console.warn('[ccswitch] page load:', e))
   }, [loadBackups, loadHistoryPage, loadSessionsPage, loadUsagePage, refreshCurrentApp, renderMcp, renderProjects, renderSettings]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  navigationRef.current = { navApps, page, onNavApp, navigate }
+  useEffect(() => {
+    const anchor = navCollapseRef.current
+    if (!anchor) return
+    const flyout = window.PluginKit.hoverFlyout(anchor, () => {
+      const current = navigationRef.current
+      return [
+        { key: 'page:providers', label: '供应商', checked: current.page === 'providers' },
+        ...current.navApps.map((app) => ({ key: 'app:' + app.id, label: app.name, disabled: !app.installed, checked: app.current })),
+        'sep',
+        ...NAV_ITEMS.map(([id, , label]) => ({ key: 'page:' + id, label, checked: current.page === id })),
+      ]
+    }, {
+      enabled: () => (navRef.current?.getBoundingClientRect().width || Infinity) <= 60,
+      handleClick: false,
+      side: 'right', delay: 120, hideDelay: 300, ariaLabel: '收起导航快捷入口',
+      onPick: (key) => {
+        const current = navigationRef.current
+        if (key.startsWith('page:')) current.navigate(key.slice(5))
+        if (key.startsWith('app:')) {
+          const app = current.navApps.find((item) => item.id === key.slice(4))
+          if (app?.installed) current.onNavApp(app)
+        }
+      },
+    })
+    return () => flyout.destroy()
+  }, [])
+
   /* ================ Quick provider ================ */
   async function registerQuick() {
     try {
@@ -964,15 +1086,7 @@ export function App() {
   }, [drawer.open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ============ 渲染（DOM 结构 / 类名与原 index.html 一致） ============ */
-  const navItems = [
-    ['history', '◷', '切换历史'],
-    ['mcp', '⌗', 'MCP'],
-    ['sessions', '❯', '会话'],
-    ['usage', '▤', '用量'],
-    ['backups', '⏱', '备份'],
-    ['projects', '❖', '项目预设'],
-    ['settings', '⚙', '设置'],
-  ]
+  const navItems = NAV_ITEMS
   const kwNow = searchKw
 
   const renderProviderGrid = () => {
@@ -984,9 +1098,9 @@ export function App() {
           <div>{providerCards.text}</div>
           <div className="field-hint">{providerCards.hint}</div>
           {providerCards.actions && (
-            <div style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-              <button className="btn primary" onClick={openPresetLib}>打开预设库</button>
-              <button className="btn ghost" onClick={() => openProviderModal(null)}>新建供应商</button>
+            <div className="guide-actions">
+              <button className="pk-btn pk-btn-primary" onClick={openPresetLib}>打开预设库</button>
+              <button className="pk-btn pk-btn-ghost" onClick={() => openProviderModal(null)}>新建供应商</button>
             </div>
           )}
         </div>
@@ -1002,8 +1116,10 @@ export function App() {
             draggable
             data-id={p.id}
             tabIndex={0}
-            role="button"
+            role="group"
             aria-label={p.name + (isCurrent ? '（当前使用）' : '')}
+            data-row-actions
+            onContextMenu={(e) => providerCardMenu(e, p, isCurrent, mode)}
             onDragStart={(e) => { e.currentTarget.classList.add('dragging'); e.dataTransfer.setData('text/plain', 'reorder:' + p.id) }}
             onDragEnd={(e) => e.currentTarget.classList.remove('dragging')}
             onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('drop-before') }}
@@ -1017,7 +1133,7 @@ export function App() {
                 await renderProviders()
               }
             }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); openProviderModal(p) } }}
+            onKeyDown={(e) => { if (e.target === e.currentTarget && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); openProviderModal(p) } }}
           >
             <div className="card-row">
               <span className="drag-handle" title="拖拽排序">⠿</span>
@@ -1041,22 +1157,13 @@ export function App() {
             )}
             <div className="card-actions">
               <button
-                className={'btn sm ' + (isCurrent ? '' : 'primary')}
+                className={'pk-btn pk-btn-sm' + (isCurrent ? '' : ' pk-btn-primary')}
                 disabled={isCurrent}
                 onClick={() => switchProvider(p)}
               >{isCurrent ? '使用中' : mode === 'additive' ? '添加' : '启用'}</button>
-              <button className="btn sm ghost" onClick={() => openProviderModal(p)}>编辑</button>
-              <button
-                className="btn sm ghost"
-                onClick={async () => {
-                  const copy = { ...p, id: '', name: p.name + ' 副本', isDefault: false }
-                  await upsertProvider(copy)
-                  showToast('已复制 ' + p.name, 'success')
-                  await renderProviders()
-                }}
-              >复制</button>
-              <div className="spacer"></div>
-              <button className="btn sm ghost danger" onClick={() => confirmDeleteProvider(p)}>删除</button>
+              <span className="pk-row-actions">
+                <MoreMenu buttonClassName="pk-btn-sm" ariaLabel={p.name + ' 的更多操作'} items={providerMenuItems(p, isCurrent, mode)} />
+              </span>
             </div>
           </div>
         ))}
@@ -1097,7 +1204,7 @@ export function App() {
               <div className="history-side">
                 <span className="when" title={new Date(entry.at).toLocaleString('zh-CN')}>{fmtAgo(entry.at)}</span>
                 <button
-                  className="btn sm ghost"
+                  className="pk-btn pk-btn-sm pk-btn-ghost"
                   onClick={async () => {
                     const ok = await confirmDialog({
                       title: '回退切换',
@@ -1136,32 +1243,20 @@ export function App() {
     return (
       <>
         {mcpRows.entries.map((entry) => (
-          <div className="card" style={{ marginBottom: '12px' }} key={entry.id}>
+          <div
+            className="card mcp-card"
+            data-row-actions
+            key={entry.id}
+            onContextMenu={(e) => mcpCardMenu(e, entry)}
+          >
             <div className="card-row">
               <span className="name">{entry.name || entry.id}</span>
               <span className="tag">{entry.spec?.type || 'stdio'}</span>
               <div className="spacer"></div>
-              <button className="btn sm ghost" onClick={() => openMcpModal(entry)}>编辑</button>
-              <button
-                className="btn sm ghost danger"
-                onClick={async () => {
-                  const ok = await confirmDialog({
-                    title: '删除 MCP',
-                    text: `删除 MCP「${entry.id}」？`,
-                    hint: '将从所有已启用应用的配置文件中同步移除。',
-                    okText: '删除',
-                    danger: true,
-                  })
-                  if (!ok) return
-                  await removeMcp(entry.id)
-                  for (const appId of Object.keys(entry.apps || {})) {
-                    if (entry.apps[appId] && state.installed.has(appId)) {
-                      try { await syncToApp(appId) } catch { /* best-effort */ }
-                    }
-                  }
-                  await renderMcp()
-                }}
-              >删除</button>
+              <span className="pk-row-actions">
+                <button className="pk-btn pk-btn-sm pk-btn-ghost" onClick={() => openMcpModal(entry)}>编辑</button>
+                <button className="pk-btn pk-btn-sm pk-btn-danger" onClick={() => deleteMcpEntry(entry)}>删除</button>
+              </span>
             </div>
             <div className="card-row">
               <span className="k">命令</span>
@@ -1180,7 +1275,7 @@ export function App() {
                       if (!state.installed.has(meta.id)) { showToast(meta.name + ' 未安装', 'info'); return }
                       const next = !entry.apps?.[meta.id]
                       await toggleMcpApp(entry.id, meta.id, next)
-                      e.currentTarget.classList.toggle('on', next)
+                      await renderMcp()
                       try {
                         await syncToApp(meta.id)
                         showToast(`已${next ? '启用' : '停用'} ${meta.name} 的 ${entry.id}（写入其 MCP 配置）`, 'success')
@@ -1222,19 +1317,31 @@ export function App() {
     return (
       <div className="session-list">
         {sessionsView.list.map((s) => (
-          <div className="session-item" key={s.sessionId + s.file} onClick={() => void openSessionDetail(s)}>
+          <div
+            className="session-item"
+            data-row-actions
+            key={s.sessionId + s.file}
+            tabIndex={0}
+            role="group"
+            aria-label={s.title || s.sessionId}
+            onClick={() => void openSessionDetail(s)}
+            onKeyDown={(e) => {
+              if (e.target !== e.currentTarget || e.isComposing || !['Enter', ' '].includes(e.key)) return
+              e.preventDefault(); void openSessionDetail(s)
+            }}
+            onContextMenu={(e) => sessionRowMenu(e, s)}
+          >
             <div className="row1">
               <span className="title">{s.title || s.sessionId}</span>
-              <button
-                className="btn sm ghost"
-                onClick={async (e) => {
-                  e.stopPropagation()
-                  try {
-                    await copyText(resumeCommand(state.currentApp, s.sessionId))
-                    showToast('已复制：' + resumeCommand(state.currentApp, s.sessionId), 'success')
-                  } catch (err) { showToast(AErrMsg(err), 'error') }
-                }}
-              >复制 resume</button>
+              <span className="pk-row-actions">
+                <button
+                  className="pk-btn pk-btn-sm pk-btn-ghost"
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    await copyResume(s)
+                  }}
+                >复制 resume</button>
+              </span>
             </div>
             <div className="meta">
               <span>{s.project ? s.project.split('/').pop() : ''}</span>
@@ -1245,6 +1352,30 @@ export function App() {
           </div>
         ))}
       </div>
+    )
+  }
+
+  async function copyResume(s) {
+    try {
+      await copyText(resumeCommand(state.currentApp, s.sessionId))
+      showToast('已复制：' + resumeCommand(state.currentApp, s.sessionId), 'success')
+    } catch (err) { showToast(AErrMsg(err), 'error') }
+  }
+
+  /** 会话行右键：打开 / 复制 resume */
+  function sessionRowMenu(event, s) {
+    event.preventDefault()
+    window.PluginKit.openMenu(
+      event,
+      [
+        ['open', '打开会话'],
+        ['copy', '复制 resume 命令'],
+      ],
+      (key) => {
+        if (key === 'open') void openSessionDetail(s)
+        if (key === 'copy') void copyResume(s)
+      },
+      { align: 'end' },
     )
   }
 
@@ -1278,13 +1409,45 @@ export function App() {
             {data.models.slice(0, 12).map((m) => (
               <div className="model-bar" key={m.model}>
                 <span className="mono" title={m.model}>{m.model}</span>
-                <span className="bar"><i style={{ width: `${(m.tokens / maxM) * 100}%` }}></i></span>
+                <progress className="bar" max={maxM} value={m.tokens} aria-label={m.model}></progress>
                 <span className="n">{fmtTokens(m.tokens)}</span>
               </div>
             ))}
           </div>
         </div>
       </>
+    )
+  }
+
+  async function restoreBackup(b) {
+    const ok = await confirmDialog({ title: '恢复快照', text: '恢复到此快照？', hint: '恢复前会再自动备份当前状态。', okText: '恢复' })
+    if (!ok) return
+    try {
+      await agentRestore(state.currentApp, b.id)
+      state.snapshots.delete(state.currentApp)
+      showToast('已恢复', 'success')
+      await Promise.all([loadBackups(), renderProviders()])
+    } catch (e) { showToast('恢复失败：' + AErrMsg(e), 'error') }
+  }
+
+  async function copyBackupId(b) {
+    try { await copyText(b.id); showToast('已复制快照 ID', 'success') } catch (e) { showToast(AErrMsg(e), 'error') }
+  }
+
+  /** 快照行右键：恢复 / 复制快照 ID */
+  function backupRowMenu(event, b) {
+    event.preventDefault()
+    window.PluginKit.openMenu(
+      event,
+      [
+        ['restore', '恢复到此快照'],
+        ['copy', '复制快照 ID'],
+      ],
+      async (key) => {
+        if (key === 'restore') void restoreBackup(b)
+        if (key === 'copy') void copyBackupId(b)
+      },
+      { align: 'end' },
     )
   }
 
@@ -1295,24 +1458,65 @@ export function App() {
     return (
       <>
         {backupsView.rows.map((b) => (
-          <div className="backup-item" key={b.id}>
+          <div className="backup-item" data-row-actions key={b.id} onContextMenu={(e) => backupRowMenu(e, b)}>
             <span className="when">{`${new Date(b.createdAt || Date.parse(b.id.replace(/\./g, ':')) || Date.now()).toLocaleString('zh-CN')} · ${b.files.length} 个文件`}</span>
-            <button
-              className="btn sm ghost danger"
-              onClick={async () => {
-                const ok = await confirmDialog({ title: '恢复快照', text: '恢复到此快照？', hint: '恢复前会再自动备份当前状态。', okText: '恢复' })
-                if (!ok) return
-                try {
-                  await agentRestore(state.currentApp, b.id)
-                  state.snapshots.delete(state.currentApp)
-                  showToast('已恢复', 'success')
-                  await Promise.all([loadBackups(), renderProviders()])
-                } catch (e) { showToast('恢复失败：' + AErrMsg(e), 'error') }
-              }}
-            >恢复</button>
+            <span className="pk-row-actions">
+              <button className="pk-btn pk-btn-sm" onClick={() => void restoreBackup(b)}>恢复</button>
+              <MoreMenu buttonClassName="pk-btn-sm" ariaLabel="快照更多操作" items={[
+                { key: 'restore', label: '恢复到此快照', onSelect: () => restoreBackup(b) },
+                { key: 'copy', label: '复制快照 ID', onSelect: () => copyBackupId(b) },
+              ]} />
+            </span>
           </div>
         ))}
       </>
+    )
+  }
+
+  async function applyProject(proj) {
+    try {
+      if (proj.provider) {
+        await applyProvider(state.currentApp, proj.provider)
+        state.snapshots.delete(state.currentApp)
+      }
+      if (Array.isArray(proj.mcpIds)) {
+        const entries = await loadMcp()
+        for (const id of proj.mcpIds) {
+          const hit = entries.find((e) => e.id === id)
+          if (hit) {
+            hit.apps = hit.apps || {}
+            hit.apps[state.currentApp] = true
+            await upsertMcp(hit)
+          }
+        }
+        await syncToApp(state.currentApp)
+      }
+      showToast(`已应用项目预设「${proj.name}」`, 'success')
+    } catch (e) { showToast('应用失败：' + AErrMsg(e), 'error') }
+  }
+
+  async function deleteProject(proj) {
+    const ok = await confirmDialog({ title: '删除项目预设', text: `删除项目预设「${proj.name}」？`, okText: '删除', danger: true })
+    if (!ok) return
+    await storageSet(PROJECTS_KEY, projectsRows.projects.filter((x) => x.id !== proj.id))
+    await renderProjects()
+  }
+
+  /** 项目预设行右键：应用 / 删除（danger） */
+  function projectRowMenu(event, proj) {
+    event.preventDefault()
+    window.PluginKit.openMenu(
+      event,
+      [
+        ['apply', '应用此预设'],
+        'sep',
+        ['delete', '删除', { danger: true }],
+      ],
+      (key) => {
+        if (key === 'apply') void applyProject(proj)
+        if (key === 'delete') void deleteProject(proj)
+      },
+      { align: 'end' },
     )
   }
 
@@ -1330,41 +1534,18 @@ export function App() {
     return (
       <>
         {projectsRows.projects.map((proj) => (
-          <div className="project-item" key={proj.id}>
+          <div className="project-item" data-row-actions key={proj.id} onContextMenu={(e) => projectRowMenu(e, proj)}>
             <span className="name">{`${proj.name} · ${proj.providerName || '无供应商'} · MCP×${(proj.mcpIds || []).length}`}</span>
             <button
-              className="btn sm primary"
-              onClick={async () => {
-                try {
-                  if (proj.provider) {
-                    await applyProvider(state.currentApp, proj.provider)
-                    state.snapshots.delete(state.currentApp)
-                  }
-                  if (Array.isArray(proj.mcpIds)) {
-                    const entries = await loadMcp()
-                    for (const id of proj.mcpIds) {
-                      const hit = entries.find((e) => e.id === id)
-                      if (hit) {
-                        hit.apps = hit.apps || {}
-                        hit.apps[state.currentApp] = true
-                        await upsertMcp(hit)
-                      }
-                    }
-                    await syncToApp(state.currentApp)
-                  }
-                  showToast(`已应用项目预设「${proj.name}」`, 'success')
-                } catch (e) { showToast('应用失败：' + AErrMsg(e), 'error') }
-              }}
+              className="pk-btn pk-btn-sm pk-btn-primary"
+              onClick={() => void applyProject(proj)}
             >应用</button>
-            <button
-              className="btn sm ghost danger"
-              onClick={async () => {
-                const ok = await confirmDialog({ title: '删除项目预设', text: `删除项目预设「${proj.name}」？`, okText: '删除', danger: true })
-                if (!ok) return
-                await storageSet(PROJECTS_KEY, projectsRows.projects.filter((x) => x.id !== proj.id))
-                await renderProjects()
-              }}
-            >删除</button>
+            <span className="pk-row-actions">
+              <button
+                className="pk-btn pk-btn-sm pk-btn-danger"
+                onClick={() => void deleteProject(proj)}
+              >删除</button>
+            </span>
           </div>
         ))}
       </>
@@ -1374,7 +1555,7 @@ export function App() {
   return (
     <div className="app" id="app">
       {/* 三区之一：左导航 */}
-      <aside className="nav" id="nav">
+      <aside className={'nav' + (navCollapsed ? ' collapsed' : '')} id="nav" ref={navRef}>
         <div className="nav-head">
           <div className="nav-logo">⇄</div>
           <div className="nav-title">供应商切换</div>
@@ -1404,9 +1585,11 @@ export function App() {
           </div>
         </div>
         <div className="nav-foot">
-          <button className="nav-item" id="nav-collapse" title="收起导航"
-            onClick={() => document.getElementById('nav')?.classList.toggle('collapsed')}>
-            <span className="glyph">«</span><span className="t">收起</span>
+          <button className="nav-item" id="nav-collapse" ref={navCollapseRef}
+            title={navCollapsed ? '展开导航（悬停查看快捷入口）' : '收起导航'}
+            aria-label={navCollapsed ? '展开导航' : '收起导航'} aria-controls="nav" aria-expanded={!navCollapsed}
+            onClick={() => setNavCollapsed((value) => !value)}>
+            <span className="glyph">{navCollapsed ? '»' : '«'}</span><span className="t">收起</span>
           </button>
         </div>
       </aside>
@@ -1421,9 +1604,15 @@ export function App() {
               <div className="page-sub" id="providers-sub">{providersSub}</div>
             </div>
             <div className="spacer"></div>
-            <button className="btn ghost" id="btn-import" onClick={importProvidersModal}>导入</button>
-            <button className="btn ghost" id="btn-export" onClick={exportProviders}>导出</button>
-            <button className="btn primary" id="btn-new-provider" onClick={() => openProviderModal(null)}>＋ 新建</button>
+            <MoreMenu
+              ariaLabel="供应商页更多操作"
+              items={[
+                { key: 'presets', label: '打开预设库', onSelect: openPresetLib },
+                { key: 'import', label: '导入供应商', onSelect: importProvidersModal },
+                { key: 'export', label: '导出供应商', onSelect: exportProviders },
+              ]}
+            />
+            <button className="pk-btn pk-btn-primary" id="btn-new-provider" onClick={() => openProviderModal(null)}>＋ 新建</button>
           </header>
           <div className="summary-strip" id="summary-strip" hidden={!summaryItems}>
             {(summaryItems || []).map((it) => (
@@ -1456,23 +1645,30 @@ export function App() {
               <div className="page-sub" id="history-sub">{historySub}</div>
             </div>
             <div className="spacer"></div>
-            <button className="btn ghost" id="btn-history-refresh" onClick={() => void loadHistoryPage()}>↻ 刷新</button>
-            <button
-              className="btn ghost danger" id="btn-history-clear"
-              onClick={async () => {
-                const ok = await confirmDialog({
-                  title: '清空切换历史',
-                  text: '清空全部切换记录？回退入口将一并消失。',
-                  hint: '不影响当前各应用的生效配置。',
-                  okText: '清空',
+            <button className="pk-btn pk-btn-ghost" id="btn-history-refresh" onClick={() => void loadHistoryPage()}>↻ 刷新</button>
+            <MoreMenu
+              ariaLabel="历史页更多操作"
+              items={[
+                {
+                  key: 'clear',
+                  label: '清空切换历史',
                   danger: true,
-                })
-                if (!ok) return
-                await clearHistory()
-                showToast('已清空切换历史', 'success')
-                await loadHistoryPage()
-              }}
-            >清空</button>
+                  onSelect: async () => {
+                    const ok = await confirmDialog({
+                      title: '清空切换历史',
+                      text: '清空全部切换记录？回退入口将一并消失。',
+                      hint: '不影响当前各应用的生效配置。',
+                      okText: '清空',
+                      danger: true,
+                    })
+                    if (!ok) return
+                    await clearHistory()
+                    showToast('已清空切换历史', 'success')
+                    await loadHistoryPage()
+                  },
+                },
+              ]}
+            />
           </header>
           <div className="content" id="history-body">{renderHistoryBody()}</div>
         </section>
@@ -1485,18 +1681,24 @@ export function App() {
               <div className="page-sub">统一定义，按应用投射</div>
             </div>
             <div className="spacer"></div>
-            <button
-              className="btn ghost" id="btn-mcp-import"
-              onClick={async () => {
-                try {
-                  const r = await importFromApp(state.currentApp)
-                  showToast(`从 ${APP_MAP[state.currentApp]?.name} 导入 ${r.added} 个 MCP（共发现 ${r.total}）`, 'success')
-                  await renderMcp()
-                } catch (e) { showToast('导入失败：' + AErrMsg(e), 'error') }
-              }}
-            >导入现有</button>
-            <button className="btn ghost" id="btn-mcp-template" onClick={() => setModalMcpTpl(true)}>从模板添加</button>
-            <button className="btn primary" id="btn-mcp-new" onClick={() => openMcpModal(null)}>＋ 新建</button>
+            <MoreMenu
+              ariaLabel="MCP 页更多操作"
+              items={[
+                {
+                  key: 'import-app',
+                  label: '导入现有',
+                  onSelect: async () => {
+                    try {
+                      const r = await importFromApp(state.currentApp)
+                      showToast(`从 ${APP_MAP[state.currentApp]?.name} 导入 ${r.added} 个 MCP（共发现 ${r.total}）`, 'success')
+                      await renderMcp()
+                    } catch (e) { showToast('导入失败：' + AErrMsg(e), 'error') }
+                  },
+                },
+                { key: 'template', label: '从模板添加', onSelect: () => setModalMcpTpl(true) },
+              ]}
+            />
+            <button className="pk-btn pk-btn-primary" id="btn-mcp-new" onClick={() => openMcpModal(null)}>＋ 新建</button>
           </header>
           <div className="content" id="mcp-body">{renderMcpBody()}</div>
         </section>
@@ -1504,7 +1706,7 @@ export function App() {
         {/* 会话页 */}
         <section className="page" id="page-sessions" hidden={page !== 'sessions'}>
           <header className="page-head">
-            <button className="btn ghost back" id="btn-session-back"
+            <button className="pk-btn pk-btn-ghost" id="btn-session-back"
               hidden={sessionsView.mode !== 'detail'}
               onClick={() => { state.sessionDetail = null; setSessionsView((v) => ({ ...v, mode: 'list' })); renderSessionList() }}
             >← 返回</button>
@@ -1521,7 +1723,12 @@ export function App() {
                 if (!state.sessionDetail && state.sessionsCache) renderSessionList()
               }}
             />
-            <button className="btn ghost" id="btn-session-export" hidden={sessionsView.mode !== 'detail'} onClick={exportSessionMd}>导出 Markdown</button>
+            {sessionsView.mode === 'detail' && (
+              <MoreMenu
+                ariaLabel="会话页更多操作"
+                items={[{ key: 'export', label: '导出 Markdown', onSelect: exportSessionMd }]}
+              />
+            )}
           </header>
           <div className="content" id="sessions-body">{renderSessionsBody()}</div>
         </section>
@@ -1547,9 +1754,14 @@ export function App() {
               <div className="page-sub" id="backups-sub">{backupsView.sub}</div>
             </div>
             <div className="spacer"></div>
-            <button className="btn ghost" id="btn-snapshot-export" onClick={exportSnapshot}>导出全量 JSON</button>
-            <button className="btn ghost" id="btn-snapshot-import" onClick={importSnapshotModal}>从 JSON 恢复</button>
-            <button className="btn ghost" id="btn-backups-refresh" onClick={() => void loadBackups()}>↻ 刷新</button>
+            <button className="pk-btn pk-btn-ghost" id="btn-backups-refresh" onClick={() => void loadBackups()}>↻ 刷新</button>
+            <MoreMenu
+              ariaLabel="备份页更多操作"
+              items={[
+                { key: 'export-all', label: '导出全量 JSON', onSelect: exportSnapshot },
+                { key: 'import-all', label: '从 JSON 恢复', onSelect: importSnapshotModal },
+              ]}
+            />
           </header>
           <div className="content" id="backups-body">{renderBackupsBody()}</div>
         </section>
@@ -1562,7 +1774,7 @@ export function App() {
               <div className="page-sub">供应商 + MCP 整套保存 / 应用</div>
             </div>
             <div className="spacer"></div>
-            <button className="btn primary" id="btn-project-save" onClick={saveCurrentProject}>＋ 保存当前为项目</button>
+            <button className="pk-btn pk-btn-primary" id="btn-project-save" onClick={saveCurrentProject}>＋ 保存当前为项目</button>
           </header>
           <div className="content" id="projects-body">{renderProjectsBody()}</div>
         </section>
@@ -1580,8 +1792,8 @@ export function App() {
                 <div className="field-row">
                   <div className="lbl">默认应用<div className="desc">Quick 切换与启动时的默认应用</div></div>
                   <select
+                    className="settings-select"
                     value={settingsView.defaultApp}
-                    style={{ padding: '4px 8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)' }}
                     onChange={async (e) => { await settingsSet('defaultApp', e.target.value); setSettingsView((s) => ({ ...s, defaultApp: e.target.value })) }}
                   >
                     {['claude-code', 'codex', 'gemini-cli'].map((o) => (
@@ -1646,7 +1858,7 @@ export function App() {
               <label className="field"><span>API Key</span>
                 <div className="key-row">
                   <input id="pf-apikey" type={pf.keyType} className="mono" placeholder="sk-…（存入保险库，不落配置导出）" value={pf.apikey} onInput={(e) => setPf((f) => ({ ...f, apikey: e.target.value }))} />
-                  <button className="btn ghost sm" id="pf-key-view" type="button" onClick={() => setPf((f) => ({ ...f, keyType: f.keyType === 'password' ? 'text' : 'password' }))}>显示</button>
+                  <button className="pk-btn pk-btn-sm pk-btn-ghost" id="pf-key-view" type="button" onClick={() => setPf((f) => ({ ...f, keyType: f.keyType === 'password' ? 'text' : 'password' }))}>显示</button>
                 </div>
                 <div className="field-hint" id="pf-key-hint">{pf.keyHint}</div>
               </label>
@@ -1667,7 +1879,7 @@ export function App() {
                 ))}
               </div></div>
               <div className="field-actions">
-                <button className="btn ghost sm" id="btn-provider-test" type="button" onClick={testFromDrawer}>测速</button>
+                <button className="pk-btn pk-btn-sm pk-btn-ghost" id="btn-provider-test" type="button" onClick={testFromDrawer}>测速</button>
                 <span className="field-hint" id="pf-test-result" aria-live="polite">{pf.testResult}</span>
               </div>
               <details className="advanced">
@@ -1679,7 +1891,7 @@ export function App() {
                   <div className="field"><span>TOML 顶层键片段（JSON 表示）</span>
                     <textarea className="mono" placeholder='TOML 顶层键片段（JSON 表示，仅 toml 应用，如 {"model_reasoning_effort":"high"}）' value={pf.toml} onInput={(e) => setPf((f) => ({ ...f, toml: e.target.value }))}></textarea>
                   </div>
-                  <label className="field-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <label className="field-row field-row-inline">
                     <input type="checkbox" checked={pf.universal} onChange={(e) => setPf((f) => ({ ...f, universal: e.target.checked }))} />
                     <span>通用供应商：保存后绑定所选应用，切换时同步写入</span>
                   </label>
@@ -1694,8 +1906,8 @@ export function App() {
           <footer className="drawer-foot">
             <div className="field-hint" id="pf-form-hint">{pf.formHint}</div>
             <div className="spacer"></div>
-            <button className="btn ghost" data-drawer-close onClick={closeDrawer}>取消</button>
-            <button className="btn primary" id="btn-provider-save" onClick={saveProviderModal}>保存</button>
+            <button className="pk-btn pk-btn-ghost" data-drawer-close onClick={closeDrawer}>取消</button>
+            <button className="pk-btn pk-btn-primary" id="btn-provider-save" onClick={saveProviderModal}>保存</button>
           </footer>
         </div>
       </aside>
@@ -1735,8 +1947,8 @@ export function App() {
                   <div className="url mono">{preset.baseUrl ? host(preset.baseUrl) : '官方默认端点'}</div>
                   <div className="url mono">{preset.model || ''}</div>
                   <div className="card-actions">
-                    <button className="btn sm primary" onClick={() => void onPresetInstantiate(preset)}>实例化</button>
-                    <button className="btn sm ghost" onClick={() => { setModalPresets((m) => ({ ...m, open: false })); openProviderModal(null, instantiate(preset)) }}>编辑后添加</button>
+                    <button className="pk-btn pk-btn-sm pk-btn-primary" onClick={() => void onPresetInstantiate(preset)}>实例化</button>
+                    <button className="pk-btn pk-btn-sm pk-btn-ghost" onClick={() => { setModalPresets((m) => ({ ...m, open: false })); openProviderModal(null, instantiate(preset)) }}>编辑后添加</button>
                   </div>
                 </div>
               ))}
@@ -1745,7 +1957,7 @@ export function App() {
           <div className="modal-foot">
             <div className="field-hint" id="preset-source">{modalPresets.source || '预设数据移植自 cc-switch（Apache-2.0）社区清单，支持后续远程更新'}</div>
             <div className="spacer"></div>
-            <button className="btn ghost" data-close="modal-presets" onClick={() => setModalPresets((m) => ({ ...m, open: false }))}>关闭</button>
+            <button className="pk-btn pk-btn-ghost" data-close="modal-presets" onClick={() => setModalPresets((m) => ({ ...m, open: false }))}>关闭</button>
           </div>
         </div>
       </div>
@@ -1797,8 +2009,8 @@ export function App() {
           </div>
           <div className="modal-foot">
             <div className="spacer"></div>
-            <button className="btn ghost" data-close="modal-mcp" onClick={() => setModalMcp((m) => ({ ...m, open: false }))}>取消</button>
-            <button className="btn primary" id="btn-mcp-save" onClick={saveMcpModal}>保存并同步</button>
+            <button className="pk-btn pk-btn-ghost" data-close="modal-mcp" onClick={() => setModalMcp((m) => ({ ...m, open: false }))}>取消</button>
+            <button className="pk-btn pk-btn-primary" id="btn-mcp-save" onClick={saveMcpModal}>保存并同步</button>
           </div>
         </div>
       </div>
@@ -1827,8 +2039,8 @@ export function App() {
           </div>
           <div className="modal-foot">
             <div className="spacer"></div>
-            <button className="btn ghost" data-close="modal-diff" onClick={() => setModalDiff((m) => ({ ...m, open: false }))}>取消</button>
-            <button className="btn primary" id="btn-diff-confirm" onClick={() => applyDiffs(state.diffPending || [], state._diffBefore)}>确认切换</button>
+            <button className="pk-btn pk-btn-ghost" data-close="modal-diff" onClick={() => setModalDiff((m) => ({ ...m, open: false }))}>取消</button>
+            <button className="pk-btn pk-btn-primary" id="btn-diff-confirm" onClick={() => applyDiffs(state.diffPending || [], state._diffBefore)}>确认切换</button>
           </div>
         </div>
       </div>
@@ -1847,7 +2059,7 @@ export function App() {
                   <div className="card-row"><span className="name">{tpl.name}</span><span className="tag">{tpl.spec.type}</span></div>
                   <div className="url mono">{tpl.spec.command ? tpl.spec.command + ' ' + (tpl.spec.args || []).join(' ') : tpl.spec.url}</div>
                   {tpl.envHint && <div className="field-hint">需要环境变量：{tpl.envHint}</div>}
-                  <button className="btn sm primary" onClick={() => { setModalMcpTpl(false); openMcpModal(null, tpl) }}>添加</button>
+                  <button className="pk-btn pk-btn-sm pk-btn-primary" onClick={() => { setModalMcpTpl(false); openMcpModal(null, tpl) }}>添加</button>
                 </div>
               ))}
             </div>
@@ -1868,11 +2080,11 @@ export function App() {
           </div>
           <div className="modal-foot">
             <div className="spacer"></div>
-            <button className="btn ghost" data-close="modal-confirm" onClick={() => settleConfirm(false)}>取消</button>
+            <button className="pk-btn pk-btn-ghost" data-close="modal-confirm" onClick={() => settleConfirm(false)}>取消</button>
             <button
-              className={'btn ' + (modalConfirm?.danger ? 'danger' : 'primary')}
+              className={'pk-btn ' + (modalConfirm?.danger ? 'pk-btn-danger' : 'pk-btn-primary')}
               id="btn-confirm-ok"
-              style={{ display: modalConfirm?.okText ? '' : 'none' }}
+              hidden={!modalConfirm?.okText}
               onClick={() => settleConfirm(true)}
             >{modalConfirm?.okText || '确认'}</button>
           </div>
@@ -1881,7 +2093,7 @@ export function App() {
 
       {/* 动态导入弹层（导入供应商 / 从 JSON 恢复） */}
       {promptModal && (
-        <div className="modal" style={{ display: 'flex' }} onClick={(e) => { if (e.target === e.currentTarget) setPromptModal(null) }}>
+        <div className="modal" onClick={(e) => { if (e.target === e.currentTarget) setPromptModal(null) }}>
           <div className="modal-card">
             <div className="modal-head"><div className="modal-title">{promptModal.title}</div></div>
             <div className="modal-body">
@@ -1890,7 +2102,7 @@ export function App() {
                 onInput={(e) => setPromptModal((m) => ({ ...m, value: e.target.value }))}
               ></textarea>
               {promptModal.mergeCheck && (
-                <label className="field-row" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+                <label className="field-row field-row-inline field-row-spaced">
                   <input type="checkbox" checked={promptModal.merge} onChange={(e) => setPromptModal((m) => ({ ...m, merge: e.target.checked }))} />
                   <span>合并导入（保留现有数据，按名称/ID 去重）；不勾选则覆盖</span>
                 </label>
@@ -1899,8 +2111,8 @@ export function App() {
             </div>
             <div className="modal-foot">
               <div className="spacer"></div>
-              <button className="btn ghost" onClick={() => setPromptModal(null)}>取消</button>
-              <button className="btn primary" onClick={() => promptModal.onSubmit(promptModal.value, () => setPromptModal(null), promptModal.merge)}>{promptModal.okText}</button>
+              <button className="pk-btn pk-btn-ghost" onClick={() => setPromptModal(null)}>取消</button>
+              <button className="pk-btn pk-btn-primary" onClick={() => promptModal.onSubmit(promptModal.value, () => setPromptModal(null), promptModal.merge)}>{promptModal.okText}</button>
             </div>
           </div>
         </div>
@@ -1912,7 +2124,7 @@ export function App() {
           <div key={t.id} className={'toast ' + (t.type || '')}>
             <span>{t.msg}</span>
             {t.type === 'undoable' && (
-              <button className="btn sm primary undo-btn" onClick={() => undoDelete(t)}>撤销</button>
+              <button className="pk-btn pk-btn-sm pk-btn-primary undo-btn" onClick={() => undoDelete(t)}>撤销</button>
             )}
           </div>
         ))}
@@ -1931,7 +2143,7 @@ function TurnView({ turn, hit, sessionSearch }) {
     <div className={'turn' + (collapsed ? ' collapsed' : '') + (hit ? ' hit expanded' : '')} data-role={turn.role}>
       <div className="turn-head" onClick={() => setCollapsed((c) => !c)}>
         <span className="role">{turn.role === 'user' ? '用户' : turn.role === 'assistant' ? '助手' : '工具'}</span>
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(turn.title || '') + (turn.isError ? ' · 出错' : '')}</span>
+        <span className="turn-title">{(turn.title || '') + (turn.isError ? ' · 出错' : '')}</span>
         {turn.usage && <span className="token-chip mono">{`${fmtTokens(turn.usage.input + turn.usage.output)} tok`}</span>}
         <span className="token-chip">{turn.ts ? fmtDate(turn.ts) : ''}</span>
       </div>

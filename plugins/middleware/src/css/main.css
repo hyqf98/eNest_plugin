@@ -9,17 +9,17 @@
   --bg: #0d1017; --surface: #141a26; --surface-2: #1a2130; --surface-3: #222b3e;
   --border: #232c3f; --border-strong: #33405c;
   --text: #e9edf5; --text-2: #9aa7bd; --text-3: #64718b;
-  --accent: #ff7a2f; --accent-soft: rgba(255, 122, 47, .13); --accent-contrast: #fff;
-  --ok: #3fb972; --ok-soft: rgba(63, 185, 114, .13);
-  --danger: #e5484d; --danger-soft: rgba(229, 72, 77, .13);
-  --warn: #e0a94e; --warn-soft: rgba(224, 169, 78, .13);
-  --link: #6ea8fe;
+  --accent: #ff7a2f; --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent); --accent-contrast: var(--accent-text, #fff);
+  --ok: #3fb972; --ok-soft: color-mix(in srgb, var(--ok) 13%, transparent);
+  --danger: #e5484d; --danger-soft: color-mix(in srgb, var(--danger) 13%, transparent);
+  --warn: #e0a94e; --warn-soft: color-mix(in srgb, var(--warn) 13%, transparent);
+  --link: var(--accent);
   --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-pill: 999px;
   --shadow-soft: 0 2px 10px rgba(0, 0, 0, .28); --shadow-float: 0 10px 34px rgba(0, 0, 0, .44);
   --font: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   /* 中间件类型识别色 */
-  --c-kafka: #e0a94e; --c-rabbit: #ff8a4d; --c-mqtt: #8f7bff; --c-rocket: #35c4b5;
+  --c-kafka: var(--warn); --c-rabbit: var(--accent); --c-mqtt: var(--text-2); --c-rocket: var(--ok);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -256,7 +256,7 @@ table.grid .empty-row td { text-align: center; color: var(--text-3); padding: 28
   background: var(--text-3); transition: transform .15s, background .15s;
 }
 .switch.on { background: var(--accent); }
-.switch.on::after { transform: translateX(14px); background: #fff; }
+.switch.on::after { transform: translateX(14px); background: var(--accent-contrast); }
 .switch-row .sl { font-size: calc(var(--font-size-base, 13px) * 0.961538); color: var(--text-2); }
 .switch-row .sl b { color: var(--text); font-weight: 500; }
 .form-note {

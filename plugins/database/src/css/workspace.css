@@ -1,5 +1,10 @@
 /* The database owns its entire surface. Chrome is quiet; the data keeps the contrast. */
-:root { --font: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; --radius-xl: 12px; --radius-lg: 10px; --radius-md: 8px; --radius-sm: 6px; --chrome-h: 38px; }
+:root {
+  --font: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --radius-xl: 12px; --radius-lg: 10px; --radius-md: 8px; --radius-sm: 6px; --chrome-h: 38px;
+  /* 阴影/遮罩从宿主前景与底色选择暗端，不另建固定 UI 调色板。 */
+  --db-scrim: light-dark(var(--text), var(--bg));
+}
 .app { --nav-material: color-mix(in srgb, var(--surface-2) 90%, transparent); --toolbar-material: color-mix(in srgb, var(--surface) 94%, transparent); font-optical-sizing: auto; }
 .app .workspace { gap: 0; overflow: hidden; }
 .app .side { display: flex !important; flex: none; min-width: 220px; max-width: 360px; background: var(--nav-material); backdrop-filter: blur(20px) saturate(1.15); border-right: 1px solid var(--border); margin: 0; overflow: hidden; }
@@ -34,7 +39,7 @@
 .app .query-surface .editor-host { min-height: 65px; }
 .app .query-surface .results { flex-shrink: 1; min-height: 80px; max-height: calc(100% - 100px); }
 .app .wb-querybar { display: flex; align-items: center; min-height: 40px; padding: 5px 12px; background: var(--toolbar-material); backdrop-filter: blur(12px); gap: 6px; scrollbar-width: thin; }
-.app .wb-querybar .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 27px; }
+.app .wb-querybar .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; }
 .app .wb-page-host { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 .app .wb-page-host > .wb-page { flex: 1; min-width: 0; overflow: auto; padding: 24px 28px 32px; }
 .app .wb-page h1 { font-size: 20px; line-height: 1.25; letter-spacing: -.025em; margin: 0 0 6px; }
@@ -77,9 +82,9 @@
 .nav-footer button:hover { background: var(--row-hover); color: var(--text); }
 .nav-footer button.active { background: var(--accent-soft); color: var(--text); }
 .wb-nav-scrim { display: none; }
-.app[data-nav-compact=true] .side { position: absolute; inset: 0 auto 0 0; z-index: 40; box-shadow: 6px 0 28px #0002; }
+.app[data-nav-compact=true] .side { position: absolute; inset: 0 auto 0 0; z-index: 40; box-shadow: 6px 0 28px color-mix(in srgb, var(--db-scrim) 13%, transparent); }
 .app[data-nav-compact=true] #resizer-left { display: none !important; }
-.app[data-nav-compact=true] .wb-nav-scrim { display: block; position: absolute; z-index: 39; inset: 0; background: #000; border: 0; pointer-events: none; opacity: 0; }
+.app[data-nav-compact=true] .wb-nav-scrim { display: block; position: absolute; z-index: 39; inset: 0; background: var(--db-scrim); border: 0; pointer-events: none; opacity: 0; }
 .app[data-nav-open=true] .wb-nav-scrim { pointer-events: auto; }
 .app[data-nav-compact=true][data-nav-open=false] .side { pointer-events: none; }
 /* A document is a workspace, never another navigation level. */
@@ -103,7 +108,7 @@
 .wb-object-identity span { font-size: 10px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; }
 .wb-segmented { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; flex: none; }
 .wb-segmented button { background: none; border: 0; border-radius: 4px; font-size: 11px; padding: 3px 12px; color: var(--text-2); cursor: pointer; }
-.wb-segmented [aria-selected=true] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px #0001; }
+.wb-segmented [aria-selected=true] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px color-mix(in srgb, var(--db-scrim) 7%, transparent); }
 .app[data-page=object] .editor-pane, .app[data-page=object] #resizer-bottom { display: none !important; }
 .app[data-page=object] .results { height: auto !important; flex: 1; max-height: none; }
 .app .wb-table th, .app .wb-table td { padding: 5px 10px; line-height: 1.4; }
@@ -119,12 +124,12 @@
 .app[data-surface=shell][data-result-dock=right] .query-surface .results { grid-column: 2; grid-row: 2; height: auto !important; max-height: none; }
 .app[data-surface=shell][data-result-dock=right][data-page=object] .query-surface { display: flex; }
 /* Shared floating task surfaces and settings honor the same density. */
-body:has(.app) :is(.wb-dialog, .modal, .ctx-menu) { border-radius: 12px; border: 1px solid var(--border-strong); box-shadow: 0 18px 60px #0003; }
+body:has(.app) :is(.wb-dialog, .modal) { border-radius: 12px; border: 1px solid var(--border-strong); box-shadow: 0 18px 60px color-mix(in srgb, var(--db-scrim) 20%, transparent); }
 body:has(.app) :is(.wb-dialog-head, .modal-head) { padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
 body:has(.app) :is(.wb-dialog-head h2, .modal-head h2) { font-size: 15px; font-weight: 600; letter-spacing: -.015em; }
 body:has(.app) :is(.wb-dialog-body, .modal-body) { padding: 18px 20px; }
 body:has(.app) :is(.wb-dialog, .modal) :is(input, select, textarea) { border-radius: 6px; border-color: var(--border-strong); }
-body:has(.app) dialog::backdrop { background: #10182444; backdrop-filter: blur(2px); }
+body:has(.app) dialog::backdrop { background: color-mix(in srgb, var(--db-scrim) 27%, transparent); backdrop-filter: blur(2px); }
 body:has(.app) .btn:active { transform: scale(.98); filter: brightness(.94); }
 body:has(.app) .btn { transition: background-color 100ms ease, color 100ms ease, box-shadow 100ms ease; }
 body:has(.app) .wb-design-column { grid-template-columns: minmax(100px,1.2fr) minmax(90px,1fr) 90px minmax(100px,1.2fr) auto auto auto; }
@@ -274,7 +279,7 @@ body:has(.app) { font-size: var(--font-size-base, 13px); }
 .nav-toolrail-button.active:before { content: ''; position: absolute; left: -3px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--accent); }
 .nav-toolrail-button[data-nav=settings] { margin-top: auto; }
 .nav-toolrail-button:focus-visible { outline-offset: -2px; }
-.nav-rail-tooltip { position: fixed; z-index: 2147483001; pointer-events: none; white-space: nowrap; border-radius: 6px; padding: 6px 9px; background: var(--text); color: var(--surface); border: 1px solid var(--border-strong); box-shadow: 0 4px 14px #0003; font: 11px/1.4 var(--font); }
+.nav-rail-tooltip { position: fixed; z-index: 2147483001; pointer-events: none; white-space: nowrap; border-radius: 6px; padding: 6px 9px; background: var(--text); color: var(--surface); border: 1px solid var(--border-strong); box-shadow: 0 4px 14px color-mix(in srgb, var(--db-scrim) 20%, transparent); font: 11px/1.4 var(--font); }
 body:has(.nav-toolrail-button:hover) .enest-float-tip, body:has(.nav-toolrail-button:focus-visible) .enest-float-tip { display: none !important; }
 .app[data-nav-collapsed=true] .side { display: flex !important; width: 38px !important; min-width: 38px; max-width: 38px; border-right: 0; }
 .app[data-nav-collapsed=true] .nav-browser { display: none; }
@@ -285,7 +290,7 @@ body:has(.nav-toolrail-button:hover) .enest-float-tip, body:has(.nav-toolrail-bu
 /* Inspect values beside the data; focused tasks retain native dialog keyboard behavior. */
 body:has(.app) dialog.wb-document-inspector { position: fixed; inset: 8px 8px 8px auto; margin: 0; width: min(540px, calc(100% - 16px)); height: auto; max-width: none; max-height: none; border-radius: 12px; }
 body:has(.app) dialog.wb-document-inspector[open] { display: flex; flex-direction: column; }
-body:has(.app) dialog.wb-document-inspector::backdrop { background: #10182418; backdrop-filter: none; }
+body:has(.app) dialog.wb-document-inspector::backdrop { background: color-mix(in srgb, var(--db-scrim) 9%, transparent); backdrop-filter: none; }
 body:has(.app) dialog.wb-document-inspector .wb-dialog-head { flex: none; }
 body:has(.app) dialog.wb-document-inspector .wb-dialog-body { flex: 1; min-height: 0; max-height: none; overflow: auto; }
 body:has(.app) .wb-export-dialog { width: min(360px, calc(100vw - 24px)); }
@@ -304,43 +309,22 @@ body:has(.app) .wb-export-dialog .export-menu .btn { justify-content: flex-start
 .nav-toolrail-button[data-nav=settings] { margin-top: 6px; }
 .nav-toolrail-button[data-nav=settings]:after { content: ''; position: absolute; left: 5px; right: 5px; top: -4px; height: 1px; background: var(--border); }
 
-/* Workbench-local themes: body keeps floating menus aligned with #app. */
+/* Keep saved workbench choices as material variants, not competing palettes.
+   Floating menus inherit the same host colors; neither variant shadows --accent/--text. */
 body:has(.app[data-workbench-theme="graphite"]) {
-  color-scheme: dark;
-  --bg: #0b1118; --workspace: #111a23; --chrome: #16212c;
-  --surface: #172432; --surface-2: #1d2b39; --surface-3: #243546;
-  --border: rgba(190,216,237,.11); --border-strong: rgba(190,216,237,.2);
-  --text: #e9f0f7; --text-2: #a7b6c6; --text-3: #73879b;
-  --accent: #4fb8f3; --accent-soft: rgba(79,184,243,.12); --accent-contrast: #06131d;
-  --brand: #4fb8f3; --brand-strong: #4fb8f3; --brand-soft: rgba(79,184,243,.12);
-  --ok: #54c790; --ok-soft: rgba(84,199,144,.12);
-  --danger: #f07789; --danger-soft: rgba(240,119,137,.12);
-  --warn: #f0b45b; --warn-soft: rgba(240,180,91,.12);
-  --row-hover: rgba(79,184,243,.06); --row-sel: rgba(79,184,243,.1);
-  --shadow-soft: 0 8px 28px rgba(2,8,14,.34);
-  --shadow-float: 0 18px 52px rgba(2,8,14,.5);
+  --workspace: color-mix(in srgb, var(--bg) 70%, var(--surface-2));
+  --chrome: color-mix(in srgb, var(--surface-2) 85%, var(--surface));
 }
 body:has(.app[data-workbench-theme="paper"]) {
-  color-scheme: light;
-  --bg: #edf1f4; --workspace: #f7f9fa; --chrome: #ffffff;
-  --surface: #ffffff; --surface-2: #eaeff3; --surface-3: #dfe6eb;
-  --border: rgba(23,32,41,.1); --border-strong: rgba(23,32,41,.17);
-  --text: #172029; --text-2: #526272; --text-3: #7d8b99;
-  --accent: #177f92; --accent-soft: rgba(23,127,146,.1); --accent-contrast: #ffffff;
-  --brand: #177f92; --brand-strong: #177f92; --brand-soft: rgba(23,127,146,.1);
-  --ok: #178a57; --ok-soft: rgba(23,138,87,.1);
-  --danger: #bb4055; --danger-soft: rgba(187,64,85,.1);
-  --warn: #a86a12; --warn-soft: rgba(168,106,18,.1);
-  --row-hover: rgba(23,127,146,.05); --row-sel: rgba(23,127,146,.1);
-  --shadow-soft: 0 8px 24px rgba(39,61,78,.08);
-  --shadow-float: 0 18px 48px rgba(39,61,78,.14);
+  --workspace: color-mix(in srgb, var(--surface) 85%, var(--bg));
+  --chrome: var(--surface);
 }
 body:has(.app[data-workbench-theme]) .app { position: relative; background: var(--workspace); color: var(--text); }
 body:has(.app[data-workbench-theme]) .app:before {
   content: ''; position: absolute; inset: 0 0 auto; height: min(100%, 420px); pointer-events: none; z-index: 0;
 }
-body:has(.app[data-workbench-theme="graphite"]) .app:before { background: radial-gradient(720px 420px at 7% 0%, rgba(79,184,243,.1), transparent 66%); }
-body:has(.app[data-workbench-theme="paper"]) .app:before { background: radial-gradient(680px 400px at 7% 0%, rgba(23,127,146,.08), transparent 64%); }
+body:has(.app[data-workbench-theme="graphite"]) .app:before { background: radial-gradient(720px 420px at 7% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 66%); }
+body:has(.app[data-workbench-theme="paper"]) .app:before { background: radial-gradient(680px 400px at 7% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 64%); }
 body:has(.app[data-workbench-theme]) .app > * { position: relative; z-index: 1; }
 body:has(.app[data-workbench-theme]) .app :is(.side, .mid-col) { background: transparent; }
 body:has(.app[data-workbench-theme]) .app .mid-chrome { background: color-mix(in srgb, var(--chrome) 94%, transparent); border-bottom-color: var(--border); }
@@ -353,8 +337,8 @@ body:has(.app[data-workbench-theme]) .app .wb-tab.active:after { background: lin
 body:has(.app[data-workbench-theme]) .app .wb-welcome { background: radial-gradient(520px 320px at 50% 20%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 68%); }
 body:has(.app[data-workbench-theme]) .app .wb-welcome-symbol { border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent); background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 17%, transparent), transparent); color: var(--accent); border-radius: 17px; }
 body:has(.app[data-workbench-theme]) .app .wb-page-host > .wb-page { background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 18%, var(--workspace)), var(--workspace) 320px); }
-body:has(.app[data-workbench-theme="graphite"]) .app .wb-page-host > .wb-page { background: linear-gradient(180deg, color-mix(in srgb, #172432 20%, #111a23), #111a23 320px); }
-body:has(.app[data-workbench-theme="paper"]) .app .wb-page-host > .wb-page { background: linear-gradient(180deg, color-mix(in srgb, #ffffff 52%, #f7f9fa), #f7f9fa 320px); }
+body:has(.app[data-workbench-theme="graphite"]) .app .wb-page-host > .wb-page { background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 20%, var(--bg)), var(--bg) 320px); }
+body:has(.app[data-workbench-theme="paper"]) .app .wb-page-host > .wb-page { background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 52%, var(--workspace)), var(--workspace) 320px); }
 body:has(.app[data-workbench-theme]) .app :is(.fab-execute, .btn.primary) { box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 18%, transparent); }
 
 .wb-theme-options { display: grid; grid-template-columns: repeat(2, minmax(210px, 1fr)); gap: 9px; width: 100%; }
@@ -364,12 +348,12 @@ body:has(.app[data-workbench-theme]) .app :is(.fab-execute, .btn.primary) { box-
 .wb-theme-option[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 62%, transparent); background: var(--accent-soft); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
 .wb-theme-swatch { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; padding: 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
 .wb-theme-swatch i { height: 16px; border-radius: 3px; }
-.wb-theme-option[data-theme-option="graphite"] .wb-theme-swatch i:nth-child(1) { background: #0b1118; }
-.wb-theme-option[data-theme-option="graphite"] .wb-theme-swatch i:nth-child(2) { background: #243546; }
-.wb-theme-option[data-theme-option="graphite"] .wb-theme-swatch i:nth-child(3) { background: #4fb8f3; }
-.wb-theme-option[data-theme-option="paper"] .wb-theme-swatch i:nth-child(1) { background: #f7f9fa; }
-.wb-theme-option[data-theme-option="paper"] .wb-theme-swatch i:nth-child(2) { background: #ffffff; }
-.wb-theme-option[data-theme-option="paper"] .wb-theme-swatch i:nth-child(3) { background: #177f92; }
+/* Preview the actual material mixes under the current host theme. */
+.wb-theme-option[data-theme-option="graphite"] { --wb-swatch-1: color-mix(in srgb, var(--bg) 70%, var(--surface-2)); --wb-swatch-2: color-mix(in srgb, var(--surface-2) 85%, var(--surface)); --wb-swatch-3: var(--accent); }
+.wb-theme-option[data-theme-option="paper"] { --wb-swatch-1: color-mix(in srgb, var(--surface) 85%, var(--bg)); --wb-swatch-2: var(--surface); --wb-swatch-3: var(--accent); }
+.wb-theme-swatch i:nth-child(1) { background: var(--wb-swatch-1, var(--surface-2)); }
+.wb-theme-swatch i:nth-child(2) { background: var(--wb-swatch-2, var(--surface-3)); }
+.wb-theme-swatch i:nth-child(3) { background: var(--wb-swatch-3, var(--accent)); }
 .wb-theme-copy { display: grid; gap: 3px; min-width: 0; }
 .wb-theme-copy strong { font-size: 12px; font-weight: 620; color: inherit; }
 .wb-theme-copy small { font-size: 10px; line-height: 1.5; color: var(--text-3); }

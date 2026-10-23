@@ -299,7 +299,7 @@ body,
       }
       .pane-bottom {
         display: flex;
-        gap: 5px;
+        gap: 8px;
         align-items: center;
         padding-top: 13px;
         font-size: 11px;

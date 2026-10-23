@@ -95,11 +95,11 @@ button:disabled {
 button.primary {
   background: var(--brand);
   border-color: var(--brand);
-  color: #fff;
+  color: var(--accent-contrast, #fff);
 }
 button.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--brand) 86%, #fff);
-  border-color: color-mix(in srgb, var(--brand) 86%, #fff);
+  background: color-mix(in srgb, var(--brand) 86%, var(--accent-contrast, #fff));
+  border-color: color-mix(in srgb, var(--brand) 86%, var(--accent-contrast, #fff));
 }
 button.ghost {
   border-color: transparent;
@@ -160,7 +160,7 @@ button.ghost:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 22px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--raise) 62%, transparent);
   backdrop-filter: blur(12px) saturate(160%);
@@ -258,6 +258,7 @@ button.ghost:hover:not(:disabled) {
 }
 .presets-foot {
   display: flex;
+  align-items: center;
   gap: 6px;
   padding: 10px 12px;
   border-top: 1px solid var(--line);
@@ -265,6 +266,9 @@ button.ghost:hover:not(:disabled) {
 .presets-foot button {
   flex: 1;
   font-size: 11px;
+}
+.presets-foot .pk-btn {
+  flex: none;
 }
 
 /* ── 构建区 ─────────────────────────── */

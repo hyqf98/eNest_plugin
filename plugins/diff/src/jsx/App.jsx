@@ -6,6 +6,7 @@
  * 差异渲染区（#diff-view）沿用批 1 约定：原版等价 HTML 字符串 + dangerouslySetInnerHTML。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button, DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuItem } from '../ui/index.jsx'
 import {
   diffLines,
   countChanges,
@@ -430,6 +431,34 @@ export function App() {
     renderRef.current()
   }, [])
 
+  /* ── ⋯ 溢出菜单里的低频动作（复制 / 导出 unified patch） ── */
+  const copyDiff = useCallback(() => {
+    const text = diffText()
+    if (!text) {
+      kitRef.current?.toast('两栏内容一致，没有可复制的差异')
+      return
+    }
+    kitRef.current?.copy(text).catch((e) => kitRef.current?.toast(e.message, 'error'))
+  }, [diffText])
+
+  const exportPatch = useCallback(() => {
+    const text = diffText()
+    if (!text) {
+      kitRef.current?.toast('两栏内容一致，没有可导出的差异')
+      return
+    }
+    kitRef.current?.saveText('diff.patch', text + '\n').catch((e) => kitRef.current?.toast(e.message, 'error'))
+  }, [diffText])
+
+  /* 勾选项用 CheckboxItem：点选后菜单保持打开，可连续切换多个开关 */
+  const prefOptions = [
+    { key: 'inline', label: '字符级', title: '行内字符级高亮' },
+    { key: 'ignoreWhitespace', label: '忽略空白', title: '比较前折叠空白并去首尾' },
+    { key: 'ignoreCase', label: '忽略大小写', title: '比较前转为小写' },
+    { key: 'ignoreBlank', label: '忽略空行', title: '空行不参与比较' },
+    { key: 'jsonNormalize', label: 'JSON 规范化', title: '两侧都为合法 JSON 时按键排序规范化再比' },
+  ]
+
   /* ⌘/Ctrl+↑↓ 导航（编辑器内仅 Alt 组合生效） */
   useEffect(() => {
     const onKey = (e) => {
@@ -541,36 +570,31 @@ export function App() {
         <span id="stats" className="stats mono" role="status" aria-live="polite" dangerouslySetInnerHTML={{ __html: statsHtml }}></span>
         <span id="nav-pos" className="nav-pos mono" hidden={!navPos.visible}>{navPos.text}</span>
         <div className="toolbar">
-          <div className="options" role="group" aria-label="对比选项">
-            <button id="opt-inline" aria-pressed={prefs.inline} title="行内字符级高亮" onClick={() => togglePref('inline')}>字符级</button>
-            <button id="opt-ws" aria-pressed={prefs.ignoreWhitespace} title="比较前折叠空白并去首尾" onClick={() => togglePref('ignoreWhitespace')}>忽略空白</button>
-            <button id="opt-case" aria-pressed={prefs.ignoreCase} title="比较前转为小写" onClick={() => togglePref('ignoreCase')}>忽略大小写</button>
-            <button id="opt-blank" aria-pressed={prefs.ignoreBlank} title="空行不参与比较" onClick={() => togglePref('ignoreBlank')}>忽略空行</button>
-            <button id="opt-json" aria-pressed={prefs.jsonNormalize} title="两侧都为合法 JSON 时按键排序规范化再比" onClick={() => togglePref('jsonNormalize')}>JSON 规范化</button>
-          </div>
           <div className="seg" role="group" aria-label="视图切换">
             <button id="view-split" aria-pressed={view === 'split'} onClick={() => setViewMode('split')}>并排</button>
             <button id="view-unified" aria-pressed={view === 'unified'} onClick={() => setViewMode('unified')}>统一</button>
           </div>
-          <button id="nav-prev" disabled={navDisabled} title="上一处差异 (Ctrl/⌘+↑)" onClick={() => jump(-1)}>↑ 上一处</button>
-          <button id="nav-next" disabled={navDisabled} title="下一处差异 (Ctrl/⌘+↓)" onClick={() => jump(1)}>↓ 下一处</button>
-          <button id="swap" title="交换两栏" onClick={swap}>⇄ 交换</button>
-          <button id="copy-diff" disabled={exportDisabled} title="复制 unified diff 到剪贴板" onClick={() => {
-            const text = diffText()
-            if (!text) {
-              kitRef.current?.toast('两栏内容一致，没有可复制的差异')
-              return
-            }
-            kitRef.current?.copy(text).catch((e) => kitRef.current?.toast(e.message, 'error'))
-          }}>复制 diff</button>
-          <button id="export-diff" disabled={exportDisabled} title="导出 .patch 文件" onClick={() => {
-            const text = diffText()
-            if (!text) {
-              kitRef.current?.toast('两栏内容一致，没有可导出的差异')
-              return
-            }
-            kitRef.current?.saveText('diff.patch', text + '\n').catch((e) => kitRef.current?.toast(e.message, 'error'))
-          }}>导出 patch</button>
+          <Button id="nav-prev" variant="ghost" size="sm" disabled={navDisabled} title="上一处差异 (Ctrl/⌘+↑)" onClick={() => jump(-1)}>↑ 上一处</Button>
+          <Button id="nav-next" variant="ghost" size="sm" disabled={navDisabled} title="下一处差异 (Ctrl/⌘+↓)" onClick={() => jump(1)}>↓ 下一处</Button>
+          <Button id="swap" variant="ghost" size="sm" title="交换两栏" onClick={swap}>⇄ 交换</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="pk-btn pk-btn-ghost" aria-label="对比选项与导出">⋯</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {prefOptions.map((opt) => (
+                <DropdownMenuCheckboxItem
+                  key={opt.key}
+                  checked={!!prefs[opt.key]}
+                  title={opt.title}
+                  onSelect={(e) => { e.preventDefault(); togglePref(opt.key) }}
+                >{opt.label}</DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={exportDisabled} onSelect={copyDiff}>复制 diff</DropdownMenuItem>
+              <DropdownMenuItem disabled={exportDisabled} onSelect={exportPatch}>导出 patch</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 

@@ -2,7 +2,7 @@ import { state, setUiPref } from './store.js'
 
 /** A retargetable, critically damped drawer; pointer resizing never waits for animation. */
 export class NavigationMotion {
-  constructor(root) {
+  constructor(root, { items, onPick } = {}) {
     this.root = root; this.side = root.querySelector('#side'); this.toggle = root.querySelector('#side-toggle'); this.handle = root.querySelector('#resizer-left')
     this.position = 0; this.velocity = 0; this.target = 0; this.opened = false
     this.scrim = document.createElement('button'); this.scrim.type = 'button'; this.scrim.tabIndex = -1; this.scrim.className = 'wb-nav-scrim'; this.scrim.setAttribute('aria-label', '关闭连接面板'); root.querySelector('.workspace').append(this.scrim)
@@ -17,6 +17,14 @@ export class NavigationMotion {
     const release = () => { if (!this.drag) return; this.drag = null; this.root.classList.remove('is-resizing'); setUiPref('leftWidth', this.width) }
     this.handle.addEventListener('pointerup', release); this.handle.addEventListener('pointercancel', release); this.handle.addEventListener('lostpointercapture', release)
     this.handle.addEventListener('keydown', (event) => { if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return; event.preventDefault(); this.setWidth(event.key === 'Home' ? 220 : event.key === 'End' ? 360 : this.width + (event.key === 'ArrowRight' ? 10 : -10)) })
+    this.flyouts = []
+    if (items && window.PluginKit?.hoverFlyout) {
+      const bindFlyout = (anchor, enabled) => window.PluginKit.hoverFlyout(anchor, items, {
+        enabled, handleClick: false, onPick, side: 'right', delay: 120, hideDelay: 300, ariaLabel: '数据库工作区导航'
+      })
+      this.flyouts.push(bindFlyout(this.side, () => !this.isCompact() && !!state.ui.sidebarCollapsed))
+      this.flyouts.push(bindFlyout(this.toggle, () => this.isCompact() ? !this.opened : !!state.ui.sidebarCollapsed))
+    }
     this.onResize = () => this.update(); window.addEventListener('resize', this.onResize); this.update()
   }
   isCompact() { return this.root.dataset.surface === 'quick' || window.innerWidth < 720 }
@@ -25,7 +33,9 @@ export class NavigationMotion {
   collapse(value) { setUiPref('sidebarCollapsed', value); this.update() }
   update() {
     this.setWidth(state.ui.leftWidth, false)
-    const compact = this.isCompact(); this.root.dataset.navCompact = String(compact); this.root.dataset.navCollapsed = String(!compact && !!state.ui.sidebarCollapsed); this.root.classList.toggle('sidebar-collapsed', !compact && !!state.ui.sidebarCollapsed)
+    const compact = this.isCompact()
+    if (this.compact !== compact || (compact ? this.opened : !state.ui.sidebarCollapsed)) this.hideFlyouts()
+    this.compact = compact; this.root.dataset.navCompact = String(compact); this.root.dataset.navCollapsed = String(!compact && !!state.ui.sidebarCollapsed); this.root.classList.toggle('sidebar-collapsed', !compact && !!state.ui.sidebarCollapsed)
     this.side.hidden = false; this.side.classList.remove('collapsed'); this.toggle.setAttribute('aria-expanded', String(compact ? this.opened : !state.ui.sidebarCollapsed)); this.toggle.setAttribute('aria-controls', 'side')
     this.root.querySelector('.mid-col').inert = compact && this.opened
     this.side.inert = compact && !this.opened; const browser = this.side.querySelector('.nav-browser'); if (browser) browser.inert = !compact && !!state.ui.sidebarCollapsed
@@ -33,7 +43,8 @@ export class NavigationMotion {
     if (!compact) { cancelAnimationFrame(this.frame); this.side.style.transform = ''; this.side.style.opacity = '' }
     else { if (!this.opened && this.target !== 1) { this.position = 0; this.target = 0 }; this.paint() }
   }
-  open() { if (!this.isCompact()) { this.collapse(false); this.side.querySelector('input')?.focus(); return }; this.returnFocus = document.activeElement; this.opened = true; this.target = 1; this.update(); this.animate(); (this.side.querySelector('.nav-search') || this.side.querySelector('button'))?.focus() }
+  hideFlyouts() { this.flyouts.forEach((flyout) => flyout.hide()) }
+  open() { this.hideFlyouts(); if (!this.isCompact()) { this.collapse(false); this.side.querySelector('input')?.focus(); return }; this.returnFocus = document.activeElement; this.opened = true; this.target = 1; this.update(); this.animate(); (this.side.querySelector('.nav-search') || this.side.querySelector('button'))?.focus() }
   close(restore = true) { if (!this.opened) return; this.opened = false; this.target = 0; this.root.dataset.navOpen = 'false'; this.side.inert = true; this.root.querySelector('.mid-col').inert = false; this.toggle.setAttribute('aria-expanded', 'false'); this.animate(); if (restore) (this.returnFocus?.isConnected ? this.returnFocus : this.toggle)?.focus() }
   paint() { this.side.style.transform = `translateX(${(this.position - 1) * this.width}px)`; this.scrim.style.opacity = String(this.position * 0.2) }
   animate() {
@@ -43,5 +54,5 @@ export class NavigationMotion {
     const tick = (now) => { const dt = Math.min((now - last) / 1000, 0.025); last = now; const response = document.documentElement.dataset.anim === 'medium' ? 0.24 : 0.3, omega = 2 * Math.PI / response; this.velocity += ((this.target - this.position) * omega * omega - 2 * omega * this.velocity) * dt; this.position += this.velocity * dt; this.paint(); if (Math.abs(this.position - this.target) < 0.001 && Math.abs(this.velocity) < 0.005) { this.position = this.target; this.velocity = 0; this.paint(); return }; this.frame = requestAnimationFrame(tick) }
     this.frame = requestAnimationFrame(tick)
   }
-  destroy() { cancelAnimationFrame(this.frame); window.removeEventListener('resize', this.onResize) }
+  destroy() { this.flyouts.forEach((flyout) => flyout.destroy()); this.flyouts = []; cancelAnimationFrame(this.frame); window.removeEventListener('resize', this.onResize) }
 }

@@ -4,6 +4,7 @@
  * 文本变换纯逻辑复用 textkit.js（未改动）。
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 import * as tk from '../js/textkit.js'
 
 const SNIPPET_KEY = 'clipboard.snippets.v1'
@@ -385,6 +386,52 @@ export function App() {
       kitRef.current?.toast('已删除记录')
     })
   }
+  const removeItem = (id) => {
+    if (!id) return
+    confirmDialog('删除历史记录', '确定删除这条记录？文件原件不会被删除。', async () => {
+      await api.clipboard.history.remove(id)
+      setSelected((prev) => {
+        if (!prev.has(id)) return prev
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      await refreshRef.current()
+      kitRef.current?.toast('已删除记录')
+    })
+  }
+  const togglePinItem = (id) =>
+    run(async () => {
+      if (!id) return
+      await api.clipboard.history.togglePin(id)
+      await refreshRef.current()
+    })
+  const copyPaths = (id) => run(() => copy(id, { paths: true }))
+  const revealFile = (id, index) => run(() => api.clipboard.history.reveal(id, Number(index)))
+
+  const itemMenu = (item, event) => {
+    event.preventDefault()
+    const firstFile = item.type === 'files' ? (item.files || []).findIndex((file) => file.exists !== false) : -1
+    PluginKit.openMenu(
+      event,
+      [
+        ['copy', item.type === 'files' ? '复制文件' : '复制内容'],
+        item.type === 'files' ? ['paths', '复制路径'] : null,
+        item.type === 'files' ? ['reveal', '在文件夹中定位', { disabled: firstFile < 0 }] : null,
+        { sep: true },
+        ['pin', item.pinned ? '取消收藏' : '收藏'],
+        ['delete', '删除', { danger: true }],
+      ].filter(Boolean),
+      (key) => {
+        if (key === 'copy') void run(() => copy(item.id))
+        if (key === 'paths') copyPaths(item.id)
+        if (key === 'reveal') revealFile(item.id, firstFile)
+        if (key === 'pin') togglePinItem(item.id)
+        if (key === 'delete') removeItem(item.id)
+      },
+      { align: 'end' },
+    )
+  }
 
   // —— quick Tab 轮换分类 ——
   const cycleType = (delta) => {
@@ -486,7 +533,7 @@ export function App() {
       cycleType(event.shiftKey ? -1 : 1)
       return
     }
-    if (event.target.closest('input,textarea,select')) return
+    if (event.target.closest('input,textarea,select,button,a,[role="menu"],[role="menuitem"],[role="menuitemcheckbox"],.pk-menu,dialog')) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       moveRef.current(event.key === 'ArrowDown' ? 1 : -1)
@@ -538,7 +585,7 @@ export function App() {
             search(e.target.value)
           }}
         />
-        <button data-open-settings>偏好设置</button>
+        <button data-open-settings className="pk-btn pk-btn-ghost">偏好设置</button>
       </header>
       <nav className="filters" aria-label="历史分类">
         <div id="types">
@@ -561,21 +608,21 @@ export function App() {
         <span className="grow"></span>
         <button
           id="open-tools"
-          className="tool-toggle"
+          className="pk-btn pk-btn-ghost tool-toggle"
           aria-expanded={toolsOpen}
           aria-controls="tools-panel"
           onClick={() => setToolsOpen((v) => !v)}
         >
           {toolsOpen ? '收起工具' : '工具'}
         </button>
-        <button id="manage" aria-label="管理剪贴板" onClick={openManager}>管理</button>
+        <button id="manage" className="pk-btn" aria-label="管理剪贴板" onClick={openManager}>管理</button>
       </nav>
       <section id="tools-panel" className="tools" hidden={!toolsOpen} aria-label="文本工具与暂存片段">
         <div className="tools-block">
           <div className="tools-label">变换当前选中的文本</div>
           <div className="tools-grid">
             {XFMT_BUTTONS.map((kind) => (
-              <button key={kind} data-xfmt={kind} onClick={() => transformAndWrite(kind)}>{XFMT_LABELS[kind]}</button>
+              <button key={kind} className="pk-btn pk-btn-sm" data-xfmt={kind} onClick={() => transformAndWrite(kind)}>{XFMT_LABELS[kind]}</button>
             ))}
           </div>
           <details className="tools-advanced">
@@ -585,6 +632,7 @@ export function App() {
               <input id="regex-replacement" placeholder="替换为（可用 $1）" aria-label="替换文本" spellCheck="false" />
               <button
                 id="regex-apply"
+                className="pk-btn pk-btn-sm"
                 onClick={() =>
                   applyRegex(document.getElementById('regex-pattern').value, document.getElementById('regex-replacement').value)
                 }
@@ -599,15 +647,15 @@ export function App() {
             暂存片段 <span className="muted">（临时，本地保存，最多 20 条）</span>
           </div>
           <div className="snippet-row">
-            <button id="snippet-save" title="把当前选中的文本存为暂存片段" onClick={saveCurrentSelection}>存入选中</button>
-            <button id="snippet-new" title="新建空白片段" onClick={() => openSnippetDialog(null)}>新建</button>
+            <button id="snippet-save" className="pk-btn pk-btn-sm" title="把当前选中的文本存为暂存片段" onClick={saveCurrentSelection}>存入选中</button>
+            <button id="snippet-new" className="pk-btn pk-btn-sm" title="新建空白片段" onClick={() => openSnippetDialog(null)}>新建</button>
           </div>
           <div id="snippets" className="snippets">
             {snippets.length ? (
               snippets.map((s) => (
                 <div className="snippet" data-snippet={esc(s.id)} key={s.id}>
                   <button
-                    className="snippet-copy"
+                    className="snippet-copy pk-btn pk-btn-sm"
                     data-snippet-copy
                     title="复制此片段"
                     onClick={() => void api.clipboard.writeText(s.body).then(() => kitRef.current?.toast('已复制片段', 'success')).catch((err) => kitRef.current?.toast(err.message, 'error'))}
@@ -616,9 +664,10 @@ export function App() {
                     <small>{esc(s.body.split(/\r?\n/)[0].slice(0, 60))}</small>
                   </button>
                   <span className="snippet-tools">
-                    <button data-snippet-edit title="编辑" onClick={() => openSnippetDialog(s)}>编辑</button>
+                    <button data-snippet-edit className="pk-btn pk-btn-ghost pk-btn-sm" title="编辑" onClick={() => openSnippetDialog(s)}>编辑</button>
                     <button
                       data-snippet-del
+                      className="pk-btn pk-btn-ghost pk-btn-sm"
                       title="删除"
                       onClick={() => {
                         void saveSnippets(snippets.filter((x) => x.id !== s.id))
@@ -657,7 +706,7 @@ export function App() {
                 <option key={name}>{esc(name)}</option>
               ))}
             </select>
-            <button id="refresh" title="刷新历史" onClick={() => void refresh()}>刷新</button>
+            <button id="refresh" className="pk-btn pk-btn-ghost pk-btn-sm" title="刷新历史" onClick={() => void refresh()}>刷新</button>
           </div>
           <div
             id="list"
@@ -694,9 +743,11 @@ export function App() {
                   key={item.id}
                   className={`entry${item.id === current ? ' active' : ''}`}
                   data-id={esc(item.id)}
+                  data-row-actions
                   id={`entry-${esc(item.id)}`}
                   role="option"
                   aria-selected={item.id === current}
+                  onContextMenu={(e) => itemMenu(item, e)}
                 >
                   <input
                     className="check shell-only"
@@ -728,14 +779,27 @@ export function App() {
                       </span>
                     </div>
                   </div>
-                  <button className="copy-row" data-copy aria-label="复制此记录">复制</button>
+                  <div className="pk-row-actions" onClick={(event) => { if (!event.target.closest('[data-copy]')) event.stopPropagation() }} onDoubleClick={(event) => event.stopPropagation()}>
+                    <button className="copy-row pk-btn pk-btn-ghost pk-btn-sm" data-copy aria-label="复制此记录">复制</button>
+                    <span onClick={(event) => event.stopPropagation()}>
+                      <MoreMenu
+                        buttonClassName="pk-btn-sm"
+                        ariaLabel="更多记录操作"
+                        items={[
+                          { key: 'pin', label: item.pinned ? '取消收藏' : '收藏', onSelect: () => togglePinItem(item.id) },
+                          item.type === 'files' ? { key: 'paths', label: '复制路径', onSelect: () => copyPaths(item.id) } : null,
+                          { key: 'delete', label: '删除', danger: true, onSelect: () => removeItem(item.id) },
+                        ].filter(Boolean)}
+                      />
+                    </span>
+                  </div>
                 </div>
               ))
             ) : (
               <div className="empty">{emptyReason === 'read-failed' ? '读取失败' : <Fragment>没有匹配的记录<br />复制文本、图片或文件后，会自动出现在这里。</Fragment>}</div>
             )}
           </div>
-          <button id="more" hidden={!hasCursor} onClick={() => void refresh(true)}>载入更多</button>
+          <button id="more" className="pk-btn" hidden={!hasCursor} onClick={() => void refresh(true)}>载入更多</button>
         </section>
         <aside id="detail" className="shell-only" ref={detailRef}>
           {detail.kind === 'empty' ? (
@@ -751,19 +815,35 @@ export function App() {
               ) : detail.item.type === 'files' ? (
                 <>
                   {(detail.item.files || []).map((file, index) => (
-                    <div className={`file${file.exists === false ? ' invalid' : ''}`} key={index}>
+                    <div className={`file${file.exists === false ? ' invalid' : ''}`} key={index} data-row-actions
+                      onContextMenu={(event) => {
+                        event.preventDefault()
+                        PluginKit.openMenu(event, [
+                          ['copy-file', '复制文件', { disabled: file.exists === false }],
+                          ['copy-path', '复制此文件路径'],
+                          ['reveal', '在文件夹中定位', { disabled: file.exists === false }],
+                        ], (key) => {
+                          if (key === 'copy-file') void run(() => copy(detail.item.id))
+                          if (key === 'copy-path') void run(() => api.clipboard.writeText(file.path).then(() => kitRef.current?.toast('已复制路径', 'success')))
+                          if (key === 'reveal') void run(() => api.clipboard.history.reveal(detail.item.id, index))
+                        }, { align: 'end' })
+                      }}>
                       <div>
                         <b>{esc(file.name)}</b>
                         <small>{esc(file.path)}</small>
                         {file.exists === false ? <small>文件已移动或删除</small> : ''}
                       </div>
-                      <button
-                        data-reveal={index}
-                        disabled={file.exists === false}
-                        onClick={(e) => void run(() => api.clipboard.history.reveal(current, Number(e.currentTarget.dataset.reveal)))}
-                      >
-                        定位
-                      </button>
+                      <div className="pk-row-actions file-actions">
+                        <button
+                          type="button"
+                          className="pk-btn pk-btn-ghost pk-btn-sm"
+                          data-reveal={index}
+                          disabled={file.exists === false}
+                          onClick={(e) => void run(() => api.clipboard.history.reveal(current, Number(e.currentTarget.dataset.reveal)))}
+                        >
+                          定位
+                        </button>
+                      </div>
                     </div>
                   ))}
                   <div className="detail-actions">
@@ -783,9 +863,9 @@ export function App() {
                         <option key={name}>{esc(name)}</option>
                       ))}
                     </select>
-                    <button data-detail-copy onClick={() => void run(() => copy())}>复制文件</button>
+                    <button data-detail-copy className="pk-btn pk-btn-ghost" onClick={() => void run(() => copy())}>复制文件</button>
+                    <button id="copy-paths" className="pk-btn pk-btn-ghost" onClick={() => void run(() => copy(current, { paths: true }))}>复制路径</button>
                   </div>
-                  <button id="copy-paths" onClick={() => void run(() => copy(current, { paths: true }))}>复制路径</button>
                 </>
               ) : detail.kind === 'image' ? (
                 <>
@@ -811,7 +891,7 @@ export function App() {
                         <option key={name}>{esc(name)}</option>
                       ))}
                     </select>
-                    <button data-detail-copy onClick={() => void run(() => copy())}>复制</button>
+                    <button data-detail-copy className="pk-btn pk-btn-ghost" onClick={() => void run(() => copy())}>复制</button>
                   </div>
                 </>
               ) : (
@@ -833,15 +913,20 @@ export function App() {
           </button>
         </div>
         <div className="actions">
-          <button id="pin" disabled={pinDisabled} onClick={() => void run(async () => {
-            await api.clipboard.history.togglePin(current)
-            await refresh()
-          })}>
-            {pinText}
-          </button>
-          <button id="delete" className="danger" disabled={buttonsDisabled} onClick={removeCurrent}>删除</button>
-          <button id="copy" disabled={buttonsDisabled} onClick={() => void run(batchCopy)}>{copyText}</button>
-          <button id="paste" className="primary" disabled={pasteDisabled} onClick={() => void run(primary)}>
+          <MoreMenu
+            label="更多"
+            ariaLabel="记录更多操作"
+            buttonClassName="footer-more"
+            items={[
+              { key: 'pin', label: pinText, disabled: pinDisabled, onSelect: () => void run(async () => {
+                await api.clipboard.history.togglePin(current)
+                await refresh()
+              }) },
+              { key: 'delete', label: '删除', danger: true, disabled: buttonsDisabled, onSelect: removeCurrent },
+            ]}
+          />
+          <button id="copy" className="pk-btn" disabled={buttonsDisabled} onClick={() => void run(batchCopy)}>{copyText}</button>
+          <button id="paste" className="pk-btn pk-btn-primary" disabled={pasteDisabled} onClick={() => void run(primary)}>
             {pasteAction} <kbd>↵</kbd>
           </button>
         </div>
@@ -850,6 +935,7 @@ export function App() {
         <span>{capReason}</span>
         <button
           id="authorize"
+          className="pk-btn pk-btn-sm"
           hidden={!capPermissionRequired}
           onClick={() => void run(async () => {
             await api.clipboard.requestPermission()
@@ -862,7 +948,7 @@ export function App() {
       <dialog id="manager">
         <form method="dialog" className="dialog-title">
           <h2>历史管理</h2>
-          <button aria-label="关闭管理">关闭</button>
+          <button className="pk-btn pk-btn-ghost pk-btn-sm" aria-label="关闭管理">关闭</button>
         </form>
         <label>
           排除来源应用
@@ -876,7 +962,7 @@ export function App() {
         <div className="dialog-actions">
           <button
             id="clear"
-            className="danger"
+            className="pk-btn pk-btn-danger"
             onClick={() =>
               confirmDialog('清理历史', '清理所有未收藏的历史记录，保留收藏和原文件。此操作不可撤销。', async () => {
                 await api.clipboard.history.clear()
@@ -887,18 +973,18 @@ export function App() {
           >
             清理未收藏历史
           </button>
-          <button id="save-management" className="primary" onClick={saveManagement}>保存管理设置</button>
+          <button id="save-management" className="pk-btn pk-btn-primary" onClick={saveManagement}>保存管理设置</button>
         </div>
-        <button data-open-settings className="settings-link">在壳设置中调整监控、容量、保留期限和密度</button>
+        <button data-open-settings className="pk-btn pk-btn-ghost settings-link">在壳设置中调整监控、容量、保留期限和密度</button>
       </dialog>
       <dialog id="confirm">
         <h2 id="confirm-title">{confirmState?.title ?? '删除记录'}</h2>
         <p id="confirm-text">{confirmState?.text ?? ''}</p>
         <div className="dialog-actions">
-          <button id="confirm-cancel" onClick={() => document.getElementById('confirm').close()}>取消</button>
+          <button id="confirm-cancel" className="pk-btn" onClick={() => document.getElementById('confirm').close()}>取消</button>
           <button
             id="confirm-ok"
-            className="danger"
+            className="pk-btn pk-btn-danger"
             onClick={() => {
               document.getElementById('confirm').close()
               const action = confirmAction.current
@@ -924,8 +1010,8 @@ export function App() {
             </label>
             <p className="form-error" id="snippet-error" hidden={!snipDialog.error}>{snipDialog.error}</p>
             <div className="dialog-actions">
-              <button type="button" id="snippet-cancel" onClick={() => setSnipDialog(null)}>取消</button>
-              <button type="submit" className="primary">保存片段</button>
+              <button type="button" id="snippet-cancel" className="pk-btn" onClick={() => setSnipDialog(null)}>取消</button>
+              <button type="submit" className="pk-btn pk-btn-primary">保存片段</button>
             </div>
           </form>
         </dialog>

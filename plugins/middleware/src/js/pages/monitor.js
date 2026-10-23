@@ -53,7 +53,7 @@ export default {
     /* —— 自动刷新开关 + 手动刷新 —— */
     const autoSwitch = el('button', { class: `switch ${autoOn ? 'on' : ''}`, type: 'button', title: '每 30 秒自动采样一次' })
     const autoLabel = el('span', { class: 'sl', style: 'font-size:calc(var(--font-size-base, 13px) * 0.923077);color:var(--text-2)' }, '自动刷新')
-    const autoWrap = el('div', { class: 'switch-row', style: 'padding:0' }, [autoSwitch, autoLabel])
+    const autoWrap = el('div', { class: 'switch-row switch-row-flush' }, [autoSwitch, autoLabel])
     if (mode === 'quick') {
       autoSwitch.disabled = true
       autoSwitch.title = 'quick 模式禁用自动轮询，请手动刷新'

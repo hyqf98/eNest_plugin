@@ -31,18 +31,21 @@ input {
   font: inherit;
   color: inherit;
 }
+/* 裸 button 基线 = .pk-btn 参数（pk-ui.css 对 .pk-btn 类生效，两者不再各写一套尺寸） */
 button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   min-height: 28px;
+  padding: 4px 12px;
   border: 1px solid var(--line);
-  background: var(--wash);
   border-radius: calc(var(--pk-radius, 8px) - 2px);
-  padding: 4px 11px;
+  background: var(--wash);
+  color: var(--text);
   font-size: 12.5px;
   line-height: 1.4;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s, transform 80ms ease-out;
 }
@@ -99,7 +102,7 @@ footer,
 }
 header {
   flex-wrap: wrap;
-  padding: 16px 22px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--line);
 }
 .toolbar {
@@ -211,7 +214,7 @@ footer {
 .history-head {
   flex-wrap: wrap;
   min-width: 0;
-  padding: 18px 16px 10px;
+  padding: 14px 14px 10px;
 }
 .history-head h2 {
   margin-right: auto;
@@ -222,7 +225,7 @@ footer {
   padding: 2px 8px;
 }
 .filters {
-  padding: 0 16px 12px;
+  padding: 0 14px 12px;
 }
 .filters input {
   width: 100%;
@@ -233,11 +236,14 @@ footer {
 }
 .record {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   border-top: 1px solid var(--line);
   padding: 12px 16px;
+}
+.record .pk-row-actions {
+  gap: 6px;
 }
 .record.selected {
   background: color-mix(in srgb, var(--accent) 9%, transparent);

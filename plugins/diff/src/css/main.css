@@ -95,7 +95,7 @@ label,
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
   background: color-mix(in srgb, var(--surface, #fff) 72%, transparent);
@@ -152,11 +152,6 @@ label,
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-}
-.options {
-  display: flex;
-  gap: 4px;
-  margin-right: 4px;
 }
 .seg {
   display: inline-flex;
@@ -357,8 +352,7 @@ html[data-mode="quick"] .toolbar > * {
   flex-shrink: 0;
 }
 html[data-mode="quick"] .topbar h1,
-html[data-mode="quick"] .topbar #nav-pos,
-html[data-mode="quick"] .topbar .options {
+html[data-mode="quick"] .topbar #nav-pos {
   display: none;
 }
 html[data-mode="quick"] .topbar .toolbar {
@@ -387,9 +381,6 @@ html[data-mode="quick"] .diff-row {
 }
 html[data-mode="quick"] .diff-view.unified .diff-row {
   grid-template-columns: 22px 34px 34px minmax(0, 1fr);
-}
-html[data-mode="quick"] .options {
-  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

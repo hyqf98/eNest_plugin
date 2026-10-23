@@ -5,6 +5,13 @@
  * Markdown 预览、相对时间、字数统计等纯函数原样搬运。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  MoreMenu,
+} from '../ui/index.jsx'
 
 const api = window.enest || window.zapi
 const KEY = 'notes_v2'
@@ -127,6 +134,36 @@ export function App() {
   const [undo, setUndo] = useState(null)
   const [saveState, setSaveState] = useState('已保存')
   const [noteVersion, setNoteVersion] = useState(0) // 触发列表相对时间刷新
+  const [colorMenuOpen, setColorMenuOpen] = useState(false)
+  const [mode, setMode] = useState('shell')
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 580px)').matches)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [libraryPinned, setLibraryPinned] = useState(false)
+  const [libraryPeek, setLibraryPeek] = useState(false)
+  const libraryRef = useRef(null)
+  const libraryToggleRef = useRef(null)
+  const libraryBindingRef = useRef(null)
+  const compact = mode === 'quick' || narrow
+  const libraryCollapsed = compact ? editorOpen && !libraryPinned : sidebarCollapsed
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 580px)')
+    const update = () => setNarrow(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    const binding = PluginKit.bindHoverPanel(libraryToggleRef.current, libraryRef.current, {
+      enabled: () => libraryCollapsed,
+      onOpenChange: setLibraryPeek,
+      delay: 120,
+      hideDelay: 300,
+      handleClick: false,
+    })
+    libraryBindingRef.current = binding
+    return () => { binding.destroy(); libraryBindingRef.current = null }
+  }, [libraryCollapsed])
 
   const notesRef = useRef(notes)
   notesRef.current = notes
@@ -204,6 +241,7 @@ export function App() {
     selectedRef.current = id
     setSelected(id)
     setPreview(false)
+    setLibraryPinned(false)
     setEditorOpen(true)
   }, [])
 
@@ -228,8 +266,7 @@ export function App() {
     requestAnimationFrame(() => document.getElementById('body')?.focus())
   }, [open, save])
 
-  const mutateCurrent = useCallback((mutator, { immediate = false } = {}) => {
-    const id = selectedRef.current
+  const mutateNote = useCallback((id, mutator, { immediate = false } = {}) => {
     notesRef.current = notesRef.current.map((n) => {
       if (n.id !== id) return n
       const next = { ...n }
@@ -241,6 +278,10 @@ export function App() {
     setNoteVersion((v) => v + 1)
     save(immediate)
   }, [save])
+
+  const mutateCurrent = useCallback((mutator, opts) => {
+    mutateNote(selectedRef.current, mutator, opts)
+  }, [mutateNote])
 
   // —— 列表派生 ——//
   const rows = visible()
@@ -271,19 +312,26 @@ export function App() {
     layoutRef.current = layoutRef.current === 'list' ? 'grid' : 'list'
     setLayout(layoutRef.current)
   }
-  const backToList = () => {
-    setEditorOpen(false)
-    void persist()
+  const toggleLibrary = () => {
+    libraryBindingRef.current?.hide()
+    if (compact) setLibraryPinned(libraryCollapsed)
+    else {
+      const next = !sidebarCollapsed
+      setSidebarCollapsed(next)
+      void kitRef.current?.save('notes.view.v1', { sidebarCollapsed: next }).catch((e) => kitRef.current?.toast(e.message, 'error'))
+    }
   }
   const togglePin = () => mutateCurrent((n) => { n.pinned = !n.pinned }, { immediate: true })
   const toggleArchive = () => mutateCurrent((n) => { n.archived = !n.archived }, { immediate: true })
-  const toggleDelete = () => {
-    const n = notesRef.current.find((x) => x.id === selectedRef.current)
+  const toggleTrash = (id) => {
+    const n = notesRef.current.find((x) => x.id === id)
+    if (!n) return
     undoRef.current = structuredClone(n)
     setUndo(structuredClone(n))
-    mutateCurrent((draft) => { draft.deletedAt = draft.deletedAt ? null : Date.now() }, { immediate: true })
-    kitRef.current.toast(n.deletedAt ? '已移入回收站' : '已恢复笔记')
+    mutateNote(id, (draft) => { draft.deletedAt = draft.deletedAt ? null : Date.now() }, { immediate: true })
+    kitRef.current.toast(n.deletedAt ? '已恢复笔记' : '已移入回收站')
   }
+  const toggleDelete = () => toggleTrash(selectedRef.current)
   const undoDelete = () => {
     const u = undoRef.current
     if (!u) return
@@ -297,15 +345,32 @@ export function App() {
     setUndo(null)
     save(true)
   }
-  const purgeNote = () => {
+  const purgeNote = (id = selectedRef.current) => {
     if (!confirm('永久删除这条笔记？此操作不能撤销。')) return
-    notesRef.current = notesRef.current.filter((x) => x.id !== selectedRef.current)
+    notesRef.current = notesRef.current.filter((x) => x.id !== id)
     setNotes(notesRef.current)
-    selectedRef.current = ''
-    setSelected('')
+    if (selectedRef.current === id) {
+      selectedRef.current = ''
+      setSelected('')
+    }
     undoRef.current = null
     setUndo(null)
     save(true)
+  }
+
+  const archiveNote = (id) => {
+    const n = notesRef.current.find((x) => x.id === id)
+    if (!n) return
+    mutateNote(id, (draft) => { draft.archived = !draft.archived }, { immediate: true })
+    kitRef.current.toast(n.archived ? '已取消归档' : '已归档')
+  }
+
+  const copyNote = (id) => {
+    const n = notesRef.current.find((x) => x.id === id)
+    if (!n) return
+    kitRef.current
+      .copy((n.title ? n.title + '\n\n' : '') + n.text)
+      .catch((e) => kitRef.current.toast(e.message, 'error'))
   }
 
   // —— 宿主适配器 + 启动（latest-ref 桥接，等价原初始化段）——//
@@ -345,7 +410,10 @@ export function App() {
       },
     })
     kitRef.current = kit
+    setMode(kit.mode)
     kit.onMode(() => {
+      setMode(kit.mode)
+      setLibraryPinned(false)
       if (readyRef.current) setNoteVersion((v) => v + 1)
     })
     kit.onSettings((s) => {
@@ -367,6 +435,9 @@ export function App() {
         if (!alive) return
         layoutRef.current = kit.settings.defaultLayout === 'grid' ? 'grid' : 'list'
         setLayout(layoutRef.current)
+        const view = await kit.load('notes.view.v1', {})
+        if (!alive) return
+        setSidebarCollapsed(view?.sidebarCollapsed === true)
         const saved = await kit.load(KEY, null)
         if (!alive) return
         if (saved) {
@@ -464,15 +535,64 @@ export function App() {
     }
   }
 
+  const exportNote = (note, ext) => {
+    if (!note) return
+    const name = noteTitle(note).replace(/[\\/:*?"<>|]/g, '_') + '.' + ext
+    const body = ext === 'md'
+      ? (note.title ? '# ' + note.title + '\n\n' : '') + note.text
+      : (note.title ? note.title + '\n\n' : '') + note.text
+    kitRef.current.saveText(name, body).catch((e) => kitRef.current.toast(e.message, 'error'))
+  }
+
+  const rowMenu = (note, event) => {
+    event.preventDefault()
+    const inTrash = !!note.deletedAt
+    PluginKit.openMenu(
+      event,
+      [
+        ['copy', '复制内容'],
+        ['pin', note.pinned ? '取消置顶' : '置顶'],
+        ['archive', note.archived ? '取消归档' : '归档'],
+        'sep',
+        inTrash ? ['restore', '恢复'] : ['trash', '移入回收站', { danger: true }],
+        inTrash ? ['purge', '永久删除', { danger: true }] : null,
+      ].filter(Boolean),
+      (key) => {
+        if (key === 'copy') copyNote(note.id)
+        if (key === 'pin') mutateNote(note.id, (n) => { n.pinned = !n.pinned }, { immediate: true })
+        if (key === 'archive') archiveNote(note.id)
+        if (key === 'trash' || key === 'restore') toggleTrash(note.id)
+        if (key === 'purge') purgeNote(note.id)
+      },
+      { align: 'end' },
+    )
+  }
+
+  const noteMenu = current
+    ? [
+        { key: 'export-md', label: '导出 .md', onSelect: () => exportNote(current, 'md') },
+        { key: 'export-txt', label: '导出 .txt', onSelect: () => exportNote(current, 'txt') },
+        { sep: true },
+        { key: 'archive', label: current.archived ? '取消归档' : '归档', onSelect: toggleArchive },
+        { key: 'delete', label: current.deletedAt ? '恢复笔记' : '移入回收站', danger: !current.deletedAt, onSelect: toggleDelete },
+        ...(current.deletedAt ? [{ key: 'purge', label: '永久删除', danger: true, onSelect: () => purgeNote() }] : []),
+      ]
+    : []
+
   return (
-    <div className={`app${grid ? ' grid-layout' : ''}`} id="app">
-      <section className="library">
+    <div className={`app${grid ? ' grid-layout' : ''}${libraryCollapsed ? ' sidebar-collapsed' : ''}`} id="app"
+      data-compact={compact ? 'true' : 'false'} data-library-pinned={libraryPinned ? 'true' : 'false'}>
+      <button ref={libraryToggleRef} type="button" className="pk-btn pk-btn-ghost pk-btn-sm library-toggle" hidden={compact && !editorOpen}
+        aria-label={libraryCollapsed ? '展开笔记列表' : '收起笔记列表'} aria-controls="note-library"
+        aria-expanded={!libraryCollapsed || libraryPeek} title={libraryCollapsed ? '展开笔记列表' : '收起笔记列表'}
+        onClick={toggleLibrary}>☰</button>
+      <section className="library" id="note-library" ref={libraryRef} aria-label="笔记导航">
         <header>
           <div>
             <h1>备忘录</h1>
             <div className="small shell-only">留住想法，再慢慢整理</div>
           </div>
-          <span></span><button className="new" id="new" onClick={() => create()}>＋ 新建</button>
+          <span></span><button className="pk-btn new" id="new" onClick={() => create()}>＋ 新建</button>
         </header>
         <div className="search-wrap shell-only">
           <input id="search" type="search" placeholder="搜索笔记、标签" aria-label="搜索笔记" onInput={onSearchInput} />
@@ -480,7 +600,7 @@ export function App() {
         <form className="quick-composer quick-only" id="quick-form" onSubmit={onQuickSubmit}>
           <input id="quick-input" placeholder="记下一句话…" aria-label="快速记录" value={quickText}
             onChange={(e) => setQuickText(e.target.value)} />
-          <button className="new">记录</button>
+          <button className="pk-btn new">记录</button>
         </form>
         <div className="tabs" id="tabs">
           {loadError ? null : Object.entries({ all: '全部', pinned: '置顶', archive: '归档', trash: '回收站' }).map(([key, label]) => (
@@ -505,7 +625,7 @@ export function App() {
             <option value="">全部标签</option>
             {tags.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
-          <button id="layout" onClick={toggleLayout}>{grid ? '列表视图' : '卡片视图'}</button>
+          <button id="layout" className="pk-btn" onClick={toggleLayout}>{grid ? '列表视图' : '卡片视图'}</button>
           <select id="template" aria-label="新建模板" onChange={onTemplateChange}>
             <option value="">从模板新建</option>
             <option value="meeting">会议记录</option>
@@ -522,24 +642,52 @@ export function App() {
             rows.map((n) => (
               <article key={n.id}
                 className={`note-row ${n.id === selected ? 'selected' : ''}`}
-                data-id={n.id} tabIndex="0" role="listitem" style={{ '--note-color': n.color }}
+                data-id={n.id} data-row-actions tabIndex="0" role="listitem" style={{ '--note-color': n.color }}
                 onClick={() => open(n.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter') open(n.id) }}>
+                onContextMenu={(e) => rowMenu(n, e)}
+                onKeyDown={(e) => {
+                  if (e.defaultPrevented || e.isComposing || e.target !== e.currentTarget) return
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(n.id) }
+                }}>
                 <div className="note-title">{n.pinned ? '⌑ ' : ''}{noteTitle(n)}</div>
                 <div className="note-excerpt">{n.text || '还没有内容'}</div>
                 <div className="note-meta">
                   <span>{n.tags.map((t) => '#' + t).join(' ')}</span>
                   <time>{relTime(n.updatedAt)}</time>
                 </div>
+                <div className="pk-row-actions note-actions" onClick={(e) => e.stopPropagation()}>
+                  <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" title="复制内容"
+                    onClick={() => copyNote(n.id)}>复制</button>
+                  <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" title={n.pinned ? '取消置顶' : '置顶'}
+                    onClick={() => mutateNote(n.id, (draft) => { draft.pinned = !draft.pinned }, { immediate: true })}>{n.pinned ? '取消置顶' : '置顶'}</button>
+                  <MoreMenu
+                    buttonClassName="pk-btn-sm"
+                    ariaLabel="更多笔记操作"
+                    items={[
+                      { key: 'archive', label: n.archived ? '取消归档' : '归档', onSelect: () => archiveNote(n.id) },
+                      n.deletedAt
+                        ? { key: 'restore', label: '恢复笔记', onSelect: () => toggleTrash(n.id) }
+                        : { key: 'trash', label: '移入回收站', danger: true, onSelect: () => toggleTrash(n.id) },
+                      ...(n.deletedAt ? [{ key: 'purge', label: '永久删除', danger: true, onSelect: () => purgeNote(n.id) }] : []),
+                    ]}
+                  />
+                </div>
               </article>
             ))
           )}
         </div>
         <footer className="shell-only">
-          <button id="export-all" onClick={exportAll}>导出备份</button>
-          <button id="export-md" onClick={exportMd}>导出 Markdown</button>
-          <button id="import" onClick={() => void importNotes()}>导入</button>
-          <button data-open-settings>设置</button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="pk-btn pk-btn-ghost footer-more" aria-label="备份与设置">备份与设置 ▾</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem id="export-all" onSelect={exportAll}>导出备份 JSON</DropdownMenuItem>
+              <DropdownMenuItem id="export-md" onSelect={exportMd}>导出全部 Markdown</DropdownMenuItem>
+              <DropdownMenuItem id="import" onSelect={() => void importNotes()}>导入…</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => api?.ui?.openSettings?.()}>设置…</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </footer>
       </section>
       <section className={`editor${editorOpen ? ' open' : ''}`} id="editor">
@@ -548,24 +696,29 @@ export function App() {
         ) : (
           <>
             <div className="editor-top">
-              <button id="back" aria-label="返回笔记列表" onClick={backToList}>←</button>
-              <div className="colors">
-                {colors.map((c) => (
-                  <button key={c} className={`color ${current.color === c ? 'chosen' : ''}`} data-color={c}
-                    style={{ '--swatch': c }} aria-label={`切换便签颜色 ${c}`}
-                    onClick={() => mutateCurrent((n) => { n.color = c }, { immediate: true })}></button>
-                ))}
-              </div>
+              <DropdownMenu open={colorMenuOpen} onOpenChange={setColorMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="pk-btn pk-btn-ghost color-trigger" aria-label="切换便签颜色" title="切换便签颜色"
+                    style={{ '--swatch': current.color }}>
+                    <span className="color-swatch" aria-hidden="true"></span>
+                    <span className="color-caret" aria-hidden="true">▾</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="sn-color-pop" align="start">
+                  <div className="color-grid" role="group" aria-label="便签颜色">
+                    {colors.map((c) => (
+                      <button key={c} type="button" className={`color ${current.color === c ? 'chosen' : ''}`} data-color={c}
+                        style={{ '--swatch': c }} aria-label={`切换便签颜色 ${c}`}
+                        onClick={() => { mutateCurrent((n) => { n.color = c }, { immediate: true }); setColorMenuOpen(false) }}></button>
+                    ))}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <span className="spacer"></span>
-              <button id="pin" onClick={togglePin}>{current.pinned ? '取消置顶' : '置顶'}</button>
-              <button id="preview-toggle" onClick={() => setPreview((p) => !p)}>{preview ? '编辑' : '预览'}</button>
-              <button id="copy" onClick={() => kitRef.current.copy((current.title ? current.title + '\n\n' : '') + current.text).catch((e) => kitRef.current.toast(e.message, 'error'))}>复制</button>
-              <button id="export-note" className="shell-only" onClick={() =>
-                kitRef.current.saveText(noteTitle(current).replace(/[\\/:*?"<>|]/g, '_') + '.md', (current.title ? '# ' + current.title + '\n\n' : '') + current.text).catch((e) => kitRef.current.toast(e.message, 'error'))}>导出 .md</button>
-              <button id="export-txt" className="shell-only" onClick={() =>
-                kitRef.current.saveText(noteTitle(current).replace(/[\\/:*?"<>|]/g, '_') + '.txt', (current.title ? current.title + '\n\n' : '') + current.text).catch((e) => kitRef.current.toast(e.message, 'error'))}>导出 .txt</button>
-              <button id="archive" onClick={toggleArchive}>{current.archived ? '取消归档' : '归档'}</button>
-              <button id="delete" className="danger" onClick={toggleDelete}>{current.deletedAt ? '恢复' : '删除'}</button>
+              <button id="pin" className="pk-btn pk-btn-ghost" aria-pressed={current.pinned} onClick={togglePin}>{current.pinned ? '已收藏' : '收藏'}</button>
+              <button id="preview-toggle" className="pk-btn pk-btn-ghost" aria-pressed={preview} onClick={() => setPreview((p) => !p)}>{preview ? '编辑' : '预览'}</button>
+              <button id="copy" className="pk-btn pk-btn-ghost" onClick={() => copyNote(current.id)}>复制</button>
+              <MoreMenu label="更多" ariaLabel="导出与归档" buttonClassName="editor-more" items={noteMenu} />
             </div>
             <div className="document">
               <input id="title" aria-label="笔记标题" placeholder="无标题" maxLength={200} key={'t' + current.id}
@@ -583,9 +736,9 @@ export function App() {
               <span className="stat">{wc.chars} 字符 · {wc.words} 词</span>
               <span className="stat" title={new Date(current.updatedAt).toLocaleString()}>编辑于 {relTime(current.updatedAt)}</span>
               <span>⌘ / Ctrl + Shift + Enter 保存</span>
-              <button id="undo" hidden={!undo} onClick={undoDelete}>撤销删除</button>
-              <button id="purge" hidden={!current.deletedAt} onClick={purgeNote}>永久删除</button>
-              <button id="save-state" onClick={() => void persist()}>{saveState}</button>
+              <button id="undo" className="pk-btn pk-btn-ghost pk-btn-sm" hidden={!undo} onClick={() => undoDelete()}>撤销删除</button>
+              <button id="purge" className="pk-btn pk-btn-danger pk-btn-sm" hidden={!current.deletedAt} onClick={() => purgeNote()}>永久删除</button>
+              <button id="save-state" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void persist()}>{saveState}</button>
             </div>
           </>
         )}

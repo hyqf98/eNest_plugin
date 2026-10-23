@@ -1,20 +1,16 @@
 /* Standalone DSH management. Host tokens remain authoritative in both color modes.
    Local shape scale: panels 8px, controls 6px, badges 3px. No imagery or ambient motion. */
 .dsh-settings {
-  --ds-fallback-bg: #f7f8f9;
-  --ds-fallback-surface: #fcfcfd;
-  --ds-fallback-text: #272c31;
-  --ds-fallback-muted: #5e6871;
-  --ds-fallback-line: #dce1e5;
-  --ds-bg: var(--bg, var(--ds-fallback-bg));
-  --ds-surface: var(--surface, var(--ds-fallback-surface));
-  --ds-text: var(--text, var(--ds-fallback-text));
+  /* 宿主 token 为权威；fallback 仅在壳外直开时生效（与主题预设同值） */
+  --ds-bg: var(--bg, #f6f6f4);
+  --ds-surface: var(--surface, #ffffff);
+  --ds-text: var(--text, #292c2e);
   --ds-muted: color-mix(in srgb, var(--ds-text) 72%, var(--ds-bg));
-  --ds-line: var(--border, var(--ds-fallback-line));
+  --ds-line: var(--border, #292c2e14);
   --ds-soft: color-mix(in srgb, var(--ds-text) 4%, var(--ds-bg));
-  --ds-accent: color-mix(in srgb, var(--accent, #526e72) 68%, var(--ds-text));
-  --ds-accent-wash: color-mix(in srgb, var(--accent, #526e72) 8%, var(--ds-surface));
-  --ds-danger: var(--danger, #b34e48);
+  --ds-accent: color-mix(in srgb, var(--accent, #bd542b) 68%, var(--ds-text));
+  --ds-accent-wash: color-mix(in srgb, var(--accent, #bd542b) 8%, var(--ds-surface));
+  --ds-danger: var(--danger, #c54f46);
   --ds-speed: 160ms;
   --ds-ease: cubic-bezier(.2, .65, .3, 1);
   --pk-radius: 6px;
@@ -284,8 +280,17 @@
 body:has(.dsh-settings) .pk-select-pop { max-width: calc(100vw - 24px); border-radius: 8px; }
 
 /* Mode fallback only applies when the host has not provided theme tokens. */
+/* 深色回退：宿主未注入时按系统偏好取深色预设值 */
 @media (prefers-color-scheme: dark) {
-  .dsh-settings { --ds-fallback-bg: #191c1f; --ds-fallback-surface: #202428; --ds-fallback-text: #e8edf0; --ds-fallback-muted: #aab4bb; --ds-fallback-line: #353b40; }
+  .dsh-settings {
+    --ds-bg: var(--bg, #17191b);
+    --ds-surface: var(--surface, #202326);
+    --ds-text: var(--text, #f2f3f3);
+    --ds-line: var(--border, #f2f3f329);
+    --ds-accent: color-mix(in srgb, var(--accent, #e98654) 68%, var(--ds-text));
+    --ds-accent-wash: color-mix(in srgb, var(--accent, #e98654) 8%, var(--ds-surface));
+    --ds-danger: var(--danger, #e79589);
+  }
 }
 
 @media (max-width: 1050px) {
@@ -350,3 +355,8 @@ body:has(.dsh-settings) .pk-select-pop { max-width: calc(100vw - 24px); border-r
   .dsh-settings *, .dsh-settings *::before, .dsh-settings *::after { animation: none !important; transition-duration: 0ms !important; scroll-behavior: auto !important; }
   .dsh-settings button:active { transform: none; }
 }
+
+/* First-run kernel guide mounts outside .dsh-settings; the wrapper only supplies design tokens. */
+.dsh-kernel-setup-mount { display: contents; }
+.dsh-settings .dsh-kernel-setup-dialog { width: min(560px, calc(100vw - 32px)); max-width: min(560px, 92vw); }
+.dsh-settings .dsh-kernel-setup-dialog .dsh-settings-remote-list { max-height: 264px; overflow: auto; padding-inline: 2px; }

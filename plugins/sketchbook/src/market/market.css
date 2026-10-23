@@ -1160,11 +1160,12 @@
   100% { opacity: 1; }
 }
 
-.sk-card { animation: sk-paste .28s var(--ease) backwards; animation-delay: calc(min(var(--i, 0), 8) * 22ms); }
-.sk-feature { animation: sk-feature-flip .38s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 65ms); }
+/* 只有尚未可见展示的插件入场；目录重建沿用已见 pluginId，不再整页淡出重播。 */
+.sk-card.is-new { animation: sk-paste .28s var(--ease) backwards; animation-delay: calc(min(var(--i, 0), 8) * 22ms); }
+.sk-feature.is-new { animation: sk-feature-flip .38s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 65ms); }
 @keyframes sk-feature-flip { from { opacity: 0; transform: translateY(12px) rotateY(-12deg) rotate(-2deg); } }
-:root[data-anim='high'] .sk-card { animation-duration: .44s; animation-delay: calc(min(var(--i, 0), 10) * 35ms); }
-:root[data-anim='high'] .sk-feature { animation-name: sk-feature-flip-high; animation-duration: .6s; animation-delay: calc(var(--i, 0) * 95ms); }
+:root[data-anim='high'] .sk-card.is-new { animation-duration: .44s; animation-delay: calc(min(var(--i, 0), 10) * 35ms); }
+:root[data-anim='high'] .sk-feature.is-new { animation-name: sk-feature-flip-high; animation-duration: .6s; animation-delay: calc(var(--i, 0) * 95ms); }
 @keyframes sk-feature-flip-high { from { opacity: 0; transform: translateY(22px) rotateY(-24deg) rotate(-4deg) scale(.96); } }
 :root[data-anim='low'] :is(.sk-card, .sk-feature) { animation: none; }
 :root[data-home-visible='false'] .sk-market *,

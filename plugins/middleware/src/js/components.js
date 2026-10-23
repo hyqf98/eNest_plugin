@@ -120,11 +120,15 @@ export function lagBar(lag) {
 export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClick, emptyText = '暂无数据' }) {
   const tbody = el('tbody')
   const widths = columns.map(column => Math.max(72, (String(column.width).endsWith('%') ? (column.mono ? 240 : 160) : parseInt(column.width, 10)) || (column.mono ? 240 : 150)))
+  if (onRowCtx) widths.push(44)
   const table = el('table', { class: 'grid', style: `min-width:${widths.reduce((sum, width) => sum + width, 0)}px` }, [
     el('colgroup', {}, widths.map(width => el('col', { style: `width:${width}px` }))),
-    el('thead', {}, [el('tr', {}, columns.map(c => el('th', {
-      class: c.num ? 'num' : '', ...(c.width ? { style: `width:${c.width}` } : {})
-    }, c.title)))]),
+    el('thead', {}, [el('tr', {}, [
+      ...columns.map(c => el('th', {
+        class: c.num ? 'num' : '', ...(c.width ? { style: `width:${c.width}` } : {})
+      }, c.title)),
+      ...(onRowCtx ? [el('th', { class: 'grid-actions-heading', 'aria-label': '行操作' })] : []),
+    ])]),
     tbody
   ])
   const wrap = el('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': '数据列表，可左右滚动' }, [table])
@@ -134,7 +138,7 @@ export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClic
     current = rows
     tbody.innerHTML = ''
     if (!rows.length) {
-      tbody.appendChild(el('tr', { class: 'empty-row' }, [el('td', { colspan: String(columns.length) }, emptyText)]))
+      tbody.appendChild(el('tr', { class: 'empty-row' }, [el('td', { colspan: String(columns.length + (onRowCtx ? 1 : 0)) }, emptyText)]))
       return
     }
     for (const row of rows) {
@@ -143,10 +147,11 @@ export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClic
         class: row.__dim ? 'dim' : '',
         onclick: () => { setSelected(key); onRowClick?.(row) },
         ondblclick: () => onRowDblClick?.(row),
-        oncontextmenu: (e) => { e.preventDefault(); setSelected(key); onRowCtx?.(e, row) }
+        oncontextmenu: (e) => { if (onRowCtx) { e.preventDefault(); setSelected(key); onRowCtx(e, row) } }
       })
-      tr.tabIndex = onRowClick || onRowDblClick ? 0 : -1
+      tr.tabIndex = onRowClick || onRowDblClick || onRowCtx ? 0 : -1
       tr.addEventListener('keydown', event => {
+        if (event.target !== tr || event.isComposing) return
         if (event.key === 'Enter') { event.preventDefault(); setSelected(key); (onRowDblClick || onRowClick)?.(row) }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); (event.key === 'ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling)?.focus() }
       })
@@ -158,6 +163,16 @@ export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClic
         const td = tr.lastChild
         td.innerHTML = value === undefined || value === null || value === '' ? '<span style="color:var(--text-3)">—</span>' : c.render ? String(value) : escapeHtml(String(value))
         td.title = String(c.tooltip?.(row) ?? (c.key && row[c.key] != null ? row[c.key] : td.textContent))
+      }
+      if (onRowCtx) {
+        const more = el('button', { type: 'button', class: 'pk-btn pk-btn-ghost pk-btn-sm', 'aria-label': '此行更多操作', 'aria-haspopup': 'menu', onclick: event => {
+          event.stopPropagation()
+          setSelected(key)
+          const rect = more.getBoundingClientRect()
+          onRowCtx({ clientX: rect.right, clientY: rect.bottom }, row)
+        } }, '⋯')
+        more.addEventListener('dblclick', event => event.stopPropagation())
+        tr.append(el('td', { class: 'grid-actions' }, [el('span', { class: 'pk-row-actions' }, [more])]))
       }
       tr.dataset.key = key
       tbody.appendChild(tr)
@@ -186,7 +201,7 @@ export async function confirmDanger({ title, message, requireText, confirmLabel 
         (input = el('input', { type: 'text', placeholder: requireText, autocomplete: 'off' }))
       ]))
     }
-    const footer = el('div', { style: 'display:flex;gap:10px;justify-content:flex-end;padding-top:4px' })
+    const footer = el('div', { class: 'mw-dialog-actions mw-danger-actions' })
     const dlg = middlewareDialog({
       title,
       className: 'mw-danger-dialog',
@@ -224,7 +239,7 @@ export function infoDialog({ title, width = 520 }) {
   const dlg = middlewareDialog({ title, className: 'mw-info-dialog' })
   if (width) dlg.root.style.maxWidth = `${width}px`
   dlg.footer.innerHTML = ''
-  dlg.footer.appendChild(el('div', { style: 'display:flex;gap:10px;justify-content:flex-end;width:100%' }))
+  dlg.footer.appendChild(el('div', { class: 'mw-dialog-actions' }))
   return dlg
 }
 

@@ -16,6 +16,7 @@ let resizeBound = false
 let searchText = ''
 let navigationMode = 'shell'
 let drawerOpen = false
+let navigationCleanup = null
 
 export function renderTree() {
   const root = document.getElementById('tree')
@@ -88,7 +89,7 @@ export function renderTree() {
   if (!store.connections.length) {
     const empty = document.createElement('div')
     empty.className = 'tree-group'
-    empty.innerHTML = '<div class="g-label" style="padding-left:8px">尚无连接，点击 ＋ 创建</div>'
+    empty.innerHTML = '<div class="g-label tree-empty-label">尚无连接，点击 ＋ 创建</div>'
     scroll.appendChild(empty)
   }
   if (store.connections.length && !scroll.childElementCount) scroll.textContent = '没有匹配的连接'
@@ -115,9 +116,12 @@ export function renderTree() {
 }
 
 function renderTreeItem(conn) {
-  const item = document.createElement('button')
-  item.type = 'button'
+  const item = document.createElement('div')
   item.className = 'tree-item' + (store.activeTab === conn.id ? ' on' : '')
+  item.tabIndex = 0
+  item.dataset.rowActions = ''
+  item.setAttribute('role', 'group')
+  item.setAttribute('aria-label', conn.name || conn.id)
   item.dataset.connection = conn.id
   item.setAttribute('aria-current', store.activeTab === conn.id ? 'true' : 'false')
   item.title = conn.note ? `${conn.name || conn.id} · ${conn.note}` : (conn.name || conn.id)
@@ -145,14 +149,34 @@ function renderTreeItem(conn) {
     item.appendChild(half)
   }
 
-  item.addEventListener('click', () => {
+  const open = () => {
     activateWithPage(conn.id)
     if (isCompact()) closeNavigation()
+  }
+  item.addEventListener('click', open)
+  item.addEventListener('keydown', event => {
+    if (event.target !== item || event.isComposing || !['Enter', ' '].includes(event.key)) return
+    event.preventDefault(); open()
   })
   item.addEventListener('contextmenu', (e) => {
     e.preventDefault()
     showConnectionMenu(conn, e.clientX, e.clientY)
   })
+  const actions = document.createElement('span')
+  actions.className = 'pk-row-actions'
+  const more = document.createElement('button')
+  more.type = 'button'
+  more.className = 'pk-btn pk-btn-ghost pk-btn-sm'
+  more.textContent = '⋯'
+  more.setAttribute('aria-label', `${conn.name || conn.id} 的更多操作`)
+  more.setAttribute('aria-haspopup', 'menu')
+  more.addEventListener('click', event => {
+    event.stopPropagation()
+    const rect = more.getBoundingClientRect()
+    showConnectionMenu(conn, rect.right, rect.bottom)
+  })
+  actions.append(more)
+  item.append(actions)
   return item
 }
 
@@ -304,18 +328,59 @@ export function closeNavigation() {
   document.getElementById('nav-toggle').focus()
   return true
 }
+export function disposeNavigation() {
+  navigationCleanup?.()
+  navigationCleanup = null
+}
 export function initializeNavigation(mode) {
+  disposeNavigation()
   navigationMode = mode
-  document.getElementById('nav-toggle').addEventListener('click', () => {
+  const toggle = document.getElementById('nav-toggle')
+  const scrim = document.getElementById('nav-scrim')
+  const shell = document.getElementById('open-shell')
+  const flyout = window.PluginKit.hoverFlyout(toggle, () => [
+    ...store.connections.map(conn => ({
+      key: 'connection:' + conn.id,
+      label: conn.name || conn.id,
+      hint: KIND_META[conn.kind]?.label || conn.kind,
+      checked: store.activeTab === conn.id,
+    })),
+    ...(store.connections.length ? ['sep'] : []),
+    { key: 'new', label: '新建连接' },
+    { key: 'settings', label: '设置' },
+  ], {
+    enabled: () => isCompact() ? !drawerOpen : !!store.ui.navigationCollapsed,
+    handleClick: false,
+    side: 'right', delay: 120, hideDelay: 300, ariaLabel: '收起连接导航快捷入口',
+    onPick: key => {
+      if (key.startsWith('connection:')) activateWithPage(key.slice(11))
+      if (key === 'new') void import('./connections.js').then(({ openConnectionDrawer }) => openConnectionDrawer())
+      if (key === 'settings') openSettings()
+    },
+  })
+  const onToggle = () => {
+    flyout.hide()
     if (isCompact()) drawerOpen = !drawerOpen
     else store.setUi('navigationCollapsed', !store.ui.navigationCollapsed)
     updateNavigation()
     if (drawerOpen) document.getElementById('connection-search')?.focus()
-  })
-  document.getElementById('nav-scrim').addEventListener('click', closeNavigation)
-  document.addEventListener('mw-navigation-changed', () => { renderTree(); updateNavigation() })
-  window.addEventListener('resize', updateNavigation)
-  document.getElementById('open-shell').addEventListener('click', () => api.openInShell())
+  }
+  const onNavigation = () => { renderTree(); updateNavigation() }
+  const onResize = () => { flyout.hide(); updateNavigation() }
+  const onShell = () => api.openInShell()
+  toggle.addEventListener('click', onToggle)
+  scrim.addEventListener('click', closeNavigation)
+  document.addEventListener('mw-navigation-changed', onNavigation)
+  window.addEventListener('resize', onResize)
+  shell.addEventListener('click', onShell)
+  navigationCleanup = () => {
+    flyout.destroy()
+    toggle.removeEventListener('click', onToggle)
+    scrim.removeEventListener('click', closeNavigation)
+    document.removeEventListener('mw-navigation-changed', onNavigation)
+    window.removeEventListener('resize', onResize)
+    shell.removeEventListener('click', onShell)
+  }
   updateNavigation()
 }
 export function applyTreeWidth(mode) {

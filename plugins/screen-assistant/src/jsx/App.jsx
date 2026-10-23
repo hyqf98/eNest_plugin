@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { bindFileInput } from '@enest/plugin-kit/file-inputs'
+import { MoreMenu } from '../ui/index.jsx'
 import { selection, EditHistory, elapsed } from '../js/editor-core.js'
 
 const TOOL_HINTS = {
@@ -49,6 +50,7 @@ export function App() {
   const [imageMeta, setImageMeta] = useState('尚无截图')
   const [hasOriginal, setHasOriginal] = useState(false)
   const [editingOpen, setEditingOpen] = useState(false)
+  const [mode, setMode] = useState('shell')
   const [editSteps, setEditSteps] = useState(0)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
@@ -629,7 +631,9 @@ export function App() {
       onAction: onActionBridge,
     })
     kitRef.current = kit
+    setMode(kit.mode === 'quick' ? 'quick' : 'shell')
     kit.onMode(() => {
+      setMode(kit.mode === 'quick' ? 'quick' : 'shell')
       cancelDraw()
       renderRecordingState()
     })
@@ -770,14 +774,42 @@ export function App() {
     })
   }
 
+  function historyMenuItems(item) {
+    return [
+      { key: 'open', label: '打开原图', disabled: busy, onSelect: () => void run(() => work(() => openHistory(item))) },
+      { key: 'copy', label: '复制图片', disabled: busy, onSelect: () => void run(async () => {
+        await api.clipboard.writeImage(await originalData(item))
+        kitRef.current?.toast('已复制图片', 'success')
+      }) },
+      { key: 'pin', label: '贴图到桌面', disabled: busy, onSelect: () => void run(async () => pinImage(await originalData(item), item.name)) },
+      { key: 'export', label: '导出 PNG', disabled: busy, onSelect: () => void run(async () => kitRef.current.saveFile(`${item.name}.png`, await originalData(item))) },
+      { sep: true },
+      { key: 'delete', label: '删除原图', danger: true, disabled: busy, onSelect: () => void run(() => work(() => removeItem(item))) },
+    ]
+  }
+  function historyContextMenu(event, item) {
+    event.preventDefault()
+    const items = historyMenuItems(item)
+    window.PluginKit.openMenu(event, items, key => {
+      const action = items.find(entry => entry.key === key)
+      if (action && !action.disabled) action.onSelect?.()
+    }, { align: 'end' })
+  }
+
   return (
     <main className="screen-app">
       <header className="app-head">
         <div><h1>屏幕助手</h1></div>
         <span id="status" role="status">{statusText}</span>
-        <button id="capture" className="primary" disabled={busy} onClick={() => void run(() => capture('region'))}>矩形截图</button>
-        <button id="capture-full" disabled={busy} onClick={() => void run(() => capture('full'))}>全屏</button>
-        <button id="import-image" className="desktop-only" disabled={busy} onClick={() => document.getElementById('image-file').click()}>打开图片</button>
+        <button id="capture" className="pk-btn pk-btn-primary" disabled={busy} onClick={() => void run(() => capture('region'))}>矩形截图</button>
+        <MoreMenu
+          ariaLabel="截图来源"
+          items={[
+            { key: 'full', label: '全屏截图', disabled: busy, onSelect: () => void run(() => capture('full')) },
+            // 原「打开图片」仅在桌面模式暴露（quick 单窗口无落盘选择路径）
+            mode === 'quick' ? null : { key: 'import', label: '打开图片', disabled: busy, onSelect: () => document.getElementById('image-file').click() },
+          ].filter(Boolean)}
+        />
         <input
           id="image-file"
           type="file"
@@ -809,9 +841,10 @@ export function App() {
           <div className="editor-main">
             <div className="result-toolbar">
               <span id="image-meta" title={imageMeta}>{imageMeta}</span>
-              <button id="toggle-editor" onClick={toggleEditor}>{editingOpen ? '收起标注' : '标注'}</button>
+              <button id="toggle-editor" className="pk-btn pk-btn-sm" onClick={toggleEditor}>{editingOpen ? '收起标注' : '标注'}</button>
               <button
                 id="copy-image"
+                className="pk-btn pk-btn-sm"
                 disabled={editDisabled}
                 onClick={() => void run(async () => {
                   await api.clipboard.writeImage(imageCanvasRef.current.toDataURL('image/png'))
@@ -821,26 +854,31 @@ export function App() {
               >
                 复制
               </button>
-              <button
-                id="pin-image"
-                disabled={editDisabled}
-                onClick={() => void run(() => pinImage(imageCanvasRef.current.toDataURL('image/png'), currentItem()?.name))}
-              >
-                贴图
-              </button>
-              <button
-                id="export-image"
-                disabled={editDisabled}
-                onClick={() => void run(() => kitRef.current.saveFile(`${currentItem()?.name || '截图'}.png`, imageCanvasRef.current.toDataURL('image/png')))}
-              >
-                导出 PNG
-              </button>
+              <MoreMenu
+                buttonClassName="pk-btn-sm"
+                ariaLabel="导出与贴图"
+                items={[
+                  {
+                    key: 'pin',
+                    label: '贴图到桌面',
+                    disabled: editDisabled,
+                    onSelect: () => void run(() => pinImage(imageCanvasRef.current.toDataURL('image/png'), currentItem()?.name)),
+                  },
+                  {
+                    key: 'export',
+                    label: '导出 PNG',
+                    disabled: editDisabled,
+                    onSelect: () => void run(() => kitRef.current.saveFile(`${currentItem()?.name || '截图'}.png`, imageCanvasRef.current.toDataURL('image/png'))),
+                  },
+                ]}
+              />
             </div>
             <div id="edit-toolbar" className="edit-toolbar" aria-label="标注工具">
               <div className="tool-group">
                 {TOOLS.map(([id, text, title]) => (
                   <button
                     key={id}
+                    className="pk-btn pk-btn-ghost pk-btn-sm"
                     data-tool={id}
                     title={title}
                     aria-pressed={tool === id}
@@ -863,12 +901,12 @@ export function App() {
                   <option value="10">粗</option>
                 </select>
               </label>
-              <button id="undo" disabled={!canUndo} title="撤销（⌘/Ctrl Z）" onClick={() => {
+              <button id="undo" className="pk-btn pk-btn-ghost pk-btn-sm" disabled={!canUndo} title="撤销（⌘/Ctrl Z）" onClick={() => {
                 edits.current.undo()
                 renderCanvas()
                 saveDraft()
               }}>撤销</button>
-              <button id="redo" disabled={!canRedo} title="重做（⌘/Ctrl Shift Z）" onClick={() => {
+              <button id="redo" className="pk-btn pk-btn-ghost pk-btn-sm" disabled={!canRedo} title="重做（⌘/Ctrl Shift Z）" onClick={() => {
                 edits.current.redo()
                 renderCanvas()
                 saveDraft()
@@ -886,7 +924,7 @@ export function App() {
                 <span className="stage-mark" aria-hidden="true"></span>
                 <h2>留住这一刻的画面</h2>
                 <p>框选屏幕或打开本地图片，随后裁剪、标注、复制。</p>
-                <button id="empty-capture" className="primary" disabled={busy} onClick={() => void run(() => capture('region'))}>选择截图区域</button>
+                <button id="empty-capture" className="pk-btn pk-btn-primary" disabled={busy} onClick={() => void run(() => capture('region'))}>选择截图区域</button>
               </div>
               <div id="canvas-wrap" hidden={!hasOriginal}>
                 <canvas id="image-canvas" ref={imageCanvasRef} aria-label="截图预览"></canvas>
@@ -906,13 +944,14 @@ export function App() {
             </div>
             <div className="editor-foot">
               <span id="edit-state">{editStateText}</span>
-              <button id="reset-edits" disabled={!canUndo} className="text-button" onClick={() => {
+              <button id="reset-edits" disabled={!canUndo} className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => {
                 edits.current.clear()
                 renderCanvas()
                 saveDraft()
               }}>恢复原图</button>
               <button
                 id="save-edit"
+                className="pk-btn pk-btn-sm"
                 disabled={!canUndo}
                 onClick={() => void run(() => work(async () => {
                   const name = `${currentItem()?.name || '截图'} 标注`
@@ -927,7 +966,7 @@ export function App() {
           <aside className="recent-aside">
             <div className="section-head">
               <h2>最近原图</h2>
-              <button id="all-history" className="text-button" onClick={() => showTab('history')}>全部</button>
+              <button id="all-history" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => showTab('history')}>全部</button>
             </div>
             <div id="recent-list">
               {history.slice(0, 5).map((item) => (
@@ -956,9 +995,9 @@ export function App() {
               录入系统声音
             </label>
             <div className="record-actions">
-              <button id="record-start" className="primary" disabled={recording || recBusy} onClick={() => void run(startRecording)}>选区并录制</button>
-              <button id="record-stop" disabled={!recording || recBusy} onClick={() => void run(stopRecording)}>停止并保存</button>
-              <button id="record-cancel" disabled={!recording || recBusy} className="danger" onClick={() => void run(cancelRecording)}>取消录制</button>
+              <button id="record-start" className="pk-btn pk-btn-primary" disabled={recording || recBusy} onClick={() => void run(startRecording)}>选区并录制</button>
+              <button id="record-stop" className="pk-btn" disabled={!recording || recBusy} onClick={() => void run(stopRecording)}>停止并保存</button>
+              <button id="record-cancel" disabled={!recording || recBusy} className="pk-btn pk-btn-danger" onClick={() => void run(cancelRecording)}>取消录制</button>
             </div>
             <p className="helper">音频支持取决于系统与权限；无法获取时宿主可能录制无声视频。</p>
           </div>
@@ -970,7 +1009,7 @@ export function App() {
                   <article className="record-row" key={i}>
                     <strong>{`${new Date(recording2.ts).toLocaleString()} · ${elapsed(recording2.durationMs)} · ${(recording2.size / 1024 / 1024).toFixed(1)} MB`}</strong>
                     <p>{recording2.path}</p>
-                    <button onClick={() => void run(() => kitRef.current.copy(recording2.path))}>复制文件路径</button>
+                    <button className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void run(() => kitRef.current.copy(recording2.path))}>复制文件路径</button>
                   </article>
                 ))
               ) : (
@@ -1021,8 +1060,8 @@ export function App() {
         <div className="section-head">
           <h2>当前贴图</h2>
           <span id="pin-count">{pinsLoaded && pins ? `${pins.length} 张` : ''}</span>
-          <button id="refresh-pins" onClick={() => void run(refreshPins)}>刷新</button>
-          <button id="close-pins" className="danger" disabled={!pins || !pins.length} onClick={closeAllPins}>{closePinsArmed ? '确认全部关闭' : '全部关闭'}</button>
+          <button id="refresh-pins" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void run(refreshPins)}>刷新</button>
+          <button id="close-pins" className="pk-btn pk-btn-danger pk-btn-sm" disabled={!pins || !pins.length} onClick={closeAllPins}>{closePinsArmed ? '确认全部关闭' : '全部关闭'}</button>
         </div>
         <div id="pin-list">
           {!pinsLoaded || !pins ? (
@@ -1032,7 +1071,7 @@ export function App() {
               <div className="pin-row" key={String(pin.pinId)}>
                 <strong>{pinNames[pin.pinId] || `贴图 ${index + 1}`}</strong>
                 <small>{String(pin.pinId).slice(0, 8)}</small>
-                <button onClick={() => void run(async () => {
+                <button className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void run(async () => {
                   await api.pin.close(pin.pinId)
                   setPinNames((prev) => {
                     const next = { ...prev }
@@ -1065,12 +1104,13 @@ export function App() {
               kitRef.current?.setQuery(e.target.value)
             }}
           />
-          <button id="clear-history" className="danger" disabled={!history.length} onClick={clearHistory}>{clearArmed ? '确认清空原图' : '清空历史'}</button>
+          <button id="clear-history" className="pk-btn pk-btn-danger pk-btn-sm" disabled={!history.length} onClick={clearHistory}>{clearArmed ? '确认清空原图' : '清空历史'}</button>
         </div>
         <div id="history-list" className="history-grid">
           {historyEntries.length ? (
             historyEntries.map((item, index) => (
-              <article key={item.id} className={`history-card${historySelectedClamped === index ? ' selected' : ''}`}>
+              <article key={item.id} className={`history-card${historySelectedClamped === index ? ' selected' : ''}`} data-row-actions
+                onContextMenu={event => historyContextMenu(event, item)}>
                 <button className="history-preview" title={`打开 ${item.name}`} onClick={() => void run(() => work(() => openHistory(item)))}>
                   <img src={item.thumb} alt={item.name} />
                 </button>
@@ -1088,14 +1128,8 @@ export function App() {
                     }}
                   />
                   <p>{`${new Date(item.ts).toLocaleDateString()} · ${item.width}×${item.height} · ${item.legacy ? '旧版缩略图' : `${Math.round((item.bytes || 0) / 1024)} KB 原图`}`}</p>
-                  <div className="history-card-actions">
-                    <button onClick={() => void run(async () => {
-                      await api.clipboard.writeImage(await originalData(item))
-                      kitRef.current?.toast('已复制图片', 'success')
-                    })}>复制</button>
-                    <button onClick={() => void run(async () => pinImage(await originalData(item), item.name))}>贴图</button>
-                    <button onClick={() => void run(async () => kitRef.current.saveFile(`${item.name}.png`, await originalData(item)))}>导出</button>
-                    <button onClick={() => void run(() => work(() => removeItem(item)))}>删除</button>
+                  <div className="history-card-actions pk-row-actions">
+                    <MoreMenu buttonClassName="pk-btn-sm" ariaLabel={item.name + ' 的更多操作'} items={historyMenuItems(item)} />
                   </div>
                 </div>
               </article>
@@ -1108,7 +1142,7 @@ export function App() {
       <footer>
         <span id="footer-hint">标注草稿自动保留，另存版本不覆盖原图</span>
         <span className="kbd-hints">工具快捷键：A 箭头 · R 矩形 · T 文字 · M 马赛克 · C 裁剪</span>
-        <button className="text-button" data-open-settings>截图与录屏设置</button>
+        <button className="pk-btn pk-btn-ghost pk-btn-sm" data-open-settings>截图与录屏设置</button>
       </footer>
     </main>
   )

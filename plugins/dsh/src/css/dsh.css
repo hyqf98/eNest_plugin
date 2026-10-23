@@ -45,33 +45,8 @@ button:disabled { cursor: default; }
 .dsh-error p { margin: 0 0 8px; color: var(--danger, #b64b48); overflow-wrap: anywhere; }
 .dsh-error-text { color: var(--danger, #b64b48); }
 
-/* 主按钮：实心墨色（深色下用反白面），无投影 */
-.btn {
-  padding: 7px 16px;
-  border-radius: 6px;
-  background: var(--text, #f2f3f3);
-  color: var(--bg, #17191b);
-  font-weight: 600;
-  font-size: 13px;
-  transition: opacity 0.2s var(--ease-out);
-}
-.btn:hover { opacity: 0.85; }
-.btn:disabled { opacity: 0.35; cursor: default; }
-
-/* 次按钮：发丝线描边 */
-.btn-ghost {
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--border, rgba(242, 243, 243, 0.09));
-  color: var(--text-2, #adb3b8);
-  font-size: 13px;
-  transition: border-color 0.2s var(--ease-out), color 0.2s var(--ease-out);
-}
-.btn-ghost:hover { border-color: var(--border-strong, rgba(242, 243, 243, 0.16)); color: var(--text); }
-.btn-ghost:disabled { opacity: 0.35; cursor: default; }
-
-.btn-danger { color: var(--danger, #e79589); }
-.btn-danger:hover { border-color: var(--danger, #e79589); color: var(--danger, #e79589); }
+/* 主按钮 / 次按钮统一走共享 `.btn` 别名（= .pk-btn 28px / 24px），
+   本文件不再定义第二套 `.btn` 尺寸。 */
 
 /* 状态徽标：小胶囊、全大写宽字距，仅状态词 */
 .tag {
@@ -135,24 +110,39 @@ select.field { appearance: none; padding-right: 24px; }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px 10px;
+  padding: 8px 14px;
   flex: none;
 }
 .cockpit-title { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
 .cockpit-sub { font-size: 12px; color: var(--text-3); font-family: var(--font-mono); }
+/* 图标按钮对齐共享 ghost：28px 方框、6px 圆角、5% 中性底。 */
 .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
+  min-height: 28px;
+  flex: 0 0 28px;
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: 6px;
-  color: var(--text-3);
-  transition: color 0.2s var(--ease-out), background 0.2s var(--ease-out);
+  background: color-mix(in srgb, var(--text, #f2f3f3) 5%, transparent);
+  color: var(--text-2, #adb3b8);
+  font-size: 12.5px;
+  line-height: 1.4;
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.icon-btn:hover { color: var(--text); background: var(--surface-2); }
+.icon-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent, #e98654) 7%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #e98654) 45%, transparent);
+}
+.icon-btn:focus-visible { outline: 2px solid var(--accent, #e98654); outline-offset: 2px; }
 .icon-btn svg { width: 16px; height: 16px; }
-.icon-btn:disabled { opacity: 0.35; }
+.icon-btn:disabled { opacity: 0.45; cursor: default; }
+:root[data-anim='low'] .icon-btn { transition: none; }
+:root[data-anim='low'] .icon-btn:active { transform: none; }
 :root[data-anim='low'] .dsh-enter,
 :root[data-anim='low'] .dot-run { animation: none; }
 :root[data-anim='medium'] .dsh-enter { animation-duration: 0.25s; }
@@ -168,7 +158,7 @@ select.field { appearance: none; padding-right: 24px; }
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding: 2px 16px 12px;
+  padding: 2px 14px 12px;
   border-bottom: 1px solid var(--border);
   flex: none;
   scrollbar-width: thin;
@@ -195,7 +185,7 @@ select.field { appearance: none; padding-right: 24px; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -258,7 +248,7 @@ select.field { appearance: none; padding-right: 24px; }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 12px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   font-size: 12px;
@@ -266,7 +256,7 @@ select.field { appearance: none; padding-right: 24px; }
 }
 .shellbar .sep { flex: 1; }
 .shellbar .port { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
-.web-frame { flex: 1; min-height: 0; border: 0; width: 100%; background: #fff; }
+.web-frame { flex: 1; min-height: 0; border: 0; width: 100%; background: var(--surface, #fff); }
 
 /* ========== 引导/空态 ========== */
 .guide {

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { mkdir, readFile, rm } from 'node:fs/promises'
-import { realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { buildPlugin } from './build-plugin.mjs'
-import { repositoryRoot, pluginIds, readManifest, DSH_DIR } from './plugin-contract.mjs'
+import { repositoryRoot, pluginIds, readManifest, DSH_DIR, DSH_BUNDLED_RUNTIME } from './plugin-contract.mjs'
 import { packDshRuntime } from './pack-dsh-runtime.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 
@@ -21,7 +21,8 @@ export async function packPlugin(id, { outDir = join(repositoryRoot, 'dist'), bu
   await rm(output, { force: true })
   execFileSync('zip', ['-r', '-q', resolve(output), '.'], { cwd: directory })
   const data = await readFile(output)
-  if (id === DSH_DIR) await packDshRuntime(directory, { outDir })
+  // The runtime tgz only exists when the distribution actually embeds a runtime (build --runtime or DSH_BUNDLED_RUNTIME).
+  if (id === DSH_DIR && existsSync(join(directory, 'runtime'))) await packDshRuntime(directory, { outDir })
   return { name, path: output, size: data.length, sha256: createHash('sha256').update(data).digest('hex') }
 }
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

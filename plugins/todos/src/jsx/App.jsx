@@ -4,6 +4,7 @@
  * 数据归一化 / 排序 / 拖拽排序管线与原版逐行等价。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 
 const KEY = 'todos_v2'
 const LABELS = { all: '全部', today: '今天', important: '重要', done: '已完成', archived: '归档' }
@@ -59,6 +60,34 @@ export function App() {
   const [mode, setMode] = useState(PluginKit.create ? undefined : undefined) // 实际 mode 在 kit ready 后读取
   const [detailOpen, setDetailOpen] = useState(false)
   const [draft, setDraft] = useState(null) // 详情编辑草稿 { text, due, priority, list, tags, note }
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 540px)').matches)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [navPinned, setNavPinned] = useState(false)
+  const [navPeek, setNavPeek] = useState(false)
+  const navRef = useRef(null)
+  const navToggleRef = useRef(null)
+  const navBindingRef = useRef(null)
+  const compactNav = mode === 'quick' || narrow
+  const navCollapsed = compactNav ? !navPinned : sidebarCollapsed
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 540px)')
+    const update = () => setNarrow(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    const binding = PluginKit.bindHoverPanel(navToggleRef.current, navRef.current, {
+      enabled: () => navCollapsed,
+      onOpenChange: setNavPeek,
+      delay: 120,
+      hideDelay: 300,
+      handleClick: false,
+    })
+    navBindingRef.current = binding
+    return () => { binding.destroy(); navBindingRef.current = null }
+  }, [navCollapsed])
 
   const newTaskRef = useRef(null)
   const listNameRef = useRef(null)
@@ -314,8 +343,9 @@ export function App() {
 
   const onListKeyDown = useCallback(
     (e) => {
-      if (e.isComposing || e.target.matches('input,textarea')) return
+      if (e.defaultPrevented || e.isComposing) return
       const row = e.target.closest('[data-id]')
+      if (!row || e.target !== row) return
       const kit = kitRef.current
       if (row && (e.key === ' ' || e.key === 'Enter')) {
         e.preventDefault()
@@ -470,6 +500,7 @@ export function App() {
     })
     kit.onMode(() => {
       setMode(kit.mode)
+      setNavPinned(false)
     })
     let alive = true
     initializedRef.current = (async () => {
@@ -479,6 +510,9 @@ export function App() {
         setSettings({ ...kit.settings })
         const initialView = Object.hasOwn(LABELS, kit.settings.defaultView) ? kit.settings.defaultView : 'all'
         setView(initialView)
+        const savedView = await kit.load('todos.view.v1', {})
+        if (!alive) return
+        setSidebarCollapsed(savedView?.sidebarCollapsed === true)
         const data = await kit.load(KEY, null)
         if (!alive) return
         if (data) {
@@ -535,6 +569,54 @@ export function App() {
     if (!selectedTask) return
     checkpoint()
     patchTask(selectedTask.id, { archived: !selectedTask.archived })
+  }
+
+  const archiveRow = (id) => {
+    checkpoint()
+    const next = stateRef.current.tasks.map((row) => (row.id === id ? { ...row, archived: !row.archived } : row))
+    setTasks(next)
+    saveNow(next)
+  }
+
+  const copyRow = (id) => {
+    const t = stateRef.current.tasks.find((row) => row.id === id)
+    if (!t) return
+    kitRef.current?.copy(t.text).catch((e) => kitRef.current?.toast(e.message, 'error'))
+  }
+
+  const rowMenu = (task, event) => {
+    event.preventDefault()
+    PluginKit.openMenu(
+      event,
+      [
+        ['copy', '复制任务文本'],
+        ['pin', task.pinned ? '取消置顶' : '置顶'],
+        ['archive', task.archived ? '恢复到清单' : '归档'],
+        { sep: true },
+        ['delete', '删除任务', { danger: true }],
+      ],
+      (key) => {
+        if (key === 'copy') copyRow(task.id)
+        if (key === 'pin') {
+          const next = stateRef.current.tasks.map((row) => (row.id === task.id ? { ...row, pinned: !row.pinned } : row))
+          setTasks(next)
+          saveNow(next)
+        }
+        if (key === 'archive') archiveRow(task.id)
+        if (key === 'delete') removeTask(task.id)
+      },
+      { align: 'end' },
+    )
+  }
+
+  const toggleNavigation = () => {
+    navBindingRef.current?.hide()
+    if (compactNav) setNavPinned(navCollapsed)
+    else {
+      const next = !sidebarCollapsed
+      setSidebarCollapsed(next)
+      void kitRef.current?.save('todos.view.v1', { sidebarCollapsed: next }).catch((e) => kitRef.current?.toast(e.message, 'error'))
+    }
   }
 
   const submitListForm = (e) => {
@@ -626,11 +708,18 @@ export function App() {
             kitRef.current?.setQuery(e.target.value)
           }}
         />
-        <button id="export" onClick={exportTasks}>导出</button>
-        <button data-open-settings>设置</button>
+        <MoreMenu
+          label="更多"
+          ariaLabel="导出与设置"
+          buttonClassName="header-more"
+          items={[
+            { key: 'export', label: '导出任务…', onSelect: exportTasks },
+            { key: 'settings', label: '设置…', onSelect: () => api?.ui?.openSettings?.() },
+          ]}
+        />
       </header>
-      <div className="workspace">
-        <nav className="shell-only">
+      <div className={`workspace${navCollapsed ? ' sidebar-collapsed' : ''}`} data-nav-compact={compactNav ? 'true' : 'false'}>
+        <nav className="list-navigation" id="todo-navigation" ref={navRef} aria-label="清单导航">
           <div className="eyebrow">清单</div>
           <div id="lists">
             {/* 与原版一致：清单导航在数据就绪后才填充（初始为空容器） */}
@@ -641,7 +730,7 @@ export function App() {
                       ? open.length
                       : tasks.filter((t) => t.list === name && !t.done && !t.archived).length
                   return (
-                    <button key={name} data-list={esc(name)} className={name === list ? 'active' : ''} onClick={() => setList(name)}>
+                    <button key={name} data-list={esc(name)} className={`pk-btn pk-btn-ghost nav-item${name === list ? ' active' : ''}`} onClick={() => setList(name)}>
                       {esc(name)}
                       {count ? <span className="nav-count">{count}</span> : ''}
                     </button>
@@ -649,29 +738,33 @@ export function App() {
                 })
               : null}
           </div>
-          <button id="new-list" onClick={() => {
+          <button id="new-list" className="pk-btn pk-btn-ghost" onClick={() => {
             setListFormOpen(true)
             requestAnimationFrame(() => listNameRef.current?.focus())
           }}>＋ 新建清单</button>
           <form id="list-form" hidden={!listFormOpen} onSubmit={submitListForm}>
             <input id="list-name" ref={listNameRef} placeholder="清单名称" maxLength={50} aria-label="新清单名称" />
-            <button>创建</button>
-            <button type="button" id="cancel-list" onClick={() => setListFormOpen(false)}>取消</button>
+            <button className="pk-btn pk-btn-primary pk-btn-sm">创建</button>
+            <button type="button" id="cancel-list" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => setListFormOpen(false)}>取消</button>
           </form>
           <hr />
-          <button id="import" onClick={importTasks}>导入任务</button>
+          <button id="import" className="pk-btn pk-btn-ghost" onClick={importTasks}>导入任务</button>
         </nav>
         <section className="list-pane">
           <div className="quick-summary quick-only">
             待办清单 <span id="quick-count">{ready ? open.length : ''}</span>
           </div>
           <div className="filters" id="filters">
+            <button ref={navToggleRef} type="button" className="pk-btn pk-btn-ghost pk-btn-sm nav-toggle"
+              aria-controls="todo-navigation" aria-expanded={!navCollapsed || navPeek}
+              aria-label={navCollapsed ? '展开清单导航' : '收起清单导航'}
+              title={navCollapsed ? '展开清单导航' : '收起清单导航'} onClick={toggleNavigation}>☰</button>
             {/* 与原版一致：仅在数据就绪后渲染筛选（读取失败时保持初始空白态） */}
             {ready
               ? Object.entries(LABELS).map(([key, label]) => {
                   const count = countFor(key)
                   return (
-                    <button key={key} data-view={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}>
+                    <button key={key} data-view={key} className={`pk-btn pk-btn-ghost pk-btn-sm${view === key ? ' active' : ''}`} onClick={() => setView(key)}>
                       {label}
                       {count ? <span className="f-count">{count}</span> : ''}
                     </button>
@@ -699,7 +792,7 @@ export function App() {
               placeholder="下一件要做的事…"
               aria-label="新任务"
             />
-            <button className="primary" type="submit">添加</button>
+            <button className="pk-btn pk-btn-primary" type="submit">添加</button>
           </form>
           <div
             id="tasks"
@@ -728,7 +821,9 @@ export function App() {
                     className={`task ${t.done ? 'done' : ''} ${selectedId === t.id ? 'selected' : ''}`}
                     role="listitem"
                     data-id={esc(t.id)}
+                    data-row-actions
                     tabIndex={0}
+                    onContextMenu={(e) => rowMenu(t, e)}
                   >
                     <span className="drag-handle shell-only" data-act="drag" aria-label="拖动排序" title="拖动排序">⠿</span>
                     <input
@@ -762,20 +857,27 @@ export function App() {
                         ))}
                       </div>
                     </div>
-                    <button data-act="pin" className="pin" aria-label={t.pinned ? '取消置顶' : '置顶'} onClick={(e) => {
-                      e.stopPropagation()
-                      const cur = stateRef.current.tasks.find((row) => row.id === t.id)
-                      if (!cur) return
-                      const next = stateRef.current.tasks.map((row) => (row.id === t.id ? { ...row, pinned: !row.pinned } : row))
-                      setTasks(next)
-                      saveNow(next)
-                    }}>
-                      {t.pinned ? '★' : '☆'}
-                    </button>
-                    <button className="remove" data-act="delete" aria-label="删除任务" onClick={(e) => {
-                      e.stopPropagation()
-                      removeTask(t.id)
-                    }}>×</button>
+                    <div className="pk-row-actions task-actions" onClick={(e) => e.stopPropagation()}>
+                      <button data-act="pin" className="pk-btn pk-btn-ghost pk-btn-sm pin" aria-label={t.pinned ? '取消置顶' : '置顶'} onClick={() => {
+                        const cur = stateRef.current.tasks.find((row) => row.id === t.id)
+                        if (!cur) return
+                        const next = stateRef.current.tasks.map((row) => (row.id === t.id ? { ...row, pinned: !row.pinned } : row))
+                        setTasks(next)
+                        saveNow(next)
+                      }}>
+                        {t.pinned ? '★' : '☆'}
+                      </button>
+                      <MoreMenu
+                        buttonClassName="pk-btn-sm"
+                        ariaLabel="更多任务操作"
+                        items={[
+                          { key: 'copy', label: '复制任务文本', onSelect: () => copyRow(t.id) },
+                          { key: 'archive', label: t.archived ? '恢复到清单' : '归档', onSelect: () => archiveRow(t.id) },
+                          { sep: true },
+                          { key: 'delete', label: '删除任务', danger: true, onSelect: () => removeTask(t.id) },
+                        ]}
+                      />
+                    </div>
                   </div>
                 )
               })
@@ -789,21 +891,21 @@ export function App() {
             )}
           </div>
           <div className="batch shell-only">
-            <button id="batch-done" onClick={() => {
+            <button id="batch-done" className="pk-btn pk-btn-sm" onClick={() => {
               checkpoint()
               const next = stateRef.current.tasks.map((t) => (checked.has(t.id) ? { ...t, done: true } : t))
               setTasks(next)
               setChecked(new Set())
               saveNow(next)
             }}>完成已选</button>
-            <button id="batch-archive" onClick={() => {
+            <button id="batch-archive" className="pk-btn pk-btn-sm" onClick={() => {
               checkpoint()
               const next = stateRef.current.tasks.map((t) => (checked.has(t.id) ? { ...t, archived: true } : t))
               setTasks(next)
               setChecked(new Set())
               saveNow(next)
             }}>归档已选</button>
-            <button id="clear-done" onClick={() => {
+            <button id="clear-done" className="pk-btn pk-btn-sm" onClick={() => {
               checkpoint()
               const next = stateRef.current.tasks.map((t) => (t.done ? { ...t, archived: true } : t))
               setTasks(next)
@@ -814,6 +916,7 @@ export function App() {
             <span id="count">{ready ? `${rows.length} 条 · ${open.length} 待完成` : ''}</span>
             <button
               id="undo"
+              className="pk-btn pk-btn-ghost pk-btn-sm"
               hidden={!undoSnapshot}
               onClick={() => {
                 if (undoSnapshot) {
@@ -837,7 +940,7 @@ export function App() {
             <>
               <div className="detail-actions">
                 <h2>任务详情</h2>
-                <button id="close-detail" style={{ marginLeft: 'auto' }} onClick={closeDetail}>收起</button>
+                <button id="close-detail" className="pk-btn pk-btn-ghost pk-btn-sm detail-close" onClick={closeDetail}>收起</button>
               </div>
               <label>
                 任务
@@ -887,17 +990,17 @@ export function App() {
                   <div className="subtask" key={i}>
                     <input type="checkbox" data-sub={i} defaultChecked={s.done} aria-label="完成子任务" onChange={(e) => toggleSub(i, e.target.checked)} />
                     <span style={s.done ? { textDecoration: 'line-through', color: 'var(--muted)' } : undefined}>{esc(s.text)}</span>
-                    <button data-remove-sub={i} aria-label="删除子任务" onClick={() => removeSub(i)}>×</button>
+                    <button data-remove-sub={i} className="pk-btn pk-btn-ghost pk-btn-sm" aria-label="删除子任务" onClick={() => removeSub(i)}>×</button>
                   </div>
                 ))}
               </div>
               <form id="subform" onSubmit={submitSub}>
                 <input id="subinput" ref={subInputRef} placeholder="添加子任务" maxLength={300} />
-                <button>＋</button>
+                <button className="pk-btn pk-btn-sm">＋</button>
               </form>
-              <div className="detail-actions" style={{ marginTop: 20 }}>
-                <button id="archive-task" onClick={archiveTask}>{selectedTask.archived ? '恢复到清单' : '归档任务'}</button>
-                <button id="delete-task" onClick={() => removeTask(selectedTask.id)}>删除</button>
+              <div className="detail-actions detail-actions-bottom">
+                <button id="archive-task" className="pk-btn" onClick={archiveTask}>{selectedTask.archived ? '恢复到清单' : '归档任务'}</button>
+                <button id="delete-task" className="pk-btn pk-btn-danger" onClick={() => removeTask(selectedTask.id)}>删除</button>
               </div>
             </>
           )}

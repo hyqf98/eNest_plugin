@@ -1,23 +1,26 @@
 /* ============================================================
-   Codex 宠物市场 — 主题 token 走宿主注入（themeAware），
-   缺省回退值对齐壳子默认深色。sprite 逐帧动画为核心机制：
-   .sprite 背景 = spritesheet.webp，CSS 变量驱动 steps 帧步进。
+   Codex 宠物市场 — 主题 token 走宿主注入（themeAware）。
+   下列 :root 只是壳外直开时的深色回退值：宿主注入的是 inline 自定义属性，
+   优先级高于本选择器，因此壳内始终以主题 token 为准。
+   注意不可写成 `--bg: var(--bg, …)`——自引用构成循环，整条声明会失效。
+   sprite 逐帧动画为核心机制：.sprite 背景 = spritesheet.webp，CSS 变量驱动 steps。
    ============================================================ */
 
 :root {
-  --bg: var(--bg, #0f1115);
-  --surface: var(--surface, #161a21);
-  --surface-2: var(--surface-2, #1d222b);
-  --surface-3: var(--surface-3, #242a35);
-  --border: var(--border, rgba(255, 255, 255, 0.08));
-  --border-strong: var(--border-strong, rgba(255, 255, 255, 0.16));
-  --text: var(--text, #e8ecf1);
-  --text-2: var(--text-2, #a7b0bd);
-  --text-3: var(--text-3, #6b7686);
-  --accent: var(--accent, #ff7a45);
-  --accent-soft: var(--accent-soft, rgba(255, 122, 69, 0.16));
-  --ok: var(--ok, #3dd68c);
-  --danger: var(--danger, #ff7a8e);
+  --bg: #0f1115;
+  --surface: #161a21;
+  --surface-2: #1d222b;
+  --surface-3: #242a35;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text: #e8ecf1;
+  --text-2: #a7b0bd;
+  --text-3: #6b7686;
+  --accent: #ff7a45;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --ok: #3dd68c;
+  --danger: #ff7a8e;
+  --danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
   --radius: 10px;
   --radius-lg: 14px;
   --sprite-w: 192px;
@@ -100,20 +103,26 @@ html, body {
 }
 
 /* ---------- 通用按钮 / 标签 ---------- */
+/* 参数对齐共享 pk-btn：28px 高 / 24px sm，6px 圆角 */
 .cp-btn {
-  border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text);
-  padding: 5px 14px; border-radius: 8px; cursor: pointer; font-size: 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 28px; padding: 4px 12px;
+  border: 1px solid var(--border-strong); border-radius: 6px;
+  background: var(--surface-2); color: var(--text);
+  cursor: pointer; font: inherit; font-size: 12.5px; line-height: 1.4; white-space: nowrap;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
-.cp-btn:hover:not(:disabled) { background: var(--surface-3); }
-.cp-btn:active:not(:disabled) { transform: translateY(1px); }
+.cp-btn:hover:not(:disabled) { background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong)); }
+.cp-btn:active:not(:disabled) { transform: scale(0.97); }
+.cp-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cp-btn:disabled { opacity: 0.5; cursor: default; }
-.cp-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.cp-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); font-weight: 600; }
 /* hover 背景需显式重申：通用 .cp-btn:hover 规则（更高优先级）否则把主按钮刷成浅色底、白字不可见 */
-.cp-btn.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #fff; filter: brightness(1.08); }
-.cp-btn.ghost { background: transparent; }
+.cp-btn.primary:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); filter: brightness(1.08); }
+.cp-btn.ghost { background: transparent; border-color: transparent; }
 .cp-btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
-.cp-btn.danger:hover:not(:disabled) { background: var(--danger-soft, rgba(255, 122, 142, 0.12)); }
+.cp-btn.danger:hover:not(:disabled) { background: var(--danger-soft, color-mix(in srgb, var(--danger) 12%, transparent)); }
+.cp-btn.sm { min-height: 24px; padding: 2px 9px; font-size: 12px; }
 .cp-tag {
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2);
   border-radius: 999px; padding: 1px 9px; font-size: 11px; cursor: pointer;
@@ -139,7 +148,7 @@ html, body {
 .cp-card.is-hover {
   transform: translateY(-3px);
   border-color: var(--border-strong);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 28px color-mix(in srgb, light-dark(var(--text), var(--bg)) 35%, transparent);
 }
 .cp-card-stage {
   position: relative;
@@ -167,7 +176,7 @@ html, body {
 .cp-installed-mark, .cp-legacy-mark {
   position: absolute; top: 6px; z-index: 2;
   font-size: 10px; padding: 1px 8px; border-radius: 999px;
-  background: rgba(61, 214, 140, 0.18); color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok);
   backdrop-filter: blur(4px);
 }
 .cp-installed-mark { right: 6px; }
@@ -188,7 +197,7 @@ html, body {
 .cp-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .cp-card-tags .cp-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
-.cp-card-actions .cp-btn { flex: 1 0 auto; padding: 5px 6px; white-space: nowrap; }
+.cp-card-actions .cp-btn { flex: 1 0 auto; padding: 2px 8px; min-height: 24px; font-size: 12px; white-space: nowrap; }
 
 /* ============================================================
    sprite 引擎 — 复刻 codex-pets.net：
@@ -219,7 +228,7 @@ html, body {
   display: grid; place-items: center;
   pointer-events: none; opacity: 0;
   transition: opacity 0.15s ease;
-  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(0 6px 10px color-mix(in srgb, light-dark(var(--text), var(--bg)) 40%, transparent));
 }
 .cp-cursor-pet.is-visible { opacity: 1; }
 .cp-cursor-pet .sprite { transform: scale(0.5); }
@@ -242,7 +251,7 @@ html, body {
   background: var(--surface); color: var(--text);
   padding: 0; max-width: 480px; width: min(480px, 92vw);
 }
-.cp-filters-dlg::backdrop { background: rgba(0, 0, 0, 0.45); }
+.cp-filters-dlg::backdrop { background: color-mix(in srgb, light-dark(var(--text), var(--bg)) 45%, transparent); }
 .cp-filters-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .cp-filters-body h3 { margin: 0; font-size: 14px; }
 .cp-filters-body h4 { margin: 0 0 6px; font-size: 12px; color: var(--text-3); font-weight: 500; }
@@ -311,7 +320,7 @@ html, body {
 /* 安装面板 */
 .cp-detail-install { display: flex; flex-direction: column; gap: 10px; }
 .cp-detail-install h3 { margin: 0; font-size: 15px; }
-.cp-install-main { padding: 9px 14px; font-size: 13px; }
+.cp-install-main { min-height: 28px; padding: 4px 12px; font-size: 12.5px; }
 .cp-cmd { display: flex; flex-direction: column; gap: 6px; }
 .cp-cmd-head { display: flex; flex-wrap: wrap; min-width: 0; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
 .cp-cmd-head > span:first-child { flex: 1; }
@@ -364,8 +373,11 @@ html, body {
 /* 动画档位：低档关闭装饰性动画（sprite 帧动画保留——它是内容本身） */
 :root[data-anim="low"] .cp-card { transition: none; }
 :root[data-anim="low"] .cp-card.is-hover { transform: none; }
+:root[data-anim="low"] .cp-btn { transition: none; }
+:root[data-anim="low"] .cp-btn:active:not(:disabled) { transform: none; }
 @media (prefers-reduced-motion: reduce) {
-  .cp-card { transition: none; }
+  .cp-card, .cp-btn { transition: none; }
+  .cp-card.is-hover, .cp-btn:active:not(:disabled) { transform: none; }
   .cp-cursor-pet { transition: none; }
 }
 

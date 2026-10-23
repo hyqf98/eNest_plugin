@@ -29,48 +29,7 @@ body {
   flex-direction: column;
   min-width: 0;
 }
-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 28px;
-  border: 1px solid var(--line);
-  border-radius: calc(8px - 2px);
-  background: var(--paper);
-  color: inherit;
-  padding: 4px 12px;
-  font-size: 12.5px;
-  line-height: 1.4;
-  white-space: nowrap;
-  transition: background-color var(--speed) ease,
-    transform 100ms ease-out, opacity var(--speed) ease,
-    color var(--speed) ease, border-color var(--speed) ease;
-}
-button:hover:not(:disabled) {
-  background: var(--paper-2);
-  border-color: color-mix(in srgb, var(--mark) 45%, var(--line));
-}
-button:active:not(:disabled) {
-  transform: scale(0.97);
-  background: var(--paper-2);
-}
-button:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-button.primary {
-  background: var(--mark);
-  border-color: var(--mark);
-}
-button.danger {
-  color: var(--danger, #b35350);
-  border-color: color-mix(in srgb, var(--danger, #b35350) 45%, var(--line));
-}
-button.danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--danger, #b35350) 8%, transparent);
-  border-color: var(--danger, #b35350);
-}
+/* 控件：按钮统一由 .pk-btn 提供（kit + pk-ui.css）；此处只保留表单控件与页面私有形态 */
 input,
 textarea,
 select {
@@ -117,7 +76,8 @@ header {
   min-width: 0;
   align-items: center;
   gap: 12px;
-  padding: 18px 24px 13px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
   background: var(--chrome-bg);
   backdrop-filter: var(--chrome-blur);
   -webkit-backdrop-filter: var(--chrome-blur);
@@ -183,7 +143,7 @@ header > button {
   grid-template-rows: minmax(0, 1fr);
   grid-template-columns: 180px minmax(280px, 1fr) 288px;
 }
-nav {
+nav.list-navigation {
   padding: 12px;
   border-right: 1px solid var(--line);
   overflow: auto;
@@ -192,15 +152,10 @@ nav button {
   display: flex;
   width: 100%;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   text-align: left;
-  border-color: transparent;
-  background: transparent;
   margin: 3px 0;
-}
-nav button:hover:not(:disabled) {
-  background: var(--paper-2);
-  border-color: transparent;
 }
 nav button .nav-count {
   margin-left: auto;
@@ -208,19 +163,29 @@ nav button .nav-count {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-button.active {
+.pk-btn.active {
   background: var(--mark-soft);
   border-color: color-mix(in srgb, var(--mark) 45%, transparent);
   color: var(--mark);
   font-weight: 600;
 }
-button.active .nav-count {
+.pk-btn.active .nav-count,
+.pk-btn.active .f-count {
   color: var(--mark);
 }
 nav hr {
   border: 0;
   border-top: 1px solid var(--line);
   margin: 10px 0;
+}
+nav #new-list {
+  width: 100%;
+  justify-content: flex-start;
+  margin-top: 4px;
+}
+nav #import {
+  width: 100%;
+  justify-content: flex-start;
 }
 #list-form {
   display: flex;
@@ -232,10 +197,8 @@ nav hr {
   min-width: 0;
   padding: 4px 8px;
 }
-#list-form button {
-  min-height: 26px;
-  padding: 3px 10px;
-  font-size: 12px;
+#list-form .pk-btn {
+  flex: none;
 }
 .list-pane {
   min-height: 0;
@@ -282,19 +245,11 @@ nav hr {
   flex: 1;
   background: transparent;
 }
-.composer .primary {
+.composer .pk-btn-primary {
   min-width: 64px;
-}
-.primary {
-  background: var(--mark);
-  border-color: var(--mark);
-  color: #fff;
   font-weight: 600;
 }
-.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--mark) 86%, #fff);
-  border-color: color-mix(in srgb, var(--mark) 86%, #fff);
-}
+.header-more { color: var(--muted); }
 #tasks {
   overflow: auto;
   flex: 1;
@@ -332,6 +287,9 @@ nav hr {
 }
 :root[data-anim='low'] .task.shift {
   transition: none;
+}
+.task .pk-row-actions {
+  flex: none;
 }
 .drag-handle {
   color: var(--muted);
@@ -423,29 +381,13 @@ nav hr {
 }
 .pin {
   color: var(--mark);
-  background: transparent;
-  border-color: transparent;
 }
-.pin:hover:not(:disabled) {
-  background: var(--paper-2);
-  border-color: transparent;
+.task-actions {
+  flex: none;
 }
-.task .remove {
-  opacity: 0;
-  background: transparent;
-  border-color: transparent;
-  color: var(--muted);
-  min-width: 24px;
-}
-.task .remove:hover:not(:disabled) {
-  color: var(--danger, #b35350);
-  background: color-mix(in srgb, var(--danger, #b35350) 8%, transparent);
-  border-color: transparent;
-}
-.task:hover .remove,
-.task:focus-within .remove {
-  opacity: 1;
-}
+.task .check,
+.task .pin,
+.task .pk-row-actions .pk-btn { flex: none; }
 .batch {
   padding: 7px 18px;
   display: flex;
@@ -519,35 +461,18 @@ nav hr {
   gap: 5px;
   flex-wrap: wrap;
 }
-.detail-actions button {
-  min-height: 26px;
-  padding: 3px 10px;
-  font-size: 12px;
+.detail-actions .detail-close {
+  margin-left: auto;
 }
-#delete-task {
-  color: var(--danger, #b35350);
-  border-color: color-mix(in srgb, var(--danger, #b35350) 45%, var(--line));
+.detail-actions-bottom {
+  margin-top: 18px;
 }
-#delete-task:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--danger, #b35350) 8%, transparent);
-  border-color: var(--danger, #b35350);
-}
-#subform button {
-  min-width: 34px;
-  padding: 3px 8px;
+#archive-task {
+  margin-right: auto;
 }
 [data-remove-sub] {
-  background: transparent;
-  border-color: transparent;
-  color: var(--muted);
   min-width: 24px;
-  min-height: 24px;
   padding: 0 2px;
-}
-[data-remove-sub]:hover:not(:disabled) {
-  color: var(--danger, #b35350);
-  background: color-mix(in srgb, var(--danger, #b35350) 8%, transparent);
-  border-color: transparent;
 }
 .empty {
   padding: 60px 18px;
@@ -619,7 +544,7 @@ footer {
   inset: 0 0 0 30%;
   background: var(--paper);
   z-index: 5;
-  box-shadow: -8px 0 30px #15202615;
+  box-shadow: -8px 0 30px color-mix(in srgb, var(--ink) 8%, transparent);
 }
 [data-mode='quick'] .detail:not(.open) {
   display: none;
@@ -627,7 +552,7 @@ footer {
 [data-mode='quick'] .batch {
   display: none;
 }
-[data-mode='quick'] .task .remove {
+[data-mode='quick'] .task .pk-row-actions {
   opacity: 1;
 }
 [data-mode='quick'] .progress-wrap {
@@ -654,10 +579,31 @@ footer {
   [data-mode='quick'] .detail {
     left: 0;
   }
-  .task .remove {
+  .task .pk-row-actions {
     opacity: 1;
   }
   .progress-wrap {
     display: none;
   }
+}
+
+/* 清单导航的同一面板可固定展开或临时悬浮，不复制清单表单。 */
+.workspace.sidebar-collapsed { grid-template-columns: minmax(0, 1fr) 288px; }
+.workspace.sidebar-collapsed .list-navigation { display: none; }
+.filters .nav-toggle { flex: none; position: relative; z-index: 9; }
+.workspace.sidebar-collapsed .list-navigation[data-peek='true'],
+.workspace[data-nav-compact='true']:not(.sidebar-collapsed) .list-navigation {
+  display: block;
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: min(230px, calc(100% - 40px));
+  padding-top: 48px;
+  z-index: 8;
+  background: var(--paper);
+  box-shadow: 6px 0 22px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+[data-mode='quick'] .workspace,
+.workspace[data-nav-compact='true'] { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) {
+  [data-mode='shell'] .workspace.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
 }

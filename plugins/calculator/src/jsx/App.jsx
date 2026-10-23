@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { calculate, formatNumber, parseAssignment, isVariableName } from '../js/core.mjs'
-import { Tooltip, TooltipProvider } from '../ui/index.jsx'
+import { TooltipProvider, MoreMenu } from '../ui/index.jsx'
 
 const VARS_KEY = 'calculator.vars.v1'
 const KEYS = [
@@ -314,15 +314,17 @@ export function App() {
             <div className="history-head">
               <h2>计算记录</h2>
               <span id="history-count">{history.length ? String(history.length) : ''}</span>
-              <Tooltip content="导出全部可见记录为 txt">
-                <button id="export" type="button" onClick={() =>
-                  saveText('calculations.txt', records.map((r) => r.expr + ' = ' + r.result).join('\n'))}>导出</button>
-              </Tooltip>
-              <button id="clear" type="button" onClick={() => {
-                const rows = history.filter((r) => r.favorite)
-                setHistory(rows)
-                void persist(rows)
-              }}>清空未收藏</button>
+              <MoreMenu
+                ariaLabel="历史记录操作"
+                items={[
+                  { key: 'export', label: '导出全部可见记录', disabled: !records.length, onSelect: () => saveText('calculations.txt', records.map((r) => r.expr + ' = ' + r.result).join('\n')) },
+                  { key: 'clear', label: '清空未收藏', danger: true, disabled: !history.some((r) => !r.favorite), onSelect: () => {
+                    const rows = history.filter((r) => r.favorite)
+                    setHistory(rows)
+                    void persist(rows)
+                  } },
+                ]}
+              />
             </div>
             <div className="filters">
               <input id="history-search" placeholder="搜索表达式或结果" aria-label="搜索记录"
@@ -335,19 +337,21 @@ export function App() {
                 <p className="empty">还没有计算记录<br />输入表达式后按 Enter，随时回填继续计算。</p>
               ) : (
                 records.map((r, i) => (
-                  <article key={r.id} className={'record' + (i === selectedClamped ? ' selected' : '')}>
+                  <article key={r.id} data-row-actions className={'record' + (i === selectedClamped ? ' selected' : '')}>
                     <button type="button" className="recall" title="回填表达式"
                       onClick={() => { setExpr(r.expr); exprRef.current?.focus() }}>
                       <span className="expression">{r.expr} =</span>
                       <span className="value">{r.result}</span>
                     </button>
-                    <button type="button" className="star" aria-pressed={r.favorite}
-                      onClick={() => {
-                        const rows = historyRef.current.map((row) => row.id === r.id ? { ...row, favorite: !row.favorite } : row)
-                        setHistory(rows)
-                        void persist(rows)
-                      }}>{r.favorite ? '已收藏' : '收藏'}</button>
-                    <button type="button" onClick={() => copy(r.result)}>复制</button>
+                    <span className="pk-row-actions">
+                      <button type="button" className="star" aria-pressed={r.favorite}
+                        onClick={() => {
+                          const rows = historyRef.current.map((row) => row.id === r.id ? { ...row, favorite: !row.favorite } : row)
+                          setHistory(rows)
+                          void persist(rows)
+                        }}>{r.favorite ? '已收藏' : '收藏'}</button>
+                      <button type="button" onClick={() => copy(r.result)}>复制</button>
+                    </span>
                   </article>
                 ))
               )}

@@ -132,7 +132,7 @@ export default {
       },
       emptyText: '输入条件后点击「查询」'
     })
-    grid.root.style.padding = '0'
+    grid.root.classList.add('table-wrap-flush')
     const tablePane = el('div', { class: 'msg-table' }, [grid.root])
 
     const copyBtn = el('button', { class: 'btn sm', onclick: () => {

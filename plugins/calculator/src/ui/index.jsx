@@ -11,6 +11,7 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group'
 import * as SliderPrimitive from '@radix-ui/react-slider'
+import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import './pk-ui.css'
 
 /* —— Button —— */
@@ -159,5 +160,76 @@ export function Slider({ className = '', ...props }) {
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb className="pk-slider-thumb" aria-label={props['aria-label']} />
     </SliderPrimitive.Root>
+  )
+}
+
+export const DropdownMenu = DropdownMenuPrimitive.Root
+export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
+export function DropdownMenuContent({ className = '', align = 'end', sideOffset = 6, children, onClick, onPointerDown, onKeyDown, ...props }) {
+  return (
+    <DropdownMenuPrimitive.Portal>
+      <DropdownMenuPrimitive.Content
+        align={align}
+        sideOffset={sideOffset}
+        collisionPadding={12}
+        className={`pk-menu pk-menu-radix${className ? ` ${className}` : ''}`}
+        data-input-context="overlay"
+        {...props}
+        onClick={(event) => { event.stopPropagation(); onClick?.(event) }}
+        onPointerDown={(event) => { event.stopPropagation(); onPointerDown?.(event) }}
+        onKeyDown={(event) => { event.stopPropagation(); onKeyDown?.(event) }}
+      >
+        {children}
+      </DropdownMenuPrimitive.Content>
+    </DropdownMenuPrimitive.Portal>
+  )
+}
+export function DropdownMenuItem({ className = '', danger = false, ...props }) {
+  return <DropdownMenuPrimitive.Item className={`pk-menu-item${danger ? ' danger' : ''}${className ? ` ${className}` : ''}`} {...props} />
+}
+export function DropdownMenuCheckboxItem({ className = '', checked, children, ...props }) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem checked={checked} className={`pk-menu-item${className ? ` ${className}` : ''}`} {...props}>
+      <span className="pk-menu-check" aria-hidden="true">{checked ? '✓' : ''}</span>
+      <span className="pk-menu-label">{children}</span>
+    </DropdownMenuPrimitive.CheckboxItem>
+  )
+}
+export function DropdownMenuLabel({ className = '', ...props }) {
+  return <DropdownMenuPrimitive.Label className={`pk-menu-heading${className ? ` ${className}` : ''}`} {...props} />
+}
+export function DropdownMenuSeparator({ className = '', ...props }) {
+  return <DropdownMenuPrimitive.Separator className={`pk-menu-sep${className ? ` ${className}` : ''}`} {...props} />
+}
+export const DropdownMenuGroup = DropdownMenuPrimitive.Group
+
+export function MoreMenu({ label = '⋯', ariaLabel = '更多操作', items = [], buttonClassName = '', disabled = false, triggerProps = {}, ...rootProps }) {
+  return (
+    <DropdownMenu modal={false} {...rootProps}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={`pk-btn pk-btn-ghost pk-more-trigger${buttonClassName ? ` ${buttonClassName}` : ''}`}
+          aria-label={ariaLabel}
+          title={ariaLabel}
+          disabled={disabled}
+          {...triggerProps}
+          onClick={(event) => { event.stopPropagation(); triggerProps.onClick?.(event) }}
+          onPointerDown={(event) => { event.stopPropagation(); triggerProps.onPointerDown?.(event) }}
+          onKeyDown={(event) => { event.stopPropagation(); triggerProps.onKeyDown?.(event) }}
+        >{label}</button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent aria-label={ariaLabel}>
+        {items.filter(Boolean).filter(item => !item.hidden).map((item, index) => item === 'sep' || item.sep || item.key === 'sep'
+          ? <DropdownMenuSeparator key={`sep-${index}`} />
+          : item.as === 'check'
+            ? <DropdownMenuCheckboxItem key={item.key} checked={!!item.checked} disabled={item.disabled} onCheckedChange={item.onCheckedChange} onSelect={item.onSelect}>{item.label}</DropdownMenuCheckboxItem>
+            : <DropdownMenuItem key={item.key} danger={item.danger} disabled={item.disabled} onSelect={item.onSelect}>
+                <span className="pk-menu-check" aria-hidden="true" />
+                <span className="pk-menu-label">{item.label}</span>
+                {item.hint && <span className="pk-menu-hint pk-mono">{item.hint}</span>}
+              </DropdownMenuItem>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

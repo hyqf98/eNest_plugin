@@ -276,9 +276,9 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-tool-body .wb-empty { padding-block: 28px; }
 .wb-statusbar { min-height: 24px; padding: 3px 10px; }
 .wb-connection-state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.app[data-workbench] .drawer { left: var(--ssh-rail); right: auto; top: 40px; width: min(340px, calc(100vw - 44px)); border: 1px solid var(--border-strong); border-block: 0; transform: translateX(-110%); box-shadow: 8px 0 28px #0002; visibility: hidden; transition: transform 160ms cubic-bezier(.2,.8,.2,1), visibility 160ms; }
+.app[data-workbench] .drawer { left: var(--ssh-rail); right: auto; top: 40px; width: min(340px, calc(100vw - 44px)); border: 1px solid var(--border-strong); border-block: 0; transform: translateX(-110%); box-shadow: 8px 0 28px color-mix(in srgb, var(--scrim) 13%, transparent); visibility: hidden; transition: transform 160ms cubic-bezier(.2,.8,.2,1), visibility 160ms; }
 .app[data-workbench] .drawer.open { transform: none; visibility: visible; }
-.app[data-workbench] .drawer-scrim { top: 40px; left: var(--ssh-rail); background: #0001; }
+.app[data-workbench] .drawer-scrim { top: 40px; left: var(--ssh-rail); background: color-mix(in srgb, var(--scrim) 7%, transparent); }
 .app[data-workbench] .wb-settings-page { inset: 0; background: var(--surface); z-index: 20; }
 .wb-settings-page[hidden] { display: none !important; }
 .wb-settings-page > header { min-height: 44px; height: 44px; padding: 6px 16px; }
@@ -300,10 +300,10 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-settings-form .wb-add-command:hover { border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border)); }
 .wb-command-empty, .wb-settings-feedback { color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 0.846154); line-height: 1.7; }
 .wb-settings-feedback:empty { display: none; }
-.wb-navigation-scrim { position: absolute; inset: 0 0 0 var(--ssh-rail); background: #0002; border: 0; z-index: 45; cursor: default; }
+.wb-navigation-scrim { position: absolute; inset: 0 0 0 var(--ssh-rail); background: color-mix(in srgb, var(--scrim) 13%, transparent); border: 0; z-index: 45; cursor: default; }
 .wb-navigation-scrim[hidden] { display: none; }
 .app[data-workbench][data-compact-navigation=true], :root[data-launch-mode=quick] .app[data-workbench][data-compact-navigation=true] { grid-template-columns: var(--ssh-rail) minmax(0,1fr); }
-.app[data-workbench][data-compact-navigation=true] .side-body { position: fixed; left: var(--ssh-rail); top: 40px; bottom: 0; width: min(var(--ssh-sidebar-width), calc(100vw - 44px)); z-index: 50; background: var(--ssh-chrome); border-right: 1px solid var(--border-strong); box-shadow: 8px 0 30px #0002; }
+.app[data-workbench][data-compact-navigation=true] .side-body { position: fixed; left: var(--ssh-rail); top: 40px; bottom: 0; width: min(var(--ssh-sidebar-width), calc(100vw - 44px)); z-index: 50; background: var(--ssh-chrome); border-right: 1px solid var(--border-strong); box-shadow: 8px 0 30px color-mix(in srgb, var(--scrim) 13%, transparent); }
 .app[data-workbench][data-compact-navigation=true][data-sidebar-open=false] .side-body { pointer-events: none; padding: 8px; }
 .app[data-workbench][data-compact-navigation=true] .wb-sidebar-resize { display: none; }
 :root[data-launch-mode=quick] .app[data-workbench][data-view=files] .workspace:has(.wb-editor-pane.open) .wb-files { display: none; }

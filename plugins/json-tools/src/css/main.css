@@ -56,7 +56,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 18px 8px;
+  padding: 8px 14px;
 }
 .head-brand {
   display: flex;
@@ -88,7 +88,7 @@ h1 {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 0 18px 10px;
+  padding: 0 14px 10px;
 }
 .tool-gap {
   flex: 1;
@@ -242,8 +242,8 @@ button:disabled {
   flex-wrap: wrap;
   min-width: 0;
   align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
+  gap: 8px;
+  padding: 8px 14px;
   min-height: 40px;
   background: color-mix(in srgb, var(--wash) 60%, transparent);
   backdrop-filter: blur(8px);
@@ -269,6 +269,12 @@ button:disabled {
   margin-right: auto;
 }
 .pane-head .ghost {
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+/* 溢出菜单 ⋯ 触发钮与行内 ghost 同尺寸（pk-btn 基线 28 → 24） */
+.pane-head .pk-btn {
   min-height: 24px;
   padding: 2px 8px;
   font-size: 11px;
@@ -499,11 +505,11 @@ textarea:focus {
   padding: 4px 12px;
   font-size: 12px;
   background: var(--brand);
-  color: #fff;
+  color: var(--accent-contrast, #fff);
 }
 .query-bar button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--brand) 86%, #fff);
-  border-color: color-mix(in srgb, var(--brand) 86%, #fff);
+  background: color-mix(in srgb, var(--brand) 86%, var(--accent-contrast, #fff));
+  border-color: color-mix(in srgb, var(--brand) 86%, var(--accent-contrast, #fff));
 }
 .query-body {
   padding: 6px 10px 10px;

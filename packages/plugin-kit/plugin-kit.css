@@ -31,7 +31,7 @@
   ::-webkit-scrollbar-thumb:active { background-color: Highlight; }
 }
 
-:root { color-scheme: light dark; --pk-radius: 8px; --pk-speed: 120ms; }
+:root { color-scheme: light dark; --pk-radius: 8px; --pk-speed: 120ms; --pk-z-menu: 200; --pk-z-flyout: 210; --pk-z-palette: 300; }
 /* Appearance bridge. The host injects these names; fallbacks keep direct/browser use readable. */
 :root {
   --font-heading: var(--font, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif);
@@ -111,7 +111,7 @@ dialog { color: var(--text); background: var(--surface); border: 1px solid var(-
 .pk-quickbar-input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border, #d9dfe6); border-radius: calc(var(--pk-radius) - 2px); background: var(--bg, #f6f7f9); color: var(--text, #252a32); }
 :root[data-mode="quick"] .pk-quickbar-native { display: none; }
 /* 命令面板 */
-.pk-palette-overlay { position: fixed; inset: 0; z-index: 40; display: flex; justify-content: center; padding-top: 12vh; background: color-mix(in srgb, var(--bg, #f6f7f9) 20%, transparent); backdrop-filter: blur(2px); }
+.pk-palette-overlay { position: fixed; inset: 0; z-index: var(--pk-z-palette); display: flex; justify-content: center; padding-top: 12vh; background: color-mix(in srgb, var(--bg, #f6f7f9) 20%, transparent); backdrop-filter: blur(2px); }
 .pk-palette { width: min(520px, 92vw); max-height: 60vh; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border, #d9dfe6); border-radius: 12px; background: var(--surface, #fff); box-shadow: 0 12px 40px color-mix(in srgb, var(--text, #252a32) 18%, transparent); }
 .pk-palette-input { margin: 10px; padding: 8px 12px; border: 1px solid var(--border, #d9dfe6); border-radius: calc(var(--pk-radius) - 2px); background: var(--bg, #f6f7f9); color: var(--text, #252a32); }
 .pk-palette-list { margin: 0; padding: 0 6px 8px; list-style: none; overflow: auto; }
@@ -120,6 +120,89 @@ dialog { color: var(--text); background: var(--surface); border: 1px solid var(-
 .pk-palette-item.pk-active .pk-palette-label { color: var(--accent, #3579dd); }
 .pk-palette-hint { color: var(--text-2, #747c88); font-size: 12px; }
 .pk-palette-list.pk-empty::after { content: "无匹配命令"; display: block; padding: 14px; text-align: center; color: var(--text-2, #747c88); }
+
+/* —— 浮层菜单（右键 / ⋯ 溢出共用；与 Radix pk-menu 声明式同视觉）——
+   z-index 标尺：select 60 · dialog 70/71 · tooltip 80 · menu 200 · flyout 210 · palette 300 */
+.pk-menu {
+  position: fixed;
+  z-index: var(--pk-z-menu);
+  padding: 4px;
+  min-width: min(160px, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
+  max-height: min(420px, calc(100dvh - 16px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--text, #252a32);
+  font-family: var(--font, system-ui, sans-serif);
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: calc(var(--pk-radius) + 4px);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--text, #252a32) 20%, transparent), 0 2px 8px color-mix(in srgb, var(--text, #252a32) 10%, transparent);
+}
+.pk-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 10px;
+  appearance: none;
+  border: 0;
+  border-radius: calc(var(--pk-radius) - 3px);
+  background: transparent;
+  color: var(--text, #252a32);
+  text-align: left;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.pk-menu-item:hover:not(:disabled) { background: color-mix(in srgb, var(--accent, #3579dd) 9%, transparent); }
+.pk-menu-item:focus-visible { outline: 2px solid var(--accent, #3579dd); outline-offset: -2px; }
+.pk-menu-item.danger { color: var(--danger, #b44c50); }
+.pk-menu-item.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger, #b44c50) 10%, transparent); }
+.pk-menu-item.disabled, .pk-menu-item:disabled { color: var(--text-2, #747c88); opacity: 0.55; cursor: not-allowed; }
+.pk-menu-check { flex: 0 0 12px; width: 12px; text-align: center; color: var(--accent, #3579dd); }
+.pk-menu-label { flex: 1; min-width: 0; }
+.pk-menu-hint { color: var(--text-2, #747c88); font-size: 11.5px; margin-left: 12px; }
+.pk-menu-sep { height: 1px; background: var(--border, #d9dfe6); margin: 4px 8px; }
+
+/* —— 悬停小窗（收起侧栏 / 隐藏工具条的恢复手势；pointerenter 展开、离开自动收起）—— */
+.pk-flyout {
+  position: fixed;
+  z-index: var(--pk-z-flyout);
+  padding: 4px;
+  min-width: min(180px, calc(100vw - 16px));
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(420px, calc(100dvh - 16px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--text, #252a32);
+  font-family: var(--font, system-ui, sans-serif);
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #d9dfe6);
+  border-radius: calc(var(--pk-radius) + 4px);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--text, #252a32) 20%, transparent);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity var(--pk-speed, 120ms) ease, transform var(--pk-speed, 120ms) ease;
+}
+.pk-flyout[data-open="true"] { opacity: 1; transform: none; }
+.pk-flyout .pk-menu-item { min-height: 28px; }
+:root[data-anim="low"] .pk-flyout { transition: none; }
+@media (prefers-reduced-motion: reduce) { .pk-flyout { transition: none !important; } }
+
+/* —— 行/卡片上的次级操作：默认隐藏，悬停所在行/卡浮现（配合 ⋯ 溢出与右键互补）—— */
+.pk-row-actions { display: inline-flex; align-items: center; gap: 2px; opacity: 0; pointer-events: none; transition: opacity var(--pk-speed, 120ms) ease; }
+:is(li, tr, .pk-row, [data-row-actions]):hover .pk-row-actions,
+:is(li, tr, .pk-row, [data-row-actions]):focus-within .pk-row-actions,
+.pk-row-actions:focus-within,
+.pk-row-actions:has([aria-expanded="true"]) { opacity: 1; pointer-events: auto; }
+:root[data-anim="low"] .pk-row-actions { opacity: 1; pointer-events: auto; transition: none; }
+@media (hover: none) { .pk-row-actions { opacity: 1; pointer-events: auto; } }
+.pk-menu-heading { padding: 6px 10px; color: var(--text-2, #747c88); font-size: 11px; font-weight: 600; }
+.pk-more-trigger { flex-shrink: 0; }
+.pk-menu-item { font-family: inherit; line-height: 1.4; user-select: none; }
+.pk-menu-item[data-disabled] { pointer-events: none; }
+.pk-menu-label { overflow-wrap: anywhere; }
 
 /* —— Appearance family adapters ——
    Every rule is additive and scoped to a plugin root that explicitly opted in.
@@ -208,7 +291,7 @@ dialog { color: var(--text); background: var(--surface); border: 1px solid var(-
 .pk-appearance[data-plugin="todos"] .workspace,
 .pk-appearance[data-plugin="ccswitch"] .app { gap: var(--collection-gap); }
 @container (min-width: 741px) {
-  .pk-appearance[data-plugin="ccswitch"] .nav { width: clamp(172px, 17vw, 264px); }
+  .pk-appearance[data-plugin="ccswitch"] .nav:not(.collapsed) { width: clamp(172px, 17vw, 264px); }
 }
 .pk-appearance[data-plugin="ccswitch"] .grid { border-radius: var(--appearance-panel-radius); }
 .pk-appearance[data-plugin="clipboard"] .history,
@@ -473,10 +556,10 @@ select:not(.pk-select-native) {
   :root:not([data-mode="quick"]) .pk-appearance[data-plugin="clipboard"] .workspace {
     grid-template-columns: minmax(280px, var(--appearance-primary-track)) minmax(0, var(--appearance-secondary-track));
   }
-  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="todos"] .workspace { grid-template-columns: var(--collection-nav) minmax(0, 1fr) minmax(230px, .65fr); }
-  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="sticky-notes"] .app:not(.grid-layout) { grid-template-columns: var(--collection-nav) minmax(0, 1fr); }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="todos"] .workspace:not(.sidebar-collapsed) { grid-template-columns: var(--collection-nav) minmax(0, 1fr) minmax(230px, .65fr); }
+  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="sticky-notes"] .app:not(.grid-layout):not(.sidebar-collapsed) { grid-template-columns: var(--collection-nav) minmax(0, 1fr); }
   @container (min-width: 741px) {
-    :root:not([data-mode="quick"]) .pk-appearance[data-plugin="ccswitch"] .nav { width: var(--collection-nav); }
+    :root:not([data-mode="quick"]) .pk-appearance[data-plugin="ccswitch"] .nav:not(.collapsed) { width: var(--collection-nav); }
   }
   :root:not([data-mode="quick"]) .pk-appearance[data-plugin="codex-pets"] .cp-grid {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, clamp(190px, calc(var(--appearance-sidebar-width) * var(--appearance-rail-factor)), 310px)), 1fr));

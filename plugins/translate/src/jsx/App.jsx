@@ -5,6 +5,7 @@
  * 原生 <select>（升级为 kit 自定义下拉）改为 pk-ui 的 Radix Select，视觉一致。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 
 const api = window.enest || window.zapi
 const KEY = 'translate_history_v2'
@@ -125,6 +126,10 @@ export function App() {
   const [historyFilter, setHistoryFilter] = useState('all')
   const [historyQuery, setHistoryQuery] = useState('')
   const [loaded, setLoaded] = useState(false)
+  /* 导出文本原本带 .shell-only（quick 隐藏）；收进 ⋯ 后按模式决定是否给出该项 */
+  const [quickMode, setQuickMode] = useState(
+    () => (api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode')) === 'quick',
+  )
 
   /* —— ref 桥接的命令式状态 —— */
   const stateRef = useRef({})
@@ -414,7 +419,7 @@ export function App() {
         syncButtons()
       }
     })
-    kit.onMode(() => syncButtons())
+    kit.onMode((next) => { setQuickMode(next === 'quick'); syncButtons() })
   }, [applyPrefs, invalidate, syncButtons])
 
   /* api.onEnter：快捷面板带入文本（等价原逻辑） */
@@ -580,31 +585,31 @@ export function App() {
                   <span className="dot blink" aria-hidden="true"></span>
                   <span className="busy-text" id="output-state-text">正在获取译文…</span>
                 </div>
-                <button id="favorite" disabled={!hasResult}
-                  onClick={() => {
-                    if (!result) return
-                    setHistory((rows) => {
-                      const next = rows.map((h) => h.id === result.id ? { ...h, starred: !h.starred } : h)
-                      void saveHistory(next)
-                      return next
-                    })
-                    syncButtons()
-                  }}
-                >{starred ? '★ 已收藏' : '☆ 收藏'}</button>
-                <span className="spacer"></span>
-                <button id="copy-both" disabled={!hasResult}
-                  onClick={() => hasResult && kitRef.current?.copy(bilingual()).catch((e) => kitRef.current?.toast(e.message, 'error'))}>复制双语</button>
                 <button id="copy" disabled={!hasResult}
                   onClick={() => hasResult && kitRef.current?.copy(result.text).catch((e) => kitRef.current?.toast(e.message, 'error'))}>复制译文</button>
+                <span className="spacer"></span>
+                <MoreMenu
+                  ariaLabel="译文操作"
+                  items={[
+                    { key: 'favorite', label: starred ? '★ 已收藏' : '☆ 收藏', disabled: !hasResult, onSelect: () => {
+                      if (!result) return
+                      setHistory((rows) => {
+                        const next = rows.map((h) => h.id === result.id ? { ...h, starred: !h.starred } : h)
+                        void saveHistory(next)
+                        return next
+                      })
+                      syncButtons()
+                    } },
+                    { key: 'copy-both', label: '复制双语', disabled: !hasResult, onSelect: () => hasResult && kitRef.current?.copy(bilingual()).catch((e) => kitRef.current?.toast(e.message, 'error')) },
+                    ...(quickMode ? [] : [{ key: 'export-current', label: '导出文本', disabled: !hasResult, onSelect: () => kitRef.current?.saveText('翻译结果.txt', bilingual()).catch((e) => kitRef.current?.toast(e.message, 'error')) }]),
+                  ]}
+                />
               </div>
             </section>
           </div>
           <div className="actions">
             <span className="hint" id="hint">{hint}</span>
             <span className="grow"></span>
-            <button id="export-current" className="shell-only" disabled={!hasResult}
-              onClick={() => kitRef.current?.saveText('翻译结果.txt', bilingual()).catch((e) => kitRef.current?.toast(e.message, 'error'))}>
-              导出文本</button>
             <button id="run" className="primary" disabled={runDisabled} onClick={() => void run()}>{runLabel}</button>
           </div>
         </section>

@@ -35,7 +35,18 @@ body { background-image: none; font-family: var(--font); }
 .workspace-empty { margin: auto; width: min(420px, 100%); padding: 28px; }
 .workspace-empty h1 { font-size: calc(var(--font-size-base, 13px) * 1.384615); line-height: 1.4; font-weight: 600; margin-bottom: 8px; }
 .workspace-empty p { color: var(--text-2); font-size: calc(var(--font-size-base, 13px) * 0.923077); line-height: 1.8; margin-bottom: 18px; }
-.toolbar, .filter-bar { padding: 9px 12px; gap: 8px; }
+.toolbar, .filter-bar { padding: 8px 14px; gap: 12px; }
+.publish-form { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px; overflow: auto; }
+.publish-editor-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex: none; }
+.publish-footer { flex-wrap: wrap; align-items: center; border-top: 1px solid var(--border); }
+.publish-retain-row { padding-top: 2px; }
+.switch-row-flush { padding: 0; }
+.table-wrap.table-wrap-flush { padding: 0; }
+.mw-dialog-actions { display: flex; gap: 8px; justify-content: flex-end; width: 100%; }
+.mw-danger-actions { padding-top: 4px; }
+.tree-empty-label { padding-left: 8px; }
+.tree-item .pk-row-actions { flex: none; }
+table.grid .grid-actions { padding: 0 4px; text-align: right; }
 .btn { padding: 5px 10px; border-radius: 6px; font-size: calc(var(--font-size-base, 13px) * 0.923077); }
 .btn.sm { padding: 3px 8px; }
 .btn:active:not(:disabled), .icon-button:active, .tree-item:active { background: var(--surface-3); }

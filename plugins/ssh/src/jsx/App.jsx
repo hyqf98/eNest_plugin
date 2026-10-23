@@ -25,7 +25,7 @@ function AppSkeleton() {
   return (
     <>
       <div className="app" id="app">
-        {/* 左侧：可收起侧栏 */}
+        {/* 左侧：可收起侧栏（收起后只剩 rail —— 搜索/抽屉/更多都住在这里） */}
         <aside className="sidebar" id="sidebar" data-collapsed="0">
           <div className="side-rail" id="side-rail">
             <button className="rail-btn" id="btn-toggle-side" title="展开侧栏" aria-label="展开侧栏" data-tip="展开侧栏">☰</button>
@@ -40,7 +40,6 @@ function AppSkeleton() {
             <div className="side-head">
               <h1>SSH</h1>
               <div className="spacer"></div>
-              <button className="icon-btn" id="btn-side-more" title="更多操作" aria-label="更多操作" data-tip="更多操作">⋯</button>
             </div>
             <div className="side-tools">
               <input id="search-input" type="search" placeholder="搜索" aria-label="搜索连接" />
@@ -62,9 +61,6 @@ function AppSkeleton() {
               <span className="top-sub" id="top-sub"></span>
             </div>
             <div className="spacer"></div>
-            <button className="icon-btn" id="btn-top-search" title="搜索连接" aria-label="搜索连接" data-tip="搜索连接">⌕</button>
-            <button className="icon-btn" id="btn-top-drawer" title="历史与常用" aria-label="历史与常用" data-tip="历史与常用">☰</button>
-            <button className="icon-btn" id="btn-top-more" title="更多操作" aria-label="更多操作" data-tip="更多操作">⋯</button>
           </div>
 
           <div className="session-tabs" id="session-tabs"></div>

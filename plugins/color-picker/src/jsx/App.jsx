@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { bindFileInput } from '@enest/plugin-kit/file-inputs'
+import { MoreMenu } from '../ui/index.jsx'
 
 const math = globalThis.ColorMath
 const api = window.enest || window.zapi
@@ -628,6 +629,13 @@ export function App() {
                     onClick={() => { setHarmonyKind(h.kind); harmonyRef.current = h.kind; void persist() }}>{h.label}</button>
                 ))}
               </div>
+              <MoreMenu
+                ariaLabel="和谐色操作"
+                items={[
+                  { key: 'to-palette', label: '整组加入当前色板', onSelect: harmonyToPalette },
+                  { key: 'css', label: '复制 CSS 变量', onSelect: harmonyCss },
+                ]}
+              />
             </div>
             <div id="harmony-grid" className="harmony-grid checker-batch">
               {harmonyList.map((item) => (
@@ -642,10 +650,6 @@ export function App() {
               ))}
             </div>
             <p className="helper">调整左侧颜色即时重算。点击色卡设为当前色，点击色值复制。</p>
-            <div className="view-actions">
-              <button id="harmony-to-palette" className="pk-btn" onClick={harmonyToPalette}>整组加入当前色板</button>
-              <button id="harmony-css" className="pk-btn ghost" onClick={harmonyCss}>复制 CSS 变量</button>
-            </div>
           </section>
 
           <section id="view-contrast" className="view" role="tabpanel" aria-label="对比度检查" hidden={view !== 'contrast'}>
@@ -668,7 +672,16 @@ export function App() {
           </section>
 
           <section id="view-palette" className="view" role="tabpanel" aria-label="命名色板" hidden={view !== 'palette'}>
-            <div className="view-head"><h2>命名色板</h2><span id="palette-count" className="count">{palettes.length} 组</span></div>
+            <div className="view-head"><h2>命名色板</h2><span id="palette-count" className="count">{palettes.length} 组</span>
+              <MoreMenu
+                ariaLabel="色板导入导出"
+                items={[
+                  { key: 'export-css', label: '导出 CSS', disabled: !palette, onSelect: exportCss },
+                  { key: 'export-json', label: '导出 JSON', disabled: !palette, onSelect: exportJson },
+                  { key: 'import-json', label: '导入 JSON', onSelect: () => paletteFileRef.current?.click() },
+                ]}
+              />
+            </div>
             <label className="field-label" htmlFor="palette-select">当前色板</label>
             <div className="input-row">
               <select id="palette-select" value={activePaletteId} onChange={onPaletteSelectChange}>
@@ -687,7 +700,7 @@ export function App() {
             <div id="palette-colors" className="palette-colors">
               {!activeColors.length ? <p className="empty">添加当前颜色，为配色方案留下名字。</p> : null}
               {activeColors.map((entry) => (
-                <div key={entry.id} className="palette-row">
+                <div key={entry.id} className="palette-row" data-row-actions>
                   <button className="palette-swatch checker" aria-label={`选取 ${entry.name || math.hex(entry.color)}`}
                     onClick={() => { setCurrent(entry.color); void persist() }}>
                     <span style={{ background: math.rgb(entry.color) }}></span>
@@ -695,17 +708,14 @@ export function App() {
                   <input defaultValue={entry.name} maxLength={40} key={entry.id + entry.name}
                     aria-label={`${math.hex(entry.color)} 的颜色名称`} placeholder="未命名"
                     onChange={(e) => renameColor(entry, e.target.value)} />
-                  <button className="palette-code pk-mono" title="复制颜色" onClick={() => void run(() => copyColor(entry.color))}>{math.hex(entry.color)}</button>
-                  <button className="remove-color" aria-label={`移除 ${entry.name || math.hex(entry.color)}`} onClick={() => removeColor(entry)}>×</button>
+                  <span className="pk-row-actions">
+                    <button className="palette-code pk-mono" title="复制颜色" onClick={() => void run(() => copyColor(entry.color))}>{math.hex(entry.color)}</button>
+                    <button className="remove-color" aria-label={`移除 ${entry.name || math.hex(entry.color)}`} onClick={() => removeColor(entry)}>×</button>
+                  </span>
                 </div>
               ))}
             </div>
-            <div className="export-row">
-              <button id="export-css" className="pk-btn" onClick={exportCss}>导出 CSS</button>
-              <button id="export-json" className="pk-btn" onClick={exportJson}>导出 JSON</button>
-              <button id="import-palette" className="pk-btn" onClick={() => paletteFileRef.current?.click()}>导入 JSON</button>
-              <input id="palette-file" ref={paletteFileRef} type="file" accept="application/json,.json" hidden onChange={onPaletteFileChange} />
-            </div>
+            <input id="palette-file" ref={paletteFileRef} type="file" accept="application/json,.json" hidden onChange={onPaletteFileChange} />
             <p className="helper">修改颜色名称自动保存；点击色值按默认格式复制。</p>
           </section>
 

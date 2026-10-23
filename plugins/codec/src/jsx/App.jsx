@@ -4,6 +4,7 @@
  * 业务核心 convert/convertLines/locateError/Data URL/历史记录 复用 core.mjs（未改动）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Button, MoreMenu, Select } from '../ui/index.jsx'
 import {
   MODES,
   convert,
@@ -417,20 +418,14 @@ export function App() {
       <div className="chrome">
         <header className="topbar">
           <h1>编解码</h1>
-          <nav id="modes" className="segmented modes" aria-label="转换类型">
-            {Object.entries(MODES).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                data-mode={key}
-                className={mode === key ? 'active' : undefined}
-                aria-pressed={mode === key}
-                onClick={() => pickMode(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+          <Select
+            className="modes"
+            minWidth={150}
+            ariaLabel="转换类型"
+            value={mode}
+            options={Object.entries(MODES).map(([key, label]) => ({ value: key, label }))}
+            onChange={pickMode}
+          />
         </header>
         <div className="toolbar">
           <div className="segmented dir" role="group" aria-label="方向">
@@ -465,27 +460,25 @@ export function App() {
           </label>
           <span id="mode-help" className="hint">{modeHelp}</span>
           <span className="flex"></span>
-          <button
+          <Button
             id="history"
-            type="button"
-            className="ghost"
+            variant="ghost"
             aria-haspopup="true"
             aria-expanded={historyOpen}
             onClick={() => openHistory(!historyOpen)}
           >
             最近
-          </button>
-          <button
+          </Button>
+          <Button
             id="file-btn"
-            type="button"
-            className="ghost"
+            variant="ghost"
             title="选择文件，生成 Data URL"
             hidden={mode !== 'dataurl'}
             onClick={() => fileInputRef.current?.click()}
           >
             文件转 Data URL
-          </button>
-          <button id="run" type="button" className="primary" onClick={() => run()}>执行</button>
+          </Button>
+          <Button id="run" variant="primary" onClick={() => run()}>执行</Button>
           <input
             id="file-input"
             ref={fileInputRef}
@@ -499,17 +492,17 @@ export function App() {
           <div id="history-panel" className="history" hidden={!historyOpen}>
             <div className="history-head">
               <span className="history-title">最近转换</span>
-              <button
+              <Button
                 id="history-clear"
-                type="button"
-                className="mini"
+                size="sm"
+                variant="ghost"
                 onClick={() => {
                   setHistory([])
                   kitRef.current?.save(HISTORY_KEY, []).catch(() => {})
                 }}
               >
                 清空记录
-              </button>
+              </Button>
             </div>
             <ul id="history-list">
               {history.map((row, i) => (
@@ -542,10 +535,10 @@ export function App() {
               {fileChip ? fileChip.name + ' · ' + bytesLabel(fileChip.size) + ' · 点击另存' : ''}
             </button>
             <span id="in-size" className="hint num">{inSize}</span>
-            <button
+            <Button
               id="paste"
-              type="button"
-              className="mini"
+              size="sm"
+              variant="ghost"
               onClick={async () => {
                 try {
                   const text = await api.clipboard.readText()
@@ -557,8 +550,8 @@ export function App() {
               }}
             >
               粘贴
-            </button>
-            <button id="clear" type="button" className="mini" onClick={clear}>清空</button>
+            </Button>
+            <Button id="clear" size="sm" variant="ghost" onClick={clear}>清空</Button>
           </div>
           <textarea
             id="input"
@@ -573,22 +566,17 @@ export function App() {
           <div className="pane-head">
             <label htmlFor="output">结果</label>
             <span id="out-size" className="hint num">{outSize}</span>
-            <button id="swap" type="button" className="mini" onClick={swap}>回填反转</button>
-            <button id="save-file" type="button" className="mini" hidden={saveFileHidden} onClick={onSaveFile}>
-              存为文件
-            </button>
-            <button id="copy" type="button" className="mini" disabled={copyDisabled} onClick={() => resultRef.current && copy(resultRef.current)}>
+            <Button id="copy" size="sm" variant="ghost" disabled={copyDisabled} onClick={() => resultRef.current && copy(resultRef.current)}>
               复制
-            </button>
-            <button
-              id="save"
-              type="button"
-              className="mini"
-              disabled={saveDisabled}
-              onClick={() => resultRef.current && saveText('codec-' + modeRef.current + '.txt', resultRef.current)}
-            >
-              导出
-            </button>
+            </Button>
+            <MoreMenu
+              ariaLabel="结果操作"
+              items={[
+                { key: 'swap', label: '回填反转', disabled: !output, onSelect: swap },
+                { key: 'save-file', label: '存为文件', disabled: saveFileHidden || saveDisabled, onSelect: onSaveFile },
+                { key: 'export', label: '导出', disabled: saveDisabled, onSelect: () => resultRef.current && saveText('codec-' + modeRef.current + '.txt', resultRef.current) },
+              ]}
+            />
           </div>
           <textarea
             id="output"

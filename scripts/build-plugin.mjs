@@ -5,13 +5,13 @@ import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { build, loadConfigFromFile, mergeConfig } from 'vite'
-import { repositoryRoot as root, pluginIds, readManifest, pluginHtmlEntries, DSH_DIR, DSH_VERSION } from './plugin-contract.mjs'
+import { repositoryRoot as root, pluginIds, readManifest, pluginHtmlEntries, DSH_DIR, DSH_VERSION, DSH_BUNDLED_RUNTIME } from './plugin-contract.mjs'
 import { validateSource } from './validate-manifests.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 import { buildBackend } from './build-backend.mjs'
 
 /** Business index plus manifest-declared Home entries use the same portable Vite build. */
-export async function buildPlugin(id, { release = true, runtime = true, repositoryRoot = root } = {}) {
+export async function buildPlugin(id, { release = true, runtime = DSH_BUNDLED_RUNTIME, repositoryRoot = root } = {}) {
   if (!pluginIds(repositoryRoot).includes(id)) throw new Error(`Unknown plugin: ${id}`)
   const source = join(repositoryRoot, 'plugins', id), destination = join(source, 'dist')
   const errors = validateSource(source, { release })
@@ -49,6 +49,7 @@ export async function buildPlugin(id, { release = true, runtime = true, reposito
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const ids = process.argv.slice(2)
-  for (const id of ids.length ? ids : pluginIds()) console.log(`Built ${id}: ${await buildPlugin(id)}`)
+  const args = process.argv.slice(2).filter(value => value !== '--runtime')
+  const runtime = process.argv.includes('--runtime') || DSH_BUNDLED_RUNTIME
+  for (const id of args.length ? args : pluginIds()) console.log(`Built ${id}: ${await buildPlugin(id, { runtime })}`)
 }

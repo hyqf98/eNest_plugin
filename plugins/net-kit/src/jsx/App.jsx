@@ -5,6 +5,7 @@
  * 会话数据流经 latest-ref 桥接（TCP 收流 / WS 帧高频回调直接读 refs）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreMenu } from '../ui/index.jsx'
 import {
   DEFAULT_ENVS, EnvStore, envResolve, buildUrl,
   parseCurl, toCurl,
@@ -386,6 +387,7 @@ export function App() {
   }, [doSend, stopLoop])
   const duplexSendRef = useRef(null)
   const loopBtnRef = useRef(null)
+  const wsSendRef = useRef(null)
 
   // —— WebSocket：连接 ——
   const connectWs = useCallback(async (s) => {
@@ -491,6 +493,107 @@ export function App() {
     })
   }, [persistAll, rerender])
 
+  function collectionRequestItems(g, r) {
+    return [
+      { key: 'load', label: '载入到请求区', onSelect: () => loadCollectionRequest(r) },
+      { key: 'copy-url', label: '复制 URL', onSelect: () => kitRef.current?.copy(r.url) },
+      { sep: true },
+      { key: 'delete', label: '删除请求', danger: true, onSelect: () => removeCollectionRequest(g, r) },
+    ]
+  }
+  function collectionGroupItems(g) {
+    return [
+      { key: 'new', label: '新建请求', onSelect: () => newRequestInGroup(g) },
+      { key: 'rename', label: '重命名分组', onSelect: () => renameGroup(g) },
+      { sep: true },
+      { key: 'delete', label: '删除分组', danger: true, disabled: collectionsRef.current.groups.length <= 1, onSelect: () => deleteGroup(g) },
+    ]
+  }
+  function openCollectionMenu(source, items) {
+    window.PluginKit.openMenu(source, items, (key) => {
+      const action = items.find((item) => item.key === key)
+      if (action && !action.disabled) void action.onSelect?.()
+    }, { align: 'end' })
+  }
+
+  // —— 集合树动作（右键与可点击菜单共用目标项闭包）——
+  const loadCollectionRequest = useCallback((r) => {
+    let s = activeSessionOf('http')
+    if (!s) s = addSessionQuiet('http')
+    Object.assign(s, {
+      method: r.method, url: r.url,
+      headersKv: structuredClone(r.headersKv ?? []), paramsKv: structuredClone(r.paramsKv ?? []),
+      bodyKind: r.bodyKind ?? 'none', bodyText: r.bodyText ?? ''
+    })
+    syncSessions(); rerender()
+  }, [rerender]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const removeCollectionRequest = useCallback((g, r) => {
+    collectionsRef.current.remove(g.id, r.id)
+    void persistAll(); rerender()
+  }, [persistAll, rerender])
+
+  const newRequestInGroup = useCallback((g) => {
+    promptDialog('新建请求', '请求名称', (name) => {
+      const cur = activeSessionOf('http')
+      const url = cur?.url || ''
+      collectionsRef.current.add(g.id, {
+        name: name || url || '新请求', method: cur?.method || 'GET', url,
+        headersKv: structuredClone(cur?.headersKv ?? []), paramsKv: structuredClone(cur?.paramsKv ?? []),
+        bodyKind: cur?.bodyKind ?? 'none', bodyText: cur?.bodyText ?? ''
+      })
+      void persistAll(); rerender()
+      kitRef.current?.toast('已新建请求', 'success')
+    })
+  }, [persistAll, rerender]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const renameGroup = useCallback((g) => {
+    promptDialog('重命名分组', g.name, (name) => {
+      if (!name) return
+      g.name = name
+      void persistAll(); rerender()
+    })
+  }, [persistAll, rerender])
+
+  const deleteGroup = useCallback((g) => {
+    if (collectionsRef.current.groups.length <= 1) {
+      kitRef.current?.toast('至少保留一个分组', 'warn')
+      return
+    }
+    confirmDialog('删除分组', `删除分组「${g.name}」及其 ${g.requests.length} 个请求？`, () => {
+      collectionsRef.current.removeGroup(g.id); void persistAll(); rerender()
+    })
+  }, [persistAll, rerender])
+
+  /** 集合树右键：命中请求行 → 请求菜单；命中分组头 → 分组菜单；空白 → 新建分组 */
+  function onTreeContextMenu(event) {
+    const groups = collectionsRef.current.groups
+    const itemEl = event.target.closest?.('[data-req-id]')
+    const groupEl = event.target.closest?.('[data-group-id]')
+    if (itemEl && groupEl) {
+      const g = groups.find((x) => x.id === groupEl.dataset.groupId)
+      const r = g?.requests.find((x) => x.id === itemEl.dataset.reqId)
+      if (g && r) {
+        event.preventDefault()
+        openCollectionMenu(event, collectionRequestItems(g, r))
+        return
+      }
+    }
+    if (groupEl) {
+      const g = groups.find((x) => x.id === groupEl.dataset.groupId)
+      if (!g) return
+      event.preventDefault()
+      openCollectionMenu(event, collectionGroupItems(g))
+      return
+    }
+    event.preventDefault()
+    window.PluginKit.openMenu(event, [['new-group', '新建分组']], () => {
+      promptDialog('新建分组', '分组名称', (name) => {
+        if (name) { collectionsRef.current.addGroup(name); void persistAll(); rerender() }
+      })
+    }, { align: 'end' })
+  }
+
   // —— 通用对话框（原生 dialog#dlg，等价原 promptDialog/confirmDialog）——
   const dlgHostRef = useRef(null)
   function promptDialog(title, desc, onSubmit, multiline = false) {
@@ -509,11 +612,11 @@ export function App() {
     note.className = 'pk-muted'
     note.textContent = desc
     const input = multiline ? document.createElement('textarea') : document.createElement('input')
-    if (multiline) { input.rows = 5; input.style.fontFamily = 'var(--mono)'; input.className = 'nk-area' }
+    if (multiline) { input.rows = 5; input.className = 'nk-area' }
     else input.className = 'nk-input nk-mono'
     input.setAttribute('data-input-context', 'editor')
     const ok = document.createElement('button')
-    ok.className = 'nk-btn primary'; ok.type = 'button'; ok.textContent = '确定'
+    ok.className = 'pk-btn pk-btn-primary'; ok.type = 'button'; ok.textContent = '确定'
     ok.addEventListener('click', () => { dlg.close(); onSubmit(input.value.trim()) })
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (!multiline || (e.metaKey || e.ctrlKey)) && !e.isComposing) {
@@ -540,11 +643,10 @@ export function App() {
     body.className = 'nk-dlg-body'
     const note = document.createElement('div'); note.textContent = desc
     const row = document.createElement('div')
-    row.className = 'nk-row'
-    row.style.justifyContent = 'flex-end'
-    const cancel = document.createElement('button'); cancel.className = 'nk-btn'; cancel.type = 'button'; cancel.textContent = '取消'
+    row.className = 'nk-row nk-row-end'
+    const cancel = document.createElement('button'); cancel.className = 'pk-btn'; cancel.type = 'button'; cancel.textContent = '取消'
     cancel.addEventListener('click', () => dlg.close())
-    const ok = document.createElement('button'); ok.className = 'nk-btn danger'; ok.type = 'button'; ok.textContent = '删除'
+    const ok = document.createElement('button'); ok.className = 'pk-btn pk-btn-danger'; ok.type = 'button'; ok.textContent = '删除'
     ok.addEventListener('click', () => { dlg.close(); onOk() })
     row.append(cancel, ok)
     body.append(note, row)
@@ -562,7 +664,7 @@ export function App() {
     const head = document.createElement('div')
     head.className = 'nk-dlg-head'
     const span = document.createElement('span'); span.textContent = `历史（最近 ${Math.min(history.items.length, HISTORY_LIMIT)} 条）`; head.append(span)
-    const clear = document.createElement('button'); clear.className = 'x nk-btn tiny ghost'; clear.type = 'button'; clear.textContent = '清空'
+    const clear = document.createElement('button'); clear.className = 'x pk-btn pk-btn-ghost pk-btn-sm'; clear.type = 'button'; clear.textContent = '清空'
     clear.addEventListener('click', () => { history.clear(); void persistAll(); rerender(); dlg.close() })
     const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.title = '关闭'; x.textContent = '✕'
     x.addEventListener('click', () => dlg.close())
@@ -620,7 +722,7 @@ export function App() {
         row.className = 'nk-row'
         const m = document.createElement('span'); m.className = 'm nk-mono pk-muted'; m.textContent = r.method
         const u = document.createElement('span'); u.className = 'grow nk-mono'; u.textContent = r.url
-        const del = document.createElement('button'); del.className = 'nk-btn tiny danger'; del.type = 'button'; del.textContent = '删除'
+        const del = document.createElement('button'); del.className = 'pk-btn pk-btn-danger pk-btn-sm'; del.type = 'button'; del.textContent = '删除'
         del.addEventListener('click', () => { collectionsRef.current.remove(g.id, r.id); void persistAll(); dlg.close(); rerender() })
         row.append(m, u, del)
         body.append(row)
@@ -673,14 +775,13 @@ export function App() {
         row.append(on, k, v, del)
         kvBox.append(row)
       })
-      const add = document.createElement('button'); add.className = 'nk-btn tiny ghost'; add.type = 'button'; add.textContent = '+ 添加'
-      add.style.marginTop = '4px'
+      const add = document.createElement('button'); add.className = 'pk-btn pk-btn-ghost pk-btn-sm nk-kv-add'; add.type = 'button'; add.textContent = '+ 添加'
       add.addEventListener('click', () => { kv.push({ key: '', value: '', enabled: true }); renderKv() })
       kvBox.append(add)
     }
     renderKv()
     body.append(kvBox)
-    const save = document.createElement('button'); save.className = 'nk-btn primary'; save.type = 'button'; save.textContent = '保存'
+    const save = document.createElement('button'); save.className = 'pk-btn pk-btn-primary'; save.type = 'button'; save.textContent = '保存'
     save.addEventListener('click', () => {
       const fresh = {}
       for (const p of kv) if (p.key && p.enabled !== false) fresh[p.key] = p.value ?? ''
@@ -826,7 +927,7 @@ export function App() {
       <div>
         {!kv.length && <div className="nk-empty">{emptyHint ? `暂无${emptyHint}，点击下方添加` : '空'}</div>}
         {rows}
-        <button className="nk-btn tiny ghost" type="button" style={{ marginTop: '4px' }}
+        <button className="pk-btn pk-btn-ghost pk-btn-sm nk-kv-add" type="button"
           onClick={() => { kv.push({ key: '', value: '', enabled: true }); rerender() }}>+ 添加</button>
       </div>
     )
@@ -884,7 +985,7 @@ export function App() {
           <button className="del" type="button" title="删除" onClick={() => { s.asserts.splice(idx, 1); rerender() }}>✕</button>
         </div>
       ))}
-      <button className="nk-btn tiny ghost" type="button"
+      <button className="pk-btn pk-btn-ghost pk-btn-sm" type="button"
         onClick={() => { s.asserts.push({ type: 'statusEq', target: '', expected: '200' }); rerender() }}>+ 添加断言</button>
     </div>
   )
@@ -899,9 +1000,14 @@ export function App() {
           <div className="nk-card-head">
             <span>请求构建</span>
             <span className="nk-spacer"></span>
-            <button className="nk-btn tiny ghost" type="button" onClick={() => openCurlDialog(s)}>curl 导入</button>
-            <button className="nk-btn tiny ghost" type="button" onClick={() => exportCurl(s)}>导出 curl</button>
-            <button className="nk-btn tiny ghost" type="button" onClick={() => saveToCollection(s)}>存入集合</button>
+            <MoreMenu
+              ariaLabel="请求构建更多操作"
+              items={[
+                { key: 'curl-in', label: 'curl 导入', onSelect: () => openCurlDialog(s) },
+                { key: 'curl-out', label: '导出 curl', onSelect: () => exportCurl(s) },
+                { key: 'save', label: '存入集合', onSelect: () => saveToCollection(s) },
+              ]}
+            />
           </div>
           <div className="nk-card-body">
             <div className="nk-row">
@@ -915,9 +1021,9 @@ export function App() {
                 onInput={(e) => { s.url = e.target.value }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendHttpRef.current(s) } }}
               />
-              <button className="nk-btn primary" type="button" onClick={() => sendHttpRef.current(s)}>发送</button>
+              <button className="pk-btn pk-btn-primary" type="button" onClick={() => sendHttpRef.current(s)}>发送</button>
             </div>
-            <div className="nk-seg" style={{ marginTop: '8px' }}>
+            <div className="nk-seg nk-seg-gap">
               {tabs.map(([t, label]) => (
                 <button key={t} type="button" data-t={t} className={t === curTab ? 'active' : ''}
                   onClick={() => { s.__subTab = t; rerender() }}>{label}</button>
@@ -987,9 +1093,9 @@ export function App() {
       const slice = mergeChunks(r.chunks).subarray(0, Math.min(total, cap))
       return (
         <>
-          <pre className="nk-viewer" style={{ background: 'transparent', padding: 0 }}>{formatHexDump(slice)}</pre>
+          <pre className="nk-viewer nk-viewer-plain">{formatHexDump(slice)}</pre>
           {total > cap && (
-            <button className="nk-btn tiny" type="button"
+            <button className="pk-btn pk-btn-sm" type="button"
               onClick={() => { setRespPage((p) => p + 1); rerender() }}>
               {`加载更多（已截取 ${formatBytes(cap)} / ${formatBytes(total)}）`}
             </button>
@@ -1067,22 +1173,26 @@ export function App() {
           </div>
           <span className="nk-spacer"></span>
           {r.pending && r.sse && (
-            <button className="nk-btn tiny ghost" type="button"
+            <button className="pk-btn pk-btn-ghost pk-btn-sm" type="button"
               onClick={() => { s.paused = !s.paused; rerender() }}>{s.paused ? '继续' : '暂停'}</button>
           )}
           {!r.pending && r.bodyText != null && (
-            <>
-              <button className="nk-btn tiny ghost" type="button" onClick={() => void kitRef.current?.copy(r.bodyText)}>复制</button>
-              <button className="nk-btn tiny ghost" type="button" onClick={() => void kitRef.current?.saveText('response.txt', r.bodyText)}>保存</button>
-            </>
+            <MoreMenu
+              buttonClassName="pk-btn-sm"
+              ariaLabel="响应更多操作"
+              items={[
+                { key: 'copy', label: '复制响应', onSelect: () => void kitRef.current?.copy(r.bodyText) },
+                { key: 'save', label: '保存为文件', onSelect: () => void kitRef.current?.saveText('response.txt', r.bodyText) },
+              ]}
+            />
           )}
         </div>
         <div className="nk-card-body">
           {r.pending && !r.sse && !r.chunks.length ? (
             <>
-              <div className="nk-skeleton" style={{ height: '14px', margin: '6px 0' }}></div>
-              <div className="nk-skeleton" style={{ height: '14px', margin: '6px 0' }}></div>
-              <div className="nk-skeleton" style={{ height: '14px', margin: '6px 0' }}></div>
+              <div className="nk-skeleton nk-skeleton-line"></div>
+              <div className="nk-skeleton nk-skeleton-line"></div>
+              <div className="nk-skeleton nk-skeleton-line"></div>
             </>
           ) : r.sse ? (
             <div className="nk-sse">
@@ -1102,7 +1212,7 @@ export function App() {
                     onClick={() => { s.respView = k; rerender() }}>{label}</button>
                 ))}
               </div>
-              <div className="nk-viewer" style={{ marginTop: '6px' }}>{renderRespView(s)}</div>
+              <div className="nk-viewer nk-viewer-gap">{renderRespView(s)}</div>
             </>
           )}
         </div>
@@ -1110,52 +1220,48 @@ export function App() {
     )
   }
 
-  /** 集合树列（等价原 buildTreeCol） */
+  /** 集合树列（等价原 buildTreeCol；分组/请求右键菜单替代原 confirm-only） */
   const renderTreeCol = () => (
     <div className="nk-col nk-col-tree">
       <div className="nk-card">
         <div className="nk-card-head">
           <span>集合</span>
-          <button className="nk-btn tiny ghost" type="button"
+          <button className="pk-btn pk-btn-ghost pk-btn-sm" type="button"
             onClick={() => promptDialog('新建分组', '分组名称', (name) => {
               if (name) { collections.addGroup(name); void persistAll(); rerender() }
             })}>+ 分组</button>
         </div>
-        <div className="nk-tree nk-card-body">
+        <div className="nk-tree nk-card-body" onContextMenu={onTreeContextMenu}>
           {!collections.groups.length && (
             <div className="nk-tree-empty">{'暂无集合\n在请求区点击「存入集合」保存常用请求'}</div>
           )}
           {collections.groups.map((g) => (
-            <div className="nk-tree-group" key={g.id}>
-              <button className="nk-tree-head" type="button"
-                onClick={() => {
-                  const next = new Set(treeCollapsed)
-                  next.has(g.id) ? next.delete(g.id) : next.add(g.id)
-                  setTreeCollapsed(next)
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  confirmDialog('删除分组', `删除分组「${g.name}」及其 ${g.requests.length} 个请求？`, () => {
-                    collections.removeGroup(g.id); void persistAll(); rerender()
-                  })
-                }}>
-                <span className="caret">{treeCollapsed.has(g.id) ? '▶' : '▼'}</span>
-                <span>{g.name}</span>
-                <span className="pk-muted"> {g.requests.length}</span>
-              </button>
-              {!treeCollapsed.has(g.id) && g.requests.map((r) => (
-                <button className="nk-tree-item" type="button" key={r.id} title={`${r.method} ${r.url}`}
+            <div className="nk-tree-group" key={g.id} data-group-id={g.id}>
+              <div className="nk-tree-group-head" data-row-actions>
+                <button className="nk-tree-head" type="button" aria-expanded={!treeCollapsed.has(g.id)}
                   onClick={() => {
-                    let s = activeSessionOf('http')
-                    if (!s) s = addSessionQuiet('http')
-                    Object.assign(s, { method: r.method, url: r.url, headersKv: structuredClone(r.headersKv ?? []), paramsKv: structuredClone(r.paramsKv ?? []), bodyKind: r.bodyKind ?? 'none', bodyText: r.bodyText ?? '' })
-                    syncSessions(); rerender()
+                    const next = new Set(treeCollapsed)
+                    next.has(g.id) ? next.delete(g.id) : next.add(g.id)
+                    setTreeCollapsed(next)
                   }}>
-                  <span className="m nk-mono">{r.method}</span>
-                  <span>{r.url}</span>
-                  <span className="del" role="button" title="删除" tabIndex={-1}
-                    onClick={(e) => { e.stopPropagation(); collections.remove(g.id, r.id); void persistAll(); rerender() }}>✕</span>
+                  <span className="caret">{treeCollapsed.has(g.id) ? '▶' : '▼'}</span>
+                  <span>{g.name}</span>
+                  <span className="pk-muted"> {g.requests.length}</span>
                 </button>
+                <span className="pk-row-actions">
+                  <MoreMenu buttonClassName="pk-btn-sm" ariaLabel={g.name + ' 分组操作'} items={collectionGroupItems(g)} />
+                </span>
+              </div>
+              {!treeCollapsed.has(g.id) && g.requests.map((r) => (
+                <div className="nk-tree-item" key={r.id} title={`${r.method} ${r.url}`} data-row-actions data-req-id={r.id}>
+                  <button className="nk-tree-load" type="button" onClick={() => loadCollectionRequest(r)}>
+                    <span className="m nk-mono">{r.method}</span>
+                    <span className="nk-tree-url">{r.url}</span>
+                  </button>
+                  <span className="pk-row-actions nk-tree-actions">
+                    <MoreMenu buttonClassName="pk-btn-sm" ariaLabel={(r.name || r.url || '请求') + ' 的更多操作'} items={collectionRequestItems(g, r)} />
+                  </span>
+                </div>
               ))}
             </div>
           ))}
@@ -1183,25 +1289,25 @@ export function App() {
         <div className="nk-card">
           <div className="nk-card-head">
             <span>TCP</span>
-            <input className="nk-input nk-mono" placeholder="host" value={s.host} style={{ width: '160px' }}
+            <input className="nk-input nk-mono nk-input-narrow" placeholder="host" value={s.host}
               data-input-context="editor" onInput={(e) => { s.host = e.target.value }} />
-            <input className="nk-input nk-mono" type="number" placeholder="port" value={s.port} style={{ width: '84px' }}
+            <input className="nk-input nk-mono nk-input-xs" type="number" placeholder="port" value={s.port}
               data-input-context="editor" onInput={(e) => { s.port = Number(e.target.value) || 0 }} />
             <label className="nk-check">
               <input type="checkbox" checked={s.tls} onChange={(e) => { s.tls = e.target.checked; rerender() }} />TLS
             </label>
-            <input className="nk-input nk-mono" type="number" value={s.timeoutMs} title="连接超时（ms）" style={{ width: '84px' }}
+            <input className="nk-input nk-mono nk-input-xs" type="number" value={s.timeoutMs} title="连接超时（ms）"
               data-input-context="editor" onInput={(e) => { s.timeoutMs = Number(e.target.value) || 10000 }} />
-            <button className="nk-btn primary" type="button" disabled={!!s.socketId} onClick={() => void connectTcp(s)}>
+            <button className="pk-btn pk-btn-primary" type="button" disabled={!!s.socketId} onClick={() => void connectTcp(s)}>
               {s.socketId ? '已连接' : '连接'}
             </button>
-            <button className="nk-btn danger" type="button" disabled={!s.socketId}
+            <button className="pk-btn pk-btn-danger" type="button" disabled={!s.socketId}
               onClick={() => { try { api.net.socket.close(s.socketId) } catch { /* 已关 */ } }}>断开</button>
             {s.rx.dropped > 0 && <span className="nk-badge warn">{`环形丢弃 ${formatBytes(s.rx.dropped)}`}</span>}
           </div>
-          <div className="nk-card-body" style={{ padding: 0, overflow: 'hidden', display: 'flex' }}>
+          <div className="nk-card-body nk-card-body-flush">
             {!s.socketId && !s.rx.length ? (
-              <div className="nk-empty" style={{ padding: 0 }}
+              <div className="nk-empty nk-empty-flush"
                 dangerouslySetInnerHTML={{ __html: '尚未连接<br>连接后接收区默认以 Hex Dump 渲染<br>支持长度前缀 / 分隔符帧 / 正则 / 自定义 JS 解码器' }} />
             ) : (
               <div className="nk-duplex">
@@ -1216,17 +1322,17 @@ export function App() {
                     </div>
                     <span className="nk-spacer"></span>
                     {s.decoderId === 'regex' && (
-                      <input className="nk-input nk-mono" placeholder={'正则（如 GET \\S+）'} value={s.regexPattern} style={{ width: '140px' }}
+                      <input className="nk-input nk-mono nk-input-sm" placeholder={'正则（如 GET \\S+）'} value={s.regexPattern}
                         data-input-context="editor" onInput={(e) => { s.regexPattern = e.target.value; rerender() }} />
                     )}
                     <label className="nk-check">
                       <input type="checkbox" checked={s.showTimestamp}
                         onChange={(e) => { s.showTimestamp = e.target.checked; rerender() }} />时间戳
                     </label>
-                    <button className="nk-btn tiny ghost" type="button" onClick={() => { s.rx.clear(); rerender() }}>清空</button>
+                    <button className="pk-btn pk-btn-ghost pk-btn-sm" type="button" onClick={() => { s.rx.clear(); rerender() }}>清空</button>
                   </div>
                   <div className="nk-stream">
-                    <div className="nk-viewer" style={{ background: 'transparent' }}>
+                    <div className="nk-viewer nk-viewer-plain">
                       {decodeError ? (
                         <div className="nk-error">{decodeError}</div>
                       ) : s.rx.dropped ? (
@@ -1259,7 +1365,7 @@ export function App() {
                         }
                       }}
                     />
-                    <button className="nk-btn primary" type="button" onClick={() => void doSend(s, duplexSendRef.current?.value ?? '')}>发送</button>
+                    <button className="pk-btn pk-btn-primary" type="button" onClick={() => void doSend(s, duplexSendRef.current?.value ?? '')}>发送</button>
                   </div>
                   <div className="nk-loop pk-muted">
                     <span>循环：</span>
@@ -1268,7 +1374,7 @@ export function App() {
                     <span>ms ×</span>
                     <input className="nk-input nk-mono" type="number" defaultValue={s.loopCnt ?? 10} min={0} title="次数（0 = 无限）"
                       onInput={(e) => { s.loopCnt = e.target.value }} />
-                    <button ref={loopBtnRef} className="nk-btn" type="button"
+                    <button ref={loopBtnRef} className="pk-btn" type="button"
                       onClick={() => toggleLoop(s, s.loopIv, s.loopCnt, loopBtnRef.current)}>循环发送</button>
                     <select className="nk-select" aria-label="发送历史" defaultValue=""
                       onChange={(e) => {
@@ -1293,7 +1399,6 @@ export function App() {
 
   /** WS 面板（等价原 buildWsPanel + buildWsFrames + renderWsFeed） */
   const renderWsPanel = (s) => {
-    const wsSendRef = useRef(null)
     return (
       <div className="nk-col">
         <div className="nk-card">
@@ -1301,16 +1406,16 @@ export function App() {
             <span>WS</span>
             <input className="nk-input nk-mono grow" placeholder="wss://host/path（ws:// 明文走宿主桥）"
               value={s.wsUrl} data-input-context="editor" onInput={(e) => { s.wsUrl = e.target.value }} />
-            <button className="nk-btn primary" type="button" onClick={() => void connectWs(s)}>{s.ws ? '已连接' : '连接'}</button>
-            <button className="nk-btn danger" type="button" disabled={!s.ws}
+            <button className="pk-btn pk-btn-primary" type="button" onClick={() => void connectWs(s)}>{s.ws ? '已连接' : '连接'}</button>
+            <button className="pk-btn pk-btn-danger" type="button" disabled={!s.ws}
               onClick={() => { try { s.ws?.close() } catch { /* 已关 */ } }}>断开</button>
             <span className="nk-badge neutral">{`ping ${s.wsPing} / pong ${s.wsPong}`}</span>
           </div>
-          <div className="nk-card-body" style={{ padding: 0, display: 'flex', flexDirection: 'column', gap: 0, minHeight: 0 }}>
+          <div className="nk-card-body nk-card-body-flush-col">
             {!s.ws && !s.wsFrames.length ? (
               <div className="nk-empty">{'尚未连接\nWebSocket 连接通过宿主权限与代理；明文连接需显式授权'}</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+              <div className="nk-ws-body">
                 <div className="nk-card-head">
                   <div className="nk-seg">
                     {['text', 'hex'].map((k) => (
@@ -1319,23 +1424,23 @@ export function App() {
                     ))}
                   </div>
                   <span className="nk-spacer"></span>
-                  <button className="nk-btn tiny ghost" type="button"
+                  <button className="pk-btn pk-btn-ghost pk-btn-sm" type="button"
                     onClick={() => { s.wsPaused = !s.wsPaused; rerender() }}>{s.wsPaused ? '继续' : '暂停'}</button>
-                  <button className="nk-btn tiny ghost" type="button" onClick={() => { s.wsFrames = []; rerender() }}>清空</button>
+                  <button className="pk-btn pk-btn-ghost pk-btn-sm" type="button" onClick={() => { s.wsFrames = []; rerender() }}>清空</button>
                 </div>
-                <div className="nk-sse" style={{ flex: 1, minHeight: '140px' }}>
+                <div className="nk-sse nk-sse-fill">
                   {s.wsFrames.slice(-200).map((f, i) => {
                     const dirLabel = f.dir === 'in' ? '↓ 收' : f.dir === 'out' ? '↑ 发' : '· '
                     const cls = f.dir === 'in' ? 'ok' : f.dir === 'out' ? 'accent' : 'neutral'
                     return (
                       <div className={`nk-sse-item ${cls}`} key={i}>
                         <div className="t">{`${fmtTime(f.at)} ${dirLabel}`}</div>
-                        <div className="d" style={f.dir === 'out' ? { color: 'var(--accent)' } : undefined}>{f.text}</div>
+                        <div className={`d${f.dir === 'out' ? ' out' : ''}`}>{f.text}</div>
                       </div>
                     )
                   })}
                 </div>
-                <div className="nk-row" style={{ padding: '6px 8px', borderTop: '1px solid var(--border)' }}>
+                <div className="nk-row nk-ws-send">
                   <input ref={wsSendRef} className="nk-input nk-mono grow" placeholder="发送文本（hex 视图下按 hex 字面发送）"
                     data-input-context="editor"
                     onKeyDown={(e) => {
@@ -1345,7 +1450,7 @@ export function App() {
                       }
                     }}
                   />
-                  <button className="nk-btn primary" type="button"
+                  <button className="pk-btn pk-btn-primary" type="button"
                     onClick={() => {
                       const input = wsSendRef.current
                       if (!s.ws || s.ws.readyState !== 1) { kitRef.current?.toast('未连接', 'warn'); return }
@@ -1391,24 +1496,28 @@ export function App() {
             onChange={(e) => pickEnv(e.target.value)}>
             {envNames.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
-          <button type="button" className="nk-btn ghost" id="env-edit" title="编辑环境变量" onClick={openEnvDialog}>变量</button>
         </div>
         <div className="nk-spacer"></div>
-        <button type="button" className="nk-btn ghost shell-only" id="btn-history" onClick={openHistory}>历史</button>
-        <button type="button" className="nk-btn ghost shell-only" id="btn-sets" onClick={openSets}>集合</button>
+        <MoreMenu
+          buttonClassName="shell-only"
+          ariaLabel="更多操作"
+          items={[
+            { key: 'history', label: '请求历史', onSelect: openHistory },
+            { key: 'sets', label: '集合管理', onSelect: openSets },
+            { key: 'env', label: '编辑环境变量', onSelect: openEnvDialog },
+          ]}
+        />
       </header>
 
       {/* 会话 Tab（桌面多会话；Quick 单会话） */}
       <div className="nk-tabs shell-only" id="tabs" role="tablist">
         {sessions.map((s) => (
-          <button key={s.id} type="button" role="tab"
-            className={'nk-tab' + (s.id === activeId ? ' active' : '')}
-            aria-selected={String(s.id === activeId)}
-            onClick={() => activateSession(s.id)}>
-            <span>{s.name}</span>
-            <button className="nk-tab-x" type="button" title="关闭会话"
-              onClick={(e) => { e.stopPropagation(); closeSession(s.id) }}>✕</button>
-          </button>
+          <div key={s.id} className={'nk-tab' + (s.id === activeId ? ' active' : '')}>
+            <button type="button" role="tab" className="nk-tab-select" aria-selected={s.id === activeId}
+              onClick={() => activateSession(s.id)}>{s.name}</button>
+            <button className="nk-tab-x" type="button" title="关闭会话" aria-label={'关闭 ' + s.name + ' 会话'}
+              onClick={() => closeSession(s.id)}>✕</button>
+          </div>
         ))}
         <button className="nk-tab-add" type="button" onClick={() => addSession('http')}>+ 新会话</button>
       </div>

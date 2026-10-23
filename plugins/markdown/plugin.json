@@ -1,19 +1,24 @@
 {
   "id": "com.github.eNest.markdown",
-  "name": "Markdown 笔记",
-  "version": "1.1.0",
-  "description": "分组笔记树、实时预览、全文搜索、图片附件、模板与导出；Quick 速记直落收件箱。",
+  "name": "Markdown 编辑器",
+  "version": "2.0.0",
+  "description": "Typora 式所见即所得 Markdown 编辑器：即时渲染、Typora 主题、手绘风 Mermaid、图床上传（PicList/GitHub/自定义脚本）与本地文件工作台。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.2.0"
   },
   "permissions": [
+    "backend.node",
+    "clipboard.readImage",
     "clipboard.write",
-    "clipboard.readImage"
+    "shell.openExternal"
   ],
+  "backend": {
+    "entry": "backend/index.cjs"
+  },
   "window": {
     "minWidth": 480,
     "minHeight": 340
@@ -21,7 +26,7 @@
   "features": [
     {
       "code": "main",
-      "explain": "打开 Markdown 笔记",
+      "explain": "打开 Markdown 编辑器",
       "cmds": [
         "笔记",
         "md",
@@ -35,6 +40,14 @@
         "速记",
         "inbox"
       ]
+    },
+    {
+      "code": "settings",
+      "explain": "Markdown 编辑器设置",
+      "cmds": [
+        "md设置",
+        "markdown设置"
+      ]
     }
   ],
   "ui": {
@@ -45,8 +58,9 @@
   },
   "market": {
     "tags": [
-      "笔记",
       "Markdown",
+      "编辑器",
+      "Typora",
       "效率"
     ],
     "readme": "assets/market/README.md",
@@ -58,17 +72,17 @@
     "homeCards": [
       {
         "id": "markdown-card",
-        "title": "Markdown 笔记",
+        "title": "Markdown 编辑器",
         "glyph": "M",
         "color": "#5b9dd9",
-        "explain": "分组笔记、实时预览、全文搜索与导出",
+        "explain": "所见即所得编辑、Typora 主题、图床上传",
         "openCode": "main"
       }
     ],
     "settings": [
       {
         "id": "markdown.preferences",
-        "title": "Markdown 笔记",
+        "title": "Markdown 编辑器",
         "items": [
           {
             "key": "followShellTheme",
@@ -77,10 +91,80 @@
             "default": true
           },
           {
-            "key": "autoPreview",
+            "key": "typewriterMode",
             "type": "switch",
-            "label": "桌面默认双栏实时预览",
+            "label": "打字机模式（当前行居中）",
+            "default": false
+          },
+          {
+            "key": "focusMode",
+            "type": "switch",
+            "label": "专注模式（淡出非当前段落）",
+            "default": false
+          },
+          {
+            "key": "renderHtml",
+            "type": "switch",
+            "label": "渲染内嵌 HTML（消毒后生效）",
             "default": true
+          },
+          {
+            "key": "mermaidLook",
+            "type": "select",
+            "label": "Mermaid 图形风格",
+            "default": "handDrawn",
+            "options": [
+              {
+                "value": "handDrawn",
+                "label": "手绘（Excalidraw 风）"
+              },
+              {
+                "value": "rounded",
+                "label": "圆润"
+              },
+              {
+                "value": "classic",
+                "label": "经典"
+            }
+            ]
+          },
+          {
+            "key": "imageDefaultAction",
+            "type": "select",
+            "label": "粘贴图片默认动作",
+            "default": "ask",
+            "options": [
+              {
+                "value": "ask",
+                "label": "每次询问"
+              },
+              {
+                "value": "upload",
+                "label": "上传到当前图床"
+              },
+              {
+                "value": "local",
+                "label": "存本地 assets 目录"
+              },
+              {
+                "value": "base64",
+                "label": "转 base64 内联"
+              }
+            ]
+          },
+          {
+            "key": "autoSave",
+            "type": "switch",
+            "label": "自动保存（500ms 防抖）",
+            "default": true
+          },
+          {
+            "key": "settingsPage",
+            "type": "page",
+            "label": "图床、主题与高级设置",
+            "entry": {
+              "code": "settings"
+            }
           }
         ]
       }

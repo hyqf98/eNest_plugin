@@ -499,11 +499,13 @@ export function App() {
             </div>
             <ul id="file-list" className="file-list" hidden={fileListHidden}>
               {files.map((f, i) => (
-                <li key={f.handleId + i}>
+                <li key={f.handleId + i} data-row-actions>
                   <span className="f-index">{i + 1}</span>
                   <span className="f-name" title={f.name}>{f.name}</span>
                   <span className="f-size">{fmtBytes(f.size)}</span>
-                  <button onClick={() => removeFile(i)}>移除</button>
+                  <span className="pk-row-actions">
+                    <button onClick={() => removeFile(i)}>移除</button>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -537,7 +539,9 @@ export function App() {
                     <span className="r-order" title="拖动调整顺序">{idx + 1}.</span>
                     <span className="r-kind">{RULE_LABEL[rule.type] || rule.type}</span>
                     {renderRuleControls(rule, idx)}
-                    <button className="r-del" onClick={() => deleteRule(idx)}>删除</button>
+                    <span className="pk-row-actions">
+                      <button className="r-del" onClick={() => deleteRule(idx)}>删除</button>
+                    </span>
                   </li>
                 ))
               )}
