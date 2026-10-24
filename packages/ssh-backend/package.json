@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./worker": "./src/worker.ts"
+    "./worker": "./src/worker.ts",
+    "./runtime": "./src/runtime.ts",
+    "./client": "./client.js"
   },
   "dependencies": {
     "ssh2": "^1.17.0"

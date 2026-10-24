@@ -1,15 +1,15 @@
 /**
- * api.js — window.enest 适配层（mw.* 宿主运行时 + vault/storage/session/UI 通道）
+ * api.js — window.enest 适配层（插件 backend + vault/storage/session/UI 通道）
  * 本文件是唯一允许触碰 window.enest 的模块；页面代码只经 ctx.api 调用。
  * 错误约定：
- *  - enest.mw 缺失            → HOST_LAG（toast「壳子版本过低…」后 throw）
+ *  - backend.call 缺失       → HOST_LAG（toast「壳子版本过低…」后 throw）
  *  - 错误消息含 permission denied → PERM（toast「权限不足…」后 throw）
  *  - 其余失败原样 reject Error；err.original 保留宿主原文
  */
 
 const MSG = {
-  hostLag: '壳子版本过低，缺少 mw 宿主运行时',
-  perm: '权限不足：请在插件设置→权限管理授权 mw.*'
+  hostLag: '请升级 eNest 至 0.2.2 并更新中间件插件，启用插件 Node 后端',
+  perm: '权限不足：请在插件设置→权限管理授权本机 Node 后端与所需 mw.* 能力'
 }
 
 /** kinds.list 失败时的静态兜底描述符（capabilities 为空对象 = gate 视为可用，页面再按数据降级） */
@@ -48,18 +48,20 @@ function translateMwError(e) {
   return err
 }
 
-/* —— mw.* 统一入口 —— */
+/* —— 插件私有 workbench 统一入口 —— */
 
-export async function mw(action, input = {}) {
-  const runtime = host()?.mw
-  if (!runtime || typeof runtime.workbench !== 'function') {
+export async function mw(action, input = {}, options = {}) {
+  const runtime = host()?.backend
+  if (!runtime || typeof runtime.call !== 'function') {
     const err = new Error(MSG.hostLag)
     err.code = 'HOST_LAG'
     void toast(MSG.hostLag, 'warn')
     throw err
   }
   try {
-    return await runtime.workbench({ action, input })
+    const timeoutMs = options.timeoutMs ?? (action === 'test' || action === 'session.close' ? 15000 : 30000)
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 86400000) throw new Error('后端超时必须为 250ms 至 24h')
+    return await runtime.call('workbench', [{ action, input }], { timeoutMs })
   } catch (e) {
     throw translateMwError(e)
   }
@@ -313,14 +315,17 @@ export async function copy(text) {
 function subscribe(event, cb) {
   const h = host()
   if (!h || typeof h.on !== 'function' || typeof cb !== 'function') return () => {}
+  const listener = message => { if (message?.event === event) cb(message.data) }
+  let unsubscribe
   try {
-    h.on(event, cb)
+    unsubscribe = h.on('backend.event', listener)
   } catch {
     return () => {}
   }
   return () => {
     try {
-      h.off?.(event, cb)
+      if (typeof unsubscribe === 'function') unsubscribe()
+      else h.off?.('backend.event', listener)
     } catch { /* ignore */ }
   }
 }

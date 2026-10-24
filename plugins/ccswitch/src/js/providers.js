@@ -6,7 +6,7 @@ import { storageGet, storageSet, agentWrite } from './api.js'
  * 命名空间挂 window.CCS.providers。
  */
 
-/* —— 应用元数据（app id 对齐宿主 agentConfigService AGENT_ADAPTERS）—— */
+/* —— 应用元数据（app id 对齐 @enest/agent-config-backend 适配器）—— */
 const APPS = [
   { id: 'claude-code', name: 'Claude Code', mode: 'switch', color: '#d97757' },
   { id: 'claude-desktop', name: 'Claude Desktop', mode: 'switch', color: '#b7828e' },
@@ -27,7 +27,6 @@ const APP_MAP = Object.fromEntries(APPS.map(a => [a.id, a]))
 function changesForClaudeCode(p) {
   const env = {}
   if (p.baseUrl) env.ANTHROPIC_BASE_URL = p.baseUrl
-  if (p.apiKeyEnv && p.secretRef) env[p.apiKeyEnv] = '${SECRET}' // 由 apply 时替换
   if (p.model) env.ANTHROPIC_MODEL = p.model
   return { env: { ...(p.extraEnv || {}), ...env } }
 }
@@ -294,35 +293,37 @@ function buildDiff(app, provider, snapshot) {
   }
 }
 
-/** 执行切换：构造 changes → agent.write（confirmed）→ 返回 backupId */
+/** 执行切换：构造 changes → 插件后端写入（原生确认）→ 返回 backupId */
 async function applyProvider(app, provider) {
   const builder = CHANGES_BUILDERS[app]
   if (!builder) throw new Error('该应用不支持供应商切换')
   const changes = builder(provider)
   if (!changes || Object.keys(changes).length === 0) throw new Error('供应商配置为空')
-  // 密钥注入：claude-code env 直接带 key；codex 写 auth.json（宿主单文件合并）
-  if (app === 'claude-code' && provider.plainSecret) {
+  // Saved refs resolve only in the backend after native confirmation.
+  const secretRef = provider.secretRef ? String(provider.secretRef) : undefined
+  if (app === 'claude-code' && !secretRef && provider.plainSecret) {
     changes.env = changes.env || {}
     changes.env.ANTHROPIC_AUTH_TOKEN = provider.plainSecret
   }
-  if (app === 'gemini-cli' && provider.plainSecret) {
+  if (app === 'gemini-cli' && !secretRef && provider.plainSecret) {
     changes.env = changes.env || {}
     changes.env.GOOGLE_API_KEY = provider.plainSecret
   }
   const results = []
-  if (app === 'codex' && provider.plainSecret) {
-    // 先写 auth.json（宿主按 $file 落对应白名单文件）
+  if (app === 'codex' && (secretRef || provider.plainSecret)) {
+    // 先写 auth.json（插件后端按 $file 落对应白名单文件）
     results.push(await agentWrite({
       app,
-      changes: { $file: 'auth.json', OPENAI_API_KEY: provider.plainSecret },
-      confirmed: true
+      changes: { $file: 'auth.json', ...(secretRef ? {} : { OPENAI_API_KEY: provider.plainSecret }) },
+      ...(secretRef ? { secretRef } : {})
     }))
   }
   // tomlExtra 合并（高级）
   if (provider.tomlExtra && typeof provider.tomlExtra === 'object') {
     Object.assign(changes, provider.tomlExtra)
   }
-  results.push(await agentWrite({ app, changes, confirmed: true }))
+  results.push(await agentWrite({ app, changes,
+    ...(secretRef && ['claude-code', 'gemini-cli'].includes(app) ? { secretRef } : {}) }))
   return results
 }
 

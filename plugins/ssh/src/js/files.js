@@ -1,4 +1,7 @@
 import { SelectionModel } from '@enest/plugin-kit/workbench'
+import { createSshHost } from '@enest/ssh-backend/client'
+
+const host = createSshHost(window.enest || window.zapi)
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 const join = (path, name) => (path === '/' ? '/' : path.replace(/\/$/, '') + '/') + name
@@ -43,7 +46,7 @@ export class RemoteFiles {
     state.loading = true; state.error = ''; this.render()
     state.requestSequence = sequence
     try {
-      const result = await window.enest.ssh.sftp.list({ sessionId: session.sessionId, path: state.path })
+      const result = await host.ssh.sftp.list({ sessionId: session.sessionId, path: state.path })
       if (sequence !== state.requestSequence) return
       state.entries = result.map(x => ({ ...x, path: x.path || join(state.path, x.name) }))
       state.children.clear(); state.expanded.clear(); state.selection.retain(state.entries.map(x => x.path))
@@ -108,7 +111,7 @@ export class RemoteFiles {
     if (entry?.type !== 'dir') return
     if (state.expanded.has(path)) state.expanded.delete(path)
     else {
-      try { const entries = await window.enest.ssh.sftp.list({ sessionId: this.session.sessionId, path }); state.children.set(path, entries.map(x => ({ ...x, path: x.path || join(path, x.name) }))); state.expanded.add(path) }
+      try { const entries = await host.ssh.sftp.list({ sessionId: this.session.sessionId, path }); state.children.set(path, entries.map(x => ({ ...x, path: x.path || join(path, x.name) }))); state.expanded.add(path) }
       catch (error) { this.ctx.error(error) }
     }
     this.render()
@@ -131,7 +134,7 @@ export class RemoteFiles {
       const name = await this.ctx.prompt(action === 'new' ? '新建文件夹' : '新建文件', '名称', '')
       if (!name) return
       if (/[/\\]/.test(name)) throw new Error('请输入文件名，不要包含路径')
-      if (action === 'new') await window.enest.ssh.sftp.mkdir(sessionId, join(state.path, name))
+      if (action === 'new') await host.ssh.sftp.mkdir(sessionId, join(state.path, name))
       else await request('files.write', { path: join(state.path, name), content: '' })
       return this.refresh()
     }
@@ -153,14 +156,14 @@ export class RemoteFiles {
     if (action === 'delete') {
       if (!selected.length || !await this.ctx.confirm(`将永久删除 ${selected.length} 项，文件夹中的内容也会删除。\n\n${selected.map(x => x.path).join('\n')}`, { title: '删除远程文件', okText: '删除', danger: true })) return
       const failures = []
-      for (const item of selected) try { await window.enest.ssh.sftp.delete(sessionId, item.path, item.type === 'dir') } catch (error) { failures.push(item.name + ': ' + error.message) }
+      for (const item of selected) try { await host.ssh.sftp.delete(sessionId, item.path, item.type === 'dir') } catch (error) { failures.push(item.name + ': ' + error.message) }
       await this.refresh(); if (failures.length) throw new Error(failures.join('\n')); return
     }
     if (action === 'path') { await this.ctx.copy(selected.map(x => x.path).join('\n')); return }
     if (action === 'permissions') {
       const mode = await this.ctx.prompt('修改权限', '八进制，例如 0644。只修改所选项目，不递归目录。', '0644')
       if (!mode) return
-      for (const item of selected) await window.enest.ssh.sftp.chmod(sessionId, item.path, mode)
+      for (const item of selected) await host.ssh.sftp.chmod(sessionId, item.path, mode)
       return this.refresh()
     }
     if (action === 'properties') {

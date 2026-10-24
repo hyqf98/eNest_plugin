@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.2（2026-10-24）
+
+- 会话截图贴图改由插件自有的 `@enest/native-surfaces` 辅助页面渲染，宿主不再保留贴图 HTML 或图像业务状态。
+- 通过通用辅助窗口保持原有截图操作；资源随插件打包，关闭时按插件实例归属回收。需要 eNest >= 0.2.3。
+
+## 1.3.1（2026-10-24）
+
+- RDCleanPath、X.224、TLS 和证书确认策略迁入本插件 `backend/`；宿主不再按 RDP 首包猜测应用协议。
+- RDP 与 SSH 共用当前插件按需启动的后端进程；仅通过通用 endpoint/activity/proxy/dialog 能力接入宿主。
+- WebSocket 桥校验宿主提供的页面 Origin、Host 与一次性令牌；限制连接/缓冲，异常、拒绝、关闭及迟到授权均回收。
+- X.224 按完整 TPKT 读取，修复 TCP 分片首包被误当完整响应；连接测试发送有效协商报文，不再将错误 DER 当成功。
+- 需要 eNest >= 0.2.2 与 `backend.node` 全信任授权。Windows RDS/xrdp 真实远端未在本轮验证；本轮验证仅限 mock/本地 loopback。
+
 ## 1.0.0（2026-10-13）
 
 首发：VNC / RDP 双协议远程桌面插件。
@@ -21,7 +34,7 @@
 | noVNC | 1.5.0 | `assets/vendor/novnc/` | MPL-2.0（部分模块 BSD） | https://github.com/novnc/noVNC（npm `@novnc/novnc@1.5.0`，vendored 最小集：core lib + input + decoders + crypto） |
 | pako | （随 noVNC） | `assets/vendor/novnc/lib/vendor/pako/` | MIT | 随 `@novnc/novnc` 分发（`lib/vendor/pako`） |
 | ironrdp-wasm | master（2026-10-13 构建） | `assets/vendor/rdp-wasm/` | MIT | https://github.com/electerm/ironrdp-wasm（Devolutions IronRDP `ironrdp-web` 薄再导出；wasm-pack `--target web --release`，`wasm-opt = false`） |
-| RDCleanPath 代理协议 | — | 壳子 `src/main/net/socketBridge.ts`（rdp 模式） | MIT | 移植自 electerm/ironrdp-wasm `example/lib/rdp-proxy.js`（ASN.1 RDCleanPath + X.224 + TLS 终止） |
+| RDCleanPath 代理协议 | — | 插件 `backend/rdpProtocol.ts`、`backend/rdpBridge.ts`（1.3.1 起） | MIT | 移植自 electerm/ironrdp-wasm `example/lib/rdp-proxy.js`（ASN.1 RDCleanPath + X.224 + TLS 终止） |
 
 - `rdp_client_bg.wasm` 6.7MB（wasm-opt 关闭所致；启用后可压至 2-3MB 级），随插件包分发，不影响壳子首屏。
 - RDP 真机（Windows RDS / xrdp）未在本期验证，协议层经假 TCP+TLS 服务器全链路单测覆盖。

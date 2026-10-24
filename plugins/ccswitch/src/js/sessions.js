@@ -1,7 +1,7 @@
 import { sessionsList, sessionsRead, saveTextFile } from './api.js'
 /**
  * com.github.eNest.ccswitch — 会话浏览器
- * 数据源：agent.sessions.list / agent.sessions.read（宿主只读白名单通道）。
+ * 数据源：插件后端 sessions.list / sessions.read（只读白名单通道）。
  * 解析（语义移植自 cc-switch session_manager providers/claude.rs、session_usage.rs）：
  * - 列表：读文件头尾行提取 sessionId / cwd / 首条用户消息（标题）/ 首尾时间戳
  * - 详情：逐行 → 轮次（user / assistant / tool），usage 提取 token 供用量页复用

@@ -1,0 +1,10 @@
+html,body{margin:0;height:100%;background:transparent;overflow:hidden;user-select:none;cursor:move}
+#wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+#drag{position:absolute;left:0;right:32px;top:0;height:18px;-webkit-app-region:drag}
+img{max-width:100%;max-height:100%;box-shadow:0 8px 28px rgba(0,0,0,.35);border-radius:2px;image-rendering:auto;pointer-events:none}
+#bar{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s;-webkit-app-region:no-drag}
+body:hover #bar,body:focus-within #bar{opacity:1}
+button{width:22px;height:22px;border:0;border-radius:4px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;cursor:pointer}
+button:hover{background:rgba(255,80,80,.9)}
+button:focus-visible{outline:2px solid #5b8cff;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){#bar{transition:none}}

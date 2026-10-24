@@ -2,6 +2,11 @@
 
 > 功能参考 [ZTools-plugins/image-helper](https://github.com/ZToolsCenter/ZTools-plugins)（MIT, ZToolsCenter）
 
+## 1.2.0（2026-10-24）
+
+- 贴图预览改由插件共享的 `@enest/native-surfaces` 渲染，不再依赖已移除的宿主 `pin.*` 业务接口。
+- 构建同时包含受限辅助页资源；图片编辑、导出与队列交互不变，需要 eNest >= 0.2.3。
+
 ## 1.0.0
 
 - 初始版本

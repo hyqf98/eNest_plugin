@@ -1,14 +1,14 @@
 {
   "id": "com.github.eNest.calculator",
   "name": "计算器",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "科学计算、变量赋值、Ans 与内存寄存器、百分比双语义、千分位显示、可收藏的本地计算历史。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.2.3"
   },
   "permissions": [
     "clipboard.write",
@@ -63,7 +63,8 @@
             "key": "precision",
             "type": "number",
             "label": "显示有效数字",
-            "default": 12
+            "default": 12,
+            "shareWithThemes": true
           },
           {
             "key": "historyLimit",
@@ -85,7 +86,8 @@
                 "label": "角度 DEG",
                 "value": "deg"
               }
-            ]
+            ],
+            "shareWithThemes": true
           }
         ]
       }

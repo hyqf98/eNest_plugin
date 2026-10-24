@@ -6,10 +6,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { bindFileInput } from '@enest/plugin-kit/file-inputs'
+import { createNativeSurfaces } from '@enest/native-surfaces'
 import { MoreMenu } from '../ui/index.jsx'
 
 const math = globalThis.ColorMath
-const api = window.enest || window.zapi
+const api = createNativeSurfaces(window.enest || window.zapi)
 const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const VIEWS = ['recent', 'harmony', 'contrast', 'palette', 'pick']

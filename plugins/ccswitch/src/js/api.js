@@ -31,34 +31,31 @@ function notify(title, body) {
   try { api?.notify?.({ title, body }) } catch (_) { /* optional */ }
 }
 
-/* —— agent 命名空间 —— */
+/* —— 插件私有 Node 后端 —— */
+async function backendCall(method, input) {
+  if (!has(api?.backend?.call)) throw missing('请升级 eNest 至 0.2.2 并授权本机 Node 后端')
+  return api.backend.call(method, input === undefined ? [] : [input])
+}
 async function agentApps() {
-  if (!has(api?.agent?.apps)) throw missing('agent.apps')
-  return api.agent.apps()
+  return backendCall('apps')
 }
 async function agentRead(app) {
-  if (!has(api?.agent?.read)) throw missing('agent.read')
-  return api.agent.read(String(app))
+  return backendCall('read', { app: String(app) })
 }
 async function agentWrite(input) {
-  if (!has(api?.agent?.write)) throw missing('agent.write')
-  return api.agent.write(input)
+  return backendCall('write', input)
 }
 async function agentBackups(app) {
-  if (!has(api?.agent?.backups)) throw missing('agent.backups')
-  return api.agent.backups(String(app))
+  return backendCall('backups', { app: String(app) })
 }
 async function agentRestore(app, id) {
-  if (!has(api?.agent?.restore)) throw missing('agent.restore')
-  return api.agent.restore({ app: String(app), id: String(id) })
+  return backendCall('restore', { app: String(app), id: String(id) })
 }
 async function sessionsList(app) {
-  if (!has(api?.agent?.sessions?.list)) throw missing('agent.sessions.list')
-  return api.agent.sessions.list(String(app))
+  return backendCall('sessions.list', { app: String(app) })
 }
 async function sessionsRead(app, file, maxBytes) {
-  if (!has(api?.agent?.sessions?.read)) throw missing('agent.sessions.read')
-  return api.agent.sessions.read({ app: String(app), file: String(file), maxBytes })
+  return backendCall('sessions.read', { app: String(app), file: String(file), maxBytes })
 }
 
 /* —— net.fetch 连接测试 —— */

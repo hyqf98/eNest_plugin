@@ -8,13 +8,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
+import { createNativeSurfaces } from '@enest/native-surfaces'
 import '../js/novnc-loader.js'
 import '../js/store.js'
 import '../js/connection.js'
 import '../js/vnc-session.js'
 import '../js/rdp-session.js'
 
-const host = window.enest || window.zapi || null
+const host = createNativeSurfaces(window.enest || window.zapi || null)
 const store = window.RdpStore.createStore()
 const { esc } = window.RdpStore
 const { testConnection, friendlyError, parseUri } = window.RdpConnection
@@ -351,7 +352,7 @@ export function App() {
             <div class="form-row"><label for="f-username">用户名</label><input id="f-username" name="username" value="${esc(value.username)}" autocomplete="off" data-input-context="editor" /></div>
             <div class="form-row form-row-full"><label for="f-password">密码 ${isEdit && value.hasPassword ? '（已保存，留空 = 不修改）' : ''}</label><input id="f-password" name="password" type="password" autocomplete="new-password" placeholder="${isEdit && value.hasPassword ? '••••••（不修改请留空）' : '无密码可留空'}" data-input-context="editor" /></div>
             <div class="form-row form-row-full"><label for="f-tags">标签（逗号分隔）</label><input id="f-tags" name="tags" value="${esc((value.tags || []).join(', '))}" placeholder="生产, 内网" data-input-context="editor" /></div>
-            <label class="form-check"><input type="checkbox" name="tunnelEnabled" ${value.tunnel?.enabled ? 'checked' : ''} />经 SSH 隧道（需先在 SSH 插件连接）</label>
+            <label class="form-check"><input type="checkbox" name="tunnelEnabled" ${value.tunnel?.enabled ? 'checked' : ''} />经 SSH 隧道（需本插件独立 SSH 连接资料）</label>
             <label class="form-check"><input type="checkbox" name="viewOnly" ${value.viewOnly ? 'checked' : ''} />只读（禁止远端键鼠）</label>
           </div>
           <div class="form-hint">密码经 vault 加密保存，任何界面不回读明文。</div>

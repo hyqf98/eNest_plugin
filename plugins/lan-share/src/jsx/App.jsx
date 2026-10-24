@@ -1,15 +1,16 @@
 /**
  * 局域网传件主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
  * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
- * 网络（api.net.share.*）与文件（api.localFiles.*）调用原样复用；
+ * 分享协议运行在插件自己的后端；文件仍由宿主原生选择器授权。
  * 业务核心 util.mjs / history.mjs 未改动；vendor qrcode.min.js 仍在 index.html 加载。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fmtBytes, fmtTime, fmtRemain } from '../js/util.mjs'
 import { loadHistory, pushHistory, recordFromShare, historyLine, historyMeta } from '../js/history.mjs'
+import { createShareApi } from '../js/share-api.mjs'
 
 const api = window.enest || window.zapi
-const $ = (id) => document.getElementById(id)
+const shareApi = createShareApi(api)
 
 const DURATIONS = [5, 10, 30, 60]
 
@@ -20,6 +21,7 @@ export function App() {
   const [picked, setPicked] = useState([])      // { handleId, name, size }
   const [minutes, setMinutes] = useState(10)
   const [share, setShare] = useState(null)      // LanShareStatus
+  const [starting, setStarting] = useState(false)
   const [logs, setLogs] = useState([])
   const [history, setHistory] = useState([])
   const [deviceName, setDeviceName] = useState('')
@@ -35,13 +37,14 @@ export function App() {
   pickedRef.current = picked
   const historyRef = useRef(history)
   historyRef.current = history
-  const logsRef = useRef(logs)
-  logsRef.current = logs
 
   const timerRef = useRef(null)
   const offRequestRef = useRef(null)
   const offStoppedRef = useRef(null)
+  const offStatusRef = useRef(null)
   const nameTimerRef = useRef(null)
+  const startingRef = useRef(false)
+  const mountedRef = useRef(false)
 
   /* —— 分享中：倒计时/计数渲染（等价原 tick） —— */
   useEffect(() => {
@@ -154,20 +157,9 @@ export function App() {
     const kit = kitRef.current
     if (!kit) return
     const next = pushHistory(historyRef.current, recordFromShare(done))
-    setHistory(next)
+    if (mountedRef.current) setHistory(next)
     historyRef.current = next
     await kit.save('history', { v: 2, entries: next }).catch(() => {})
-    // 停止时回填真实下载次数
-    setTimeout(async () => {
-      const cur = await api.net.share.status(done.shareId).catch(() => null)
-      const row = historyRef.current.find((h) => h.shareId === done.shareId)
-      if (row && cur) {
-        const patched = historyRef.current.map((h) => (h.shareId === done.shareId ? { ...h, downloads: cur.downloads } : h))
-        setHistory(patched)
-        historyRef.current = patched
-        await kit.save('history', { v: 2, entries: patched }).catch(() => {})
-      }
-    }, 800)
   }, [])
 
   /* —— 停止轮询与订阅（等价原 stopTick） —— */
@@ -175,53 +167,80 @@ export function App() {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     offRequestRef.current?.(); offRequestRef.current = null
     offStoppedRef.current?.(); offStoppedRef.current = null
+    offStatusRef.current?.(); offStatusRef.current = null
   }, [])
 
   const finishShareRef = useRef(null)
 
   const startShare = useCallback(async () => {
     const pickedNow = pickedRef.current
-    if (!pickedNow.length) return
+    if (!pickedNow.length || startingRef.current) return
+    startingRef.current = true
+    setStarting(true)
     const kit = kitRef.current
     try {
-      const started = await api.net.share.start({
+      const started = await shareApi.start({
         files: pickedNow.map((p) => ({ handleId: p.handleId })),
         minutes,
       })
+      if (!mountedRef.current) { await shareApi.stop(started.shareId); return }
+      shareRef.current = started
       setShare(started)
       setLogs([])
-      offRequestRef.current = api.net.share.onRequest((event) => {
+      offRequestRef.current = shareApi.onRequest((event) => {
         if (event.shareId !== started.shareId) return
-        setLogs((prev) => [...prev, { file: event.file, ip: event.ip, ts: event.ts }])
+        setLogs((prev) => [...prev, { file: event.file, ip: event.ip, ts: event.ts }].slice(-50))
       })
-      offStoppedRef.current = api.net.share.onStopped((event) => {
+      offStatusRef.current = shareApi.onStatus((current) => {
+        if (current.shareId !== started.shareId) return
+        shareRef.current = current
+        setShare(current)
+      })
+      offStoppedRef.current = shareApi.onStopped((event) => {
         if (event.shareId !== started.shareId) return
-        finishShareRef.current?.(event.reason === 'expired' ? '分享已到期，自动关闭' : '分享已停止')
+        const message = event.reason === 'expired' ? '分享已到期，自动关闭'
+          : event.reason === 'backend exited' ? '分享后端已退出，分享已停止' : '分享已停止'
+        finishShareRef.current?.(message, event.status)
       })
+      let checking = false
       timerRef.current = setInterval(async () => {
-        // 到期兜底：宿主停止后 status 查不到也结束
-        if (Date.now() >= started.expiresAt + 1500) {
-          const cur = await api.net.share.status(started.shareId).catch(() => null)
-          if (!cur || cur.stopped) finishShareRef.current?.('分享已到期，自动关闭')
+        if (checking || Date.now() < started.expiresAt + 1500) return
+        checking = true
+        try {
+          const cur = await shareApi.status(started.shareId)
+          if (mountedRef.current && shareRef.current?.shareId === started.shareId && (!cur || cur.stopped)) {
+            finishShareRef.current?.('分享已到期，自动关闭', cur)
+          }
+        } catch {
+          if (mountedRef.current && shareRef.current?.shareId === started.shareId) status('无法确认分享状态，请停止分享或关闭插件')
+        } finally {
+          checking = false
         }
       }, 1000)
       void saveHistory(started)
       try { if (api.notify) await api.notify({ title: '局域网传件已开启', body: `取件码 ${started.code}，${minutes} 分钟内有效` }) } catch { /* notify 可能被拒 */ }
     } catch (err) {
-      kit?.toast(err?.message || '启动分享失败', 'error')
+      if (mountedRef.current) kit?.toast(err?.message || '启动分享失败', 'error')
+    } finally {
+      startingRef.current = false
+      if (mountedRef.current) setStarting(false)
     }
-  }, [minutes, saveHistory])
+  }, [minutes, saveHistory, status])
 
-  const finishShare = useCallback((message) => {
+  const finishShare = useCallback((message, finalStatus) => {
+    if (!shareRef.current) return
+    const done = finalStatus || shareRef.current
+    shareRef.current = null
     stopTick()
     setShare(null)
     setPicked([])
     setStatusText('')
+    void saveHistory(done)
     if (message) {
       kitRef.current?.toast(message, 'info')
       try { if (api.notify) void api.notify({ title: '局域网传件', body: message }) } catch { /* ignored */ }
     }
-  }, [stopTick])
+  }, [stopTick, saveHistory])
   finishShareRef.current = finishShare
 
   /* —— 设备名 / 接收目录（等价原 bindPrefs，400ms 防抖保留） —— */
@@ -264,16 +283,15 @@ export function App() {
   startRef.current = startShare
 
   useEffect(() => {
+    mountedRef.current = true
     const kit = window.PluginKit.create({ title: '局域网传件', height: 480 })
     kitRef.current = kit
     kit.onMode((nextMode) => modeRef.current?.(nextMode))
-    // 关闭前尽力停止分享（宿主 scope 释放也会兜底）
-    if (api?.onBeforeClose) {
-      api.onBeforeClose(() => {
-        const cur = shareRef.current
-        if (cur) return api.net.share.stop(cur.shareId).catch(() => {})
-      })
-    }
+    // The native backend shutdown also closes sockets if the page cannot acknowledge close.
+    const offBeforeClose = api?.onBeforeClose?.(() => {
+      const cur = shareRef.current
+      if (cur) return shareApi.stop(cur.shareId).catch(() => {})
+    })
     let alive = true
     void (async () => {
       await kit.ready
@@ -285,15 +303,18 @@ export function App() {
     })()
     return () => {
       alive = false
+      mountedRef.current = false
+      offBeforeClose?.()
+      clearTimeout(nameTimerRef.current)
       stopTick()
     }
   }, [renderHistoryFrom, stopTick])
 
   /* —— 分享中实时渲染二维码（等价原 renderLive 中的 drawQr） —— */
-  const urls = shareUrls(share)
+  const urls = useMemo(() => shareUrls(share), [share?.shareId, shareUrls])
   useEffect(() => {
     if (share && urls[0]) drawQr(urls[0])
-  }, [share, urls, drawQr])
+  }, [urls, drawQr])
 
   const send = mode === 'send'
   const logRows = logs.slice(-50).reverse()
@@ -349,8 +370,8 @@ export function App() {
                         onClick={() => setMinutes(min)}>{min} 分</button>
                     ))}
                   </div>
-                  <button id="start-btn" type="button" className="btn primary" disabled={picked.length === 0}
-                    onClick={() => void startShare()}>开始分享</button>
+                  <button id="start-btn" type="button" className="btn primary" disabled={picked.length === 0 || starting}
+                    onClick={() => void startShare()}>{starting ? '正在开启…' : '开始分享'}</button>
                 </div>
               </div>
             </div>
@@ -392,7 +413,12 @@ export function App() {
                     </div>
                     <button id="stop-btn" type="button" className="btn danger" onClick={async () => {
                       if (!shareRef.current) return
-                      try { await api.net.share.stop(shareRef.current.shareId) } catch { finishShare('分享已停止') }
+                      try {
+                        const id = shareRef.current.shareId
+                        await shareApi.stop(id)
+                        const done = await shareApi.status(id)
+                        finishShare('分享已停止', done)
+                      } catch (error) { kitRef.current?.toast(error.message || '无法确认停止，请关闭插件', 'error') }
                     }}>停止分享</button>
                   </div>
                 </div>

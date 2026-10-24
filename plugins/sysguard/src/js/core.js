@@ -67,29 +67,46 @@ export function makeSampler({ intervalMs = 1500, acquire, release, sample }) {
   let timer = 0
   let token = null
   let running = false
-  async function tick() {
-    if (document.hidden) return
-    try {
-      if (!token && acquire) {
-        token = await acquire()
+  let generation = 0
+  let flight = null
+  const releaseToken = async (value) => {
+    if (value == null || !release) return
+    try { await release(value) } catch { /* 已释放 */ }
+  }
+  function tick() {
+    if (!running || document.hidden || flight) return
+    // A delayed acquire belongs to its starting generation, never a later restart.
+    const currentGeneration = generation
+    const current = () => running && generation === currentGeneration && !document.hidden
+    const pending = (async () => {
+      if (token == null && acquire) {
+        const acquired = await acquire()
+        if (!current()) { await releaseToken(acquired); return }
+        token = acquired
       }
-      await sample()
-    } catch { /* 单次失败不终止 */ }
+      if (current()) await sample()
+    })().catch(() => { /* 单次失败不终止 */ }).finally(() => {
+      if (flight === pending) flight = null
+      if (running && generation !== currentGeneration) tick()
+    })
+    flight = pending
   }
   return {
     start() {
       if (running) return
       running = true
+      generation++
       timer = setInterval(tick, intervalMs)
-      void tick()
+      tick()
     },
     async stop() {
       running = false
+      generation++
       if (timer) { clearInterval(timer); timer = 0 }
-      if (token && release) {
-        try { await release(token) } catch { /* 已释放 */ }
-        token = null
-      }
+      const owned = token
+      // Detach before awaiting release so it cannot erase a newer lease.
+      token = null
+      await releaseToken(owned)
     },
     get running() {
       return running

@@ -1,7 +1,7 @@
 /**
  * 素描本 · 市场工作区（DOM 版，零构建）
  *
- * 三条路由：catalog（目录）、installed（已安装）、detail（详情）。
+ * 两条宿主路由：catalog（目录）、detail（详情）；已安装是目录的本地筛选。
  * 只读 controller 的公开状态，导航与安装都走宿主动作；全局设置入口由宿主持有。
  *
  * 视觉：螺旋装订的笔记本 + 手抖描边索引卡 + 拼贴。手绘感由 SVG 位移滤镜、
@@ -353,7 +353,7 @@ export function createMarketView(controller) {
       const tabs = h('div', { class: 'sk-seg', role: 'tablist', 'aria-label': '目录视图' })
       for (const [value, label] of [['catalog', '全部插件'], ['installed', '已安装']]) {
         const tab = h('button', { type: 'button', role: 'tab', 'aria-selected': String(seg === value) }, label)
-        tab.addEventListener('click', () => void controller.navigate({ page: value }))
+        tab.addEventListener('click', () => controller.setBasePage(value))
         tabs.appendChild(tab)
       }
       const chips = h('div', { class: 'sk-chips', role: 'group', 'aria-label': '分类筛选' })
@@ -376,7 +376,7 @@ export function createMarketView(controller) {
       reset.addEventListener('click', () => {
         controller.setCategory('全部')
         controller.setQuery('')
-        if (seg !== 'catalog') void controller.navigate({ page: 'catalog' })
+        controller.setBasePage('catalog')
       })
       page.appendChild(h('div', { class: 'sk-empty' },
         doodle('star', 24),
@@ -500,7 +500,7 @@ export function createMarketView(controller) {
     if (!modal || closing || disposed) return
     closing = true
     // 只请求宿主导航，不在本地假造 route；ACK 返回前仍保留模态约束。
-    await controller.navigate({ page: controller.getState().basePage })
+    await controller.navigate({ page: 'catalog' })
     closing = false
   }
 

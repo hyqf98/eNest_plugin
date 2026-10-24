@@ -2,11 +2,9 @@ import type { HostDbImportPreviewInput as DbImportPreviewInput, HostDbImportRunI
 import type { HostDbConnectionConfig as DbConnectionConfig } from '@backend/hostDbConfig'
 /**
  * dbService — utility process only; no Electron main APIs.
- * 数据库会话 / 查询 / 补全 / applyChanges / 导入宿主 API
- * 职责：注册表管理 open 会话；提供 pluginHandlers 所需 db.* 全部分发入口。
- *      业务连接配置/控制台会话存 enest.storage（插件 KV）；宿主只管运行态会话。
- * 被 pluginHandlers 分发调用。
- * Only validated IPC input enters this process; native dialogs and secrets stay in the facade.
+ * 数据库会话 / 查询 / 补全 / applyChanges / 导入插件服务。
+ * 业务配置保存在插件 KV；插件 facade 通过宿主通用能力解析选中文件与私有密钥。
+ * Only facade-validated input reaches the drivers; the shell has no database dispatcher.
  */
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'

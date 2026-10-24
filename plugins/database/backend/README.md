@@ -4,11 +4,14 @@
 
 `package.json.enestBackend` 声明入口与后端依赖。通用插件构建工具打包本插件 TypeScript，并随插件复制后端生产依赖闭包。驱动包含动态加载、证书/资源文件和 DuckDB 原生库，不能按前端包的规则只复制 `.js`。DuckDB 的平台 `.node` 与动态库必须成组分发并在目标系统验证。
 
-`contracts/` 是当前 `db.*` API 的纯数据契约快照，`hostDbConfig.ts` 增加的是宿主经过文件句柄授权后发送的路径。兼容层继续使用原 `db*` RPC 方法。宿主负责：`backend.node` 授权、当前插件身份、密钥解引用、原生文件选择与句柄授权、请求上限、超时/取消、utility 退出和实例回收。后端不获取宿主 vault 或窗口 API。
+1.4.0 起要求 eNest >=0.2.2。`contracts/`、连接与事务策略、权限动作路由、密码/文件能力组合和会话活动租约均在插件内。`facade.ts` 只通过通用 `host.request` 申请 `secret.resolve`、`files.resolve/pick/save`、`permission.authorize` 和 `activity.acquire/release`；宿主不再携带 `db.*` 分发器或数据库 DTO。用户选择的文件路径只在可信本机后端解析，不接受 renderer 自带的 `filePath/sqlitePath/options.file`。
+
+前端 `src/js/backend-api.mjs` 创建插件私有的 `api.db` 兼容对象，不修改冻结的 `window.enest`，实际通道为标准 `backend.call`。原生授权/选择器等待不消耗 SQL 执行时限；取消/关闭直接使用 250ms deadline，避免同步驱动阻塞时卡在授权预检。达到 deadline 由通用 `backend.stop` 终止并等待进程退出，后续需重连。`init` 必须匹配插件 id、generation、wcId 和协议版本；关闭时先停止连接，再退出进程。一个连接活动租约覆盖其整个事务期间，关闭后释放；迟到的旧连接响应不会释放新连接租约。
 
 验证入口：
 
 - `tsc -p backend/tsconfig.json`：独立后端类型检查。
+- `node --test backend/migration-20261024.test.mjs`：本轮迁移专项，使用模拟 driver/host，不连接任何真实数据库。
 - `node --test backend/*.test.mjs`：协议、生命周期、SQL adapter、CSV、原生文件访问边界。
 - `tsx --tsconfig backend/tsconfig.json --test backend/*.test.ts`：脚本解析、SQLite/DuckDB 与可选服务集成。
 

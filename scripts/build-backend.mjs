@@ -6,6 +6,7 @@ import { join, resolve, relative, sep } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { build } from 'esbuild'
 import { repositoryRoot, localFile } from './plugin-contract.mjs'
+import { normalizeTarget, packageMatchesTarget, platformPackagePlan } from './distribution-target.mjs'
 
 const packageName = /^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i
 
@@ -53,7 +54,8 @@ async function copyPackage(source, target, name) {
   await visit(source, target)
 }
 
-export async function buildBackend(source, destination, { root = repositoryRoot } = {}) {
+export async function buildBackend(source, destination, { root = repositoryRoot, target: distributionTarget = 'universal' } = {}) {
+  normalizeTarget(distributionTarget)
   root = realpathSync(root)
   const manifest = JSON.parse(await readFile(join(source, 'plugin.json'), 'utf8'))
   if (!manifest.backend) return
@@ -73,12 +75,19 @@ export async function buildBackend(source, destination, { root = repositoryRoot 
     if (optional && excluded.has(name)) return
     let directory
     try { directory = packageAt(name, from) } catch (error) { if (optional) return; throw error }
-    if (copied.has(directory)) return
+    if (copied.has(directory)) {
+      if (!optional) delete copied.get(directory).optional
+      return
+    }
     const data = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
+    if (!packageMatchesTarget(data, distributionTarget)) {
+      if (optional) return
+      throw new Error(`Required backend dependency ${name} is incompatible with ${distributionTarget}`)
+    }
     // Preserve the lockfile's physical node_modules layout so duplicate versions resolve identically.
     const marker = lockedPackagePath(root, directory)
     if (data.name !== name || lock.packages?.[marker]?.version !== data.version) throw new Error(`Backend dependency does not match lockfile: ${name}`)
-    copied.set(directory, { name, version: data.version, path: marker })
+    copied.set(directory, { name, version: data.version, path: marker, ...(optional ? { optional: true } : {}) })
     await copyPackage(directory, join(target, marker), name)
     const optionalDeps = data.optionalDependencies || {}
     for (const child of Object.keys(data.dependencies || {})) if (!(child in optionalDeps)) await dependency(child, directory)
@@ -87,9 +96,10 @@ export async function buildBackend(source, destination, { root = repositoryRoot 
   }
   for (const name of spec.dependencies) await dependency(name, source)
 
-  // One portable plugin archive includes the supported native variants, independent of the CI host.
+  // Universal remains the default; explicit targets contain only their locked native variant.
+  const platformPlan = platformPackagePlan(source, { root, target: distributionTarget })
   const platformInventory = []
-  for (const name of spec.platformPackages || []) {
+  for (const { name } of platformPlan.packages) {
     if (!packageName.test(name)) throw new Error('Invalid native package name')
     const matches = Object.entries(lock.packages || {}).filter(([key]) => key.endsWith(`node_modules/${name}`))
     if (matches.length !== 1) throw new Error(`Expected one locked native platform package: ${name}`)
@@ -120,5 +130,5 @@ export async function buildBackend(source, destination, { root = repositoryRoot 
     if (unpackedPackage.name !== name || unpackedPackage.version !== data.version) throw new Error('Native package identity mismatch')
     await copyPackage(join(unpack, 'package'), join(target, location), name)
   }
-  await writeFile(join(target, 'dependency-inventory.json'), JSON.stringify({ node: '>=24', dependencies: [...copied.values()], platformPackages: spec.platformPackages || [], nativePackages: platformInventory }, null, 2) + '\n')
+  await writeFile(join(target, 'dependency-inventory.json'), JSON.stringify({ node: '>=24', target: distributionTarget, supportedTargets: platformPlan.supportedTargets, dependencies: [...copied.values()], platformPackages: platformPlan.packages.map(pkg => pkg.name), nativePackages: platformInventory }, null, 2) + '\n')
 }

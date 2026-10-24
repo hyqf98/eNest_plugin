@@ -1,14 +1,14 @@
 {
   "id": "com.github.eNest.markdown",
   "name": "Markdown 编辑器",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Typora 式所见即所得 Markdown 编辑器：即时渲染、Typora 主题、手绘风 Mermaid、图床上传（PicList/GitHub/自定义脚本）与本地文件工作台。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.2.0"
+    "enest": ">=0.2.3"
   },
   "permissions": [
     "backend.node",
@@ -88,19 +88,22 @@
             "key": "followShellTheme",
             "type": "switch",
             "label": "跟随壳子主题",
-            "default": true
+            "default": true,
+            "shareWithThemes": true
           },
           {
             "key": "typewriterMode",
             "type": "switch",
             "label": "打字机模式（当前行居中）",
-            "default": false
+            "default": false,
+            "shareWithThemes": true
           },
           {
             "key": "focusMode",
             "type": "switch",
             "label": "专注模式（淡出非当前段落）",
-            "default": false
+            "default": false,
+            "shareWithThemes": true
           },
           {
             "key": "renderHtml",
@@ -125,8 +128,9 @@
               {
                 "value": "classic",
                 "label": "经典"
-            }
-            ]
+              }
+            ],
+            "shareWithThemes": true
           },
           {
             "key": "imageDefaultAction",

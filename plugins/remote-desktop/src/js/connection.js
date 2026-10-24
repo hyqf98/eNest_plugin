@@ -1,14 +1,16 @@
+import { createSshHost } from '@enest/ssh-backend/client'
+
 /**
  * com.github.eNest.remote-desktop — 连接传输层
- * 链路：[可选 SSH tunnel.open → 127.0.0.1:本地口] → net.socket.connect →
- *      net.socket.serveWs（rdp 资产由桥内嗅探自动走 RDCleanPath/TLS）→
+ * 链路：[可选 SSH tunnel.open → 127.0.0.1:本地口] →
+ *      VNC: 通用 net.socket；RDP: 本插件 backend 的 RDCleanPath/TLS 桥 →
  *      页内 new WebSocket(url) 接 noVNC / ironrdp-wasm。
  * 连接测试：TCP 探活 + 协议握手首包诊断（VNC 读 RFB 版本串；RDP 走桥握手）。
  */
 ;(function (global) {
   'use strict'
 
-  const api = () => global.enest || global.zapi || null
+  const api = () => createSshHost(global.enest || global.zapi || null)
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
   function friendlyError(err) {
@@ -23,58 +25,77 @@
 
   /**
    * 建立到资产的传输：
-   * 1) tunnel.enabled → enest.ssh.workbench tunnel.open（local 0 随机口，remote = host:port）
-   *    需先有 sshProfileId 对应的活跃会话；这里约定调用方传入 sshSessionId。
-   * 2) net.socket.connect 127.0.0.1:隧道口（或直连 host:port）
-   * 3) net.socket.serveWs → { wsUrl, socketId, cleanup }
+   * 1) tunnel.enabled → 插件私有 SSH backend（local 0 随机口，remote = host:port）
+   *    仅接受本插件会话或本插件持有的 SSH 连接资料，不借用其它插件的会话 / vault。
+   * 2) VNC 使用宿主透明 TCP/WebSocket；RDP 使用本插件独立协议服务
+   * 3) 返回 wsUrl 和幂等 close，同时持有该插件自己的 SSH 隧道
    */
   async function openTransport(profile, options = {}) {
     const host = api()
-    if (!host?.net?.socket) throw new Error('宿主缺少 net.socket 能力，请更新 eNest')
+    if (profile.protocol === 'rdp' ? !host?.backend?.call : !host?.net?.socket) throw new Error('宿主缺少远程桌面传输能力，请更新 eNest')
     let connectHost = profile.host
     let connectPort = profile.port
-    let tunnel = null
-    if (profile.tunnel?.enabled) {
-      if (!options.sshSessionId) throw new Error('SSH 隧道需要先在 SSH 插件建立会话')
-      const result = await host.ssh.workbench({
-        action: 'tunnel.open',
-        sessionId: options.sshSessionId,
-        direction: 'local',
-        localPort: 0,
-        remoteHost: profile.host,
-        remotePort: profile.port
-      })
-      tunnel = { id: result?.id, localPort: Number(result?.localPort) }
-      if (!tunnel.localPort) throw new Error('SSH 隧道建立失败：未返回本地端口')
-      connectHost = '127.0.0.1'
-      connectPort = tunnel.localPort
+    let tunnel = null, ownedSessionId = '', sshSessionId = '', socketId = '', bridgeId = ''
+    const closeConnection = async () => {
+      const rdp = bridgeId, socket = socketId
+      bridgeId = ''; socketId = ''
+      if (rdp) { try { await host.backend.call('rdp.close', [rdp]) } catch { /* 后端已回收 */ } }
+      if (socket) { try { await host.net.socket.close(socket) } catch { /* 已关 */ } }
     }
-    const { socketId } = await host.net.socket.connect({
-      host: connectHost,
-      port: connectPort,
-      sessionId: tunnel ? options.sshSessionId : undefined,
-      timeoutMs: 10_000
-    })
     const closeTunnel = async () => {
-      if (!tunnel?.id) return
-      try { await host.ssh.workbench({ action: 'tunnel.close', id: tunnel.id }) } catch { /* 会话侧已关 */ }
+      const id = tunnel?.id, ownSession = ownedSessionId
       tunnel = null
+      ownedSessionId = ''
+      if (id) { try { await host.ssh.workbench({ action: 'tunnel.close', id }) } catch { /* 会话侧已关 */ } }
+      if (ownSession) { try { await host.ssh.disconnect(ownSession) } catch { /* 后端已关 */ } }
     }
     try {
-      const endpoint = await host.net.socket.serveWs(socketId)
+      if (profile.tunnel?.enabled) {
+        const connection = options.sshConnection || profile.tunnel.connection
+        if (connection?.host && connection?.username) {
+          const session = await host.ssh.connect(connection)
+          ownedSessionId = String(session?.sessionId || '')
+          if (!ownedSessionId) throw new Error('SSH 隧道连接未返回会话')
+          sshSessionId = ownedSessionId
+        } else if (options.sshSessionId) {
+          const sessions = await host.ssh.listSessions()
+          if (!sessions.some(session => session.sessionId === options.sshSessionId)) throw new Error('该 SSH 会话不属于远程桌面；请在本插件配置独立 SSH 连接')
+          sshSessionId = options.sshSessionId
+        } else {
+          throw new Error('此连接缺少远程桌面专用的 SSH 主机、用户名和凭据；SSH 插件的会话不能跨插件复用。请补充独立配置或关闭 SSH 隧道后直连。')
+        }
+        const result = await host.ssh.workbench({
+          action: 'tunnel.open', sessionId: sshSessionId, direction: 'local', localPort: 0,
+          remoteHost: profile.host, remotePort: profile.port
+        })
+        tunnel = { id: result?.id, localPort: Number(result?.localPort) }
+        if (!tunnel.id || !Number.isInteger(tunnel.localPort) || tunnel.localPort < 1 || tunnel.localPort > 65535) throw new Error('SSH 隧道建立失败：未返回本地端口')
+        connectHost = '127.0.0.1'
+        connectPort = tunnel.localPort
+      }
+      let wsUrl
+      if (profile.protocol === 'rdp') {
+        const result = await host.backend.call('rdp.open', [{ host: connectHost, port: connectPort }])
+        bridgeId = result.bridgeId
+        wsUrl = result.wsUrl
+      } else {
+        ;({ socketId } = await host.net.socket.connect({ host: connectHost, port: connectPort, sessionId: sshSessionId || undefined, timeoutMs: 10_000 }))
+        wsUrl = (await host.net.socket.serveWs(socketId)).url
+      }
       return {
         socketId,
-        wsUrl: endpoint.url,
+        bridgeId,
+        wsUrl,
         viaTunnel: !!tunnel,
         localPort: tunnel?.localPort,
         /** 释放整条链路：socket 关闭 → 隧道关闭（幂等） */
         async close() {
-          try { await host.net.socket.close(socketId) } catch { /* 已关 */ }
+          await closeConnection()
           await closeTunnel()
         }
       }
     } catch (err) {
-      try { await host.net.socket.close(socketId) } catch { /* 已关 */ }
+      await closeConnection()
       await closeTunnel()
       throw err
     }
@@ -87,7 +108,7 @@
   /**
    * 连接测试：TCP 探活 + 协议握手首包
    * VNC：发送 RFB 003.008\n → 期待回 RFB 003.00x\n 版本串
-   * RDP：serveWs 后发 RDCleanPath Request（最小构造）→ 期待 DER 响应（0x30）；
+   * RDP：插件桥发送有效 X.224 协商，用户确认服务端证书后期待成功响应；
    *      假服务器/非 RDP 端口会以错误或超时暴露。
    * 返回 { ok, reason?, detail? }。
    */
@@ -114,14 +135,12 @@
         await transport.close()
         return { ok: false, reason: '端口开放但未返回 RFB 版本串（可能不是 VNC 服务）', detail: text.slice(0, 64) }
       }
-      // RDP：桥 rdp 模式嗅探——发 RDCleanPath Request（version 3390）
+      // RDP 的成功必须包含 X.224 和证书字段；错误 DER 不能算作握手成功。
       const probe = buildRdpProbe()
-      const response = await wsRoundtrip(transport.wsUrl, probe, { timeoutMs: 8000 })
+      const response = await wsRoundtrip(transport.wsUrl, probe, { timeoutMs: 120000 })
       await transport.close()
-      if (response && response.length > 0 && response[0] === 0x30) {
-        // 无法低成本区分 Error PDU 与 Response：Error PDU 含 [1] error 结构，
-        // 真实 Response 含 [6] x224；这里检查 tag——简化：非空 DER 即认为 RDP 协议层可达
-        return { ok: true, detail: `RDP 协议握手响应 ${response.length} 字节 · TCP ${elapsedMs}ms` }
+      if (isRdpProbeSuccess(response)) {
+        return { ok: true, detail: `RDP 协议握手响应 ${response.length} 字节 · 协商 ${Date.now() - startedAt}ms` }
       }
       return { ok: false, reason: '端口开放但 RDP 握手无响应（可能不是 RDP 服务或被代理拦截）' }
     } catch (err) {
@@ -162,7 +181,36 @@
     })
   }
 
-  /** 最小 RDCleanPath Request（DER）：version 3390 + destination + 空 x224（仅探测协议层存在） */
+  function isRdpProbeSuccess(bytes) {
+    if (!bytes || bytes.length > 2 * 1024 * 1024) return false
+    const read = offset => {
+      if (offset + 2 > bytes.length) throw new Error('Truncated DER')
+      const tag = bytes[offset++]
+      let length = bytes[offset++]
+      if (length & 0x80) {
+        const count = length & 0x7f
+        if (!count || count > 4 || offset + count > bytes.length) throw new Error('Invalid DER')
+        length = 0
+        for (let i = 0; i < count; i++) length = length * 256 + bytes[offset++]
+      }
+      if (offset + length > bytes.length) throw new Error('Truncated DER')
+      return { tag, start: offset, end: offset + length }
+    }
+    try {
+      const outer = read(0)
+      if (outer.tag !== 0x30 || outer.end !== bytes.length) return false
+      const tags = new Set()
+      let offset = outer.start
+      while (offset < outer.end) {
+        const child = read(offset)
+        if (child.end > outer.end || tags.has(child.tag)) return false
+        tags.add(child.tag); offset = child.end
+      }
+      return !tags.has(0xa1) && tags.has(0xa0) && tags.has(0xa6) && tags.has(0xa7)
+    } catch { return false }
+  }
+
+  /** X.224 CR + RDP_NEG_REQ (TLS and HYBRID) wrapped in RDCleanPath version 3390. */
   function buildRdpProbe() {
     const wrap = (tag, content) => {
       const len = content.length
@@ -182,7 +230,7 @@
     const pdu = [
       ...wrap(0xa0, integer(3390)),
       ...wrap(0xa2, utf8('probe')),
-      ...wrap(0xa6, wrap(0x04, [0x03, 0x00]))
+      ...wrap(0xa6, wrap(0x04, [0x03, 0x00, 0x00, 0x13, 0x0e, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00, 0x00]))
     ]
     return Uint8Array.from(wrap(0x30, pdu))
   }

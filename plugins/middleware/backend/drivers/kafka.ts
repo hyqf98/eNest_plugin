@@ -219,7 +219,7 @@ export const kafkaDriver: MwDriver = {
       runtime: { kafka, admin, liveConsumers: new Set() } satisfies KafkaRuntime
     }
     handle.raw = handle.runtime
-    ctx.signal.addEventListener('abort', () => { void closeQuiet(handle) }, { once: true })
+    ctx.signal.addEventListener('abort', () => { if (!handle.closed) void closeQuiet(handle) }, { once: true })
     return handle
   },
 

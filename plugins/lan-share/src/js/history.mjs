@@ -6,14 +6,15 @@ export const HISTORY_LIMIT = 50
 
 /** 从旧版（字符串数组或 v1 对象数组）与 v2 结构归一读取历史 */
 export function loadHistory(raw) {
+  if (raw?.v === 2 && Array.isArray(raw.entries)) raw = raw.entries
   if (!Array.isArray(raw)) return []
   const entries = []
   for (const item of raw) {
-    if (!item || typeof item !== 'object') continue
     if (typeof item === 'string') {
       entries.push({ id: `h-${item}`, names: item, count: 1, totalSize: 0, downloads: 0, ts: 0 })
       continue
     }
+    if (!item || typeof item !== 'object') continue
     entries.push({
       id: typeof item.id === 'string' ? item.id : `h-${item.ts ?? entries.length}`,
       names: String(item.names ?? item.files ?? ''),
@@ -40,7 +41,7 @@ export function recordFromShare(share) {
     names: files.map((f) => f.name).join('、').slice(0, 120),
     count: files.length,
     totalSize: files.reduce((sum, f) => sum + (Number.isFinite(f.size) ? f.size : 0), 0),
-    downloads: 0,
+    downloads: Number.isSafeInteger(share?.downloads) && share.downloads >= 0 ? share.downloads : 0,
     ts: share?.startedAt ?? Date.now(),
     shareId: share?.shareId
   }

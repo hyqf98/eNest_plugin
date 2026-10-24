@@ -2,7 +2,7 @@
  * com.github.eNest.remote-desktop — RDP 会话（ironrdp-wasm）
  * vendored：assets/vendor/rdp-wasm/（rdp_client.js + rdp_client_bg.wasm，
  * wasm-pack --target web，MIT；构建说明见 CHANGELOG）。
- * 链路：SessionBuilder.proxyAddress(桥 ws url) —— 桥（socketBridge rdp 模式）
+ * 链路：SessionBuilder.proxyAddress(桥 ws url) —— 本插件 backend 的 RDP 桥
  * 完成 RDCleanPath ASN.1 + TLS 终止，明文 RDP 流直通 wasm 客户端。
  * 键盘：quick/shell 输入策略由容器 data-input-context 控制；
  * mac Cmd → 远端 Ctrl 映射；Esc 等壳子键遵循 ui-standard（quick 下 Esc 不吞）。

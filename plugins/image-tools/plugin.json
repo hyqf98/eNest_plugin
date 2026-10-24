@@ -1,14 +1,14 @@
 {
   "id": "com.github.eNest.image-tools",
   "name": "图片工具箱",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "图片压缩、格式转换、批量缩放、裁剪旋转、文字水印、EXIF 查看、色板提取与贴图预览。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "媒体",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.2.3"
   },
   "permissions": [
     "pin.create",
@@ -62,7 +62,8 @@
             "key": "followShellTheme",
             "type": "boolean",
             "label": "跟随壳子主题",
-            "default": true
+            "default": true,
+            "shareWithThemes": true
           },
           {
             "key": "targetKb",
@@ -71,7 +72,8 @@
             "default": 200,
             "min": 20,
             "max": 2048,
-            "step": 20
+            "step": 20,
+            "shareWithThemes": true
           },
           {
             "key": "quickFormat",
@@ -87,7 +89,8 @@
                 "label": "WebP",
                 "value": "image/webp"
               }
-            ]
+            ],
+            "shareWithThemes": true
           },
           {
             "key": "autoPin",

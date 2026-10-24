@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, extname, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { repositoryRoot as root } from './plugin-contract.mjs'
 import { buildRegistry, archiveMetadata } from './build-registry.mjs'
 import { markdownImagePaths } from './market-assets.mjs'
+import { PLATFORM_TARGETS } from './distribution-target.mjs'
 
 /** GitHub attachments are flat; extract the same version's resources from its archive. */
 export function prepareRelease({ repositoryRoot = root, repository, tag, outDir = join(repositoryRoot, 'dist') }) {
@@ -32,6 +33,17 @@ export function prepareRelease({ repositoryRoot = root, repository, tag, outDir 
     plugin.asset.url = base + encodeURIComponent(plugin.asset.name)
   }
   mkdirSync(outDir, { recursive: true }); writeFileSync(join(outDir, 'registry.json'), JSON.stringify(registry, null, 2) + '\n')
+  for (const target of PLATFORM_TARGETS) {
+    rmSync(join(outDir, `registry-${target}.json`), { force: true })
+    if (!registry.plugins.some(plugin => existsSync(join(outDir, `${plugin.id.split('.').pop()}@${plugin.version}-${target}.enestplugin`)))) continue
+    const variant = buildRegistry(repositoryRoot, { outDir, target })
+    for (const plugin of variant.plugins) {
+      const portable = registry.plugins.find(candidate => candidate.id === plugin.id)
+      Object.assign(plugin, { icon: portable.icon, screenshots: portable.screenshots, readmeUrl: portable.readmeUrl, readmeImages: portable.readmeImages })
+      plugin.asset.url = base + encodeURIComponent(plugin.asset.name)
+    }
+    writeFileSync(join(outDir, `registry-${target}.json`), JSON.stringify(variant, null, 2) + '\n')
+  }
   return registry
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(`[release] prepared ${prepareRelease({ repository: process.env.REPO, tag: process.env.TAG }).plugins.length} plugins`)

@@ -98,7 +98,7 @@ async function probeEmqx(config: MwConnectionConfig, password?: string): Promise
   const emqx = config.emqx
   if (!emqx?.enabled) return {}
   const apiKey = emqx.apiKey || config.username || ''
-  const apiSecret = emqx.apiSecretRef || password || ''
+  const apiSecret = emqx.ephemeralSecret ?? password ?? ''
   const base = (emqx.apiUrl ?? '').replace(/\/$/, '')
   if (!/^https?:\/\//.test(base)) return { error: 'EMQX 管理端点必须以 http(s):// 开头' }
   const insecureTls = config.tlsRejectUnauthorized === false
@@ -200,7 +200,7 @@ export const mqttDriver: MwDriver = {
     const started = Date.now()
     try {
       const client = await connectClient(config, password)
-      client.end(true)
+      await new Promise<void>((resolve, reject) => client.end(true, {}, error => error ? reject(error) : resolve()))
       return { ok: true, message: '已连接 broker', latencyMs: Date.now() - started }
     } catch (error) {
       return { ok: false, message: `MQTT 连接失败：${(error as Error).message}`, latencyMs: Date.now() - started }
@@ -222,14 +222,14 @@ export const mqttDriver: MwDriver = {
       capabilities, messageQueryModes: runtime.mgmt ? ['key'] : [],
       runtime: runtime as unknown as Record<string, unknown>
     }
-    ctx.signal.addEventListener('abort', () => { client.end(true) }, { once: true })
+    ctx.signal.addEventListener('abort', () => { if (!handle.closed) client.end(true) }, { once: true })
     return handle
   },
 
   async close(h) {
     if (h.closed) return
     h.closed = true
-    rt(h).client.end(true)
+    await new Promise<void>((resolve, reject) => rt(h).client.end(true, {}, error => error ? reject(error) : resolve()))
   },
 
   async overview(h) {

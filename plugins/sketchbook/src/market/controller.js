@@ -8,6 +8,7 @@
  *   3. 隐藏预热视图不触发 rAF，所以绘制屏障必须与短定时器竞速；
  *   4. 一切异步返回都校验 generation / revision / 请求序号，过期即丢弃。
  */
+import { normalizeWorkspaceRoute, WORKSPACE_ROUTES } from './workspaceRoute.js'
 
 const MAX_README_BYTES = 1024 * 1024
 const PAINT_FALLBACK_MS = 60
@@ -48,6 +49,7 @@ export function createController(bridge, hooks = {}) {
     detailStatus: 'idle',
     readme: null,
     quickResults: null,
+    generation: 0,
     route: { page: 'catalog' },
     basePage: 'catalog',
     query: '',
@@ -81,19 +83,19 @@ export function createController(bridge, hooks = {}) {
 
   function acceptAppearance(snapshot) {
     if (disposed || !snapshot?.appearance) return false
-    const generation = snapshot.generation ?? (state.appearance?.generation ?? 0)
+    const generation = snapshot.generation ?? state.generation
     const previous = state.appearance
-    if (previous && Number.isSafeInteger(generation) && generation < previous.generation) return false
-    if (previous && snapshot.appearance.revision < previous.appearance.revision) return false
-    const replaced = previous && (generation !== previous.generation ||
+    if (!Number.isSafeInteger(generation) || generation < state.generation ||
+      !Number.isFinite(snapshot.appearance.revision) || snapshot.appearance.revision < (previous?.appearance.revision ?? -1)) return false
+    const replaced = previous && (generation !== state.generation ||
       snapshot.appearance.theme?.id !== previous.appearance.theme?.id ||
       snapshot.appearance.theme?.source !== previous.appearance.theme?.source)
     if (replaced) {
       navigationSeq++; detailSeq++
       cancelReadme()
     }
-    patch({ appearance: snapshot, ...(replaced ? {
-      generation, route: { page: state.basePage }, detail: null, detailStatus: 'idle', readme: null,
+    patch({ appearance: snapshot, generation, ...(replaced ? {
+      route: { page: 'catalog' }, detail: null, detailStatus: 'idle', readme: null,
     } : {}) })
     hooks.applyAppearance?.(snapshot)
     return true
@@ -144,8 +146,14 @@ export function createController(bridge, hooks = {}) {
   }
 
   async function navigate(route) {
-    try { await act({ type: 'navigate', route }) }
+    try { await act({ type: 'navigate', route: normalizeWorkspaceRoute(route) }) }
     catch (error) { patch({ notice: error.message }) }
+  }
+
+  function setBasePage(page) {
+    if (disposed || !['catalog', 'installed'].includes(page) || state.basePage === page) return
+    // Preserve the host route and any detail return target; only the list filter changes.
+    patch({ basePage: page })
   }
 
   async function openPlugin(pluginId) {
@@ -233,13 +241,17 @@ export function createController(bridge, hooks = {}) {
 
   async function navigateWorkspace(command) {
     if (!routeAccepted(command)) return
+    let route
+    try { route = normalizeWorkspaceRoute(command.route) }
+    catch {
+      await bridge.ackNavigation({ requestId: command.requestId, generation: command.generation, ok: false }).catch(() => undefined)
+      return
+    }
     const seq = ++navigationSeq
     detailSeq++
     cancelReadme()
-    const route = command.route
     patch({
       route, generation: command.generation, detail: null, detailStatus: route.page === 'detail' ? 'loading' : 'idle', readme: null,
-      ...(route.page === 'detail' ? {} : { basePage: route.page }),
     })
     try {
       // 先渲染 loading；只有详情数据及其 DOM 就绪才成功 ACK，README 可继续异步。
@@ -272,7 +284,7 @@ export function createController(bridge, hooks = {}) {
         setQuery('')
         patch({
           route: command.pluginId ? { page: 'detail', pluginId: command.pluginId } : { page: 'catalog' },
-          basePage: 'catalog', generation: command.generation, detail: null,
+          generation: command.generation, detail: null,
           detailStatus: command.pluginId ? 'loading' : 'idle', readme: null,
         })
         if (command.pluginId) void showDetail(command.pluginId)
@@ -319,7 +331,7 @@ export function createController(bridge, hooks = {}) {
       await bridge.ready({
         revision: state.appearance.appearance.revision,
         workspaceVersion: 1,
-        routes: ['catalog', 'installed', 'detail'],
+        routes: [...WORKSPACE_ROUTES],
       })
     }
   }
@@ -338,7 +350,7 @@ export function createController(bridge, hooks = {}) {
     getState: () => state,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     start, dispose,
-    setQuery, setCategory: category => patch({ category }),
+    setQuery, setBasePage, setCategory: category => patch({ category }),
     navigate, openPlugin, activateSearchHandle, manage,
     refreshCatalog, dismissNotice: () => patch({ notice: null }),
   }

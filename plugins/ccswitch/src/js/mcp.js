@@ -4,7 +4,7 @@ import { storageGet, storageSet, agentRead, agentWrite } from './api.js'
  * 统一 MCP 列表（storage）→ 按应用启用 → 写入对应应用 mcp 位置：
  * - claude-code：~/.claude.json 顶层 mcpServers（agent.write 第二白名单文件，经 $file 指定）
  * - claude-desktop：claude_desktop_config.json 顶层 mcpServers
- * - codex：config.toml [mcp_servers.*]（changes.mcp_servers = { id: {...} }，宿主拆子表）
+ * - codex：config.toml [mcp_servers.*]（changes.mcp_servers = { id: {...} }，插件后端拆子表）
  * - gemini-cli：settings.json 顶层 mcpServers（Gemini 格式：http→httpUrl、去 type）
  * - 其余应用：各自配置键（opencode mcp.local 等，best-effort）
  * 语义对齐 cc-switch mcp/{claude,codex,gemini}.rs。命名空间挂 window.CCS.mcp。

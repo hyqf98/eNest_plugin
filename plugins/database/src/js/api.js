@@ -1,12 +1,13 @@
 /**
  * api.js — window.enest 适配层
  * - storage / vault / db.* / ui / clipboard / notify
- * - 宿主可能尚未暴露 db.* / vault.*：按 Spec 方法名调用，HOST_LAG 时 UI 降级
+ * - db.* 兼容形状由本插件提供，所有数据库业务经通用本机后端运行。
  */
 
 import { toStorageJson } from './storageJson.js'
+import { createDatabaseApi } from './backend-api.mjs'
 
-export const api = window.enest || window.zapi || null
+export const api = createDatabaseApi(window.enest || window.zapi || null)
 
 export function hasApi() {
   return !!api
@@ -368,6 +369,7 @@ export async function registerPluginSettings() {
         {
           key: 'followShellTheme',
           type: 'switch',
+          shareWithThemes: true,
           label: '跟随壳子主题',
           default: true
         }

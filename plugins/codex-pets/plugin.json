@@ -1,21 +1,20 @@
 {
   "id": "com.github.eNest.codex-pets",
   "name": "Codex 宠物市场",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "浏览 codex-pets.net 社区宠物画廊：搜索、排序、标签筛选与分页；逐帧 sprite 预览与光标跟随动效；一键安装宠物包到本机 Codex（自动检测 ~/.codex），并管理已安装宠物。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "开发",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.2.2"
   },
   "permissions": [
     "net.fetch",
     "clipboard.write",
-    "config.agent.read",
-    "config.agent.write",
-    "shell.openExternal"
+    "shell.openExternal",
+    "backend.node"
   ],
   "window": {
     "width": 960,
@@ -55,5 +54,8 @@
   },
   "development": {
     "main": "http://127.0.0.1:5180/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
   }
 }

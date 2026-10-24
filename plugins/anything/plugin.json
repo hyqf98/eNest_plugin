@@ -1,14 +1,14 @@
 {
   "id": "com.github.eNest.anything",
   "name": "Anything 文件搜索",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "全盘文件即时搜索：Spotlight / Everything 引擎，关键词高亮、排序分页、文本与图片预览，打开、定位、移入废纸篓。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.2.0"
+    "enest": ">=0.2.3"
   },
   "permissions": [
     "backend.node",
@@ -65,7 +65,8 @@
             "label": "单次结果上限（条）",
             "default": 100,
             "min": 20,
-            "max": 500
+            "max": 500,
+            "shareWithThemes": true
           },
           {
             "key": "everythingPort",

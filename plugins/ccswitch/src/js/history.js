@@ -5,7 +5,7 @@ import { extractCurrent, extractCurrentFromText, applyProvider } from './provide
  * 记录每次供应商切换（storage 持久化，环形上限 50 条）：
  *   { id, at, app, providerId, providerName, baseUrl, model,
  *     prevProviderId?, prevName?, prevBaseUrl?, prevModel?, changed }
- * 「回退」= 把 prev* 字段构造成一个临时供应商对当前应用执行 agent.write（写前宿主自动快照）。
+ * 「回退」= 把 prev* 字段构造成一个临时供应商对当前应用执行 插件后端写入（写前自动快照）。
  * 命名空间挂 window.CCS.history。
  */
 
@@ -56,7 +56,7 @@ function clear() {
 
 /**
  * 回退一条历史：用 prev* 构造临时供应商，对 entry.app 执行 applyProvider。
- * 写前宿主自动快照，失败时可在「备份」页恢复。
+ * 写前插件后端自动快照，失败时可在「备份」页恢复。
  */
 async function rollback(entry) {
   if (!entry || !entry.app) throw new Error('该记录没有可回退的目标应用')

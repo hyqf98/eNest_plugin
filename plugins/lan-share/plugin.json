@@ -1,19 +1,22 @@
 {
   "id": "com.github.eNest.lan-share",
   "name": "局域网传件",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "同一 Wi-Fi 下把文件发给手机：取件码 + 二维码即扫即下，限时自动关闭，下载实时日志。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "其它",
   "icon": "assets/market/icon.svg",
   "permissions": [
-    "lan.share",
+    "backend.node",
     "notify",
     "clipboard.write"
   ],
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.2.2"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
   },
   "features": [
     {

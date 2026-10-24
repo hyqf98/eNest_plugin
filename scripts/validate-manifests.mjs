@@ -24,7 +24,20 @@ export function validateSource(directory, { release = true } = {}) {
     for (const entry of pluginHtmlEntries(manifest)) localFile(directory, entry)
     const pkg = JSON.parse(readFileSync(localFile(directory, 'package.json'), 'utf8'))
     if (pkg.name !== manifest.id.split('.').pop() || pkg.version !== manifest.version || pkg.type !== 'module') throw new Error('package.json name (id 末段)/version/type must match plugin.json')
-    if (['assets', 'icon.svg', 'icon.png', 'logo.png', 'README.md', 'settings.html', 'runtime', 'shared'].some(name => existsSync(join(directory, name)))) throw new Error('Legacy root assets/icon/README/runtime are not allowed')
+    if (['icon.svg', 'icon.png', 'logo.png', 'README.md', 'settings.html', 'runtime', 'shared'].some(name => existsSync(join(directory, name)))) throw new Error('Legacy root assets/icon/README/runtime are not allowed')
+    // Declared Vite HTML inputs may live under assets/. Static media still has one
+    // canonical source in public/assets; this does not restore legacy asset roots.
+    if (existsSync(join(directory, 'assets'))) {
+      const entries = new Set(pluginHtmlEntries(manifest))
+      const inspectInput = path => {
+        const stat = lstatSync(join(directory, path))
+        if (stat.isSymbolicLink()) throw new Error(`Symlink forbidden: ${path}`)
+        if (stat.isDirectory() && [...entries].some(entry => entry.startsWith(`${path}/`))) {
+          for (const name of readdirSync(join(directory, path))) inspectInput(`${path}/${name}`)
+        } else if (!stat.isFile() || !entries.has(path)) throw new Error(`Undeclared root asset: ${path}`)
+      }
+      inspectInput('assets')
+    }
     const publicRoot = join(directory, 'public')
     if (readdirSync(publicRoot).some(name => name !== 'assets')) throw new Error('public may only contain assets/')
     if (readdirSync(join(publicRoot, 'assets')).some(name => !['market', 'vendor'].includes(name))) throw new Error('public/assets may only contain market/ and vendor/')

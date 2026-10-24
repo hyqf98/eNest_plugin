@@ -1,12 +1,14 @@
 /**
  * 番茄钟主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
  * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
- * 计时核心走宿主 api.focusTimer（后台计时 / 系统通知语义不变），WebAudio 提示音复用；
+ * 番茄阶段与历史归本插件，宿主只执行通用 deadlineTasks；WebAudio 提示音复用；
  * 快照渲染（render/renderJournal）等价迁移为派生渲染 + latest-ref 桥接。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPomodoroController } from '../timer/pomodoro.js'
 
 const api = window.enest || window.zapi
+const timer = createPomodoroController(api)
 const phaseLabels = { focus: '专注', break: '短休息', longBreak: '长休息' }
 const day = (ts) => new Date(ts).toLocaleDateString()
 const RING = 339.292
@@ -14,6 +16,7 @@ const RING = 339.292
 export function App() {
   const kitRef = useRef(null)
   const [snapshot, setSnapshot] = useState(null)
+  const [now, setNow] = useState(Date.now)
   const [task, setTask] = useState('')
   const [focusMin, setFocusMin] = useState('25')
   const [breakMin, setBreakMin] = useState('5')
@@ -70,13 +73,13 @@ export function App() {
 
   // —— 宿主调用（等价原 call()）——
   const call = useCallback(async (method, ...args) => {
-    if (!api?.focusTimer?.[method]) {
+    if (!api?.deadlineTasks || !timer[method]) {
       kitRef.current.toast('当前壳版本不支持后台计时，请更新 eNest', 'error')
       return
     }
     setBusy(true)
     try {
-      setSnapshot(await api.focusTimer[method](...args))
+      setSnapshot(await timer[method](...args))
     } catch (e) {
       kitRef.current.toast(e.message, 'error')
     } finally {
@@ -219,7 +222,7 @@ export function App() {
         }
       }
     })
-    const offChange = api?.focusTimer?.onChange?.((value) => setSnapshot(value))
+    const offChange = timer.onChange(setSnapshot, error => kit.toast(error.message, 'error'))
     const offKey = (() => {
       const onKeyDown = (e) => {
         if (e.code === 'Space' && !e.isComposing && !e.target.closest('input,textarea,select,button,dialog')) {
@@ -233,8 +236,8 @@ export function App() {
     const initialized = (async () => {
       await kit.ready
       try {
-        if (!api?.focusTimer) throw Error('请更新 eNest 以使用后台番茄计时')
-        setSnapshot(await api.focusTimer.get())
+        if (!api?.deadlineTasks) throw Error('请更新 eNest 以使用后台番茄计时')
+        setSnapshot(await timer.get())
         const legacyData = await kit.load('pomo_stats_v1', null)
         setLegacy(legacyData)
         if (legacyData && !(await kit.load('pomo_stats_v1_backup', null))) await kit.save('pomo_stats_v1_backup', legacyData)
@@ -250,7 +253,7 @@ export function App() {
       const text = typeof payload === 'string' ? payload : payload?.type === 'text' ? payload.text : ''
       if (typeof text === 'string' && text) setTask(text.slice(0, 500))
     })
-    const offClose = api?.onBeforeClose?.(() => initialized)
+    const offClose = api?.onBeforeClose?.(async () => { await initialized; await timer.flush() })
     return () => {
       offChange?.()
       offKey()
@@ -264,6 +267,21 @@ export function App() {
   const s = snapshot?.state
   const records = snapshot?.records || []
   const opts = s?.options || {}
+
+  // Only the visible UI ticks. Hidden/closed renderers do not own the persistent deadline.
+  useEffect(() => {
+    if (s?.status !== 'running') return
+    let timeout
+    const update = () => {
+      clearTimeout(timeout)
+      if (document.hidden) return
+      setNow(Date.now())
+      timeout = setTimeout(update, 1000 - Date.now() % 1000)
+    }
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => { clearTimeout(timeout); document.removeEventListener('visibilitychange', update) }
+  }, [s?.status, s?.deadline])
 
   // 阶段完成提示音（等价原 render 中 phaseKey 比对）。
   // 两个 effect 必须位于下方 !s 提前 return 之前：否则快照就绪前后 hooks 数量不一致（React #310）
@@ -364,7 +382,7 @@ export function App() {
   }
   const ms = s.status === 'idle'
     ? (Number(focusMin) || 25) * 60000
-    : s.remainingMs
+    : s.status === 'running' && s.deadline !== null ? Math.max(0, s.deadline - now) : s.remainingMs
   const seconds = Math.ceil(ms / 1000)
   const timeText = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0')
   const statusText = s.status === 'idle' ? '准备开始' : s.status === 'running' ? phaseLabels[s.phase] + '进行中' : '已暂停 · ' + phaseLabels[s.phase]

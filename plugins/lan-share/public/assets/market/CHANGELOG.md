@@ -2,6 +2,13 @@
 
 > 功能参考 [ZTools-plugins/lan-share](https://github.com/ZToolsCenter/ZTools-plugins)（MIT, ZToolsCenter）；二维码生成内置 [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 1.4.4（MIT, Kazuhiko Arase，拷贝自本仓库 com.github.eNest.qrcode 插件 vendor 目录）
 
+## 1.2.0
+
+- 分享服务、取件码、地址枚举、Range 与过期/日志策略迁入插件本机后端，壳不再携带局域网传件业务。
+- 改用通用 `backend.call` / `backend.event` 和受限文件块读取能力；需要 eNest 0.2.2 及独立 `backend.node` 授权。
+- 每个传输按 64 KiB 分块并应用背压；停止、到期、运行代次关闭会中止下载、关闭 socket 与文件句柄。
+- 修正空文件、过长后缀 Range、HEAD/失败传输计数，实时刷新连接/下载数；历史记录与界面日志有界保留。
+
 ## 1.0.0
 
 - 初始版本

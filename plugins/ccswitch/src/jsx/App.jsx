@@ -1209,7 +1209,7 @@ export function App() {
                     const ok = await confirmDialog({
                       title: '回退切换',
                       text: `将「${APP_MAP[entry.app]?.name || entry.app}」恢复到「${entry.prevName || '切换前状态'}」（${entry.prevBaseUrl ? host(entry.prevBaseUrl) : '官方默认'}）。`,
-                      hint: '回退前宿主自动快照当前状态，可在「备份」页再恢复。',
+                      hint: '回退前插件后端自动快照当前状态，可在「备份」页再恢复。',
                       okText: '回退',
                     })
                     if (!ok) return
@@ -1811,7 +1811,7 @@ export function App() {
                 </div>
                 <div className="field-row">
                   <div className="lbl">备份保留策略</div>
-                  <span className="field-hint">宿主自动快照 · 每应用保留最近 20 份</span>
+                  <span className="field-hint">插件后端自动快照 · 每应用保留最近 20 份</span>
                 </div>
                 <div className="field-row">
                   <div className="lbl">切换历史</div>
@@ -2035,7 +2035,7 @@ export function App() {
               ))}
               {modalDiff.multi > 1 && <div className="field-hint">{`通用供应商：将同步写入 ${modalDiff.multi} 个应用`}</div>}
             </div>
-            <div className="field-hint">写入前宿主自动快照当前配置（可在「备份」页恢复），本次切换会记入「切换历史」</div>
+            <div className="field-hint">写入前插件后端自动快照当前配置（可在「备份」页恢复），本次切换会记入「切换历史」</div>
           </div>
           <div className="modal-foot">
             <div className="spacer"></div>

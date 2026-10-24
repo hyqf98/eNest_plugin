@@ -22,13 +22,14 @@ export async function validateDistribution(directory, { release = true, requireR
     for (const entry of await readdir(path, { withFileTypes: true })) {
       const relative = prefix + entry.name, absolute = join(path, entry.name)
       if ((await lstat(absolute)).isSymbolicLink()) throw new Error(`Symlink forbidden: ${relative}`)
-      if (relative === 'runtime' && manifest.id === DSH_ID) continue
+      const runtime = !!manifest.backend && (relative === 'runtime' || relative.startsWith('runtime/'))
       const backend = !!manifest.backend && (relative === 'backend' || relative.startsWith('backend/'))
       const declaredHome = homeEntries.has(relative) || (entry.isDirectory() && [...homeEntries].some(home => home.startsWith(`${relative}/`)))
       const publicAsset = relative === 'assets' || relative.startsWith('assets/')
-      if ((!backend && relative.split('/').some(part => ['src', 'tests', 'node_modules'].includes(part))) || !(backend ? validBackendPath(relative) : validPath(relative)) || (!backend && !declaredHome && !publicAsset && !['plugin.json', 'index.html'].includes(relative)) || /\.(map|tsx?|vue)$/i.test(relative)) throw new Error(`File outside distribution contract: ${relative}`)
+      if (!runtime && ((!backend && relative.split('/').some(part => ['src', 'tests', 'node_modules'].includes(part))) || !(backend ? validBackendPath(relative) : validPath(relative)) || (!backend && !declaredHome && !publicAsset && !['plugin.json', 'index.html'].includes(relative)) || /\.(map|tsx?|vue)$/i.test(relative))) throw new Error(`File outside distribution contract: ${relative}`)
       if (entry.isDirectory()) await walk(absolute, relative + '/')
-      else files.push(relative)
+      else if (entry.isFile()) files.push(relative)
+      else throw new Error(`Non-regular distribution file: ${relative}`)
     }
   }
   await walk(directory)
@@ -42,7 +43,7 @@ export async function validateDistribution(directory, { release = true, requireR
     try { localFile(directory, target) } catch { throw new Error(`${from}: missing local resource ${value}`) }
   }
   for (const file of files) {
-    if (file.startsWith('backend/')) continue // Node imports are private; only browser resources use URL reference validation.
+    if (file.startsWith('backend/') || file.startsWith('runtime/')) continue // Private Node code is not a browser asset graph.
     const extension = extname(file)
     if (!['.html', '.js', '.css'].includes(extension)) continue
     const source = await readFile(join(directory, file), 'utf8')

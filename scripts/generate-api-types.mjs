@@ -18,7 +18,7 @@ for(const file of files){
  for(const node of source.statements) if(ts.isInterfaceDeclaration(node)||ts.isTypeAliasDeclaration(node)||ts.isEnumDeclaration(node)) if(!declarations.has(node.name.text)) declarations.set(node.name.text,{node,source})
 }
 const printer=ts.createPrinter({newLine:ts.NewLineKind.LineFeed})
-const queue=['EnestPluginApi','EnestHomeApi','EnestWorkspaceApi','EnestQuickApi'],seen=new Set(queue),blocks=[]
+const queue=['EnestPluginApi','EnestHomeApi','EnestWorkspaceApi','EnestQuickApi','ThemeChromeApi','EnestSettingsApi','PluginBackgroundBridge','AuxiliaryPageApi'],seen=new Set(queue),blocks=[]
 while(queue.length){
  const name=queue.shift();const entry=declarations.get(name)
  if(!entry)throw new Error(`Missing public API type ${name}`)
@@ -28,10 +28,10 @@ while(queue.length){
  if(!/\bexport\s+(?:interface|type|enum)\b/.test(code))code=code.replace(/\b(interface|type|enum)\s/,'export $1 ')
  blocks.push(code.replace(/[\t ]+$/gm,''))
 }
-const text=`/** Generated from the eNest preload and shared API types. Do not edit. */\n${blocks.join('\n\n')}\n\ndeclare global { interface Window { enest: EnestPluginApi; /** @deprecated Use enest. */ zapi: EnestPluginApi; /** Dedicated workspace surfaces only. */ enestWorkspace?: EnestWorkspaceApi; /** Compatibility alias for enestWorkspace. */ enestHome?: EnestHomeApi; /** Isolated Quick theme pages only. */ enestQuick?: EnestQuickApi } }\nexport {}\n`
+const text=`/** Generated from the eNest preload and shared API types. Do not edit. */\n${blocks.join('\n\n')}\n\ndeclare global { interface Window { enest: EnestPluginApi; /** @deprecated Use enest. */ zapi: EnestPluginApi; /** Dedicated workspace surfaces only. */ enestWorkspace?: EnestWorkspaceApi; /** Compatibility alias for enestWorkspace. */ enestHome?: EnestHomeApi; /** Isolated Quick theme pages only. */ enestQuick?: EnestQuickApi; /** Isolated theme chrome renderers only. */ enestChrome?: ThemeChromeApi; /** Isolated settings pages only. */ enestSettings?: EnestSettingsApi; /** Sandboxed background pages only. */ enestBackground?: PluginBackgroundBridge; /** Auxiliary pages only. */ enestAux?: AuxiliaryPageApi } }\nexport {}\n`
 const doc=`# TypeScript 类型定义\n\n本页由插件仓库的 \`scripts/generate-api-types.mjs\` 从壳 preload 与共享类型生成。\n\n安装插件仓库的 \`@enest/plugin-sdk\`，在项目中加入 \`import type {} from '@enest/plugin-sdk'\` 即可获得 \`window.enest\` 类型。\n\n生成：\`npm run api:generate -- --host-root /path/to/eNest\`；只读校验：\`npm run api:check -- --host-root /path/to/eNest\`。\n\n类型不授予权限；系统能力仍由主进程验证 manifest、运行实例与用户授权。\n\n\`\`\`ts\n${text}\`\`\`\n`
 let stale=false
-for(const [file,content]of [[join(repository,'packages/plugin-sdk/index.d.ts'),text],[join(host,'docs/site/plugin/api-types.md'),doc]]){
+for(const [file,content]of [[join(repository,'packages/plugin-sdk/index.d.ts'),text],[join(host,'docs/site/plugin/api-types.md'),doc],[join(repository,'docs/developer/api-types.md'),doc]]){
  if(check){if(!fs.existsSync(file)||fs.readFileSync(file,'utf8')!==content){console.error(`Out of date: ${file}`);stale=true}}
  else{fs.mkdirSync(dirname(file),{recursive:true});fs.writeFileSync(file,content)}
 }

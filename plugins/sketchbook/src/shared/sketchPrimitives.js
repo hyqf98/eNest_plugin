@@ -58,7 +58,7 @@ export function doodle(kind = 'star', size = 18) {
   return svg
 }
 
-/** 全视口纸面由市场三路由与样式台复用，必须位于滚动内容外层。 */
+/** 全视口纸面由市场目录、详情与样式台复用，必须位于滚动内容外层。 */
 export function createSketchPaper() {
   const paper = document.createElement('div')
   paper.className = 'sk-paper'

@@ -9,11 +9,13 @@ import { repositoryRoot as root, pluginIds, readManifest, pluginHtmlEntries, DSH
 import { validateSource } from './validate-manifests.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 import { buildBackend } from './build-backend.mjs'
+import { distributionDirectory, normalizeTarget, writeDistributionTarget } from './distribution-target.mjs'
 
 /** Business index plus manifest-declared Home entries use the same portable Vite build. */
-export async function buildPlugin(id, { release = true, runtime = DSH_BUNDLED_RUNTIME, repositoryRoot = root } = {}) {
+export async function buildPlugin(id, { release = true, runtime = DSH_BUNDLED_RUNTIME, repositoryRoot = root, target = 'universal' } = {}) {
+  normalizeTarget(target)
   if (!pluginIds(repositoryRoot).includes(id)) throw new Error(`Unknown plugin: ${id}`)
-  const source = join(repositoryRoot, 'plugins', id), destination = join(source, 'dist')
+  const source = join(repositoryRoot, 'plugins', id), destination = distributionDirectory(source, target, repositoryRoot)
   const errors = validateSource(source, { release })
   if (errors.length) throw new Error(errors.join('\n'))
   const manifest = readManifest(source)
@@ -32,9 +34,9 @@ export async function buildPlugin(id, { release = true, runtime = DSH_BUNDLED_RU
   await build(config)
   delete manifest.development
   await writeFile(join(destination, 'plugin.json'), JSON.stringify(manifest, null, 2) + '\n')
-  await buildBackend(source, destination, { root: repositoryRoot })
+  await buildBackend(source, destination, { root: repositoryRoot, target })
   if (runtime && id === DSH_DIR) {
-    // Existing DSH attachment contract is the sole runtime exception. Cache lives only in dist.
+    // DSH owns this optional private backend attachment; the installer rule is generic.
     const cache = join(repositoryRoot, 'dist/runtime-cache', `dsh-${DSH_VERSION}-${process.platform}-${process.arch}`)
     if (!existsSync(join(cache, 'node_modules/@deepseek-ai/dsh/package.json'))) {
       await mkdir(cache, { recursive: true })
@@ -44,12 +46,15 @@ export async function buildPlugin(id, { release = true, runtime = DSH_BUNDLED_RU
     }
     await cp(cache, join(destination, 'runtime'), { recursive: true, dereference: true })
   }
+  await writeDistributionTarget(destination, target)
   await validateDistribution(destination, { release, requireRuntime: runtime })
   return destination
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2).filter(value => value !== '--runtime')
+  const input = process.argv.slice(2)
+  const target = normalizeTarget(input.find(value => value.startsWith('--target='))?.slice('--target='.length))
+  const args = input.filter(value => value !== '--runtime' && !value.startsWith('--target='))
   const runtime = process.argv.includes('--runtime') || DSH_BUNDLED_RUNTIME
-  for (const id of args.length ? args : pluginIds()) console.log(`Built ${id}: ${await buildPlugin(id, { runtime })}`)
+  for (const id of args.length ? args : pluginIds()) console.log(`Built ${id}: ${await buildPlugin(id, { runtime, target })}`)
 }

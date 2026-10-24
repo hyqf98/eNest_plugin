@@ -1,14 +1,14 @@
 {
   "id": "com.github.eNest.translate",
   "name": "翻译",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "多引擎翻译、原文译文对照即时翻译（防抖）、语言快捷切换、历史与收藏、双语复制导出。",
   "author": "Lingua",
   "main": "index.html",
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.2.3"
   },
   "permissions": [
     "net.fetch",
@@ -102,7 +102,8 @@
                 "label": "俄语",
                 "value": "ru"
               }
-            ]
+            ],
+            "shareWithThemes": true
           },
           {
             "key": "tgtLang",
@@ -142,7 +143,8 @@
                 "label": "俄语",
                 "value": "ru"
               }
-            ]
+            ],
+            "shareWithThemes": true
           },
           {
             "key": "engine",
@@ -177,7 +179,8 @@
             "default": 18,
             "min": 14,
             "max": 24,
-            "step": 1
+            "step": 1,
+            "shareWithThemes": true
           }
         ]
       }

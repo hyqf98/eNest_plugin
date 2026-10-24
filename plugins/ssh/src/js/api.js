@@ -1,10 +1,12 @@
+import { createSshHost } from '@enest/ssh-backend/client'
+
 /**
  * com.github.eNest.ssh — 宿主 API 安全封装
  * 方法名对齐 docs/compose/spec/ssh-db-plugins.md（SSH-A–J / 2.0 / 权限表）
  * 宿主可能尚未实现：所有调用 try/catch，错误原样抛出供 UI 展示。
  */
 ;(function (global) {
-  const api = global.enest || global.zapi || null
+  const api = createSshHost(global.enest || global.zapi || null)
 
   function toast(message, type) {
     try {

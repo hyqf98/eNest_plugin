@@ -3,9 +3,10 @@
  * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
  * 文本变换纯逻辑复用 textkit.js（未改动）。
  */
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
 import * as tk from '../js/textkit.js'
+import { createClipboardApi } from '../js/history-api.mjs'
 
 const SNIPPET_KEY = 'clipboard.snippets.v1'
 const SNIPPET_MAX = 20
@@ -22,7 +23,7 @@ const XFMT_BUTTONS = ['json', 'json-min', 'unique', 'sort', 'strip', 'upper', 'l
 const XFMT_LABELS = { json: '格式化 JSON', 'json-min': '压缩 JSON', unique: '行去重', sort: '行排序', strip: '去格式化', upper: '全部大写', lower: '全部小写', camel: 'camelCase', snake: 'snake_case', kebab: 'kebab-case' }
 
 export function App() {
-  const api = window.enest || window.zapi
+  const api = useMemo(() => createClipboardApi(window.enest || window.zapi), [])
   const kitRef = useRef(null)
   const listRef = useRef(null)
   const detailRef = useRef(null)
@@ -458,10 +459,11 @@ export function App() {
     })
     kitRef.current = kit
     setMode(kit.mode)
-    kit.onSettings(() => {
+    kit.onSettings((_settings, changedKey) => {
       setDensity(kit.settings.density)
       setMonitoring(kit.settings.monitoring)
       setCountText(`${stateRef.current.total} 条记录${kit.settings.monitoring ? '' : ' · 已暂停监控'}`)
+      if (['historyLimit', 'retentionDays'].includes(changedKey)) void run(() => api.clipboard.history.preferencesChanged())
     })
     kit.onMode(() => setMode(kit.mode))
 
@@ -475,6 +477,17 @@ export function App() {
     api?.onEnter?.(async (event) => {
       await initialized.current
       if (event.code === 'manage') openManager()
+      if (typeof event.payload?.historyId === 'string') {
+        const entry = await api.clipboard.history.get(event.payload.historyId)
+        if (entry) {
+          setQuery(''); setType('all'); setCollection('')
+          setItems(previous => [entry, ...previous.filter(value => value.id !== entry.id)])
+          setCurrent(entry.id)
+          if (searchRef.current) searchRef.current.value = ''
+          kit.setQuery('')
+          return
+        }
+      }
       void refreshRef.current()
       void run(capabilities)
     })
@@ -515,6 +528,10 @@ export function App() {
     })
     return () => {
       alive = false
+      release?.()
+      observer.current?.disconnect()
+      clearTimeout(queryTimer.current)
+      images.current.clear()
       document.removeEventListener('keydown', keyHandler)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -831,7 +848,7 @@ export function App() {
                       <div>
                         <b>{esc(file.name)}</b>
                         <small>{esc(file.path)}</small>
-                        {file.exists === false ? <small>文件已移动或删除</small> : ''}
+                        {file.exists === false ? <small>文件已移动或删除</small> : file.exists === null ? <small>尚未授权检查此路径；定位时将确认目标</small> : ''}
                       </div>
                       <div className="pk-row-actions file-actions">
                         <button

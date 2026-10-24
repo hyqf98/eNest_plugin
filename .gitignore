@@ -7,3 +7,4 @@ playwright-report/
 test-results-*/
 logs/
 *.log
+/plugins/*/public/assets/vendor/native-surfaces/

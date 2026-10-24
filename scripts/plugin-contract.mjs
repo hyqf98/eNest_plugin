@@ -37,8 +37,12 @@ export function localFile(root, path) {
 }
 export function readManifest(directory) { return JSON.parse(readFileSync(join(directory, 'plugin.json'), 'utf8')) }
 export function pluginHtmlEntries(manifest) {
-  return [...new Set(['index.html', ...(manifest.contributes?.homePages ?? []).map(home => home.entry),
-    ...(manifest.contributes?.themePacks ?? []).flatMap(pack => pack.schemaVersion === 2 && pack.quick ? [pack.quick.entry] : [])])]
+  return [...new Set(['index.html', ...(manifest.background ? [manifest.background.entry] : []), ...(manifest.contributes?.homePages ?? []).map(home => home.entry),
+    ...(manifest.contributes?.themePacks ?? []).flatMap(pack => pack.schemaVersion === 2 ? [
+      ...(pack.quick ? [pack.quick.entry] : []),
+      ...(pack.settingsPage ? [pack.settingsPage.entry] : []),
+      ...['classic', 'rail', 'dock'].flatMap(part => pack.chrome?.[part] ? [pack.chrome[part].entry] : [])
+    ] : [])])]
 }
 export function assertMediaPaths(manifest) {
   if (manifest.main !== 'index.html') throw new Error('main must be index.html')

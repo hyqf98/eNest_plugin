@@ -1,16 +1,16 @@
 {
   "name": "database",
-  "version": "1.3.0",
+  "version": "1.4.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5183 --strictPort",
-    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.database",
-    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.database",
+    "build": "node ../../scripts/build-plugin.mjs database",
+    "pack": "node ../../scripts/pack-plugin.mjs database",
     "typecheck:backend": "tsc -p backend/tsconfig.json",
     "test:backend": "node --test backend/*.test.mjs",
     "test:backend:integration": "tsx --tsconfig backend/tsconfig.json --test backend/*.test.ts",
-    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.database"
+    "prod": "node ../../scripts/build-plugin.mjs database"
   },
   "dependencies": {
     "@clickhouse/client": "^1.24.1",

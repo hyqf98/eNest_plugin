@@ -34,12 +34,12 @@
 `script-src 'self'` 的 CSP（见 `src/main/home/homeSessionPolicy.ts`：loopback 例外只对内置首页开放，
 `BUILT_IN_HOME_SOURCE` 之外一律走 `enest-home://surface/`）。因此：
 
-- 工作区与样式台必须是**浏览器可直接执行的纯 ESM**，不能有 JSX / TS / 打包语法；
+- 工作区必须是**浏览器可直接执行的纯 ESM**，不能有 JSX / TS / 打包语法；
 - CSS 用 `<link>` 引入，不能写 `import './x.css'`（那是 Vite 语法，原生浏览器会按 MIME 拒绝）；
 - DOM 用 `src/shared/dom.js` 的 `h()` 构造，避免模板字符串注入与转义问题；
-- 改完 CSS/JS 直接刷新页面即可看到效果，不需要构建。
+- 工作区改完 CSS/JS 直接刷新页面即可看到效果，不需要构建。
 
-`vite.config.js` 只服务本地浏览器预览；`build-plugin` 仍会打包，但源码本身就是产物形态。
+样式台和浏览器演示从 `plugin.json` 动态导入本包主题声明，由 Vite 转成 `assets/app/` 下的模块；不维护第二份主题参数，也不在运行时请求包根元数据。正式安装请使用 `build-plugin` 产物，源码调试请使用本插件的 Vite 服务。原生源码直读的样式台没有 Vite JSON 转译，不能读取宿主刻意隐藏的根 `plugin.json`，因此不作为样式台的可用预览入口；真实工作区只消费宿主快照，不导入这条预览路径，仍支持零构建加载。
 
 ## 手绘实现要点
 

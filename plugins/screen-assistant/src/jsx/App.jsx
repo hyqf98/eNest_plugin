@@ -2,10 +2,11 @@
  * 屏幕助手主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
  * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
  * 纯几何/编辑历史复用 editor-core.js（未改动）；canvas 绘制与标注管线逐行等价；
- * screen / record / pin / storage blobs API 调用全部复用。
+ * 截图选区、录制与贴图走插件自有适配层，宿主只保留通用原生能力。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { bindFileInput } from '@enest/plugin-kit/file-inputs'
+import { createNativeSurfaces } from '@enest/native-surfaces'
 import { MoreMenu } from '../ui/index.jsx'
 import { selection, EditHistory, elapsed } from '../js/editor-core.js'
 
@@ -31,7 +32,7 @@ const TOOLS = [
 ]
 
 export function App() {
-  const api = window.enest || window.zapi
+  const api = createNativeSurfaces(window.enest || window.zapi)
   const kitRef = useRef(null)
   const edits = useRef(new EditHistory(40))
   const imageCanvasRef = useRef(null)
@@ -80,6 +81,7 @@ export function App() {
   const recStartedAt = useRef(0)
   const recTimerId = useRef(null)
   const recBusyRef = useRef(false)
+  const recStopRef = useRef(null)
   const busyRef = useRef(false)
   const hidden = useRef(false)
   const closePinsArmedRef = useRef(false)
@@ -539,7 +541,13 @@ export function App() {
       renderRecordingState()
     }
   }
-  async function stopRecording() {
+  function stopRecording() {
+    if (recStopRef.current) return recStopRef.current
+    const pending = finishRecording()
+    recStopRef.current = pending
+    return pending.finally(() => { if (recStopRef.current === pending) recStopRef.current = null })
+  }
+  async function finishRecording() {
     if (!recSession.current || recBusyRef.current) return
     recBusyRef.current = true
     setRecBusy(true)
@@ -655,9 +663,15 @@ export function App() {
       }
       enterCode(code)
     })
-    api?.onBeforeClose?.(() => {
+    api?.onBeforeClose?.(async () => {
       clearInterval(recTimerId.current)
-      return saveQueue.current
+      let failure
+      if (recStopRef.current || (recSession.current && !recBusyRef.current)) {
+        try { await (recStopRef.current || stopRecording()) }
+        catch (error) { failure = error; console.warn('Recording did not finish within close grace', error) }
+      }
+      await saveQueue.current
+      if (failure) throw failure
     })
     api?.onDestroy?.(() => {
       clearInterval(recTimerId.current)

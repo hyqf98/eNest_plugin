@@ -7,27 +7,21 @@ import { listTrustedHosts, removeTrustedHost } from './sshTrust'
 import { importSshConfig } from './sshConfig'
 import type { SshWorkbenchRequest } from './contracts'
 
-export function sshWorkbenchPermission(action: string): 'ssh.exec' | 'ssh.sftp' | 'ssh.session' | undefined {
-  if (['files.stat','files.read','files.write','files.renameBatch','files.copy','files.move','files.prepareDrag','transfer.upload','transfer.download','transfer.remoteCopy','transfer.list','transfer.cancel','transfer.retry'].includes(action)) return 'ssh.sftp'
-  if (['auth.respond','config.import','trust.list','trust.remove','tunnel.list','tunnel.open','tunnel.close','shell.integrate'].includes(action)) return 'ssh.session'
-  if (['system.snapshot','system.processes','system.ports','system.services','system.docker','process.signal','service.action','docker.action'].includes(action)) return 'ssh.exec'
-  return undefined
-}
-
 interface Tunnel { id: string; pluginId: string; sessionId: string; direction: 'local' | 'remote'; localPort: number; remoteHost: string; remotePort: number; close: () => void }
 const tunnels = new Map<string, Tunnel>()
 function publicTunnel(t: Tunnel) { const { close: _close, pluginId: _pluginId, ...value } = t; return value }
 async function openTunnel(pluginId: string, request: SshWorkbenchRequest) {
   const sessionId = String(request.sessionId || ''), session = requireOwnedSshSession(pluginId, sessionId)
   const assertCurrent = (): void => { if (requireOwnedSshSession(pluginId, sessionId) !== session || session.status !== 'connected') throw new Error('SSH 会话已关闭') }
-  const localPort = Number(request.localPort), remotePort = Number(request.remotePort)
+  const direction = request.direction === 'remote' ? 'remote' : 'local'
+  let localPort = Number(request.localPort)
+  const remotePort = Number(request.remotePort)
   const remoteHost = String(request.remoteHost || '127.0.0.1')
-  if (!Number.isInteger(localPort) || localPort < 1 || localPort > 65535 || !Number.isInteger(remotePort) || remotePort < 1 || remotePort > 65535 || !remoteHost || /[\s\0]/.test(remoteHost)) throw new Error('隧道地址或端口无效')
+  if (!Number.isInteger(localPort) || localPort < (direction === 'local' ? 0 : 1) || localPort > 65535 || !Number.isInteger(remotePort) || remotePort < 1 || remotePort > 65535 || !remoteHost || /[\s\0]/.test(remoteHost)) throw new Error('隧道地址或端口无效')
   const sockets = new Set<Socket>(), id = randomUUID()
   let server: Server | undefined
   let closeExtra = (): void => {}
   const close = (): void => { server?.close(); closeExtra(); for (const socket of sockets) socket.destroy(); tunnels.delete(id); session.cleanup?.delete(close) }
-  const direction = request.direction === 'remote' ? 'remote' : 'local'
   if (direction === 'local') {
     server = createServer(socket => {
       sockets.add(socket); socket.on('error', () => {}).on('close', () => sockets.delete(socket))
@@ -37,8 +31,13 @@ async function openTunnel(pluginId: string, request: SshWorkbenchRequest) {
         channel.on('error', () => socket.destroy()); socket.pipe(channel).pipe(socket)
       })
     })
-    await new Promise<void>((resolve, reject) => { server!.once('error', reject); server!.listen(localPort, '127.0.0.1', () => { server!.removeListener('error', reject); server!.on('error', () => close()); resolve() }) })
-    try { assertCurrent() } catch (error) { close(); throw error }
+    try {
+      await new Promise<void>((resolve, reject) => { server!.once('error', reject); server!.listen(localPort, '127.0.0.1', () => { server!.removeListener('error', reject); server!.on('error', () => close()); resolve() }) })
+      assertCurrent()
+      const address = server.address()
+      if (!address || typeof address === 'string' || !address.port) throw new Error('SSH 隧道未绑定本地端口')
+      localPort = address.port
+    } catch (error) { close(); throw error }
   } else {
     // Reverse tunnels bind only to remote loopback; they never expose a public port.
     await new Promise<void>((resolve, reject) => session.client.forwardIn('127.0.0.1', remotePort, error => error ? reject(error) : resolve()))

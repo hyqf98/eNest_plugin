@@ -4,7 +4,7 @@ import { decodeTerminalData } from './terminalData.js'
 /**
  * com.github.eNest.ssh — minimalist UI shell
  * Storage keys unchanged: ssh.profiles/groups/history/snippets/ui
- * API: enest.ssh.* · vault secretRef · settings.register followShellTheme
+ * API: plugin-private SSH adapter · vault secretRef · settings.register followShellTheme
  */
 ;(function () {
   const api = window.SshApi
@@ -995,6 +995,7 @@ import { decodeTerminalData } from './terminalData.js'
         {
           key: 'followShellTheme',
           type: 'switch',
+          shareWithThemes: true,
           label: '跟随壳子主题',
           default: true,
         },

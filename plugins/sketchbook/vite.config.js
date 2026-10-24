@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite'
 
 /**
- * 只用于本地调试的 dev server：插件本身是零构建的纯 ESM + CSS，
- * 主题工作区页面在宿主 dev 源码态是磁盘直读的，不走这里。
- * 这里只是让浏览器能直接打开 index.html / homes/*.html 看样式。
+ * 工作区保留原生源码直读的纯 ESM + CSS；样式台的 manifest JSON import
+ * 需要 Vite 转译。正式包复用本配置构建，本地可直接预览 index.html / homes/*.html。
  */
 export default defineConfig({
   root: '.',

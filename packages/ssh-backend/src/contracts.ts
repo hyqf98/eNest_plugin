@@ -1,4 +1,4 @@
-/** Plugin-owned SSH backend contracts; wire shapes remain compatible with enest.ssh. */
+/** Plugin-owned SSH domain contracts transported through the generic backend API. */
 
 
 export type SshAuthType = 'password' | 'key' | 'agent' | 'keyboard-interactive'

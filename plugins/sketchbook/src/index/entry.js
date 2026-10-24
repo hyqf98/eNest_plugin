@@ -45,7 +45,7 @@ if (api?.theme?.getAppearance) {
   void api.theme.getAppearance().then(accept).catch(() => undefined)
 }
 
-void loadPreviewTheme(new URL('./plugin.json', document.baseURI)).then(theme => {
+void loadPreviewTheme().then(theme => {
   if (disposed) return
   pack = theme
   renderPreview()

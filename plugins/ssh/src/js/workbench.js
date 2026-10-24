@@ -1,10 +1,11 @@
 import { CommandRegistry, createDialog, bindDockResize, loadMonaco, normalizeShortcut, escapeHtml as esc } from '@enest/plugin-kit/workbench'
+import { createSshHost } from '@enest/ssh-backend/client'
 import { RemoteFiles } from './files.js'
 import { createWorkspaceNavigation } from './workspaceNavigation.js'
 import { renderCompletionSettings } from './completionSettings.js'
 import { isReservedSshShortcut, displaySshShortcut } from './shortcutPolicy.js'
 
-const host = window.enest || window.zapi
+const host = createSshHost(window.enest || window.zapi)
 const mac = /Mac/.test(navigator.platform)
 const formatBytes = n => n == null ? '—' : n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1024).toFixed(1)} KB`
 const percentage = n => Number.isFinite(n) ? n.toFixed(1) + '%' : '采样中'

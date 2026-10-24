@@ -16,16 +16,18 @@ export interface MwEmqxMgmt {
   apiUrl?: string
   apiKey?: string
   apiSecretRef?: string
+  /** Resolved only inside the plugin backend; never returned to the renderer. */
+  ephemeralSecret?: string
 }
 
 export interface MwConnectionConfig {
   kind: MwKind
   name?: string
   env?: 'dev' | 'test' | 'staging' | 'prod'
-  /** 连接级只读：宿主侧拦截全部变更类 action */
+  /** 连接级只读：插件后端拦截全部变更类 action */
   readOnly?: boolean
   note?: string
-  /** 凭据：vault 引用（主进程解析为 ephemeralSecret 后传入 UtilityProcess） */
+  /** 凭据：插件后端通过所属 runtime 的 secret.resolve 获取，仅在后端保留。 */
   secretRef?: string
   ephemeralSecret?: string
   // —— kafka ——
@@ -225,7 +227,7 @@ export interface MwBindingCreateInput {
   arguments?: Record<string, unknown>
 }
 
-// —— workbench action 契约（权限映射见 main/middleware/workbench.ts）——
+// —— workbench action 契约（权限映射见插件 backend/workbench.ts）——
 
 export type MwWorkbenchRequest =
   // mw.connect
@@ -250,7 +252,7 @@ export type MwWorkbenchRequest =
   | { action: 'configs.describe'; input: { sessionKey: string; topic: string } }
   | { action: 'trace.message'; input: { sessionKey: string; key: string } }
   | { action: 'retained.list'; input: { sessionKey: string; search?: string } }
-  // mw.admin（连接级 readOnly 时宿主直接拒绝）
+  // mw.admin（连接级 readOnly 时插件后端直接拒绝）
   | { action: 'topic.create'; input: { sessionKey: string; topic: MwTopicCreateInput } }
   | { action: 'topic.update'; input: { sessionKey: string; name: string; attrs: Partial<MwTopicCreateInput> } }
   | { action: 'topic.delete'; input: { sessionKey: string; name: string } }
@@ -267,7 +269,7 @@ export type MwWorkbenchRequest =
   | { action: 'configs.alter'; input: { sessionKey: string; topic: string; configs: Record<string, string> } }
   | { action: 'retained.delete'; input: { sessionKey: string; topic: string } }
 
-/** 变更类 action 集合（连接 readOnly 时宿主拒绝；与权限映射保持同步） */
+/** 变更类 action 集合（连接 readOnly 时插件后端拒绝；与权限映射保持同步） */
 export const MW_MUTATING_ACTIONS: readonly string[] = [
   'topic.create', 'topic.update', 'topic.delete', 'topic.purge', 'partitions.grow',
   'exchange.create', 'exchange.delete', 'binding.create', 'binding.delete',

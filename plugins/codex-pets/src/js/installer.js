@@ -1,14 +1,43 @@
 /**
- * installer — Codex 宠物安装器（宿主 agent 资产通道）。
- * 流程：检测（agent.apps）→ 下载 .codex-pet.zip（netbin 流式）→ fflate 解压
+ * installer — Codex 宠物安装器（插件私有 Node 后端）。
+ * 流程：检测 → 下载 .codex-pet.zip（netbin 流式）→ fflate 解压
  * → 校验（pet.json 可解析 + atlas 尺寸与 spriteVersionNumber 匹配）→
- * agent.writeAssets 写入 ~/.codex/pets/<id>/（宿主原生确认 + 覆盖快照）。
+ * 分块传给插件后端，通用宿主原生确认后写入 ~/.codex/pets/<id>/ 并保存覆盖快照。
  * 纯校验函数（validatePetPackage / installTargets）供 tests/ 覆盖。
  */
 import { unzipSync } from 'fflate'
 import { downloadBinary, toBase64 } from './netbin.js'
 
 export const CODEX_APP = 'codex'
+
+async function backendCall(method, input) {
+  const api = (window.enest || window.zapi)?.backend
+  if (typeof api?.call !== 'function') throw new Error('请升级 eNest 至 0.2.2 并授权本机 Node 后端')
+  return api.call(method, input === undefined ? [] : [input])
+}
+
+export async function listInstalledAssets() {
+  return backendCall('assets.list', { app: CODEX_APP, path: 'pets' })
+}
+
+/** Each transport message stays below 4 MiB without lowering the 8 MiB file limit. */
+export async function writeAssetChunks(assets) {
+  if (assets.some(asset => !asset.bytes.length || asset.bytes.length > 8 * 1024 * 1024)) throw new Error('宠物单文件大小须为 1 字节至 8 MiB')
+  const { stageId, chunkBytes } = await backendCall('assets.stage', {
+    app: CODEX_APP, assets: assets.map(asset => ({ path: asset.path, bytes: asset.bytes.length }))
+  })
+  try {
+    if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1 || chunkBytes > 256 * 1024) throw new Error('后端分块协议不兼容')
+    for (const [index, asset] of assets.entries()) {
+      for (let offset = 0; offset < asset.bytes.length; offset += chunkBytes) {
+        await backendCall('assets.chunk', { stageId, index, offset, contentBase64: toBase64(asset.bytes.subarray(offset, offset + chunkBytes)) })
+      }
+    }
+    return await backendCall('assets.commit', { stageId })
+  } finally {
+    await backendCall('assets.discard', { stageId }).catch(() => {})
+  }
+}
 
 /** 解压并校验宠物包 → { id, manifestText, sheetBytes }；不合法抛错 */
 export function validatePetPackage(zipBytes, expectId) {
@@ -87,7 +116,7 @@ export function installTargets(petId) {
   ]
 }
 
-/** agent.writeAssets 载荷 */
+/** Legacy package-shape helper; installation now uses writeAssetChunks, not this transport. */
 export function writeAssetsPayload(pkg) {
   return {
     app: CODEX_APP,
@@ -101,17 +130,15 @@ export function writeAssetsPayload(pkg) {
 
 /** 检测本机 Codex（installed = ~/.codex/config.toml 存在） */
 export async function detectCodex() {
-  const enest = window.enest || window.zapi
-  const apps = await enest.agent.apps()
+  const apps = await backendCall('apps')
   const codex = apps.find(a => a.app === CODEX_APP)
-  if (!codex) throw new Error('宿主不支持 codex 应用白名单（请升级 eNest）')
+  if (!codex) throw new Error('插件后端不支持 Codex（请更新插件）')
   return { installed: Boolean(codex.installed), active: Boolean(codex.active), configPaths: codex.configPaths ?? [] }
 }
 
 /** 列出已安装宠物（pets/ 下的目录名与 mtime） */
 export async function listInstalled() {
-  const enest = window.enest || window.zapi
-  const res = await enest.agent.listAssets({ app: CODEX_APP, path: 'pets' })
+  const res = await listInstalledAssets()
   return (res?.entries ?? [])
     .filter(e => e.isDir)
     .map(e => ({ id: e.name, modifiedAt: e.modifiedAt }))
@@ -129,14 +156,15 @@ export async function installPet(pet, onStep = () => {}) {
   onStep('verify', '校验宠物包…')
   const pkg = validatePetPackage(zipBytes, pet.id)
   onStep('write', '写入 ~/.codex/pets（需确认）…')
-  const enest = window.enest || window.zapi
-  const result = await enest.agent.writeAssets(writeAssetsPayload(pkg))
+  const result = await writeAssetChunks([
+    { path: `pets/${pkg.id}/pet.json`, bytes: new TextEncoder().encode(pkg.manifestText) },
+    { path: `pets/${pkg.id}/spritesheet.webp`, bytes: pkg.sheetBytes }
+  ])
   onStep('done', null)
   return { ...result, petId: pkg.id }
 }
 
 /** 删除已安装宠物（宿主原生确认） */
 export async function deleteInstalled(petId) {
-  const enest = window.enest || window.zapi
-  return enest.agent.deleteAssets({ app: CODEX_APP, paths: [`pets/${petId}`], confirmed: true })
+  return backendCall('assets.delete', { app: CODEX_APP, paths: [`pets/${petId}`] })
 }

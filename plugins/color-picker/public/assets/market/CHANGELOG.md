@@ -2,6 +2,11 @@
 
 > 功能参考 [ZTools-plugins/color-helper](https://github.com/ZToolsCenter/ZTools-plugins)（MIT, ZToolsCenter）
 
+## 1.4.0（2026-10-24）
+
+- 接入插件自有的原生表面适配层，继续使用宿主通用截图原语；取色、放大镜与历史色板仍在插件内，原交互不变。
+- 需要 eNest >= 0.2.3；仅打开取色器不会创建额外辅助窗口或 Node 后端。
+
 ## 1.0.0
 
 - 初始版本

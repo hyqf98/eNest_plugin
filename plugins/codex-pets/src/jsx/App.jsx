@@ -10,7 +10,7 @@ import { renderGallery, refreshInstalledMarks } from '../js/gallery.js'
 import { getPet, normalizePet, formatCount, petImportCommand, INSTALL_HINT, listPets } from '../js/api.js'
 import { fetchImageBlob, downloadBinary, toDataUrl } from '../js/netbin.js'
 import { detailTabs, lookCell, applySpriteStyle, galleryCardState, CursorPet } from '../js/sprite.js'
-import { detectCodex, listInstalled, deleteInstalled } from '../js/installer.js'
+import { detectCodex, listInstalled, listInstalledAssets, deleteInstalled } from '../js/installer.js'
 import { runInstall } from '../js/gallery.js'
 
 const escapeHtmlLocal = (value) =>
@@ -463,8 +463,7 @@ function buildLookDial(dial, stageSprite, sheetUrl, version) {
 
 async function sumBytes() {
   try {
-    const enest = window.enest || window.zapi
-    const res = await enest.agent.listAssets({ app: 'codex', path: 'pets' })
+    const res = await listInstalledAssets()
     return (res?.entries ?? []).reduce((sum, e) => sum + (Number(e.size) || 0), 0)
   } catch {
     return 0

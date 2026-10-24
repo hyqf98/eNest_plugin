@@ -189,7 +189,7 @@ export function toDataUrl(bytes, mime = 'application/octet-stream') {
   return `data:${mime};base64,${btoa(binary)}`
 }
 
-/** Uint8Array → base64（agent.writeAssets 载荷用） */
+/** Uint8Array → base64（插件后端分块上传） */
 export function toBase64(bytes) {
   let binary = ''
   const CHUNK = 0x8000

@@ -156,7 +156,7 @@ export const rabbitmqDriver: MwDriver = {
         vhost: config.vhost || '/'
       } as unknown as Record<string, unknown>
     }
-    ctx.signal.addEventListener('abort', () => { void closeQuiet(handle) }, { once: true })
+    ctx.signal.addEventListener('abort', () => { if (!handle.closed) void closeQuiet(handle) }, { once: true })
     return handle
   },
 

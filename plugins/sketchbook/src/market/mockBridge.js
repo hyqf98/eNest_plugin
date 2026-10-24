@@ -7,6 +7,7 @@
  */
 import { SKETCH_ICON_NAMES } from '../shared/icons.js'
 import { createPreviewAppearance, loadPreviewTheme } from '../shared/previewTheme.js'
+import { normalizeWorkspaceRoute, WORKSPACE_ROUTES } from './workspaceRoute.js'
 
 const RAW = [
   ['anything', 'Anything 文件搜索', '效率', '1.1.0', '全盘文件即时搜索：Spotlight / Everything 引擎，关键词高亮、排序分页、文本与图片预览。', true],
@@ -120,7 +121,7 @@ function buildItems() {
 export function readMockReadme() { return README }
 
 export async function createMockBridge({ mode = 'light' } = {}) {
-  const pack = await loadPreviewTheme(new URL('../plugin.json', document.baseURI))
+  const pack = await loadPreviewTheme()
   const items = buildItems()
   const listeners = { appearance: new Set(), command: new Set() }
   let revision = 1
@@ -156,7 +157,13 @@ export async function createMockBridge({ mode = 'light' } = {}) {
   }
 
   const bridge = {
-    async ready() { listeners.command.forEach(listener => listener({ type: 'visibility', visible: true })) },
+    async ready(payload) {
+      if (payload?.workspaceVersion !== 1 || !Array.isArray(payload.routes) ||
+        payload.routes.length !== WORKSPACE_ROUTES.length || !WORKSPACE_ROUTES.every(route => payload.routes.includes(route))) {
+        throw new Error('Invalid workspace ready routes')
+      }
+      listeners.command.forEach(listener => listener({ type: 'visibility', visible: true }))
+    },
     async ackNavigation() {},
     async getAppearance() { return snapshot() },
     async getConfig() { return { locale: 'zh-CN', installedFirst: true, offline: true, warmInstall: false, revision } },
@@ -179,7 +186,7 @@ export async function createMockBridge({ mode = 'light' } = {}) {
     async refresh() { catalogRevision++; return { items, revision: catalogRevision } },
     async action(request) {
       if (request.type === 'navigate') {
-        const command = { type: 'navigate', route: request.route, requestId: `mock-${Date.now()}`, generation: 1, revision }
+        const command = { type: 'navigate', route: normalizeWorkspaceRoute(request.route), requestId: `mock-${Date.now()}`, generation: 1, revision }
         listeners.command.forEach(listener => listener(command))
       }
       return { ok: true }
@@ -210,7 +217,8 @@ export async function createMockBridge({ mode = 'light' } = {}) {
       listeners.appearance.forEach(listener => listener(snapshot()))
     },
     navigate(route) {
-      listeners.command.forEach(listener => listener({ type: 'navigate', route, requestId: `mock-${Date.now()}`, generation: 1, revision }))
+      const target = normalizeWorkspaceRoute(route)
+      listeners.command.forEach(listener => listener({ type: 'navigate', route: target, requestId: `mock-${Date.now()}`, generation: 1, revision }))
     },
     /** 预览专用 README：真实宿主会经 enest-home://catalog/<id>/readme 提供。 */
     readme: () => README,

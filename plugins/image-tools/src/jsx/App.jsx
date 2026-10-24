@@ -7,8 +7,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
 import { bindFileInput, readDroppedFiles } from '@enest/plugin-kit/file-inputs'
+import { createNativeSurfaces } from '@enest/native-surfaces'
 
-const api = window.enest || window.zapi
+const api = createNativeSurfaces(window.enest || window.zapi)
 const core = window.ImageCore
 const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
 

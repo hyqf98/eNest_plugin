@@ -76,7 +76,7 @@ jobs:
         run: npm run capture:market -- --check
 
       - name: Pack validated distributions
-        run: npm run pack -- --no-build
+        run: npm run pack -- --no-build --platform-variants
 
       - name: Build archive-backed registry
         run: npm run registry
@@ -100,7 +100,7 @@ jobs:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: Plugins ${{ inputs.tag || github.ref_name }}
           # 正式发布（非 draft）：进入 /releases/latest，壳子经
-          # releases/latest/download/registry.json 拉取市场索引与安装包
+          # 优先拉取对应平台 registry-<os>-<arch>.json，旧壳仍用 registry.json
           draft: false
           prerelease: false
           files: |
@@ -114,4 +114,5 @@ jobs:
             dist/*.webp
             dist/*.md
             dist/registry.json
+            dist/registry-*.json
           generate_release_notes: true
