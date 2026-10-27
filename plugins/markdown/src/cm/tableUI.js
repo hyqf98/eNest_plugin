@@ -41,7 +41,8 @@ function currentWidths(tableEl) {
  * 主接线。
  * @param wrap  widget 根元素
  * @param view  EditorView（用于 dispatch 写回源码）
- * @param blockFrom 表格块在文档中的起始偏移
+ * @param blockFrom 表格块在文档中的起始偏移；也可以是返回该偏移的函数
+ *                  （widget 复用时块起点随上方编辑平移，用函数实时反查）
  * @param blockText 表格块源码
  */
 export function wireTable(wrap, view, blockFrom, blockText, requestEdit) {
@@ -49,6 +50,7 @@ export function wireTable(wrap, view, blockFrom, blockText, requestEdit) {
   if (!tableEl) return
   const parsed = parseTable(blockText)
   if (!parsed) return
+  const startOf = typeof blockFrom === 'function' ? blockFrom : () => blockFrom
 
   const colCount = parsed.header.length
   ensureColgroup(tableEl, colCount)
@@ -152,7 +154,8 @@ export function wireTable(wrap, view, blockFrom, blockText, requestEdit) {
       rowCount: parsed.rows.length,
       apply(transform) {
         const next = transform(parsed)
-        view.dispatch({ changes: { from: blockFrom, to: blockFrom + blockText.length, insert: serializeTable(next) } })
+        const from = startOf()
+        view.dispatch({ changes: { from, to: from + blockText.length, insert: serializeTable(next) } })
       },
       resetWidths() {
         tableEl.querySelectorAll('col').forEach((c) => { c.style.width = '' })

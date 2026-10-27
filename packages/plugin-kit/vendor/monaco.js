@@ -12,10 +12,9 @@ import 'monaco-editor/languages/features/json/register.js'
 import 'monaco-editor/features/register.all.js'
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker'
 import JsonWorker from 'monaco-editor/language/json/json.worker.js?worker'
-import { format } from 'sql-formatter'
 
 globalThis.MonacoEnvironment = {
   getWorker(_moduleId, label) { return label === 'json' ? new JsonWorker() : new EditorWorker() }
 }
 
-export { monaco, format }
+export { monaco }

@@ -3,13 +3,13 @@ import { getDialect } from '@db/sql-intelligence/dialects/registry.js'
 
 const nonSql = /mongo|redis|elasticsearch|opensearch|influxdb|neo4j/i
 
-/** Host-generated script grammar keeps caret, selection and execute-all boundaries identical. */
+/** Backend-generated script grammar keeps caret, selection and execute-all boundaries identical. */
 export function executionStatements(source, dialectValue = 'mysql') {
   const sql = String(source ?? '')
   const dialect = typeof dialectValue === 'object' ? dialectValue : getDialect(dialectValue)
   return planSqlScript(sql, dialect.baseId || dialect.id, dialect.statementRules).map(unit => ({
     // A current custom-delimited routine is already server-ready. Sending its trailing
-    // delimiter without the original DELIMITER command would change the host grammar.
+    // delimiter without the original DELIMITER command would change the backend grammar.
     sql: unit.kind === 'directive' ? '' : unit.delimiter === ';' ? sql.slice(unit.start, unit.contentEnd) : unit.sql,
     start: unit.start,
     end: unit.end,

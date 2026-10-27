@@ -249,6 +249,7 @@
 .sk-input:focus {
   border-bottom-color: var(--marker);
   background: color-mix(in srgb, var(--marker) 5%, var(--paper));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--marker) 14%, transparent);
 }
 .sk-input[aria-invalid='true'] { border-bottom-color: var(--danger); }
 .sk-input:disabled { opacity: .5; }

@@ -1,8 +1,5 @@
 /**
- * 翻译主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
- * 网络请求逻辑（fetchJSON/google/mymemory/translate）原样复用未重写。
- * 原生 <select>（升级为 kit 自定义下拉）改为 pk-ui 的 Radix Select，视觉一致。
+ * 翻译主界面：翻译请求、历史记录与 Quick/桌面模式交互。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'

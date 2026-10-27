@@ -1,5 +1,5 @@
 /** Quick V1 的隔离呈现页。仅用 enestQuick，不持有应用路径、普通插件桥或业务视图。 */
-import { h } from '../shared/dom.js'
+import { h, reconcileChildren, setAttribute, setProperty, setStyle, setText } from '../shared/dom.js'
 import { icon } from '../shared/icons.js'
 import { createSketchPaper, mountSketchDefs } from '../shared/sketchPrimitives.js'
 
@@ -23,8 +23,14 @@ let columns = 1
 let lastLayout = ''
 let lastAppearance = ''
 let lastItems = ''
+let lastLayoutInputs = ''
 let actionError = ''
 let cards = []
+const itemViews = new Map()
+const groupViews = new Map()
+let currentItems = new Map()
+let emptyView = null
+let emptyKey = ''
 
 const button = (label, glyph, onClick, className = 'skq-tool') => h('button', {
   type: 'button', class: className, title: label, 'aria-label': label, onClick,
@@ -80,23 +86,22 @@ function applyQuickAppearance(appearance) {
   if (signature === lastAppearance) return
   lastAppearance = signature
   const { tokens, fonts, components, mode, animation } = appearance
-  root.dataset.theme = mode
-  root.dataset.anim = animation
-  root.style.colorScheme = mode
+  setAttribute(root, 'data-theme', mode)
+  setAttribute(root, 'data-anim', animation)
+  setStyle(root, 'color-scheme', mode)
   for (const key of ['--bg', '--surface', '--surface-2', '--surface-3', '--text', '--text-2', '--text-3', '--accent', '--ok', '--danger', '--border', '--border-strong', '--link']) {
-    if (tokens[key]) root.style.setProperty(key, tokens[key])
-    else root.style.removeProperty(key)
+    setStyle(root, key, tokens[key])
   }
   const body = [fonts.latin, fonts.cjk].filter(Boolean).join(', ') || fonts.body
-  root.style.setProperty('--font', body)
-  root.style.setProperty('--font-heading', fonts.heading || body)
-  root.style.setProperty('--font-mono', fonts.mono)
-  root.style.setProperty('--appearance-font-scale', String(fonts.scale))
-  root.style.setProperty('--font-size-base', `${14 * fonts.scale}px`)
-  root.style.fontSize = `${14 * fonts.scale}px`
+  setStyle(root, '--font', body)
+  setStyle(root, '--font-heading', fonts.heading || body)
+  setStyle(root, '--font-mono', fonts.mono)
+  setStyle(root, '--appearance-font-scale', fonts.scale)
+  setStyle(root, '--font-size-base', `${14 * fonts.scale}px`)
+  setStyle(root, 'font-size', `${14 * fonts.scale}px`)
   for (const [key, value] of Object.entries(components)) {
     const name = { controlRadius: 'control-radius', cardRadius: 'card-radius', panelRadius: 'panel-radius', borderWidth: 'border-width' }[key]
-    if (name) root.style.setProperty(`--appearance-${name}`, `${value}px`)
+    if (name) setStyle(root, `--appearance-${name}`, `${value}px`)
   }
 }
 
@@ -118,11 +123,12 @@ async function act(action) {
 
 function showError() {
   const message = snapshot?.error || actionError
-  error.textContent = message || ''
-  error.hidden = !message
-  if (snapshot?.plugin) pluginStatus.textContent = message || (snapshot.plugin.loading ? '正在加载…' : '点击聚焦内容')
-  if (snapshot && !snapshot.plugin) market.hidden = snapshot.loading || Boolean(message) || !(snapshot.emptyMarket || (!snapshot.searching && snapshot.items.length === 0))
-  queueLayout()
+  const changed = error.textContent !== (message || '') || error.hidden !== !message
+  setText(error, message)
+  setProperty(error, 'hidden', !message)
+  if (snapshot?.plugin) setText(pluginStatus, message || (snapshot.plugin.loading ? '正在加载…' : '点击聚焦内容'))
+  if (snapshot && !snapshot.plugin) setProperty(market, 'hidden', snapshot.loading || Boolean(message) || !(snapshot.emptyMarket || (!snapshot.searching && snapshot.items.length === 0)))
+  if (changed) queueLayout()
 }
 
 function submitQuery() {
@@ -133,10 +139,17 @@ function submitQuery() {
   // 从原生 input 直接提交；不重建 input，不改写光标、选区或输入法候选。
   void act({ type: 'query', query: pendingQuery })
 }
-input.addEventListener('compositionstart', () => { composing = true })
+input.addEventListener('compositionstart', () => {
+  composing = true
+  void act({ type: 'composition', active: true })
+})
 input.addEventListener('compositionend', () => {
   composing = false
-  queueMicrotask(() => { submitQuery(); if (focusRequest) focusSearch(focusRequest) })
+  queueMicrotask(() => {
+    submitQuery()
+    void act({ type: 'composition', active: false })
+    if (focusRequest) focusSearch(focusRequest)
+  })
 })
 input.addEventListener('input', event => { if (!event.isComposing) submitQuery() })
 input.addEventListener('keydown', event => {
@@ -149,50 +162,99 @@ input.addEventListener('keydown', event => {
   void act({ type: 'key', key: event.key, shift: event.shiftKey })
 })
 
+function createItemView(item) {
+  const tile = h('span', { class: 'skq-glyph', 'aria-hidden': 'true' })
+  const title = h('strong')
+  const subtitle = h('span', { class: 'skq-subtitle' })
+  const card = h('button', { type: 'button', class: 'skq-card', role: 'option', tabIndex: -1, 'aria-selected': 'false' }, tile, title, subtitle)
+  const events = new AbortController()
+  const view = { item, card, events, glyph: undefined }
+  const current = () => !disposed && !snapshot?.plugin && currentItems.get(view.item.id)
+  card.addEventListener('mouseenter', () => {
+    const entry = current()
+    if (entry && !snapshot.busy && snapshot.selectedId !== entry.id) void act({ type: 'select', id: entry.id })
+  }, { signal: events.signal })
+  // The current opaque handle is never derived from presentation text or an old snapshot.
+  card.addEventListener('click', () => {
+    const entry = current()
+    if (entry && !snapshot.busy) void act({ type: 'open', id: entry.id })
+  }, { signal: events.signal })
+  view.update = (next, index) => {
+    view.item = next
+    const glyph = next.kind === 'action' ? 'action' : `text:${Array.from(next.title || '?')[0]}`
+    if (glyph !== view.glyph) {
+      view.glyph = glyph
+      tile.replaceChildren(next.kind === 'action' ? icon('spark', 22) : Array.from(next.title || '?')[0])
+    }
+    setAttribute(card, 'id', `skq-item-${index}`)
+    setAttribute(card, 'title', [next.title, next.subtitle].filter(Boolean).join(' · '))
+    setAttribute(card, 'data-kind', next.kind)
+    setText(title, next.title)
+    setText(subtitle, next.subtitle || KIND_NAMES[next.kind])
+  }
+  view.dispose = () => { events.abort(); card.remove() }
+  return view
+}
+
 function renderItems(state) {
-  const signature = JSON.stringify([state.items, state.loading && !state.items.length, state.searching, state.emptyMarket, state.error])
+  // This theme paints glyphs, not DTO icons; icon enrichment must not rebuild the grid.
+  const signature = JSON.stringify([state.items.map(item => [item.id, item.group, item.kind, item.title, item.subtitle]),
+    !state.items.length && [state.loading, state.searching, state.emptyMarket, state.error]])
   if (signature === lastItems) return
   lastItems = signature
-  cards = []
-  const fragment = document.createDocumentFragment()
-  if (!state.items.length) {
-    if (state.loading) {
-      const skeletons = h('div', { class: 'skq-grid skq-skeletons', 'aria-hidden': 'true' })
-      for (let index = 0; index < 6; index++) skeletons.appendChild(h('div', { class: 'skq-skeleton' }, h('i'), h('span')))
-      fragment.appendChild(skeletons)
-    } else {
-      fragment.appendChild(h('div', { class: 'skq-empty' }, icon('search', 27),
-        h('strong', null, state.error ? '搜索暂时不可用' : state.searching ? '没有找到匹配项' : '还没有可用的启动项'),
-        h('span', null, state.error ? '请稍后重试搜索。' : state.emptyMarket ? '试试其他关键词，或去插件市场找工具。' : state.searching ? '试试其他关键词或搜索类型。' : '可以先去插件市场安装常用工具。')))
-    }
-  }
+  const groups = []
+  const occurrences = new Map()
+  let group
   let previousGroup
-  let grid
-  state.items.forEach((item, index) => {
-    // 保持 DTO 原顺序，不按 kind 重排，以免与宿主网格选中算法不一致。
-    if (!grid || previousGroup !== item.group) {
+  cards = state.items.map((item, index) => {
+    // Preserve contiguous DTO groups and the host's selection order.
+    if (!group || previousGroup !== item.group) {
       previousGroup = item.group
+      const occurrence = occurrences.get(item.group) ?? 0
+      occurrences.set(item.group, occurrence + 1)
+      const key = JSON.stringify([item.group, occurrence])
+      let view = groupViews.get(key)
+      if (!view) {
+        const heading = h('h2')
+        const grid = h('div', { class: 'skq-grid' })
+        view = { heading, grid, node: h('section', { class: 'skq-group', role: 'group' }, heading, grid) }
+        groupViews.set(key, view)
+      }
       const label = `skq-group-${index}`
-      grid = h('div', { class: 'skq-grid' })
-      fragment.appendChild(h('section', { class: 'skq-group', role: 'group', 'aria-labelledby': label },
-        h('h2', { id: label }, GROUP_NAMES[item.group] || item.group || '启动项'), grid))
+      setAttribute(view.heading, 'id', label)
+      setAttribute(view.node, 'aria-labelledby', label)
+      setText(view.heading, GROUP_NAMES[item.group] || item.group || '启动项')
+      group = { key, view, nodes: [] }
+      groups.push(group)
     }
-    const tile = h('span', { class: 'skq-glyph', 'aria-hidden': 'true' },
-      item.kind === 'action' ? icon('spark', 22) : Array.from(item.title || '?')[0])
-    const card = h('button', {
-      id: `skq-item-${index}`, type: 'button', class: 'skq-card', role: 'option', tabIndex: -1,
-      title: [item.title, item.subtitle].filter(Boolean).join(' · '), 'aria-selected': 'false',
-      onMouseenter: () => {
-        if (!snapshot?.busy && snapshot?.items.some(entry => entry.id === item.id) && snapshot.selectedId !== item.id) void act({ type: 'select', id: item.id })
-      },
-      // 句柄不解析、不推导路径；直接从真实 click 交给宿主验证和打开。
-      onClick: () => { if (!snapshot?.busy) void act({ type: 'open', id: item.id }) },
-    }, tile, h('strong', null, item.title), h('span', { class: 'skq-subtitle' }, item.subtitle || KIND_NAMES[item.kind]))
-    card.dataset.kind = item.kind
-    cards.push({ item, card })
-    grid.appendChild(card)
+    let view = itemViews.get(item.id)
+    if (!view) { view = createItemView(item); itemViews.set(item.id, view) }
+    view.update(item, index)
+    group.nodes.push(view.card)
+    return view
   })
-  resultContent.replaceChildren(fragment)
+  const wantedGroups = new Set(groups.map(entry => entry.key))
+  for (const [key, view] of groupViews) if (!wantedGroups.has(key)) { view.node.remove(); groupViews.delete(key) }
+  for (const entry of groups) reconcileChildren(entry.view.grid, entry.nodes)
+  if (!cards.length) {
+    const key = JSON.stringify([state.loading, state.searching, state.emptyMarket, state.error])
+    if (!emptyView || key !== emptyKey) {
+      emptyKey = key
+      if (state.loading) {
+        emptyView = h('div', { class: 'skq-grid skq-skeletons', 'aria-hidden': 'true' })
+        for (let index = 0; index < 6; index++) emptyView.appendChild(h('div', { class: 'skq-skeleton' }, h('i'), h('span')))
+      } else {
+        emptyView = h('div', { class: 'skq-empty' }, icon('search', 27),
+          h('strong', null, state.error ? '搜索暂时不可用' : state.searching ? '没有找到匹配项' : '还没有可用的启动项'),
+          h('span', null, state.error ? '请稍后重试搜索。' : state.emptyMarket ? '试试其他关键词，或去插件市场找工具。' : state.searching ? '试试其他关键词或搜索类型。' : '可以先去插件市场安装常用工具。'))
+      }
+    }
+    reconcileChildren(resultContent, [emptyView])
+  } else {
+    emptyView = null
+    emptyKey = ''
+    reconcileChildren(resultContent, groups.map(entry => entry.view.node))
+  }
 }
 
 function focusSearch(request) {
@@ -207,16 +269,32 @@ function acceptState(state) {
   const wasPlugin = Boolean(snapshot?.plugin)
   const previousSelected = snapshot?.selectedId
   snapshot = state
+  currentItems = new Map(state.items.map(item => [item.id, item]))
+  let removedItems = false
+  for (const [id, view] of itemViews) {
+    const item = currentItems.get(id)
+    if (item) view.item = item
+    else { view.dispose(); itemViews.delete(id); removedItems = true }
+  }
+  if (removedItems) {
+    lastItems = ''
+    cards = cards.filter(view => currentItems.has(view.item.id))
+    // Plugin mode skips list rendering, but must still release vanished result groups.
+    for (const [key, view] of groupViews) if (!view.grid.childElementCount) {
+      view.node.remove()
+      groupViews.delete(key)
+    }
+  }
   applyQuickAppearance(state.appearance)
   const plugin = Boolean(state.plugin)
-  surface.dataset.mode = plugin ? 'plugin' : 'list'
-  back.hidden = !plugin
-  pluginBar.hidden = !plugin
-  panel.hidden = plugin
-  input.placeholder = state.plugin?.placeholder || '搜索应用、插件或操作'
-  input.setAttribute('aria-label', plugin ? `搜索 ${state.plugin.title}` : '搜索应用、插件或操作')
-  input.setAttribute('aria-expanded', String(!plugin))
-  if (plugin) input.removeAttribute('aria-activedescendant')
+  setAttribute(surface, 'data-mode', plugin ? 'plugin' : 'list')
+  setProperty(back, 'hidden', !plugin)
+  setProperty(pluginBar, 'hidden', !plugin)
+  setProperty(panel, 'hidden', plugin)
+  setAttribute(input, 'placeholder', state.plugin?.placeholder || '搜索应用、插件或操作')
+  setAttribute(input, 'aria-label', plugin ? `搜索 ${state.plugin.title}` : '搜索应用、插件或操作')
+  setAttribute(input, 'aria-expanded', !plugin)
+  if (plugin) setAttribute(input, 'aria-activedescendant', null)
   if (!composing && (pendingQuery === null || state.query === pendingQuery || plugin !== wasPlugin)) {
     pendingQuery = null
     // 相同内容绝不赋值，异步状态更新也不重置选区。
@@ -227,32 +305,35 @@ function acceptState(state) {
     }
   }
   if (plugin) {
-    pluginTitle.textContent = state.plugin.title
-    pluginStatus.textContent = state.plugin.loading ? '正在加载…' : '点击聚焦内容'
-    pin.disabled = state.busy || state.plugin.loading
+    setText(pluginTitle, state.plugin.title)
+    setText(pluginStatus, state.plugin.loading ? '正在加载…' : '点击聚焦内容')
+    setProperty(pin, 'disabled', state.busy || state.plugin.loading)
   } else {
-    filterButtons.forEach((control, index) => { control.setAttribute('aria-pressed', String(state.filter === FILTERS[index][0])); control.disabled = state.busy })
-    status.textContent = state.busy ? '正在打开…' : state.loading ? '正在查找…' : state.items.length ? `${state.items.length} 项${state.hiddenCount ? `，另有 ${state.hiddenCount} 项` : ''}` : ''
-    results.setAttribute('aria-busy', String(state.loading || state.busy))
+    filterButtons.forEach((control, index) => {
+      setAttribute(control, 'aria-pressed', state.filter === FILTERS[index][0])
+      setProperty(control, 'disabled', state.busy)
+    })
+    setText(status, state.busy ? '正在打开…' : state.loading ? '正在查找…' : state.items.length ? `${state.items.length} 项${state.hiddenCount ? `，另有 ${state.hiddenCount} 项` : ''}` : '')
+    setAttribute(results, 'aria-busy', state.loading || state.busy)
     renderItems(state)
     let active
     cards.forEach(({ item, card }) => {
       const selected = item.id === state.selectedId
-      card.setAttribute('aria-selected', String(selected))
-      card.disabled = state.busy
+      setAttribute(card, 'aria-selected', selected)
+      setProperty(card, 'disabled', state.busy)
       if (selected) active = card
     })
     if (active) {
-      input.setAttribute('aria-activedescendant', active.id)
+      setAttribute(input, 'aria-activedescendant', active.id)
       if (previousSelected !== state.selectedId) active.scrollIntoView({ block: 'nearest' })
-    } else input.removeAttribute('aria-activedescendant')
-    more.hidden = !state.expanded && state.hiddenCount === 0
-    more.disabled = state.busy
-    more.setAttribute('aria-expanded', String(state.expanded))
-    more.textContent = state.expanded ? '收起' : `更多 ${state.hiddenCount} 项`
-    market.hidden = state.loading || Boolean(state.error || actionError) || !(state.emptyMarket || (!state.searching && state.items.length === 0))
-    market.disabled = state.busy
-    keys.hidden = !state.items.length
+    } else setAttribute(input, 'aria-activedescendant', null)
+    setProperty(more, 'hidden', !state.expanded && state.hiddenCount === 0)
+    setProperty(more, 'disabled', state.busy)
+    setAttribute(more, 'aria-expanded', state.expanded)
+    setText(more, state.expanded ? '收起' : `更多 ${state.hiddenCount} 项`)
+    setProperty(market, 'hidden', state.loading || Boolean(state.error || actionError) || !(state.emptyMarket || (!state.searching && state.items.length === 0)))
+    setProperty(market, 'disabled', state.busy)
+    setProperty(keys, 'hidden', !state.items.length)
   }
   showError()
   if (focusRequest) focusSearch(focusRequest)
@@ -263,7 +344,9 @@ function acceptState(state) {
     ready = true
     focusSearch({ selectAll: false })
   }
-  queueLayout()
+  const layoutInputs = JSON.stringify([lastAppearance, lastItems, plugin, state.plugin?.title, state.plugin?.loading,
+    state.busy, state.loading, state.expanded, state.hiddenCount, state.emptyMarket, state.error, actionError])
+  if (layoutInputs !== lastLayoutInputs) { lastLayoutInputs = layoutInputs; queueLayout() }
 }
 
 function queueLayout() {
@@ -273,7 +356,7 @@ function queueLayout() {
     const width = surface.clientWidth
     if (!width || !snapshot) return
     columns = Math.max(1, Math.min(8, Math.floor((width - 24 + 10) / 134)))
-    surface.style.setProperty('--skq-columns', String(columns))
+    setStyle(surface, '--skq-columns', columns)
     // 测量内层自然高度，不能用已被宿主 clamp 的视口高度反推所需尺寸。
     const height = snapshot.plugin ? 64 : Math.max(64, Math.min(545, Math.ceil(64 + filters.offsetHeight + status.offsetHeight + error.offsetHeight + resultContent.scrollHeight + footer.offsetHeight)))
     const key = `${columns}:${height}`
@@ -283,7 +366,7 @@ function queueLayout() {
   })
 }
 
-function syncVisibility() { root.dataset.skVisible = String(!document.hidden) }
+function syncVisibility() { setAttribute(root, 'data-sk-visible', !document.hidden) }
 syncVisibility()
 document.addEventListener('visibilitychange', syncVisibility)
 cleanups.push(() => document.removeEventListener('visibilitychange', syncVisibility))
@@ -297,6 +380,13 @@ window.addEventListener('pagehide', () => {
   disposed = true
   cleanups.splice(0).forEach(cleanup => cleanup())
   cancelAnimationFrame(layoutFrame)
+  for (const view of itemViews.values()) view.dispose()
+  itemViews.clear()
+  groupViews.clear()
+  currentItems.clear()
+  cards = []
+  emptyView = null
+  snapshot = null
 }, { once: true })
 
 if (!api) {

@@ -55,3 +55,40 @@ export function render(container, node) {
 export function clear(container) {
   container.replaceChildren()
 }
+
+export function setText(node, value) {
+  const text = String(value ?? '')
+  if (node.textContent !== text) node.textContent = text
+}
+
+export function setAttribute(node, name, value) {
+  if (value === null || value === undefined) {
+    if (node.hasAttribute(name)) node.removeAttribute(name)
+    return
+  }
+  const text = String(value)
+  if (node.getAttribute(name) !== text) node.setAttribute(name, text)
+}
+
+export function setProperty(node, name, value) {
+  if (node[name] !== value) node[name] = value
+}
+
+export function setStyle(node, name, value) {
+  const text = value === null || value === undefined ? '' : String(value)
+  if (node.style.getPropertyValue(name) === text) return
+  if (text) node.style.setProperty(name, text)
+  else node.style.removeProperty(name)
+}
+
+/** Keep unchanged nodes connected so focus, images and painted strokes survive updates. */
+export function reconcileChildren(parent, nodes) {
+  const wanted = new Set(nodes)
+  for (const node of Array.from(parent.childNodes)) if (!wanted.has(node)) node.remove()
+  let next = parent.firstChild
+  for (const node of nodes) {
+    if (node === next) { next = next.nextSibling; continue }
+    if (typeof parent.moveBefore === 'function' && parent.isConnected && node.isConnected) parent.moveBefore(node, next)
+    else parent.insertBefore(node, next)
+  }
+}

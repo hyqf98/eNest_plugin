@@ -35,7 +35,7 @@ jobs:
       - name: Install deps
         run: npm ci
       - name: Build native DSH runtime asset
-        run: node scripts/pack-dsh-runtime.mjs
+        run: node plugins/dsh/scripts/pack-runtime.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: dsh-runtime-${{ matrix.platform }}

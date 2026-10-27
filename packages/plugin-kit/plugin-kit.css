@@ -64,9 +64,13 @@ button:active:not(:disabled) { filter: brightness(.96); }
 :root[data-mode="quick"] .shell-only, :root[data-mode="shell"] .quick-only { display: none !important; }
 .pk-muted { color: var(--text-2, #747c88); }
 .pk-mono { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace); font-variant-numeric: tabular-nums; }
-#plugin-notice { position: fixed; z-index: 30; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: min(90%, 520px); padding: 9px 14px; border: 1px solid var(--border, #d9dfe6); border-radius: 9px; background: var(--surface, #fff); color: var(--text, #252a32); box-shadow: 0 6px 24px #14203420; pointer-events: none; }
-#plugin-notice { position: fixed; z-index: 30; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: min(90%, 520px); padding: 9px 14px; border: 1px solid var(--border, #d9dfe6); border-radius: 9px; background: var(--surface, #fff); color: var(--text, #252a32); box-shadow: 0 6px 24px #14203420; pointer-events: none; }
-#plugin-notice[data-type="error"] { border-color: var(--danger, #b44c50); }
+/* 提示条本身不拦截页面交互；只有错误态的复制按钮重新接收指针。 */
+#plugin-notice { position: fixed; z-index: 30; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: min(90%, 520px); padding: 9px 14px; border: 1px solid var(--border, #d9dfe6); border-radius: 9px; background: var(--surface, #fff); color: var(--text, #252a32); box-shadow: 0 6px 24px #14203420; pointer-events: none; }
+#plugin-notice .plugin-notice-text { min-width: 0; overflow-wrap: anywhere; }
+#plugin-notice[data-type="error"] { border-color: var(--danger, #b44c50); padding-inline-end: 9px; }
+#plugin-notice .plugin-notice-copy { flex: 0 0 auto; padding: 2px 8px; min-height: 0; font-size: 11px; line-height: 1.5; border: 1px solid var(--border, #d9dfe6); border-radius: 6px; background: transparent; color: var(--text-2, #747c88); pointer-events: auto; }
+#plugin-notice .plugin-notice-copy:hover { background: var(--bg, #f6f7f9); color: var(--text, #252a32); }
+#plugin-notice .plugin-notice-copy[data-copied] { border-color: var(--ok, #298b68); color: var(--ok, #298b68); }
 dialog::backdrop { background: #10182455; }
 dialog { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; max-width: min(560px, 92vw); max-height: 88vh; }
 :root[data-anim="low"] { --pk-speed: 0ms; }

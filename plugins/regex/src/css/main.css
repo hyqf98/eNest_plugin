@@ -44,7 +44,7 @@ button.ghost:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent, #4772bf) 7%, transparent);
   color: var(--text, #29303b);
 }
-:focus-visible { outline: 2px solid var(--accent, #4772bf); outline-offset: 2px; }
+:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #4772bf) 20%, transparent); }
 input, textarea {
   background: var(--raise);
   border: 1px solid var(--line);

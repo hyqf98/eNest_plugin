@@ -1,12 +1,14 @@
 /**
- * HandDrawnEdge — roughjs 手绘贝塞尔连线 + 运行态流动虚线。
+ * HandDrawnEdge — roughjs 手绘贝塞尔连线 + 运行态流动虚线 + 边状态色。
  * seed 取自 edge id 哈希（重绘抖动稳定）；箭头为两段短手绘线（按端点切线角）。
  * 运行中（源节点 running）叠加 dash 流动动画层；透明宽路径负责点选。
+ * 边中点 hover/选中时浮出 ＋（Dify 同款：点击插入节点并重接两端）。
  */
-import { useContext, useEffect, useMemo, useRef } from 'react'
-import { getBezierPath } from '@xyflow/react'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { getBezierPath, EdgeLabelRenderer, useInternalNode } from '@xyflow/react'
 import rough from 'roughjs'
 import { RunningEdgesContext } from './RunningState.jsx'
+import { CanvasActionsContext } from './nodes/RegistryNode.jsx'
 
 function seedFrom(id) {
   let h = 0
@@ -22,19 +24,26 @@ function offsetPoint(x, y, position, delta) {
   return [x, y]
 }
 
-export function HandDrawnEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }) {
+export function HandDrawnEdge({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }) {
   const groupRef = useRef(null)
+  const [hovered, setHovered] = useState(false)
   const running = useContext(RunningEdgesContext)
+  const actions = useContext(CanvasActionsContext)
   const isRunning = running?.edges?.has(id) ?? false
   const roughness = running?.roughness ?? 1.2
+  const sourceNode = useInternalNode(source)
+  const targetState = useInternalNode(target)?.data?.state
+  const edgeStatus = sourceNode?.data?.state === 'error' || targetState === 'error'
+    ? 'error'
+    : sourceNode?.data?.state === 'success' && targetState === 'success' ? 'success' : 'normal'
 
-  const [path, endTangent] = useMemo(() => {
-    const [p] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
+  const [path, endTangent, mid] = useMemo(() => {
+    const [p, mx, my] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
     const [, cy] = offsetPoint(sourceX, sourceY, sourcePosition, 50)
     const [tx2, ty2] = offsetPoint(targetX, targetY, targetPosition, 50)
     void cy
     const angle = Math.atan2(targetY - ty2, targetX - tx2)
-    return [p, angle]
+    return [p, angle, { x: mx, y: my }]
   }, [sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition])
 
   useEffect(() => {
@@ -44,9 +53,9 @@ export function HandDrawnEdge({ id, sourceX, sourceY, targetX, targetY, sourcePo
     if (!svg) return
     const rc = rough.svg(svg)
     const style = getComputedStyle(group)
-    const color = style.getPropertyValue('--ac-edge').trim() || '#8a5a2b'
+    const color = style.getPropertyValue(edgeStatus === 'error' ? '--ac-accent' : edgeStatus === 'success' ? '--ac-handle-ok' : '--ac-edge').trim() || '#8a5a2b'
     const width = Math.max(1.3, 2.1 - roughness * 0.3)
-    const options = { seed: seedFrom(id), roughness, stroke: color, strokeWidth: width, bowing: 1.4 }
+    const options = { seed: seedFrom(id), roughness, stroke: color, strokeWidth: selected ? width + 0.8 : width, bowing: 1.4 }
     const parts = [rc.path(path, options)]
     const head = 11
     for (const spread of [Math.PI - 0.46, Math.PI + 0.46]) {
@@ -54,13 +63,23 @@ export function HandDrawnEdge({ id, sourceX, sourceY, targetX, targetY, sourcePo
       parts.push(rc.line(targetX, targetY, targetX + Math.cos(a) * head, targetY + Math.sin(a) * head, { ...options, strokeWidth: width + 0.2 }))
     }
     group.replaceChildren(...parts)
-  }, [path, id, roughness, targetX, targetY, endTangent])
+  }, [path, id, roughness, targetX, targetY, endTangent, selected, edgeStatus])
 
+  const canInsert = actions?.onEdgeInsert && !actions?.workflowRunning
   return (
     <>
-      <g ref={groupRef} className={`ac-edge-rough ${isRunning ? 'ac-edge-hot' : ''}`} />
+      <g ref={groupRef} className={`ac-edge-rough ac-edge-${edgeStatus} ${isRunning ? 'ac-edge-hot' : ''}`}
+        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} />
       {isRunning && <path d={path} className="ac-edge-flow" fill="none" />}
       <path d={path} className="ac-edge-hit" fill="none" stroke="transparent" strokeWidth={16} />
+      {(canInsert && (hovered || selected)) && (
+        <EdgeLabelRenderer>
+          <button type="button" className="ac-edge-add nodrag nopan"
+            style={{ transform: `translate(-50%, -50%) translate(${mid.x}px, ${mid.y}px)`, position: 'absolute', zIndex: 20, pointerEvents: 'all' }}
+            title="在此插入节点"
+            onClick={e => { e.stopPropagation(); actions.onEdgeInsert(id, { x: e.clientX, y: e.clientY }) }}>＋</button>
+        </EdgeLabelRenderer>
+      )}
     </>
   )
 }

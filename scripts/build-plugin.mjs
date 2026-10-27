@@ -1,18 +1,17 @@
 #!/usr/bin/env node
-import { cp, mkdir, rm, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import { build, loadConfigFromFile, mergeConfig } from 'vite'
-import { repositoryRoot as root, pluginIds, readManifest, pluginHtmlEntries, DSH_DIR, DSH_VERSION, DSH_BUNDLED_RUNTIME } from './plugin-contract.mjs'
+import { repositoryRoot as root, pluginIds, readManifest, pluginHtmlEntries } from './plugin-contract.mjs'
 import { validateSource } from './validate-manifests.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 import { buildBackend } from './build-backend.mjs'
 import { distributionDirectory, normalizeTarget, writeDistributionTarget } from './distribution-target.mjs'
+import { loadPluginBuildHooks } from './plugin-build-hooks.mjs'
 
 /** Business index plus manifest-declared Home entries use the same portable Vite build. */
-export async function buildPlugin(id, { release = true, runtime = DSH_BUNDLED_RUNTIME, repositoryRoot = root, target = 'universal' } = {}) {
+export async function buildPlugin(id, { release = true, runtime = false, repositoryRoot = root, target = 'universal' } = {}) {
   normalizeTarget(target)
   if (!pluginIds(repositoryRoot).includes(id)) throw new Error(`Unknown plugin: ${id}`)
   const source = join(repositoryRoot, 'plugins', id), destination = distributionDirectory(source, target, repositoryRoot)
@@ -35,19 +34,10 @@ export async function buildPlugin(id, { release = true, runtime = DSH_BUNDLED_RU
   delete manifest.development
   await writeFile(join(destination, 'plugin.json'), JSON.stringify(manifest, null, 2) + '\n')
   await buildBackend(source, destination, { root: repositoryRoot, target })
-  if (runtime && id === DSH_DIR) {
-    // DSH owns this optional private backend attachment; the installer rule is generic.
-    const cache = join(repositoryRoot, 'dist/runtime-cache', `dsh-${DSH_VERSION}-${process.platform}-${process.arch}`)
-    if (!existsSync(join(cache, 'node_modules/@deepseek-ai/dsh/package.json'))) {
-      await mkdir(cache, { recursive: true })
-      await writeFile(join(cache, 'package.json'), JSON.stringify({ name: 'enest-dsh-runtime', version: '1.0.0', private: true, platform: process.platform, arch: process.arch }))
-      const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', `@deepseek-ai/dsh@${DSH_VERSION}`, '--omit=dev', '--no-audit', '--no-fund'], { cwd: cache, stdio: 'inherit' })
-      if (result.status !== 0) { await rm(cache, { recursive: true, force: true }); throw new Error('DSH runtime install failed') }
-    }
-    await cp(cache, join(destination, 'runtime'), { recursive: true, dereference: true })
-  }
+  const hooks = await loadPluginBuildHooks(source)
+  await hooks.afterBuild?.({ source, directory: destination, repositoryRoot, target, runtime, release })
   await writeDistributionTarget(destination, target)
-  await validateDistribution(destination, { release, requireRuntime: runtime })
+  await validateDistribution(destination, { source, repositoryRoot, target, release, requireRuntime: runtime })
   return destination
 }
 
@@ -55,6 +45,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const input = process.argv.slice(2)
   const target = normalizeTarget(input.find(value => value.startsWith('--target='))?.slice('--target='.length))
   const args = input.filter(value => value !== '--runtime' && !value.startsWith('--target='))
-  const runtime = process.argv.includes('--runtime') || DSH_BUNDLED_RUNTIME
+  const runtime = process.argv.includes('--runtime')
   for (const id of args.length ? args : pluginIds()) console.log(`Built ${id}: ${await buildPlugin(id, { runtime, target })}`)
 }

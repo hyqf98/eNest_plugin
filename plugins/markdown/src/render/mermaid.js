@@ -77,18 +77,28 @@ function treeToHtml(state, code) {
 function highlightFence(code, info) {
   return { html: `<pre class="cm-static-lines">${esc(code)}</pre>` };
 }
+/**
+ * 异步补语法高亮：`highlightFence` 先给纯文本保证首帧立刻可读，
+ * 语言包按需加载成功后再替换成带 token 的 HTML。
+ * 实际结构是 `.CodeMirror[data-lang] > pre.cm-static-lines`（data-lang 在容器上）。
+ */
 async function hydrateFence(container) {
-  const nodes = Array.from(container.querySelectorAll("pre.cm-static-lines[data-lang]"));
+  const nodes = Array.from(container.querySelectorAll(".CodeMirror[data-lang] > pre.cm-static-lines"));
   for (const pre of nodes) {
-    const lang = pre.getAttribute("data-lang") || "";
+    const holder = pre.parentElement;
+    const lang = holder?.getAttribute("data-lang") || "";
+    if (!lang || pre.dataset.hydrated === "1") continue;
     const code = pre.textContent ?? "";
+    pre.dataset.hydrated = "1";
     try {
       const support = await resolveLanguage(lang);
       if (!support) continue;
+      if (!pre.isConnected) continue;
       const state = EditorState.create({ doc: code, extensions: [support, syntaxHighlighting(highlightStyle)] });
       const html = treeToHtml(state, code);
-      if (html) pre.innerHTML = html.replace(/\n/g, "\n");
+      if (html) pre.innerHTML = html;
     } catch {
+      /* 语言包加载失败：保留纯文本 */
     }
   }
 }

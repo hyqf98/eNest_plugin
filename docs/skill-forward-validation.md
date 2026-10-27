@@ -47,4 +47,4 @@ node scripts/capture-market.mjs com.example.notes --check
 
 ## 证据边界
 
-本演练证明文档/skill/SDK 可用于创建符合当前标准的插件，并验证发布布局与浏览器 UI。storage 和失败行为使用 fixture；它不证明真实 Electron 授权、原生文件隔离、退出资源回收或外部 SSH/数据库连接通过。宿主对应验收见宿主仓库 `docs/engineering/PLUGIN_SECURITY_VALIDATION.md` 与 `PLUGIN_SANDBOX_LIFECYCLE_VALIDATION.md`。
+本演练记录了当时文档/skill/SDK 用于创建插件、验证发布布局与浏览器 UI 的过程，不是当前版本的验收结论。storage 和失败行为使用 fixture；它不证明真实 Electron 授权、原生文件隔离、退出资源回收或外部 SSH/数据库连接通过。历史宿主验证只能对应当时的构建和场景，不能视为这些原生能力已经在当前版本重新验收。

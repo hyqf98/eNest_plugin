@@ -37,7 +37,7 @@ button {
   padding: 0;
 }
 button:active:not(:disabled) { transform: scale(0.98); }
-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 button:disabled { cursor: default; }
 .dsh-spacer { flex: 1; }
 .dsh-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -77,7 +77,7 @@ button:disabled { cursor: default; }
   transition: border-color 0.2s var(--ease-out);
   min-width: 0;
 }
-.field:focus { border-color: var(--accent); }
+.field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 select.field { appearance: none; padding-right: 24px; }
 
 /* —— 进入动效（列表/区块级联） —— */
@@ -138,7 +138,7 @@ select.field { appearance: none; padding-right: 24px; }
   background: color-mix(in srgb, var(--accent, #e98654) 7%, transparent);
   border-color: color-mix(in srgb, var(--accent, #e98654) 45%, transparent);
 }
-.icon-btn:focus-visible { outline: 2px solid var(--accent, #e98654); outline-offset: 2px; }
+.icon-btn:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #e98654) 20%, transparent); }
 .icon-btn svg { width: 16px; height: 16px; }
 .icon-btn:disabled { opacity: 0.45; cursor: default; }
 :root[data-anim='low'] .icon-btn { transition: none; }
@@ -238,7 +238,7 @@ select.field { appearance: none; padding-right: 24px; }
   outline: none;
   transition: border-color 0.2s var(--ease-out);
 }
-.composer textarea:focus { border-color: var(--accent); }
+.composer textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .composer-hint { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
 
 /* ========== 大桌面（完全体） ========== */

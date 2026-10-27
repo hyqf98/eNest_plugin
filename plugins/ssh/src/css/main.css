@@ -199,7 +199,7 @@ button, input, select, textarea {
   font-size: 12px;
   outline: none;
 }
-.side-tools input:focus { border-color: var(--border-strong); }
+.side-tools input:focus { border-color: color-mix(in srgb, var(--brand, var(--accent)) 55%, var(--border-strong)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, var(--accent)) 18%, transparent); }
 .side-tools input::placeholder { color: var(--text-3); }
 
 .filter-row {
@@ -1498,11 +1498,12 @@ dialog .pk-select.wb-split-target {
 
 /* focus ring */
 :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--brand) 55%, transparent);
-  outline-offset: 1px;
-  border-radius: 8px;
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
 }
-input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 0; }
+/* 输入框已有 1px 边框，环再贴紧一点，避免视觉上变成双层粗边。 */
+input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
 
 /* 滚动条 */
 * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-3) 35%, transparent) transparent; }

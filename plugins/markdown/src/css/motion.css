@@ -1,0 +1,175 @@
+/**
+ * markdown —— 阅读态动效（mermaid 箭头流光 / 表格扫光 / 高亮呼吸 / 代码块边框流光）。
+ *
+ * 全部动画只在这里定义，由根元素（.md-app）上的两个属性驱动：
+ *   data-md-motion="on|off"        总开关（设置 motionEnabled）
+ *   data-md-motion-preset="flow|breathe|both|subtle"
+ * 分区开关用 data-md-motion-scope 位图（mermaid/table/highlight/code），
+ * 由 App 写入形如 "mermaid table" 的空白分隔列表，CSS 用属性选择器包含匹配。
+ *
+ * 尊重减少动态效果：系统 prefers-reduced-motion 与壳的 data-anim='low' 下全部关闭。
+ */
+
+/* ---------------- mermaid 箭头流光 ---------------- */
+
+/* mermaid 生成的连线是 path.flowchart-link（新版）或 .edgePath path（旧版），
+   箭头 marker 单独在 defs 里。这里只动 stroke-dasharray/offset，不改 mermaid 源码。 */
+:root[data-md-motion='on'] .md-scope .md-mermaid svg .flowchart-link,
+:root[data-md-motion='on'] .md-scope .md-mermaid svg .edgePath path,
+:root[data-md-motion='on'] .md-scope .md-mermaid svg path.relation {
+  stroke-dasharray: 6 5;
+  animation: md-flow-dash 1.15s linear infinite;
+}
+/* 流光拖尾：再叠一层亮色短线，做出"光在箭头上跑"的观感 */
+:root[data-md-motion='on'] .md-scope .md-mermaid svg .flowchart-link {
+  filter: drop-shadow(0 0 1.2px color-mix(in srgb, var(--md-link, #3b82f6) 55%, transparent));
+}
+@keyframes md-flow-dash {
+  to { stroke-dashoffset: -22; }
+}
+
+/* ---------------- 表格：行扫光 + 表头呼吸 ---------------- */
+
+:root[data-md-motion='on'] .md-scope figure.md-table-figures table.md-table tbody tr {
+  position: relative;
+  transition: background-color .18s ease;
+}
+:root[data-md-motion='on'] .md-scope figure.md-table-figures table.md-table tbody tr:hover {
+  background: color-mix(in srgb, var(--md-link, #3b82f6) 7%, transparent);
+}
+/* 首行（表头）柔和的渐变呼吸 */
+:root[data-md-motion='on'][data-md-motion-preset='breathe'] .md-scope figure.md-table-figures table.md-table thead th,
+:root[data-md-motion='on'][data-md-motion-preset='both'] .md-scope figure.md-table-figures table.md-table thead th {
+  animation: md-breathe-bg 4.2s ease-in-out infinite;
+}
+@keyframes md-breathe-bg {
+  0%, 100% { background-color: var(--md-quote-bg); }
+  50% { background-color: color-mix(in srgb, var(--md-link, #3b82f6) 12%, var(--md-quote-bg)); }
+}
+
+/* ---------------- 高亮文字：呼吸灯 ---------------- */
+
+:root[data-md-motion='on'][data-md-motion-preset='breathe'] .md-scope mark,
+:root[data-md-motion='on'][data-md-motion-preset='both'] .md-scope mark {
+  animation: md-breathe-mark 3.4s ease-in-out infinite;
+}
+:root[data-md-motion='on'][data-md-motion-preset='flow'] .md-scope mark {
+  animation: md-breathe-mark 5.5s ease-in-out infinite;
+}
+@keyframes md-breathe-mark {
+  0%, 100% { background-color: var(--md-mark-bg); }
+  50% { background-color: color-mix(in srgb, var(--md-mark-bg) 55%, var(--md-link, #f0b429) 45%); }
+}
+
+/* ---------------- 代码块：细边框流光 ---------------- */
+
+:root[data-md-motion='on'] .md-scope pre.md-fences {
+  position: relative;
+}
+:root[data-md-motion='on'] .md-scope pre.md-fences::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 38%,
+    color-mix(in srgb, var(--md-link, #3b82f6) 55%, transparent) 50%,
+    transparent 62%,
+    transparent 100%
+  );
+  background-size: 260% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: md-sheen-border 5.5s linear infinite;
+  opacity: .85;
+}
+@keyframes md-sheen-border {
+  from { background-position: 180% 0; }
+  to { background-position: -80% 0; }
+}
+
+/* ---------------- subtle：只留极轻的呼吸，不做流光 ---------------- */
+
+:root[data-md-motion='on'][data-md-motion-preset='subtle'] .md-scope .md-mermaid svg .flowchart-link,
+:root[data-md-motion='on'][data-md-motion-preset='subtle'] .md-scope .md-mermaid svg .edgePath path {
+  animation: none;
+  stroke-dasharray: none;
+  filter: none;
+}
+:root[data-md-motion='on'][data-md-motion-preset='subtle'] .md-scope pre.md-fences::before {
+  animation: none;
+  background: none;
+  opacity: 0;
+}
+:root[data-md-motion='on'][data-md-motion-preset='subtle'] .md-scope mark {
+  animation: md-breathe-mark 7s ease-in-out infinite;
+}
+
+/* ---------------- 分区开关（data-md-motion-scope 空白列表包含匹配） ---------------- */
+
+:root[data-md-motion='on']:not([data-md-motion-scope~='mermaid']) .md-scope .md-mermaid svg .flowchart-link,
+:root[data-md-motion='on']:not([data-md-motion-scope~='mermaid']) .md-scope .md-mermaid svg .edgePath path,
+:root[data-md-motion='on']:not([data-md-motion-scope~='mermaid']) .md-scope .md-mermaid svg path.relation {
+  animation: none;
+  stroke-dasharray: none;
+  filter: none;
+}
+:root[data-md-motion='on']:not([data-md-motion-scope~='table']) .md-scope figure.md-table-figures table.md-table thead th {
+  animation: none;
+}
+:root[data-md-motion='on']:not([data-md-motion-scope~='highlight']) .md-scope mark {
+  animation: none;
+}
+:root[data-md-motion='on']:not([data-md-motion-scope~='code']) .md-scope pre.md-fences::before {
+  animation: none;
+  background: none;
+  opacity: 0;
+}
+
+/* ---------------- 减少动态效果：全部关闭 ---------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-md-motion] .md-scope .md-mermaid svg .flowchart-link,
+  :root[data-md-motion] .md-scope .md-mermaid svg .edgePath path,
+  :root[data-md-motion] .md-scope .md-mermaid svg path.relation,
+  :root[data-md-motion] .md-scope mark,
+  :root[data-md-motion] .md-scope figure.md-table-figures table.md-table thead th,
+  :root[data-md-motion] .md-scope pre.md-fences::before {
+    animation: none !important;
+    stroke-dasharray: none !important;
+    filter: none !important;
+    background: none !important;
+    opacity: 1 !important;
+  }
+  :root[data-md-motion] .md-scope pre.md-fences::before { opacity: 0 !important; }
+}
+/* 壳的动画档位为 low 时同样全关（与 :root[data-anim='low'] 约定一致） */
+:root[data-anim='low'] :root[data-md-motion] .md-scope .md-mermaid svg .flowchart-link,
+:root[data-anim='low'] :root[data-md-motion] .md-scope .md-mermaid svg .edgePath path,
+:root[data-anim='low'] :root[data-md-motion] .md-scope .md-mermaid svg path.relation,
+:root[data-anim='low'] :root[data-md-motion] .md-scope mark,
+:root[data-anim='low'] :root[data-md-motion] .md-scope figure.md-table-figures table.md-table thead th,
+:root[data-anim='low'] :root[data-md-motion] .md-scope pre.md-fences::before {
+  animation: none !important;
+  stroke-dasharray: none !important;
+  filter: none !important;
+  background: none !important;
+}
+:root[data-anim='low'] :root[data-md-motion] .md-scope pre.md-fences::before { opacity: 0 !important; }
+
+/* 打印/导出：动效一律不参与 */
+@media print {
+  :root[data-md-motion] .md-scope .md-mermaid svg .flowchart-link,
+  :root[data-md-motion] .md-scope .md-mermaid svg .edgePath path,
+  :root[data-md-motion] .md-scope mark,
+  :root[data-md-motion] .md-scope pre.md-fences::before {
+    animation: none !important;
+    stroke-dasharray: none !important;
+  }
+}

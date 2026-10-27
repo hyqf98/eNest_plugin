@@ -1,6 +1,6 @@
 /**
  * markdown v2 主界面 —— Typora 式本地文件工作台。
- * shell 模式：工具栏 + 侧栏（大纲/文件树/图片资产）+ 即时渲染编辑器 + 状态栏。
+ * shell 模式：侧栏（大纲/文件树/图片资产）+ 即时渲染编辑器 + 状态栏。
  * quick 模式：速记编辑器（提交落收件箱，dismissQuick 保活）。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -9,6 +9,8 @@ import { wrapSelection, toggleLinePrefix, insertBlock, FENCE_TEXT, TABLE_TEXT, L
 import { call, onBackendEvent, resolveImageToDataUrl, dataUrlToParts, readClipboardImage } from '../js/rpc.js'
 import { applyTheme, builtinThemeCss, adaptTyporaCss, BUILTIN_THEMES } from '../render/theme.js'
 import { setMermaidLook } from '../render/render.js'
+import { resolveImageDir } from '../js/imageDir.js'
+import { applyContentMetrics, applyMotionSettings, loadUserThemes, applyUserTheme, deleteUserTheme } from '../js/preferences.js'
 import { Sidebar } from './Sidebar.jsx'
 import { SettingsPage } from './SettingsPage.jsx'
 import { UploadMenu } from './UploadMenu.jsx'
@@ -38,6 +40,10 @@ graph LR
 > 引用块，圆角左线。
 `
 
+const SIDEBAR_DEFAULT_WIDTH = 232
+const SIDEBAR_MIN_WIDTH = 180
+const SIDEBAR_MAX_WIDTH = 480
+const SIDEBAR_WIDTH_KEY = 'md.sidebarWidth'
 
 export function App() {
   const [kit, setKit] = useState(null)
@@ -54,6 +60,7 @@ export function App() {
   const [sidebarTab, setSidebarTab] = useState('outline')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarPeek, setSidebarPeek] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH)
   const [conflict, setConflict] = useState(null)
   const [themeList, setThemeList] = useState(BUILTIN_THEMES)
   const [activeTheme, setActiveTheme] = useState('enest-minimal')
@@ -64,6 +71,8 @@ export function App() {
   const [docVersion, setDocVersion] = useState(0) // 内容变化计数（资源面板 400ms 防抖重提取）
   const [moreOpen, setMoreOpen] = useState(false)
   const [ctxMenu, setCtxMenu] = useState(null) // { x, y } 编辑区右键格式菜单
+  const [imageDir, setImageDir] = useState(null) // { raw, path, exists, error }
+  const [imageMenu, setImageMenu] = useState(null) // { x, y, src, width, height } 图片尺寸工具
 
   /* —— refs —— */
   const editorHostRef = useRef(null)
@@ -78,12 +87,77 @@ export function App() {
   const kitRef = useRef(null)
   const settingsRef = useRef({})
   const sidebarRef = useRef(null)
-  const sidebarToggleRef = useRef(null)
+  const sidebarHandleRef = useRef(null)
   const sidebarBindingRef = useRef(null)
+  const sidebarWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH)
+  const imageDirRef = useRef(null)
+  const resizingRef = useRef(false)
+  const suppressHandleClickRef = useRef(false)
+  const handleClickTimerRef = useRef(0)
+
+  /* —— 侧栏宽度：持久化 + 应用到 CSS 变量 —— */
+  useEffect(() => {
+    sidebarWidthRef.current = sidebarWidth
+    document.documentElement.style.setProperty('--md-sidebar-width', `${sidebarWidth}px`)
+  }, [sidebarWidth])
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const stored = await api()?.storage?.get?.(SIDEBAR_WIDTH_KEY)
+        const n = Number(stored)
+        if (alive && Number.isFinite(n) && n >= SIDEBAR_MIN_WIDTH && n <= SIDEBAR_MAX_WIDTH) setSidebarWidth(Math.round(n))
+      } catch { /* 用默认宽度 */ }
+    })()
+    return () => { alive = false }
+  }, [])
+
+  const persistSidebarWidth = useCallback((width) => {
+    try { void api()?.storage?.set?.(SIDEBAR_WIDTH_KEY, Math.round(width)) } catch { /* 忽略 */ }
+  }, [])
+
+  /* 侧栏右边缘拖拽调宽：主进程不参与，纯 renderer 指针事件（跟手，不触发文字选中） */
+  const startSidebarResize = useCallback((e) => {
+    if (e.button !== 0 || !sidebarOpen) return
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startWidth = sidebarWidthRef.current
+    resizingRef.current = true
+    document.body.classList.add('md-sidebar-resizing')
+    document.body.dataset.mdSidebarResizing = 'on'
+
+    const onMove = (ev) => {
+      const next = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(startWidth + ev.clientX - startX)))
+      sidebarWidthRef.current = next
+      document.documentElement.style.setProperty('--md-sidebar-width', `${next}px`)
+      setSidebarWidth(next)
+    }
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onUp)
+      resizingRef.current = false
+      document.body.classList.remove('md-sidebar-resizing')
+      delete document.body.dataset.mdSidebarResizing
+      persistSidebarWidth(sidebarWidthRef.current)
+    }
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onUp)
+  }, [sidebarOpen, persistSidebarWidth])
+
+  const resetSidebarWidth = useCallback(() => {
+    setSidebarWidth(SIDEBAR_DEFAULT_WIDTH)
+    sidebarWidthRef.current = SIDEBAR_DEFAULT_WIDTH
+    document.documentElement.style.setProperty('--md-sidebar-width', `${SIDEBAR_DEFAULT_WIDTH}px`)
+    persistSidebarWidth(SIDEBAR_DEFAULT_WIDTH)
+  }, [persistSidebarWidth])
 
   useEffect(() => {
     if (mode !== 'shell' || page !== 'editor') return
-    const binding = PluginKit.bindHoverPanel(sidebarToggleRef.current, sidebarRef.current, {
+    const binding = PluginKit.bindHoverPanel(sidebarHandleRef.current, sidebarRef.current, {
       enabled: () => !sidebarOpen,
       onOpenChange: setSidebarPeek,
       delay: 120,
@@ -100,12 +174,41 @@ export function App() {
   }
 
   docPathRef.current = docPath
+  imageDirRef.current = imageDir
   // 供 Sidebar 直接替换文内链接（避免把 EditorView 穿透 props）
   useEffect(() => { (window).__mdViewRef = viewRef })
 
   const toast = useCallback((message, type = "info") => {
     kitRef.current?.toast?.(message, type)
   }, [])
+
+  /* ---------------- 设置应用 ---------------- */
+
+  /** 图片/HTML 尺寸、代码配色、动效开关：全部写根元素变量/属性，即时生效 */
+  const applyPreferences = useCallback((settings) => {
+    applyContentMetrics(document.documentElement, settings)
+    applyMotionSettings(document.documentElement, settings)
+  }, [])
+
+  /** 重新解析本地图片目录（设置变更或首次启动时调用），并把结果登记为 backend 授权 */
+  const refreshImageDir = useCallback(async (settings) => {
+    const s = settings || settingsRef.current || {}
+    let assetsDir = ''
+    try {
+      const paths = await call('info.paths')
+      assetsDir = paths?.assetsDir || ''
+    } catch { /* backend 未授权时用 resolvePath 推算 */ }
+    const resolved = await resolveImageDir(s.localImageDir, api(), assetsDir)
+    setImageDir(resolved)
+    imageDirRef.current = resolved
+    // 手输目录要在 backend 侧登记持久授权，否则预览读不到、保存也会被"路径越界"拒绝
+    if (resolved?.path && !resolved.fallback) {
+      void call('images.setDir', resolved.path, resolved.raw).catch(() => {})
+    } else if (resolved?.fallback) {
+      void call('images.setDir', '', resolved.raw || '').catch(() => {})
+    }
+    if (resolved?.error) toast(`图片目录解析失败：${resolved.error}，已回退到插件私有 assets`, 'error')
+  }, [toast])
 
   /* ---------------- 保存 ---------------- */
   const flushSave = useCallback(async () => {
@@ -201,33 +304,93 @@ export function App() {
     view.dispatch({ changes: { from: pos, to: pos, insert: text } })
   }, [])
 
+  /**
+   * 图片落盘。
+   * `local` 走 upload.local（与图床选择解耦），目录用设置里的手输路径经
+   * `shell.resolvePath` 解析后的绝对路径；解析失败时回退插件私有 assets。
+   */
   const handleImage = useCallback(async (dataUrl, action) => {
     if (action === 'base64') {
       insertAtCursor(`![](${dataUrl})`)
       return
     }
-    if (action === 'local' || action === 'upload') {
-      setUploading(true)
-      try {
-        if (action === 'local' && !docPathRef.current) {
-          toast('请先保存文档再使用本地 assets', 'error')
-          return
-        }
-        const { mime, bytesB64 } = dataUrlToParts(dataUrl)
-        if (action === 'upload' && !docPathRef.current) {
-          // 上传模式没有本地文档也可（PicList/GitHub/脚本）；local 需要
-        }
+    setUploading(true)
+    try {
+      const { mime, bytesB64 } = dataUrlToParts(dataUrl)
+      if (action === 'local') {
+        const dir = imageDirRef.current?.path || undefined
+        const result = await call('upload.local', docPathRef.current || '', 'pasted.png', mime, bytesB64, dir)
+        insertAtCursor(`\n${result.markdown}\n`)
+        toast('图片已存到本地', 'success')
+      } else {
         const result = await call('upload.run', docPathRef.current, 'pasted.png', mime, bytesB64)
         insertAtCursor(`\n${result.markdown}\n`)
         try { await api()?.clipboard?.writeText?.(result.url) } catch { /* 可选 */ }
         toast('图片已插入', 'success')
-      } catch (e) {
-        toast(`图片处理失败：${e.message}`, 'error')
-      } finally {
-        setUploading(false)
       }
+    } catch (e) {
+      toast(`图片处理失败：${e.message}`, 'error')
+    } finally {
+      setUploading(false)
     }
   }, [insertAtCursor, toast])
+
+  /* ---------------- 图片尺寸工具（单张覆盖） ---------------- */
+
+  /** 在光标处的图片语法后追加 {width=.. height=..}，渲染层会转成内联样式 */
+  const applyImageSize = useCallback((width, height) => {
+    const view = viewRef.current
+    const menu = imageMenu
+    setImageMenu(null)
+    if (!view || !menu) return
+    const text = view.state.doc.toString()
+    const src = menu.src
+    if (!src) return
+    const idx = text.indexOf(src)
+    if (idx < 0) { toast('未能在文档中定位该图片', 'error'); return }
+    // 定位图片语法结束的右括号
+    let close = text.indexOf(')', idx + src.length)
+    const angle = text.lastIndexOf(']', idx)
+    if (close < 0 || angle < 0) { toast('图片语法不完整，无法设置尺寸', 'error'); return }
+    let end = close + 1
+    // 已有 {width=..} 覆盖时先删掉
+    const tail = /^\{[^}]*\}/.exec(text.slice(end))
+    if (tail) end += tail[0].length
+    const attrs = []
+    if (width) attrs.push(`width=${width}`)
+    if (height) attrs.push(`height=${height}`)
+    const insert = attrs.length ? `{${attrs.join(' ')}}` : ''
+    view.dispatch({ changes: { from: close + 1, to: end, insert } })
+    view.focus()
+    toast(insert ? '已设置该图片尺寸' : '已清除该图片尺寸', 'success')
+  }, [imageMenu, toast])
+
+  /** 渲染态图片点击：弹出小工具设置单张宽高 */
+  const onEditorClick = useCallback((e) => {
+    const img = e.target?.closest?.('.md-atomic img, .md-html-block img')
+    if (!img) return
+    const rect = img.getBoundingClientRect()
+    setImageMenu({
+      x: Math.min(e.clientX, window.innerWidth - 240),
+      y: Math.min(e.clientY + 12, window.innerHeight - 200),
+      src: img.getAttribute('data-src') || img.getAttribute('src') || '',
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!imageMenu) return
+    const close = (e) => {
+      // 工具自身与触发它的图片都不关闭，避免 mousedown 先于 click 关掉面板
+      if (e.target?.closest?.('.md-img-tool, .md-atomic img, .md-html-block img')) return
+      setImageMenu(null)
+    }
+    const esc = (e) => { if (e.key === 'Escape') setImageMenu(null) }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc) }
+  }, [imageMenu])
 
   /* ---------------- 格式操作（右键菜单复用，逻辑与 keymap 同源） ---------------- */
   const applyFormatAction = useCallback((action) => {
@@ -294,23 +457,51 @@ export function App() {
         return
       }
     }
-    // 纯文本粘贴：检测是否为图片路径（剪贴板历史场景）—— 交给默认
-  }, [handleImage])
+    // 纯文本粘贴：若整段就是本地图片路径（截图工具的「复制文件路径」），直接插入图片语法
+    const text = e.clipboardData.getData('text/plain')?.trim() ?? ''
+    if (!text || text.includes('\n')) return
+    if (/^(?:file:\/\/)?(?:\/|~\/|[A-Za-z]:[\\/]).+\.(?:png|jpe?g|gif|webp|svg|bmp)$/i.test(text)) {
+      e.preventDefault()
+      const url = text.replace(/^file:\/\//i, '')
+      insertAtCursor(`![](${url})`)
+      toast('已按本地图片插入', 'success')
+    }
+  }, [handleImage, insertAtCursor, toast])
 
-  /* ---------------- 拖入打开 ---------------- */
+  /* ---------------- 拖入打开 / 拖入图片 ---------------- */
+
   const onDrop = useCallback(async (e) => {
     const files = Array.from(e.dataTransfer?.files ?? [])
     if (!files.length) return
     e.preventDefault()
+    const images = files.filter((f) => /^image\//.test(f.type))
     const md = files.find((f) => /\.md$/i.test(f.name))
-    try {
-      const handles = await api()?.localFiles?.fromDrop?.(files.map((f) => (f).path || f.name))
-      const handle = handles?.find?.((h) => /\.md$/i.test(h.name))
-      if (handle?.displayPath) await openFile(handle.displayPath)
-    } catch {
-      toast('拖入被取消', 'info')
+    if (md) {
+      try {
+        const handles = await api()?.localFiles?.fromDrop?.(files.map((f) => (f).path || f.name))
+        const handle = handles?.find?.((h) => /\.md$/i.test(h.name))
+        if (handle?.displayPath) await openFile(handle.displayPath)
+      } catch {
+        toast('拖入被取消', 'info')
+      }
+      return
     }
-  }, [openFile, toast])
+    // 拖入图片：与粘贴同一套动作（默认动作 / 询问）
+    if (images.length) {
+      for (const file of images) {
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result))
+          reader.onerror = () => resolve('')
+          reader.readAsDataURL(file)
+        })
+        if (!dataUrl) continue
+        const defaultAction = settingsRef.current.imageDefaultAction || 'ask'
+        if (defaultAction === 'ask') window.dispatchEvent(new CustomEvent('md-ask-image', { detail: dataUrl }))
+        else await handleImage(dataUrl, defaultAction)
+      }
+    }
+  }, [openFile, toast, handleImage])
 
   /* ---------------- 外部变更冲突 ---------------- */
   useEffect(() => {
@@ -360,11 +551,9 @@ export function App() {
     if (builtin) {
       applyTheme(themeId, builtinThemeCss(themeId))
     } else {
-      // 用户主题（Typora CSS）
-      try {
-        const { css } = await call('theme.read', themeId)
-        applyTheme(themeId, builtinThemeCss('enest-minimal') + adaptTyporaCss(css))
-      } catch {
+      // 用户主题（Typora CSS / 上传的 CSS 主题）：优先读宿主私有文件区
+      const applied = await applyUserTheme(themeId, builtinThemeCss('enest-minimal'))
+      if (!applied) {
         applyTheme('enest-minimal', builtinThemeCss('enest-minimal'))
         themeId = 'enest-minimal'
       }
@@ -374,16 +563,18 @@ export function App() {
     void call('theme.setPrefs', dark ? themeId : undefined, dark ? undefined : themeId).catch(() => {})
   }, [])
 
+  const refreshThemeList = useCallback(async () => {
+    const userThemes = await loadUserThemes()
+    setThemeList([...BUILTIN_THEMES, ...userThemes])
+    return userThemes
+  }, [])
+
   const initTheme = useCallback(async (dark) => {
-    try {
-      const list = await call('theme.list')
-      const userThemes = list.themes.map((t) => ({ id: t.name, name: t.name, source: 'user' }))
-      setThemeList([...(BUILTIN_THEMES), ...userThemes])
-    } catch { /* backend 未授权时保留内置 */ }
+    await refreshThemeList().catch(() => { /* backend 未授权时保留内置 */ })
     const prefs = await call('theme.prefs').catch(() => ({ lightTheme: 'enest-minimal', darkTheme: 'enest-minimal-dark' }))
     const want = dark ? (prefs.darkTheme || 'enest-minimal-dark') : (prefs.lightTheme || 'enest-minimal')
     await applyThemeById(want, dark)
-  }, [applyThemeById])
+  }, [applyThemeById, refreshThemeList])
 
   /* ---------------- 编辑器创建 ---------------- */
   useEffect(() => {
@@ -444,18 +635,36 @@ export function App() {
       title: 'Markdown 编辑器',
       quickPlaceholder: '速记一句话，⏎ 落收件箱…',
       height: 420,
-      defaults: { typewriterMode: false, focusMode: false, renderHtml: true, mermaidLook: 'handDrawn', imageDefaultAction: 'ask', autoSave: true },
+      defaults: {
+        typewriterMode: false,
+        focusMode: false,
+        renderHtml: true,
+        mermaidLook: 'handDrawn',
+        imageDefaultAction: 'ask',
+        autoSave: true,
+        localImageDir: '',
+        codeTheme: 'default',
+        motionEnabled: false,
+        motionPreset: 'both',
+        imageMaxWidth: 100,
+        imageMaxHeight: 0,
+        htmlBlockMaxWidth: 100,
+        htmlBlockMaxHeight: 0,
+      },
     })
     kitRef.current = k
     setKit(k)
     setMode(k.mode === 'quick' ? 'quick' : 'shell')
 
     k.onMode?.((m) => setMode(m === 'quick' ? 'quick' : 'shell'))
-    k.onSettings?.((settings) => {
+    k.onSettings?.((settings, changedKey) => {
       settingsRef.current = settings
       setTypewriter(settings.typewriterMode === true)
       setFocusMode(settings.focusMode === true)
       setMermaidLook(settings.mermaidLook === 'rounded' || settings.mermaidLook === 'classic' ? settings.mermaidLook : 'handDrawn')
+      applyPreferences(settings)
+      // 手输图片目录：解析为绝对路径（宿主统一 API，跨平台）
+      if (changedKey === undefined || changedKey === 'localImageDir') void refreshImageDir(settings)
       const view = viewRef.current
       if (view) updateLiveOpts(view, {
         renderHtml: settings.renderHtml !== false,
@@ -467,6 +676,8 @@ export function App() {
     const booted = (async () => {
       await k.ready
       if (!alive) return
+      applyPreferences(k.settings)
+      void refreshImageDir(k.settings)
       // 旧笔记清理（v2 改为本地文件编辑器，旧 storage 数据废弃）
       void call('legacy.cleanup').then(async (r) => {
         if (!r?.skipped) {
@@ -572,7 +783,19 @@ export function App() {
 
   /* ---------------- 设置页 ---------------- */
   if (page === 'settings') {
-    return <SettingsPage onBack={() => setPage('editor')} themeList={themeList} activeTheme={activeTheme} onThemeChange={(id) => void applyThemeById(id, darkMode)} />
+    return (
+      <SettingsPage
+        onBack={() => setPage('editor')}
+        themeList={themeList}
+        activeTheme={activeTheme}
+        onThemeChange={(id) => void applyThemeById(id, darkMode)}
+        onThemesChanged={() => void refreshThemeList()}
+        imageDir={imageDir}
+        onRefreshImageDir={() => void refreshImageDir()}
+        settings={kit?.settings || {}}
+        onSettingChange={(key, value) => void api()?.settings?.set?.(key, value)}
+      />
+    )
   }
 
   /* ---------------- shell 编辑器 ---------------- */
@@ -602,6 +825,24 @@ export function App() {
           <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ image: true }) }}>图片<kbd>⇧⌘K</kbd></button>
         </div>
       )}
+      {imageMenu && (
+        <div className="md-img-tool" style={{ left: imageMenu.x, top: imageMenu.y }} role="dialog" aria-label="图片尺寸">
+          <div className="md-menu-label">本图尺寸（当前 {imageMenu.width}×{imageMenu.height}）</div>
+          <div className="md-img-tool-row">
+            {[25, 50, 75, 100].map((pct) => (
+              <button key={pct} onClick={() => applyImageSize(`${pct}%`)}>{pct}%</button>
+            ))}
+          </div>
+          <div className="md-img-tool-row">
+            {[320, 480, 640, 800].map((px) => (
+              <button key={px} onClick={() => applyImageSize(`${px}px`)}>{px}px</button>
+            ))}
+          </div>
+          <div className="md-img-tool-row">
+            <button onClick={() => applyImageSize('', '')}>清除尺寸</button>
+          </div>
+        </div>
+      )}
       {conflict && (
         <div className="md-conflict-overlay" role="alertdialog" aria-label="文件在外部被修改">
           <div className="md-conflict-card">
@@ -617,10 +858,6 @@ export function App() {
         </div>
       )}
       <div className="md-body">
-        <button ref={sidebarToggleRef} type="button" className="pk-btn pk-btn-ghost pk-btn-sm md-sidebar-toggle"
-          aria-controls="md-navigation" aria-expanded={sidebarOpen || sidebarPeek}
-          aria-label={sidebarOpen ? '收起侧栏' : '展开侧栏'} title={sidebarOpen ? '收起侧栏（⌘\\）' : '展开侧栏（⌘\\）'}
-          onClick={toggleSidebar}>☰</button>
         <Sidebar
           panelRef={sidebarRef}
           tab={sidebarTab}
@@ -634,8 +871,53 @@ export function App() {
           onJump={(pos) => viewRef.current?.dispatch({ selection: { anchor: pos }, scrollIntoView: true })}
           toast={toast}
           viewRef={viewRef}
+          imageDir={imageDir?.path || ''}
         />
-        <section className="md-editor-pane" onDrop={(e) => void onDrop(e.nativeEvent)} onDragOver={(e) => e.preventDefault()} onContextMenu={onEditorContextMenu}>
+        {/* 侧栏右边缘把手：单击切换，横向拖动调宽，双击恢复默认宽度 */}
+        <button
+          ref={sidebarHandleRef}
+          type="button"
+          className="md-sidebar-handle"
+          aria-controls="md-navigation"
+          aria-expanded={sidebarOpen || sidebarPeek}
+          aria-label={sidebarOpen ? '收起侧栏（拖动可调宽，双击恢复默认宽度）' : '展开侧栏'}
+          title={sidebarOpen ? '收起侧栏 · 拖动调宽 · 双击复位' : '展开侧栏'}
+          onPointerDown={(e) => {
+            if (e.button !== 0 || !sidebarOpen) return
+            const startX = e.clientX
+            let dragging = false
+            const onMove = (ev) => {
+              if (dragging) return
+              if (Math.abs(ev.clientX - startX) > 3) {
+                dragging = true
+                suppressHandleClickRef.current = true
+                document.removeEventListener('pointermove', onMove)
+                document.removeEventListener('pointerup', onUp)
+                startSidebarResize(ev)
+              }
+            }
+            const onUp = () => {
+              document.removeEventListener('pointermove', onMove)
+              document.removeEventListener('pointerup', onUp)
+            }
+            document.addEventListener('pointermove', onMove)
+            document.addEventListener('pointerup', onUp, { once: true })
+          }}
+          onClick={() => {
+            // 拖动调宽结束后的 click 不当作切换
+            if (suppressHandleClickRef.current) { suppressHandleClickRef.current = false; return }
+            // 延迟一拍：双击（复位宽度）时取消这次切换
+            clearTimeout(handleClickTimerRef.current)
+            handleClickTimerRef.current = setTimeout(() => toggleSidebar(), 240)
+          }}
+          onDoubleClick={(e) => {
+            e.preventDefault()
+            clearTimeout(handleClickTimerRef.current)
+            suppressHandleClickRef.current = false
+            resetSidebarWidth()
+          }}
+        />
+        <section className="md-editor-pane" onDrop={(e) => void onDrop(e.nativeEvent)} onDragOver={(e) => e.preventDefault()} onContextMenu={onEditorContextMenu} onClick={onEditorClick}>
           <div ref={editorHostRef} className="md-editor-host" />
           {/* 右上角浮动菜单：不占布局行高，悬停才完全显形 */}
           <div className="md-float-menu md-more-wrap" ref={moreRef}>

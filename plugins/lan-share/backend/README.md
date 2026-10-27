@@ -28,5 +28,5 @@ the public internet; traffic is not encrypted.
 New migration checks (temporary files and `127.0.0.1` only):
 
 ```sh
-node --test plugins/lan-share/backend/tests/migration-20261024.test.mjs
+node --test plugins/lan-share/backend/tests/selected-file-sharing.test.mjs
 ```

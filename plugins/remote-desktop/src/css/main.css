@@ -39,8 +39,9 @@ button {
   cursor: pointer;
 }
 button:focus-visible, input:focus-visible, select:focus-visible {
-  outline: 2px solid var(--accent, #3579dd);
-  outline-offset: 2px;
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3579dd) 20%, transparent);
 }
 button:disabled { cursor: default; opacity: 0.45; }
 
@@ -113,7 +114,7 @@ button:disabled { cursor: default; opacity: 0.45; }
   font: inherit;
 }
 .side-tools input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--border, #d9dfe6)); }
-.side-tools input:focus { outline: 2px solid color-mix(in srgb, var(--accent, #3579dd) 40%, transparent); outline-offset: -1px; }
+.side-tools input:focus { outline: none; border-color: color-mix(in srgb, var(--accent, #3579dd) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3579dd) 18%, transparent); }
 .side-tools input:disabled { opacity: 0.45; cursor: default; }
 
 .tree { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
@@ -180,7 +181,7 @@ button:disabled { cursor: default; opacity: 0.45; }
   font: inherit;
 }
 .quick-uri input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--border, #d9dfe6)); }
-.quick-uri input:focus { outline: 2px solid color-mix(in srgb, var(--accent, #3579dd) 40%, transparent); outline-offset: -1px; }
+.quick-uri input:focus { outline: none; border-color: color-mix(in srgb, var(--accent, #3579dd) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3579dd) 18%, transparent); }
 
 .recent { width: 100%; max-width: 640px; border: 1px solid var(--border, #d9dfe6); border-radius: var(--radius); background: var(--surface, #f6f7f9); }
 .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border, #d9dfe6); }
@@ -345,7 +346,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
   font: inherit;
 }
 .form-row input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--border, #d9dfe6)); }
-.form-row input:focus { outline: 2px solid color-mix(in srgb, var(--accent, #3579dd) 40%, transparent); outline-offset: -1px; }
+.form-row input:focus { outline: none; border-color: color-mix(in srgb, var(--accent, #3579dd) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3579dd) 18%, transparent); }
 .form-row input:disabled { opacity: 0.45; cursor: default; }
 /* select 已由 kit 升级为 .pk-select：连接参数下拉占满窄面板列宽，菜单不裁切 */
 .form-row .pk-select { width: 100%; }

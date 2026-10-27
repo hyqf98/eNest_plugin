@@ -1,6 +1,8 @@
 # SQL 脚本执行边界
 
-`sqlScript.ts` 是没有宿主依赖的纯解析模块。它输出 server SQL、原文 UTF-16 偏移、行范围和单元类型；不执行 SQL。插件通过 `eNest_plugin/scripts/generate-db-execution-parser.mjs` 生成 `executionParser.js`，运行时不依赖宿主源码目录。修改解析规则后生成一次，使用 `--check` 校验。`executionRange.js` 只负责选区、光标和整文档选择。
+以下路径均相对于数据库插件目录。`backend/sqlScript.ts` 是唯一的纯解析源码，不依赖宿主。它输出 server SQL、原文 UTF-16 偏移、行范围和单元类型；不执行 SQL。`scripts/generate-execution-parser.mjs` 从该文件生成前端 `src/js/executionParser.js`，使编辑器与数据库插件后端使用同一份边界规则。`executionRange.js` 只负责选区、光标和整文档选择。
+
+修改解析规则后，在数据库插件目录运行 `npm run parser:generate`；只读一致性检查使用 `npm run parser:check`。也可直接运行 `node scripts/generate-execution-parser.mjs [--check]`。生成器通过自身位置定位输入和输出，只使用本插件声明的 TypeScript 开发依赖，不提供宿主路径参数或依赖回退。本插件 Vite 配置在 dev 启动及每次构建解析配置时调用同一生成函数，内容不变时不写入；仓库通用 build 和默认 pack 复用这一流程，`--no-build` 只处理已有 dist。
 
 - MySQL / MariaDB：识别行首 `DELIMITER`，保留过程、函数、触发器及复合块。自定义分隔符必须为 1–16 个标点，且不能与注释冲突；分隔符与指令不发往服务器。
 - SQL Server：每个 `GO` 区间作为一个请求，保留 `DECLARE`、条件和过程的批次作用域。接受 `GO` / `GO 1`；明确拒绝重复次数和 SQLCMD 指令。事务命令使用工具栏，或各自放在一个 GO 批次。

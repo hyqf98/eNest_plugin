@@ -1,9 +1,28 @@
 /**
  * markdown v2 —— 设置页（code=settings）：图床四提供方、自定义 JS 脚本编辑器、
- * 主题管理（导入 Typora CSS）、数据目录展示。
+ * 主题管理（导入/上传 CSS 主题）、本地图片目录、代码配色与动效、数据目录展示。
  */
 import { useCallback, useEffect, useState } from 'react'
 import { call } from '../js/rpc.js'
+import { describeImageDir } from '../js/imageDir.js'
+import { importUserThemeFromPicker, saveUserTheme, deleteUserTheme, loadUserThemes } from '../js/preferences.js'
+
+const CODE_THEMES = [
+  { value: 'default', label: '默认（跟随编辑器主题）' },
+  { value: 'github', label: 'GitHub' },
+  { value: 'monokai', label: 'Monokai' },
+  { value: 'dracula', label: 'Dracula' },
+  { value: 'solarized', label: 'Solarized Light' },
+  { value: 'nord', label: 'Nord' },
+]
+
+const MOTION_PRESETS = [
+  { value: 'both', label: '全开（流光 + 呼吸）' },
+  { value: 'flow', label: '只做流光（箭头/边框）' },
+  { value: 'breathe', label: '只做呼吸灯（高亮/表头）' },
+  { value: 'subtle', label: '轻微（仅极淡呼吸）' },
+]
+
 
 const SAMPLE_SCRIPTS = {
   '兰空图床': `// 兰空图床 v2：Token + /api/v1/upload
@@ -99,7 +118,7 @@ const SHORTCUT_GROUPS = [
   },
 ]
 
-export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange }) {
+export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, onThemesChanged, imageDir, onRefreshImageDir, settings = {}, onSettingChange }) {
   const [section, setSection] = useState('uploaders')
   const [cfg, setCfg] = useState(null)
   const [script, setScript] = useState('')
@@ -109,6 +128,11 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange }) 
   const [newThemeName, setNewThemeName] = useState('')
   const [newThemeCss, setNewThemeCss] = useState('')
   const [paths, setPaths] = useState(null)
+  const [themeBusy, setThemeBusy] = useState(false)
+  const [themeMsg, setThemeMsg] = useState(null)
+  const [localImageDir, setLocalImageDir] = useState(settings.localImageDir ?? '')
+
+  useEffect(() => { setLocalImageDir(settings.localImageDir ?? '') }, [settings.localImageDir])
 
   useEffect(() => {
     void call('uploader.config').then((c) => {
@@ -147,29 +171,82 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange }) 
     }
   }
 
+  /* ---------------- 主题：粘贴导入 ---------------- */
   const importTheme = async () => {
     const name = newThemeName.trim()
     if (!name || !newThemeCss.trim()) return
+    setThemeBusy(true)
+    setThemeMsg(null)
     try {
-      await call('theme.write', name, newThemeCss)
+      const saved = await saveUserTheme(name, newThemeCss)
       setNewThemeName('')
       setNewThemeCss('')
-      onThemeChange(name.toLowerCase().replace(/[^a-z0-9-]+/g, '-'))
+      setThemeMsg({ ok: true, message: `已保存到${saved.storage === 'files' ? '宿主插件文件区' : '插件 KV'}并应用` })
+      await onThemesChanged?.()
+      onThemeChange(saved.id)
     } catch (e) {
-      alert(`导入失败：${e.message}`)
+      setThemeMsg({ ok: false, message: `导入失败：${e.message}` })
+    } finally {
+      setThemeBusy(false)
+    }
+  }
+
+  /* ---------------- 主题：选择本地 .css 文件 ---------------- */
+  const importThemeFile = async () => {
+    setThemeBusy(true)
+    setThemeMsg(null)
+    try {
+      const saved = await importUserThemeFromPicker()
+      if (!saved) { setThemeBusy(false); return }
+      setThemeMsg({ ok: true, message: `已导入「${saved.name}」` })
+      await onThemesChanged?.()
+      onThemeChange(saved.id)
+    } catch (e) {
+      setThemeMsg({ ok: false, message: `导入失败：${e.message}` })
+    } finally {
+      setThemeBusy(false)
     }
   }
 
   const deleteTheme = async (id) => {
     if (!confirm(`删除主题「${id}」？`)) return
-    await call('theme.delete', id).catch(() => {})
-    onThemeChange('enest-minimal')
+    setThemeBusy(true)
+    try {
+      await deleteUserTheme(id)
+      await onThemesChanged?.()
+      onThemeChange('enest-minimal')
+      setThemeMsg({ ok: true, message: '已删除' })
+    } catch (e) {
+      setThemeMsg({ ok: false, message: `删除失败：${e.message}` })
+    } finally {
+      setThemeBusy(false)
+    }
   }
 
   const field = (label, node, hint) => (
     <label className="md-set-field">
       <span className="md-set-label">{label}</span>
       {node}
+      {hint && <span className="md-set-hint">{hint}</span>}
+    </label>
+  )
+
+  const settingSwitch = (key, label, hint) => (
+    <label className="md-set-field md-set-inline">
+      <input type="checkbox" checked={settings[key] === true} onChange={(e) => onSettingChange?.(key, e.target.checked)} />
+      <span>
+        <span className="md-set-label">{label}</span>
+        {hint && <span className="md-set-hint">{hint}</span>}
+      </span>
+    </label>
+  )
+
+  const settingNumber = (key, label, hint, { min = 0, max = 4000, step = 10 } = {}) => (
+    <label className="md-set-field">
+      <span className="md-set-label">{label}</span>
+      <input className="pk-input md-set-num" type="number" min={min} max={max} step={step}
+        value={Number(settings[key] ?? 0)}
+        onChange={(e) => onSettingChange?.(key, Number(e.target.value))} />
       {hint && <span className="md-set-hint">{hint}</span>}
     </label>
   )
@@ -183,12 +260,29 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange }) 
       <nav className="md-settings-nav">
         <button className={section === 'uploaders' ? 'is-active' : ''} onClick={() => setSection('uploaders')}>图床</button>
         <button className={section === 'themes' ? 'is-active' : ''} onClick={() => setSection('themes')}>主题</button>
+        <button className={section === 'appearance' ? 'is-active' : ''} onClick={() => setSection('appearance')}>外观与动效</button>
         <button className={section === 'shortcuts' ? 'is-active' : ''} onClick={() => setSection('shortcuts')}>快捷键</button>
         <button className={section === 'data' ? 'is-active' : ''} onClick={() => setSection('data')}>数据</button>
       </nav>
 
       {section === 'uploaders' && cfg && (
         <div className="md-settings-body">
+          <section className="md-set-section">
+            <h3>本地图片目录（粘贴图片默认动作为「存本地」时使用）</h3>
+            {field('目录', (
+              <div className="md-set-row">
+                <input className="pk-input" type="text" value={localImageDir}
+                  placeholder="留空 = 插件私有 assets，例如 ~/图片 或 ./assets"
+                  onChange={(e) => setLocalImageDir(e.target.value)}
+                  onBlur={(e) => onSettingChange?.('localImageDir', e.target.value.trim())} />
+                <button className="pk-btn pk-btn-sm" onClick={() => onRefreshImageDir?.()}>重新解析</button>
+              </div>
+            ), '支持 ~（用户目录）、~/图片、./assets（相对插件数据目录）、裸相对路径与绝对路径；跨平台由 eNest 统一解析。留空使用插件私有 assets 目录。')}
+            <p className="md-set-hint">
+              当前生效：<code>{describeImageDir(imageDir) || '解析中…'}</code>
+            </p>
+            {imageDir?.error && <p className="md-set-hint md-test-fail">目录不可用，已回退默认：{imageDir.error}</p>}
+          </section>
           <section className="md-set-section">
             <h3>当前图床</h3>
             <div className="md-uploader-choice" role="radiogroup">
@@ -285,14 +379,27 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange }) 
               {themeList.map((t) => (
                 <div key={t.id} className={`md-theme-item ${t.id === activeTheme ? 'is-active' : ''}`}>
                   <button className="md-theme-name" onClick={() => onThemeChange(t.id)}>{t.name}</button>
-                  {t.source === 'user' && <button className="pk-btn pk-btn-sm" onClick={() => void deleteTheme(t.id)}>删除</button>}
+                  {t.source === 'user' && <button className="pk-btn pk-btn-sm" disabled={themeBusy} onClick={() => void deleteTheme(t.id)}>删除</button>}
                 </div>
               ))}
             </div>
+            <p className="md-set-hint">内置主题随插件走；用户主题存在 eNest 插件私有文件区（storage.files），删除时同步回收。也可把 .css 直接丢进 themes 目录。</p>
           </section>
           <section className="md-set-section">
-            <h3>导入 Typora 主题</h3>
-            <p className="md-set-hint">把 Typora 主题 CSS（如 github.css）内容粘贴到这里。选择器面向 #write 的规则会直接生效；html/body/:root 级规则自动改写为本页作用域。</p>
+            <h3>代码块配色</h3>
+            {field('配色主题', (
+              <select className="pk-input md-set-select" value={settings.codeTheme || 'default'}
+                onChange={(e) => onSettingChange?.('codeTheme', e.target.value)}>
+                {CODE_THEMES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            ), '只影响围栏代码块的 token 配色，与文档主题独立。')}
+          </section>
+          <section className="md-set-section">
+            <h3>导入 CSS 主题</h3>
+            <p className="md-set-hint">支持 Typora 主题 CSS。选择器面向 #write 的规则直接生效；html/body/:root 级规则自动改写为本页作用域。出于安全，@import 与远程 url() 会被移除。</p>
+            <div className="md-set-actions">
+              <button className="pk-btn pk-btn-sm" disabled={themeBusy} onClick={() => void importThemeFile()}>选择本地 .css 文件…</button>
+            </div>
             {field('主题名', (
               <input className="pk-input" type="text" value={newThemeName} placeholder="github" onChange={(e) => setNewThemeName(e.target.value)} />
             ))}
@@ -302,10 +409,45 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange }) 
               onChange={(e) => setNewThemeCss(e.target.value)}
               spellCheck={false}
               rows={12}
-              placeholder="/* 粘贴 Typora 主题 CSS */"
+              placeholder="/* 粘贴 CSS 主题 */"
             />
             <div className="md-set-actions">
-              <button className="pk-btn pk-btn-sm" onClick={() => void importTheme()} disabled={!newThemeName.trim() || !newThemeCss.trim()}>导入并应用</button>
+              <button className="pk-btn pk-btn-sm" onClick={() => void importTheme()} disabled={themeBusy || !newThemeName.trim() || !newThemeCss.trim()}>
+                {themeBusy ? '处理中…' : '导入并应用'}
+              </button>
+              {themeMsg && <span className={themeMsg.ok ? 'md-test-ok' : 'md-test-fail'}>{themeMsg.message}</span>}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {section === 'appearance' && (
+        <div className="md-settings-body">
+          <section className="md-set-section">
+            <h3>动效</h3>
+            {settingSwitch('motionEnabled', '开启动效', '关闭时文档完全静态。系统「减少动态效果」与壳动画档位为低时也会自动关闭。')}
+            {field('动效预设', (
+              <select className="pk-input md-set-select" value={settings.motionPreset || 'both'}
+                onChange={(e) => onSettingChange?.('motionPreset', e.target.value)}>
+                {MOTION_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            ))}
+            <div className="md-set-checks">
+              {settingSwitch('motionMermaid', 'Mermaid 箭头流光', '连线虚线沿箭头方向流动')}
+              {settingSwitch('motionTable', '表格动效', '表头呼吸 + 行悬停高亮')}
+              {settingSwitch('motionHighlight', '高亮文字呼吸灯', '==高亮== 与 <mark> 柔和脉动')}
+              {settingSwitch('motionCode', '代码块边框流光', '围栏代码块描边扫光')}
+            </div>
+          </section>
+
+          <section className="md-set-section">
+            <h3>图片与 HTML 尺寸</h3>
+            <p className="md-set-hint">全局上限；单张图片可在编辑器里点击图片设置，或用 <code>![](url){'{'}width=300 height=180{'}'}</code>、HTML <code>&lt;img width&gt;</code> 覆盖。</p>
+            <div className="md-set-grid">
+              {settingNumber('imageMaxWidth', '图片最大宽度（%）', '0 = 不限', { min: 0, max: 100, step: 5 })}
+              {settingNumber('imageMaxHeight', '图片最大高度（px）', '0 = 不限', { min: 0, max: 4000, step: 10 })}
+              {settingNumber('htmlBlockMaxWidth', 'HTML 块最大宽度（%）', '0 = 不限', { min: 0, max: 100, step: 5 })}
+              {settingNumber('htmlBlockMaxHeight', 'HTML 块最大高度（px）', '0 = 不限；超出滚动', { min: 0, max: 4000, step: 10 })}
             </div>
           </section>
         </div>
@@ -335,17 +477,18 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange }) 
         <div className="md-settings-body">
           <section className="md-set-section">
             <h3>数据目录</h3>
-            <p className="md-set-hint">配置（config.json）· 主题（themes/）· 速记收件箱（inbox/）· 图片缓存（cache/）。</p>
+            <p className="md-set-hint">配置（config.json）· 主题镜像（themes/）· 速记收件箱（inbox/）· 图片缓存（cache/）· 默认图片目录（assets/）。</p>
             <ul className="md-paths">
               <li><code>{paths.dataRoot}</code></li>
               <li><code>{paths.themesDir}</code></li>
               <li><code>{paths.inboxDir}</code></li>
+              <li><code>{imageDir?.path || paths.dataRoot + '/assets'}</code></li>
             </ul>
-            <p className="md-set-hint">也可以直接把 .css 丢进主题目录，重启后出现在主题列表。</p>
+            <p className="md-set-hint">也可以直接把 .css 丢进主题目录，重启后出现在主题列表。用户主题正文另存于 eNest 插件私有文件区（宿主管理配额与回收）。</p>
           </section>
           <section className="md-set-section">
             <h3>粘贴图片默认动作等开关</h3>
-            <p className="md-set-hint">HTML 渲染开关、Mermaid 风格、打字机/专注模式、自动保存等在 eNest 系统设置 → Markdown 编辑器中调整。</p>
+            <p className="md-set-hint">HTML 渲染开关、Mermaid 风格、粘贴图片默认动作、代码配色、动效与尺寸上限：eNest 系统设置 → Markdown 编辑器。本地图片目录的完整配置在本页「图床」区。</p>
           </section>
         </div>
       )}

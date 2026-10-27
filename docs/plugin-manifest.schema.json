@@ -624,6 +624,72 @@
             "$ref": "#/$defs/homePage"
           }
         },
+        "openWith": {
+          "type": "array",
+          "description": "「打开方式」声明：插件声明可处理的扩展名/MIME/URL scheme。系统注册与「类型→插件」路由由壳统一负责（插件是壳内视图，不是独立 OS 应用）。命中后壳以 enter.code='open-file'|'open-url' 唤起插件。scheme 保留字与跨插件重复在宿主聚合时拒绝。",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "extensions": {
+                "type": "array",
+                "maxItems": 64,
+                "uniqueItems": true,
+                "description": "小写、不含点的扩展名（如 md）",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]{1,10}$"
+                }
+              },
+              "mimeTypes": {
+                "type": "array",
+                "maxItems": 64,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$"
+                }
+              },
+              "schemes": {
+                "type": "array",
+                "maxItems": 8,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9+.-]*$",
+                  "not": {
+                    "enum": [
+                      "enest",
+                      "http",
+                      "https",
+                      "file",
+                      "mailto"
+                    ]
+                  }
+                }
+              },
+              "role": {
+                "enum": [
+                  "Editor",
+                  "Viewer",
+                  "Browser"
+                ]
+              },
+              "schemaVersion": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
         "quickProviders": {
           "type": "array",
           "description": "保留字段：Quick 搜索 provider 仅支持运行时注册（enest.contribute.registerQuickProvider），manifest 声明不生效",

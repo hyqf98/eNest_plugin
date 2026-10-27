@@ -58,7 +58,7 @@ body {
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; transition: background-color var(--speed), border-color var(--speed), opacity var(--speed); }
 button:disabled { cursor: default; opacity: 0.45; }
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent, #bd542b); outline-offset: 1px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #bd542b) 20%, transparent); }
 [hidden] { display: none !important; }
 :root[data-anim='low'] { --speed: 0ms; }
 
@@ -193,7 +193,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   min-height: 28px;
 }
 .nk-input:focus, .nk-area:focus { border-color: var(--accent, #bd542b); outline: none; }
-.nk-input:focus-visible, .nk-area:focus-visible { outline: 2px solid var(--accent, #bd542b); outline-offset: 1px; }
+.nk-input:focus-visible, .nk-area:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #bd542b) 20%, transparent); }
 .nk-input:disabled, .nk-area:disabled { opacity: 0.45; cursor: default; }
 .nk-area { resize: vertical; font-family: var(--mono); font-size: 12px; line-height: 1.55; word-break: break-word; }
 .nk-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }

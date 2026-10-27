@@ -146,8 +146,9 @@ const PluginKit = (() => {
   function create(options = {}) {
     const api = window.enest || window.zapi
     const disposers = [], modeListeners = new Set(), settingListeners = new Set()
-    let query = '', destroyed = false, noticeTimer
+    let query = '', destroyed = false, noticeTimer, copyTimer, remaining = 0, noticeStarted = 0, held = false
     const kit = { mode: api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell', settings: { ...options.defaults } }
+    Object.defineProperty(kit, 'api', { value: api, enumerable: true, writable: false, configurable: false })
     const safely = promise => Promise.resolve(promise).catch(error => kit.toast(error?.message || String(error), 'error'))
     const configure = () => {
       if (kit.mode === 'quick' && options.quickPlaceholder && api?.quickInput) {
@@ -169,9 +170,80 @@ const PluginKit = (() => {
     kit.setQuery = value => { query = String(value ?? ''); if (kit.mode === 'quick') safely(configure()) }
     kit.toast = (message, type = 'info') => {
       let el = document.getElementById('plugin-notice')
-      if (!el) { el = document.createElement('div'); el.id = 'plugin-notice'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.append(el) }
-      el.textContent = String(message); el.dataset.type = type; el.hidden = false
-      clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { el.hidden = true }, type === 'error' ? 6500 : 2400)
+      if (!el) {
+        el = document.createElement('div'); el.id = 'plugin-notice'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite')
+        // The bar is pointer-events:none, so only the copy button is hoverable; holding it
+        // keeps the toast alive while the user copies. pointerover/out bubble; pointerenter does not.
+        el.addEventListener('pointerover', pauseNotice)
+        el.addEventListener('pointerout', event => { if (!el.contains(event.relatedTarget)) resumeNotice() })
+        el.addEventListener('focusin', pauseNotice)
+        el.addEventListener('focusout', event => { if (!el.contains(event.relatedTarget)) resumeNotice() })
+        document.body.append(el)
+      }
+      // Rebuild as text node + button: the message stays inert text, never markup.
+      const text = String(message ?? '')
+      const label = document.createElement('span')
+      label.className = 'plugin-notice-text'
+      label.textContent = text
+      el.replaceChildren(label)
+      if (type === 'error') el.append(errorCopyButton(text))
+      el.dataset.type = type; el.hidden = false
+      held = false
+      remaining = type === 'error' ? 6500 : 2400
+      startNoticeTimer(el)
+    }
+    /** Error toasts offer a copy action; hovering or focusing them holds the auto-dismiss clock. */
+    function errorCopyButton(text) {
+      const button = document.createElement('button')
+      button.type = 'button'; button.className = 'plugin-notice-copy'
+      button.title = '复制错误'; button.setAttribute('aria-label', '复制错误')
+      button.textContent = '复制'
+      button.addEventListener('click', event => {
+        event.stopPropagation()
+        void writeClipboardText(text).then(ok => {
+          if (!ok) return
+          button.textContent = '已复制'; button.dataset.copied = 'true'
+          clearTimeout(copyTimer)
+          copyTimer = setTimeout(() => { button.textContent = '复制'; delete button.dataset.copied }, 1200)
+        })
+      })
+      return button
+    }
+    /** Host bridge first, then the web clipboard, then the deprecated selection copy. */
+    async function writeClipboardText(text) {
+      try {
+        // Copying a diagnostic must not become its own clipboard-history entry.
+        if (api?.clipboard?.writeText) { await api.clipboard.writeText(text, { excludeFromHistory: true }); return true }
+        await navigator.clipboard.writeText(text); return true
+      } catch { /* fall through */ }
+      try {
+        const area = document.createElement('textarea')
+        area.value = text; area.setAttribute('readonly', ''); area.setAttribute('aria-hidden', 'true')
+        area.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0'
+        document.body.append(area); area.select()
+        const copied = document.execCommand('copy')
+        area.remove()
+        return copied
+      } catch { return false }
+    }
+    function startNoticeTimer(el) {
+      clearTimeout(noticeTimer)
+      noticeStarted = Date.now()
+      noticeTimer = setTimeout(() => { el.hidden = true }, remaining)
+    }
+    function pauseNotice() {
+      const el = document.getElementById('plugin-notice')
+      if (!el || el.hidden || held) return
+      held = true
+      clearTimeout(noticeTimer)
+      // Keep the unspent time so leaving the toast does not restart a full cycle.
+      remaining = Math.max(0, remaining - (Date.now() - noticeStarted))
+    }
+    function resumeNotice() {
+      const el = document.getElementById('plugin-notice')
+      if (!el || el.hidden || !held) return
+      held = false
+      startNoticeTimer(el)
     }
     kit.copy = async text => {
       if (!api?.clipboard?.writeText) throw new Error('剪贴板接口不可用')
@@ -200,6 +272,11 @@ const PluginKit = (() => {
       const next = (writes.get(key) || Promise.resolve()).catch(() => {}).then(() => api.storage.set(key, snapshot))
       writes.set(key, next)
       return next
+    }
+    kit.flush = async () => {
+      if (!api?.storage?.flush) throw new Error('当前宿主不支持持久化提交确认，请升级 eNest')
+      await Promise.all([...writes.values()])
+      return api.storage.flush()
     }
     const focus = event => {
       const target = event.target
@@ -238,8 +315,15 @@ const PluginKit = (() => {
       const value = await api?.settings?.get?.(key)
       if (value !== undefined && value !== null) kit.settings[key] = value
     })).then(() => { for (const cb of settingListeners) cb(kit.settings); return kit.settings }).catch(error => { kit.toast(`读取设置失败：${error.message}`, 'error'); return kit.settings })
-    if (api?.onBeforeClose) disposers.push(api.onBeforeClose(() => Promise.allSettled([...writes.values()])))
-    kit.destroy = () => { if (destroyed) return; destroyed = true; clearTimeout(noticeTimer); disposers.splice(0).forEach(fn => fn?.()); modeListeners.clear(); settingListeners.clear() }
+    const flushBeforeRetirement = async () => {
+      // Let the other synchronous lifecycle callbacks enqueue their final snapshots first.
+      await Promise.resolve()
+      await Promise.all([...writes.values()])
+      if (api?.storage?.flush) await api.storage.flush()
+    }
+    if (api?.onBeforeClose) disposers.push(api.onBeforeClose(flushBeforeRetirement))
+    if (api?.onBeforeSuspend) disposers.push(api.onBeforeSuspend(flushBeforeRetirement))
+    kit.destroy = () => { if (destroyed) return; destroyed = true; clearTimeout(noticeTimer); clearTimeout(copyTimer); disposers.splice(0).forEach(fn => fn?.()); modeListeners.clear(); settingListeners.clear() }
     if (api?.onDestroy) disposers.push(api.onDestroy(kit.destroy))
     document.querySelectorAll('[data-open-settings]').forEach(button => button.addEventListener('click', () => safely(api?.ui?.openSettings?.())))
     if (options.title) safely(api?.ui?.setTitle?.(options.title))

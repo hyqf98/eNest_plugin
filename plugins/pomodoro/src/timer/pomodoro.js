@@ -49,13 +49,20 @@ export function createPomodoroController(api) {
   }
   const queued = work => { const next = serial.catch(() => {}).then(work); serial = next; return next }
   async function save(next) {
-    // Write an inactive bank, then commit its pointer. A closed view cannot expose half a journal.
+    // Commit the inactive bank and its pointer together before advancing the in-memory journal.
     const bank = journal?.bank === 'a' ? 'b' : 'a'
     const records = next.records.slice(0, LIMIT)
     const chunks = Math.ceil(records.length / CHUNK_RECORDS)
-    for (let i = 0; i < chunks; i++) await api.storage.set(`${STORE}.${bank}.${i}`, records.slice(i * CHUNK_RECORDS, (i + 1) * CHUNK_RECORDS))
-    const head = { version: 2, bank, chunks, deleted: next.deleted.slice(-LIMIT), options: next.options, legacyImported: next.legacyImported === true }
-    await api.storage.set(STORE, head)
+    const operations = Array.from({ length: chunks }, (_, i) => ({ op: 'set', key: `${STORE}.${bank}.${i}`,
+      value: records.slice(i * CHUNK_RECORDS, (i + 1) * CHUNK_RECORDS) }))
+    const head = { version: 2, bank, chunks, deleted: next.deleted.slice(-LIMIT), options: next.options,
+      legacyImported: next.legacyImported === true, legacySourceImported: next.legacySourceImported === true }
+    operations.push({ op: 'set', key: STORE, value: head })
+    if (typeof api.storage.commit === 'function') await api.storage.commit(operations)
+    else {
+      for (const operation of operations) await api.storage.set(operation.key, operation.value)
+      if (typeof api.storage.flush === 'function') await api.storage.flush()
+    }
     journal = { ...head, records }
   }
   async function load() {
@@ -74,9 +81,12 @@ export function createPomodoroController(api) {
     else journal = { bank: 'b', records: [], deleted: [], options: normalizeOptions(), legacyImported: false }
   }
   async function migrate() {
-    if (journal.legacyImported) return
+    if (journal.legacySourceImported === true) return
     const marker = await api.storage.get(LEGACY)
-    if (!marker) { await save({ ...journal, legacyImported: true }); return }
+    if (!marker) {
+      if (!journal.legacyImported) await save({ ...journal, legacyImported: true })
+      return
+    }
     if (marker.version !== 1 || !Number.isInteger(marker.chunks) || marker.chunks < 1 || marker.chunks > 256) throw Error('旧专注记录迁移信息无效，原数据已保留')
     let json = ''
     for (let i = 0; i < marker.chunks; i++) {
@@ -84,11 +94,16 @@ export function createPomodoroController(api) {
       if (typeof chunk !== 'string') throw Error('旧专注记录迁移不完整，原数据已保留')
       json += chunk
     }
-    const legacy = JSON.parse(json), options = normalizeOptions(legacy?.state?.options)
+    const legacy = JSON.parse(json)
     if (!legacy?.state || !Array.isArray(legacy.records)) throw Error('旧专注记录格式异常，原数据已保留')
+    // An absent source is not a completed import; a late source may only add missing history.
+    const preserveSession = journal.legacyImported === true || generic.task !== null
+    const options = preserveSession ? journal.options : normalizeOptions(legacy.state.options)
+    const deleted = new Set(journal.deleted)
     const records = [...new Map([...legacyRecords(legacy.records), ...journal.records].map(record => [record.id, record])).values()]
+      .filter(record => !deleted.has(record.id))
       .sort((a, b) => b.endedAt - a.endedAt).slice(0, LIMIT)
-    if (!generic.task && ['running', 'paused'].includes(legacy.state.status)) {
+    if (!preserveSession && ['running', 'paused'].includes(legacy.state.status)) {
       const plan = createPlan(options)
       const cycle = Math.round(bounded(legacy.state.cycle, 1, 1, 100000)) - 1
       const stepIndex = cycle % options.longBreakEvery * 2 + (legacy.state.phase === 'focus' ? 0 : 1)
@@ -96,7 +111,7 @@ export function createPomodoroController(api) {
         iteration: Math.floor(cycle / options.longBreakEvery), remainingMs: Math.round(bounded(legacy.state.remainingMs, plan.steps[stepIndex].durationMs, 0, plan.steps[stepIndex].durationMs)),
         startedAt: typeof legacy.state.startedAt === 'number' && legacy.state.startedAt > 0 && legacy.state.startedAt <= Date.now() ? Math.floor(legacy.state.startedAt) : null } })
     }
-    await save({ ...journal, records, options, legacyImported: true })
+    await save({ ...journal, records, options, legacyImported: true, legacySourceImported: true })
   }
   function snapshot() {
     const task = generic.task, options = normalizeOptions(task?.plan?.data?.options || journal.options)

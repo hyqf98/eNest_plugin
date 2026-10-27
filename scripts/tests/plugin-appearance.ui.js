@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { fixture as databaseFixture, connect, setQuery, runQuery } from './database-fixture.js'
-import { fixture as middlewareFixture, openConnection, openPage } from './middleware-fixture.js'
-import { sshFixture, connectSsh, fitSshTerminal, setCommand } from './ssh-fixture.js'
+import { fixture as databaseFixture, connect, setQuery, runQuery } from '../../plugins/database/tests/database-fixture.js'
+import { fixture as middlewareFixture, openConnection, openPage } from '../../plugins/middleware/tests/middleware-fixture.js'
+import { sshFixture, connectSsh, fitSshTerminal, setCommand } from '../../plugins/ssh/tests/ssh-fixture.js'
 import { installPreviewFixture } from '../preview-fixture.mjs'
 import { appearanceCases, snapshotFor as actualAppearance } from './appearance-fixture.js'
 

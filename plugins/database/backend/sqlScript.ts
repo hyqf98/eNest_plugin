@@ -1,5 +1,5 @@
 /**
- * Pure SQL script boundaries shared with the editor through generate-db-execution-parser.mjs.
+ * Pure SQL script boundaries shared with the editor through scripts/generate-execution-parser.mjs.
  * A unit is a server request, not necessarily one semicolon-delimited statement. Client
  * directives never reach a driver; original UTF-16 offsets are retained for diagnostics.
  */

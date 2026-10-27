@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5211 --strictPort",
-    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.drawboard",
-    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.drawboard",
-    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.drawboard"
+    "build": "node ../../scripts/build-plugin.mjs drawboard",
+    "pack": "node ../../scripts/pack-plugin.mjs drawboard",
+    "prod": "node ../../scripts/build-plugin.mjs drawboard"
   },
   "dependencies": {
     "@enest/plugin-kit": "1.0.0",

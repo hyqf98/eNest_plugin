@@ -10,7 +10,7 @@
  * 为什么不用框架：主题首页在 dev 源码态由宿主直接从磁盘读取并注入
  * `script-src 'self'` 的 CSP，没有 vite/JSX 转译例外。纯 JS 才能改完即刷新。
  */
-import { h } from '../shared/dom.js'
+import { h, reconcileChildren, setAttribute, setProperty, setStyle, setText } from '../shared/dom.js'
 import { icon } from '../shared/icons.js'
 import { createSketchPaper, doodle, tape } from '../shared/sketchPrimitives.js'
 
@@ -44,18 +44,41 @@ const safeShots = detail => (detail?.screenshots ?? []).map(safeMedia).filter(Bo
 
 /** 插件图标：有真实市场图标就用图标，否则用手写首字，保证每张卡都有落点。 */
 function avatar(item) {
-  const src = safeIcon(item)
-  const glyph = (item?.glyph || Array.from(item?.name || '?')[0] || '?').slice(0, 1)
-  const node = h('span', { class: `sk-avatar${src ? ' has-image' : ''}`, style: { '--avatar-ink': inkFor(item?.category) } })
-  if (src) {
-    const image = h('img', { src, alt: '', loading: 'lazy', draggable: 'false' })
-    image.addEventListener('error', () => {
-      node.classList.remove('has-image')
-      node.textContent = glyph
-    }, { once: true })
-    node.appendChild(image)
-  } else node.textContent = glyph
-  return node
+  return createAvatar(item).node
+}
+
+function createAvatar(item) {
+  const node = h('span', { class: 'sk-avatar' })
+  let source
+  let glyph = ''
+  let image = null
+  let releaseImage = () => {}
+  function update(next) {
+    const src = safeIcon(next)
+    glyph = (next?.glyph || Array.from(next?.name || '?')[0] || '?').slice(0, 1)
+    setStyle(node, '--avatar-ink', inkFor(next?.category))
+    if (src !== source) {
+      releaseImage()
+      source = src
+      image = src ? h('img', { src, alt: '', loading: 'lazy', draggable: 'false' }) : null
+      if (image) {
+        const current = image
+        const fail = () => {
+          if (image !== current) return
+          image = null
+          if (node.classList.contains('has-image')) node.classList.remove('has-image')
+          setText(node, glyph)
+        }
+        image.addEventListener('error', fail, { once: true })
+        releaseImage = () => current.removeEventListener('error', fail)
+        node.replaceChildren(image)
+      } else releaseImage = () => {}
+    }
+    if (node.classList.contains('has-image') !== Boolean(image)) node.classList.toggle('has-image', Boolean(image))
+    if (!image) setText(node, glyph)
+  }
+  update(item)
+  return { node, update, dispose: () => { releaseImage(); image = null } }
 }
 
 /** 装订独立于滚动内容，超出视口的环由自己的裁切层收住。 */
@@ -133,11 +156,19 @@ export function createMarketView(controller) {
   let returnFocus = null
   let closing = false
   let latestState = controller.getState()
+  const catalogCards = new Map()
+  const featuredCards = new Map()
+  const categoryGroups = new Map()
+  const categoryChips = new Map()
+  const catalogEvents = new AbortController()
 
   // 隐藏预热期间的重建不消耗首次入场；可见后同一插件的卡片与推荐项不再重播。
   function rememberVisiblePlugins() {
     if (!latestState.visible || !latestState.appearance || document.hidden) return
     for (const node of contentSlot.querySelectorAll('[data-entry-plugin]')) seenPlugins.add(node.dataset.entryPlugin)
+    const staticEntry = latestState.appearance.appearance.animation.effective === 'low'
+      || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+    if (staticEntry) for (const entry of [...catalogCards.values(), ...featuredCards.values()]) entry.finishEntry()
   }
 
   /** 宿主已完成真正开屏，首次可见只让内容轻移入场，不再放全屏覆盖层。 */
@@ -218,86 +249,189 @@ export function createMarketView(controller) {
     if (open && results.length === 0) searchResults.appendChild(h('div', { class: 'sk-results-empty', role: 'status' }, '没有匹配的插件或指令'))
   }
 
-  // ── 卡片：只使用宿主安全槽位，不从远程 URL 或生成图片填充推荐 ──
-  function featureCard(item, index, handlers) {
-    const tags = [...new Set([...(item.tags ?? []), item.category].filter(Boolean))].slice(0, 3)
-    const lead = index === 0
-    const shot = safeShots(item)[0]
-    const visual = h('span', { class: `sk-feature-visual${shot ? ' has-shot' : ' is-icon'}`, 'aria-hidden': 'true' })
-    if (shot) {
-      const image = h('img', { class: 'sk-feature-shot', src: shot, alt: '', loading: 'lazy', draggable: 'false' })
-      image.addEventListener('error', () => {
-        visual.classList.remove('has-shot')
-        visual.classList.add('is-icon')
-        image.remove()
-      }, { once: true })
-      visual.appendChild(image)
+  function cardEntry(node, item) {
+    const events = new AbortController()
+    const entry = {
+      node, item, events, entering: !seenPlugins.has(item.pluginId),
+      finishEntry() {
+        if (!entry.entering) return
+        entry.entering = false
+        node.classList.remove('is-new')
+      },
     }
-    visual.append(avatar(item), doodle(lead ? 'star' : 'arrow', lead ? 44 : 26))
-    const detail = h('button', {
-      type: 'button', class: 'sk-feature-link', 'aria-label': `查看 ${item.name} 详情`,
-      dataset: { focusKey: `feature:${item.pluginId}` },
-    }, h('span', { class: 'sk-feature-eyebrow' }, lead ? '本页主推荐' : `索引 / ${String(index + 1).padStart(2, '0')}`),
-    visual,
-    h('span', { class: 'sk-feature-copy' },
-      h('strong', null, item.name),
-      h('span', { class: 'sk-feature-desc' }, item.description || '来自插件仓库的推荐插件。'),
-      h('span', { class: 'sk-feature-tags' }, tags.map(tag => h('i', null, tag))),
-      h('span', { class: 'sk-feature-cue' }, '翻开这一页', icon('arrowLeft', 14))))
-    detail.addEventListener('click', () => handlers.detail(item.pluginId))
-    const open = item.installed ? h('button', {
-      type: 'button', class: 'sk-btn sk-feature-open', dataset: { focusKey: `feature-open:${item.pluginId}` },
-    }, '打开插件', icon('spark', 13)) : null
-    open?.addEventListener('click', () => handlers.open(item.pluginId))
-    return h('article', {
-      class: `sk-feature ${lead ? 'is-lead' : 'is-index'}${seenPlugins.has(item.pluginId) ? '' : ' is-new'}`,
-      dataset: { entryPlugin: item.pluginId },
-      style: { '--i': index, '--feat-ink': inkFor(item.category) },
-    }, tape(), detail, open)
+    node.addEventListener('animationend', event => {
+      if (event.target === node) entry.finishEntry()
+    }, { signal: events.signal })
+    return entry
   }
 
-  function pluginCard(item, index, state, handlers) {
-    const disabled = item.installed && item.enabled === false
-    const hasUpdate = item.installed && item.latestVersion && item.latestVersion !== item.version
-    const busy = state.busy.has(item.pluginId)
+  function createFeatureCard(item) {
+    const portrait = createAvatar(item)
+    const visual = h('span', { class: 'sk-feature-visual is-icon', 'aria-hidden': 'true' })
+    const eyebrow = h('span', { class: 'sk-feature-eyebrow' })
+    const name = h('strong')
+    const description = h('span', { class: 'sk-feature-desc' })
+    const tags = h('span', { class: 'sk-feature-tags' })
+    const detail = h('button', { type: 'button', class: 'sk-feature-link', dataset: { focusKey: `feature:${item.pluginId}` } },
+      eyebrow, visual, h('span', { class: 'sk-feature-copy' }, name, description, tags,
+        h('span', { class: 'sk-feature-cue' }, '翻开这一页', icon('arrowLeft', 14))))
+    const open = h('button', { type: 'button', class: 'sk-btn sk-feature-open', dataset: { focusKey: `feature-open:${item.pluginId}` } }, '打开插件', icon('spark', 13))
+    const stickyTape = tape()
+    const entry = cardEntry(h('article', { dataset: { entryPlugin: item.pluginId } }, stickyTape, detail), item)
+    const options = { signal: entry.events.signal }
+    detail.addEventListener('click', () => void controller.navigate({ page: 'detail', pluginId: entry.item.pluginId }), options)
+    open.addEventListener('click', () => { if (entry.item.installed) void controller.openPlugin(entry.item.pluginId) }, options)
+    let lead
+    let mark
+    let source
+    let image = null
+    let releaseImage = () => {}
+    let tagsKey = ''
+    entry.update = (next, index) => {
+      entry.item = next
+      const nextLead = index === 0
+      if (lead !== nextLead) {
+        lead = nextLead
+        mark = doodle(lead ? 'star' : 'arrow', lead ? 44 : 26)
+      }
+      const shot = safeShots(next)[0]
+      if (shot !== source) {
+        releaseImage()
+        source = shot
+        image = shot ? h('img', { class: 'sk-feature-shot', src: shot, alt: '', loading: 'lazy', draggable: 'false' }) : null
+        if (image) {
+          const current = image
+          const fail = () => {
+            if (image !== current) return
+            image = null
+            setAttribute(visual, 'class', 'sk-feature-visual is-icon')
+            current.remove()
+          }
+          image.addEventListener('error', fail, { once: true })
+          releaseImage = () => current.removeEventListener('error', fail)
+        } else releaseImage = () => {}
+      }
+      portrait.update(next)
+      reconcileChildren(visual, [image, portrait.node, mark].filter(Boolean))
+      setAttribute(visual, 'class', `sk-feature-visual ${image ? 'has-shot' : 'is-icon'}`)
+      setAttribute(entry.node, 'class', `sk-feature ${lead ? 'is-lead' : 'is-index'}${entry.entering ? ' is-new' : ''}`)
+      setStyle(entry.node, '--i', index)
+      setStyle(entry.node, '--feat-ink', inkFor(next.category))
+      setAttribute(detail, 'aria-label', `查看 ${next.name} 详情`)
+      setText(eyebrow, lead ? '本页主推荐' : `索引 / ${String(index + 1).padStart(2, '0')}`)
+      setText(name, next.name)
+      setText(description, next.description || '来自插件仓库的推荐插件。')
+      const values = [...new Set([...(next.tags ?? []), next.category].filter(Boolean))].slice(0, 3)
+      const key = JSON.stringify(values)
+      if (key !== tagsKey) { tagsKey = key; tags.replaceChildren(...values.map(tag => h('i', null, tag))) }
+      reconcileChildren(entry.node, next.installed ? [stickyTape, detail, open] : [stickyTape, detail])
+    }
+    entry.dispose = () => { entry.events.abort(); releaseImage(); portrait.dispose(); entry.node.remove() }
+    return entry
+  }
 
-    let badge
-    if (disabled) badge = h('span', { class: 'sk-badge' }, '已停用')
-    else if (hasUpdate) badge = h('span', { class: 'sk-badge is-update' }, `可更新 ${item.latestVersion}`)
-    else if (item.installed) badge = h('span', { class: 'sk-badge is-installed' }, icon('check', 10), '已安装')
-    else badge = h('span', { class: 'sk-badge' }, formatBytes(item.packageSize) || '未安装')
-
-    const detailButton = h('button', { type: 'button', class: 'sk-btn is-quiet', dataset: { focusKey: `detail:${item.pluginId}` } }, '详情')
-    detailButton.addEventListener('click', () => handlers.detail(item.pluginId))
-    const primary = h('button', { type: 'button', class: `sk-btn${item.installed ? '' : ' is-primary'}`, dataset: { focusKey: `primary:${item.pluginId}` } }, item.installed ? '打开' : '安装')
+  function createPluginCard(item) {
+    const portrait = createAvatar(item)
+    const name = h('h3')
+    const meta = h('div', { class: 'sk-card-meta' })
+    const description = h('p', { class: 'sk-card-desc' })
+    const badge = h('span', { class: 'sk-badge' })
+    const detail = h('button', { type: 'button', class: 'sk-btn is-quiet', dataset: { focusKey: `detail:${item.pluginId}` } }, '详情')
+    const primary = h('button', { type: 'button', dataset: { focusKey: `primary:${item.pluginId}` } })
+    const node = h('article', { dataset: { entryPlugin: item.pluginId } }, tape(),
+      h('div', { class: 'sk-card-head' }, portrait.node, h('div', { class: 'sk-card-title' }, name, meta)), description,
+      h('div', { class: 'sk-card-foot' }, h('span', null, badge), h('span', { class: 'sk-actions' }, detail, primary)))
+    const entry = cardEntry(node, item)
+    const options = { signal: entry.events.signal }
+    detail.addEventListener('click', () => void controller.navigate({ page: 'detail', pluginId: entry.item.pluginId }), options)
     primary.addEventListener('click', () => {
-      if (item.installed) handlers.open(item.pluginId)
-      else handlers.detail(item.pluginId)
-    })
-
-    return h('article', {
-      class: `sk-card${busy ? ' is-busy' : ''}${disabled ? ' is-disabled' : ''}${seenPlugins.has(item.pluginId) ? '' : ' is-new'}`,
-      dataset: { entryPlugin: item.pluginId },
-      style: { '--i': index, '--card-ink': inkFor(item.category) },
-    },
-    tape(),
-    h('div', { class: 'sk-card-head' },
-      avatar(item),
-      h('div', { class: 'sk-card-title' },
-        h('h3', { title: item.name }, item.name),
-        h('div', { class: 'sk-card-meta' },
-          item.author ? h('span', null, item.author) : null,
-          item.author && item.version ? h('i', null, '·') : null,
-          item.version ? h('span', null, `v${item.version}`) : null,
-          item.category ? [h('i', null, '·'), h('span', null, item.category)] : null))),
-    h('p', { class: 'sk-card-desc' }, item.description || '这个插件还没有写简介。'),
-    h('div', { class: 'sk-card-foot' },
-      h('span', null, badge),
-      h('span', { class: 'sk-actions' }, detailButton, primary)))
+      const current = entry.item
+      if (current.installed) void controller.openPlugin(current.pluginId)
+      else void controller.navigate({ page: 'detail', pluginId: current.pluginId })
+    }, options)
+    let metaKey = ''
+    let badgeKey = ''
+    entry.update = (next, index, state) => {
+      entry.item = next
+      const disabled = next.installed && next.enabled === false
+      const hasUpdate = next.installed && next.latestVersion && next.latestVersion !== next.version
+      setAttribute(node, 'class', `sk-card${state.busy.has(next.pluginId) ? ' is-busy' : ''}${disabled ? ' is-disabled' : ''}${entry.entering ? ' is-new' : ''}`)
+      setStyle(node, '--i', index)
+      setStyle(node, '--card-ink', inkFor(next.category))
+      portrait.update(next)
+      setAttribute(name, 'title', next.name)
+      setText(name, next.name)
+      setText(description, next.description || '这个插件还没有写简介。')
+      const nextMeta = JSON.stringify([next.author, next.version, next.category])
+      if (nextMeta !== metaKey) {
+        metaKey = nextMeta
+        meta.replaceChildren(...[
+          next.author ? h('span', null, next.author) : null,
+          next.author && next.version ? h('i', null, '·') : null,
+          next.version ? h('span', null, `v${next.version}`) : null,
+          next.category ? [h('i', null, '·'), h('span', null, next.category)] : [],
+        ].flat().filter(Boolean))
+      }
+      const kind = disabled ? '' : hasUpdate ? ' is-update' : next.installed ? ' is-installed' : ''
+      const label = disabled ? '已停用' : hasUpdate ? `可更新 ${next.latestVersion}` : next.installed ? '已安装' : formatBytes(next.packageSize) || '未安装'
+      const nextBadge = `${kind}:${label}`
+      if (nextBadge !== badgeKey) {
+        badgeKey = nextBadge
+        setAttribute(badge, 'class', `sk-badge${kind}`)
+        badge.replaceChildren(...(kind === ' is-installed' ? [icon('check', 10), label] : [label]))
+      }
+      setAttribute(primary, 'class', `sk-btn${next.installed ? '' : ' is-primary'}`)
+      setText(primary, next.installed ? '打开' : '安装')
+    }
+    entry.dispose = () => { entry.events.abort(); portrait.dispose(); node.remove() }
+    return entry
   }
 
-  // ── 目录 / 已安装 ──
-  function catalogView(state) {
+  const catalogTitle = h('h1')
+  const totalCount = h('b')
+  const installedCountNode = h('b')
+  const emptyCount = document.createTextNode('')
+  const refresh = h('button', { type: 'button', class: 'sk-round', 'aria-label': '刷新市场目录' }, icon('refresh', 17))
+  refresh.addEventListener('click', () => void controller.refreshCatalog(), { signal: catalogEvents.signal })
+  headerSlot.appendChild(h('header', { class: 'sk-head' },
+    h('div', { class: 'sk-head-main' }, catalogTitle,
+      h('p', { class: 'sk-head-sub' }, totalCount, ' 个插件，已装 ', installedCountNode, ' 个', emptyCount)), refresh))
+  const noticeText = h('span')
+  const dismiss = h('button', { type: 'button', class: 'sk-btn is-quiet' }, '关闭')
+  dismiss.addEventListener('click', () => controller.dismissNotice(), { signal: catalogEvents.signal })
+  const notice = h('div', { class: 'sk-notice', role: 'status' }, noticeText, dismiss)
+  const tabs = h('div', { class: 'sk-seg', role: 'tablist', 'aria-label': '目录视图' })
+  const tabButtons = new Map()
+  for (const [value, label] of [['catalog', '全部插件'], ['installed', '已安装']]) {
+    const tab = h('button', { type: 'button', role: 'tab' }, label)
+    tab.addEventListener('click', () => controller.setBasePage(value), { signal: catalogEvents.signal })
+    tabButtons.set(value, tab)
+    tabs.appendChild(tab)
+  }
+  const chips = h('div', { class: 'sk-chips', role: 'group', 'aria-label': '分类筛选' })
+  const toolbar = h('div', { class: 'sk-toolbar' }, tabs, chips)
+  const featuredGrid = h('div', { class: 'sk-featured-grid' })
+  const featuredSection = h('section', { class: 'sk-featured', 'aria-label': '精选推荐' },
+    h('div', { class: 'sk-section-label' }, '精选推荐', h('span', null, '来自插件仓库')), featuredGrid)
+  const emptyTitle = h('strong')
+  const emptyDescription = h('span')
+  const reset = h('button', { type: 'button', class: 'sk-btn' }, icon('plus', 13), '查看全部插件')
+  reset.addEventListener('click', () => {
+    controller.setCategory('全部')
+    controller.setQuery('')
+    controller.setBasePage('catalog')
+  }, { signal: catalogEvents.signal })
+  const emptyCatalog = h('div', { class: 'sk-empty' }, doodle('star', 24), emptyTitle, emptyDescription, reset)
+
+  function pruneEntries(entries, wanted) {
+    for (const [key, entry] of entries) if (!wanted.has(key)) {
+      entry.dispose()
+      entries.delete(key)
+    }
+  }
+
+  // Catalog nodes are keyed by identity; filters change membership, not every surviving card.
+  function updateCatalog(state) {
     const items = state.catalog?.items ?? []
     const seg = state.basePage === 'installed' ? 'installed' : 'catalog'
     const searching = Boolean(state.query.trim())
@@ -305,7 +439,7 @@ export function createMarketView(controller) {
 
     const present = new Set(scoped.map(item => item.category || '其它'))
     const categories = ['全部', ...CATEGORY_ORDER.filter(name => present.has(name)), ...[...present].filter(name => !CATEGORY_ORDER.includes(name))]
-    if (!categories.includes(state.category)) controller.setCategory('全部')
+    if (!categories.includes(state.category)) { controller.setCategory('全部'); return }
 
     const visible = scoped.filter(item => state.category === '全部' || (item.category || '其它') === state.category)
     const order = state.category === '全部' ? categories.slice(1) : [state.category]
@@ -314,87 +448,64 @@ export function createMarketView(controller) {
       .filter(group => group.items.length > 0)
     const featured = seg === 'catalog' && state.category === '全部' && !searching
       ? items.filter(item => item.featured).slice(0, 3) : []
-    const installedCount = items.filter(item => item.installed).length
+    setText(catalogTitle, seg === 'installed' ? '已安装' : '插件市场')
+    setText(totalCount, items.length)
+    setText(installedCountNode, items.filter(item => item.installed).length)
+    setText(emptyCount, items.length ? '' : ' · 目录为空')
+    setText(noticeText, state.notice)
+    for (const [value, tab] of tabButtons) setAttribute(tab, 'aria-selected', seg === value)
 
-    const handlers = {
-      open: pluginId => void controller.openPlugin(pluginId),
-      detail: pluginId => void controller.navigate({ page: 'detail', pluginId }),
-    }
-
-    const page = h('div')
-
-    // 页头
-    const refresh = h('button', {
-      type: 'button',
-      class: 'sk-round',
-      title: state.refreshing ? '正在刷新…' : '刷新市场目录',
-      'aria-label': '刷新市场目录',
-      'aria-busy': String(state.refreshing),
-      disabled: state.refreshing,
-    }, icon('refresh', 17))
-    refresh.addEventListener('click', () => void controller.refreshCatalog())
-
-    page.appendChild(h('header', { class: 'sk-head' },
-      h('div', { class: 'sk-head-main' },
-        h('h1', null, seg === 'installed' ? '已安装' : '插件市场'),
-        h('p', { class: 'sk-head-sub' },
-          h('b', null, String(items.length)), ' 个插件，已装 ',
-          h('b', null, String(installedCount)), ' 个',
-          items.length === 0 ? ' · 目录为空' : null)),
-      refresh))
-
-    if (state.notice) {
-      const dismiss = h('button', { type: 'button', class: 'sk-btn is-quiet' }, '关闭')
-      dismiss.addEventListener('click', () => controller.dismissNotice())
-      page.appendChild(h('div', { class: 'sk-notice', role: 'status' }, h('span', null, state.notice), dismiss))
-    }
-
-    if (!searching) {
-      const tabs = h('div', { class: 'sk-seg', role: 'tablist', 'aria-label': '目录视图' })
-      for (const [value, label] of [['catalog', '全部插件'], ['installed', '已安装']]) {
-        const tab = h('button', { type: 'button', role: 'tab', 'aria-selected': String(seg === value) }, label)
-        tab.addEventListener('click', () => controller.setBasePage(value))
-        tabs.appendChild(tab)
+    pruneEntries(categoryChips, new Set(categories))
+    reconcileChildren(chips, categories.map(name => {
+      let entry = categoryChips.get(name)
+      if (!entry) {
+        const node = h('button', { type: 'button', class: 'sk-chip' }, name)
+        const events = new AbortController()
+        node.addEventListener('click', () => controller.setCategory(name), { signal: events.signal })
+        entry = { node, dispose: () => { events.abort(); node.remove() } }
+        categoryChips.set(name, entry)
       }
-      const chips = h('div', { class: 'sk-chips', role: 'group', 'aria-label': '分类筛选' })
-      for (const name of categories) {
-        const chip = h('button', { type: 'button', class: 'sk-chip', 'aria-pressed': String(state.category === name) }, name)
-        chip.addEventListener('click', () => controller.setCategory(name))
-        chips.appendChild(chip)
-      }
-      page.appendChild(h('div', { class: 'sk-toolbar' }, tabs, chips))
-    }
+      setAttribute(entry.node, 'aria-pressed', state.category === name)
+      return entry.node
+    }))
 
-    if (featured.length > 0) {
-      page.appendChild(h('section', { class: 'sk-featured', 'aria-label': '精选推荐' },
-        h('div', { class: 'sk-section-label' }, '精选推荐', h('span', null, '来自插件仓库')),
-        h('div', { class: 'sk-featured-grid' }, featured.map((item, index) => featureCard(item, index, handlers)))))
-    }
+    pruneEntries(featuredCards, new Set(featured.map(item => item.pluginId)))
+    reconcileChildren(featuredGrid, featured.map((item, index) => {
+      let entry = featuredCards.get(item.pluginId)
+      if (!entry) { entry = createFeatureCard(item); featuredCards.set(item.pluginId, entry) }
+      entry.update(item, index)
+      return entry.node
+    }))
 
-    if (groups.length === 0) {
-      const reset = h('button', { type: 'button', class: 'sk-btn' }, icon('plus', 13), '查看全部插件')
-      reset.addEventListener('click', () => {
-        controller.setCategory('全部')
-        controller.setQuery('')
-        controller.setBasePage('catalog')
-      })
-      page.appendChild(h('div', { class: 'sk-empty' },
-        doodle('star', 24),
-        h('strong', null, seg === 'installed' ? '本子还是空的' : '这个筛选下没有插件'),
-        h('span', null, seg === 'installed' ? '去插件市场挑一个，装好后会记在这里。' : '换一个分类，或清除搜索关键词再试。'),
-        reset))
-    } else {
-      let cardIndex = 0
-      for (const group of groups) {
-        page.appendChild(h('section', { class: 'sk-group', 'aria-label': `${group.name}分类` },
-          h('div', { class: 'sk-group-head' },
-            h('h2', null, group.name),
-            h('span', { class: 'sk-rule', 'aria-hidden': 'true' }),
-            h('span', { class: 'sk-count' }, String(group.items.length).padStart(2, '0'))),
-          h('div', { class: 'sk-grid' }, group.items.map(item => pluginCard(item, cardIndex++, state, handlers)))))
+    pruneEntries(catalogCards, new Set(visible.map(item => item.pluginId)))
+    const groupNodes = []
+    let cardIndex = 0
+    for (const group of groups) {
+      let entry = categoryGroups.get(group.name)
+      if (!entry) {
+        const count = h('span', { class: 'sk-count' })
+        const grid = h('div', { class: 'sk-grid' })
+        const node = h('section', { class: 'sk-group', 'aria-label': `${group.name}分类` },
+          h('div', { class: 'sk-group-head' }, h('h2', null, group.name), h('span', { class: 'sk-rule', 'aria-hidden': 'true' }), count), grid)
+        entry = { node, count, grid, dispose: () => node.remove() }
+        categoryGroups.set(group.name, entry)
       }
+      setText(entry.count, String(group.items.length).padStart(2, '0'))
+      reconcileChildren(entry.grid, group.items.map(item => {
+        let card = catalogCards.get(item.pluginId)
+        if (!card) { card = createPluginCard(item); catalogCards.set(item.pluginId, card) }
+        card.update(item, cardIndex++, state)
+        return card.node
+      }))
+      groupNodes.push(entry.node)
     }
-    return page
+    pruneEntries(categoryGroups, new Set(groups.map(group => group.name)))
+    setText(emptyTitle, seg === 'installed' ? '本子还是空的' : '这个筛选下没有插件')
+    setText(emptyDescription, seg === 'installed' ? '去插件市场挑一个，装好后会记在这里。' : '换一个分类，或清除搜索关键词再试。')
+    reconcileChildren(contentSlot, [state.notice ? notice : null, searching ? null : toolbar,
+      featured.length ? featuredSection : null, ...(groups.length ? groupNodes : [emptyCatalog])].filter(Boolean))
+    const known = new Set(items.map(item => item.pluginId))
+    for (const id of seenPlugins) if (!known.has(id)) seenPlugins.delete(id)
   }
 
   // ── 详情 ──
@@ -591,8 +702,8 @@ export function createMarketView(controller) {
   function update(state) {
     if (disposed) return
     latestState = state
-    root.dataset.route = state.route.page
-    root.dataset.visible = String(state.visible)
+    setAttribute(root, 'data-route', state.route.page)
+    setAttribute(root, 'data-visible', state.visible)
     maybeEnter(state)
     updateSearch(state)
 
@@ -604,18 +715,13 @@ export function createMarketView(controller) {
       const top = scroll.scrollTop
       const active = page.contains(document.activeElement) ? document.activeElement : null
       const focusKey = active?.dataset?.focusKey
-      const view = catalogView(state)
-      headerSlot.replaceChildren(view.firstElementChild)
-      contentSlot.replaceChildren(...view.childNodes)
-      scroll.scrollTop = top
-      if (active && !active.isConnected) restoreFocus(active, focusKey)
+      updateCatalog(state)
+      if (scroll.scrollTop !== top) scroll.scrollTop = top
+      if (active && document.activeElement !== active) restoreFocus(active, focusKey)
     }
-    const refresh = headerSlot.querySelector('.sk-round')
-    if (refresh) {
-      refresh.disabled = state.refreshing
-      refresh.setAttribute('aria-busy', String(state.refreshing))
-      refresh.title = state.refreshing ? '正在刷新…' : '刷新市场目录'
-    }
+    setProperty(refresh, 'disabled', state.refreshing)
+    setAttribute(refresh, 'aria-busy', state.refreshing)
+    setAttribute(refresh, 'title', state.refreshing ? '正在刷新…' : '刷新市场目录')
     rememberVisiblePlugins()
     updateDetail(state)
   }
@@ -635,6 +741,9 @@ export function createMarketView(controller) {
     root.removeEventListener('keydown', findSearch)
     scroll.removeEventListener('animationend', finishEntry)
     scroll.removeEventListener('animationcancel', finishEntry)
+    catalogEvents.abort()
+    for (const entries of [catalogCards, featuredCards, categoryGroups, categoryChips]) pruneEntries(entries, new Set())
+    seenPlugins.clear()
     root.remove()
   }
 

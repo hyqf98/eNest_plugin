@@ -2,10 +2,57 @@ import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 import katex from "katex";
 import DOMPurify from "dompurify";
-import { highlightFence, renderMermaidBlock, MERMAID_LANGS } from "./mermaid.js";
+import { highlightFence, hydrateFence, renderMermaidBlock, MERMAID_LANGS } from "./mermaid.js";
+
+/** `![](url){width=300 height=180}` 的尺寸后缀：把键值写进 img 属性 */
+const SIZE_SUFFIX = /^\{\s*((?:(?:width|height|align)\s*=\s*[^}\s]+\s*)+)\}/i;
+
+function parseSizeAttrs(body) {
+  const attrs = {};
+  const re = /(width|height|align)\s*=\s*([^}\s]+)/gi;
+  let m;
+  while ((m = re.exec(body))) {
+    const key = m[1].toLowerCase();
+    const value = m[2].replace(/^['"]|['"]$/g, "");
+    if (key === "align") {
+      if (/^(left|center|right)$/i.test(value)) attrs.align = value.toLowerCase();
+      continue;
+    }
+    // 只接受数字 px 或百分比，避免把任意字符串塞进属性
+    if (/^\d+(?:\.\d+)?(?:px|%)?$/.test(value)) attrs[key] = /^\d+(?:\.\d+)?$/.test(value) ? `${value}px` : value;
+  }
+  return attrs;
+}
+
+/**
+ * 核心规则：把图片后的 `{width=.. height=.. align=..}` 后缀转成 img 属性。
+ * 不写进 HTML 字符串，避免和 DOMPurify 的属性清洗顺序打架。
+ */
+function imageSizePlugin(md2) {
+  md2.core.ruler.after("inline", "image_size_suffix", (state) => {
+    for (const blockToken of state.tokens) {
+      if (blockToken.type !== "inline" || !blockToken.children) continue;
+      const children = blockToken.children;
+      for (let i = 0; i < children.length; i++) {
+        const token = children[i];
+        if (token.type !== "image") continue;
+        const next = children[i + 1];
+        if (!next || next.type !== "text" || !next.content.startsWith("{")) continue;
+        const match = SIZE_SUFFIX.exec(next.content);
+        if (!match) continue;
+        const attrs = parseSizeAttrs(match[1]);
+        for (const [key, value] of Object.entries(attrs)) token.attrSet(key, value);
+        next.content = next.content.slice(match[0].length);
+        if (!next.content) children.splice(i + 1, 1);
+      }
+    }
+  });
+}
+
 function createMd() {
   const md2 = new MarkdownIt({ html: true, linkify: true, breaks: true, typographer: false });
   md2.use(footnote);
+  md2.use(imageSizePlugin);
   md2.inline.ruler.after("emphasis", "mark", (state, silent) => {
     const src = state.src.slice(state.pos, state.pos + 2);
     if (src !== "==") return false;
@@ -70,6 +117,8 @@ async function hydrateImages(root, resolveImage) {
   const imgs = Array.from(root.querySelectorAll("img"));
   for (const img of imgs) {
     const url = img.getAttribute("src") || "";
+    // 保留原始 URL：单张尺寸工具与资源面板都靠 data-src 定位源码
+    if (!img.dataset.src && url && !url.startsWith("data:") && !url.startsWith("blob:")) img.dataset.src = url;
     if (!url || url.startsWith("data:") || url.startsWith("blob:")) continue;
     let task = resolving.get(url);
     if (!task) {
@@ -134,6 +183,7 @@ function renderBlockToDom(text, options) {
     } else {
       const pre = dom("pre", "md-fences md-end-block ty-contain-cm modeLoaded");
       pre.setAttribute("data-md-line", "0");
+      pre.setAttribute("data-lang", info);
       pre.innerHTML = `<div class="CodeMirror cm-s-inner" data-lang="${esc(info)}">${html2}</div>`;
       root.appendChild(pre);
     }
@@ -207,6 +257,7 @@ function annotateSourceLines(holder, text) {
 function render(text, options) {
   const { dom: root } = renderBlockToDom(text, options);
   void hydrateImages(root, options.resolveImage);
+  void hydrateFence(root);
   void hydrateMermaid(root);
   return { dom: root };
 }
@@ -225,6 +276,7 @@ function renderDocument(text, options) {
   });
   void lines;
   void hydrateImages(write, options.resolveImage);
+  void hydrateFence(write);
   void hydrateMermaid(write);
   return write;
 }

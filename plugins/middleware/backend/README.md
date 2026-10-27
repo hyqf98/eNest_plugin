@@ -18,6 +18,6 @@
 
 `tsc -p backend/tsconfig.json`
 
-`node --test backend/migration-20261024.test.mjs`
+`node --test backend/middleware-backend-contract.test.mjs`
 
 新增迁移专项只用 mock driver、mock MQTT 模块和 mock 控制端口，覆盖授权、密钥、只读、归属、预算、关闭竞态、lease、事件与冻结 API。未运行历史测试，未连接任何真实 Kafka/RabbitMQ/MQTT/EMQX/RocketMQ 服务，不替代真实集群回归验收。

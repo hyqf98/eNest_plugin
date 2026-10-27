@@ -12,7 +12,6 @@
     "./file-inputs": "./file-inputs.js"
   },
   "dependencies": {
-    "monaco-editor": "^0.57.0",
-    "sql-formatter": "^15.9.0"
+    "monaco-editor": "^0.57.0"
   }
 }

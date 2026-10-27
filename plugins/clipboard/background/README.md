@@ -13,4 +13,4 @@
 
 Background entrypoints require production-built assets. Source-preview development can keep its Vite frontend while the isolated background loads the matching `dist/assets/background.html`; run the plugin build and reload after changing background code. Missing or mismatched built output fails explicitly instead of enabling Node, network access, or arbitrary source paths. A short Quick search deadline may return no results while a cold import finishes; it does not cancel that durable import.
 
-The new focused cases are `tests/background-migration-20261024.test.mjs`; they use synthetic in-memory data only. Host native/migration adapters have separate new fixture tests. Historical test suites and real user clipboard data are not required for these cases.
+The new focused cases are `tests/background-migration.test.mjs`; they use synthetic in-memory data only. Host native/migration adapters have separate new fixture tests. Historical test suites and real user clipboard data are not required for these cases.

@@ -1156,13 +1156,13 @@ body {
 
 /* focus ring：统一 2px 品牌描边，替代浏览器默认 */
 :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--brand) 55%, transparent);
-  outline-offset: 1px;
-  border-radius: var(--radius-xs);
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
 }
 input:focus-visible,
 select:focus-visible,
-textarea:focus-visible { outline-offset: 0; }
+textarea:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
 
 /* —— 滚动条：细轨 + 透明拇指，hover 才显形 —— */
 * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-3) 35%, transparent) transparent; }

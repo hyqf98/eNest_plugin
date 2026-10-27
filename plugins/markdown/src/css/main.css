@@ -93,14 +93,18 @@
 /* ---------------- 侧栏 ---------------- */
 
 .md-sidebar {
-  width: 232px;
+  width: var(--md-sidebar-width, 232px);
   flex: none;
   border-right: 1px solid var(--border, #e0e0e0);
   background: var(--surface, #fafafa);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 180px;
+  max-width: 480px;
 }
+/* 拖拽调宽时只改 --md-sidebar-width，布局即时跟手 */
+.md-app[data-sidebar-resizing='on'] .md-sidebar { transition: none; }
 .md-sidebar-tabs {
   display: flex;
   flex: none;
@@ -130,17 +134,29 @@
 .md-sidebar-label { padding: 10px 12px 4px; font-size: 11px; color: var(--text-2, #999); }
 
 /* 大纲 */
+/* 检索框：边框画在外层容器上，聚焦反馈也由外层统一给出——
+   内部 input 去边框后若各自画 outline，矩形环会脱离 8px 圆角，看起来"没贴合"。
+   这里让 .md-outline-search 用 :focus-within 显示沿圆角贴合的柔光环。 */
 .md-outline-search {
   display: flex; align-items: center; gap: 6px;
   margin: 8px 8px 6px; padding: 0 8px;
   border: 1px solid var(--border, #e0e0e0); border-radius: 8px;
   background: var(--surface, #fff);
   color: var(--text-2, #999);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.md-outline-search:hover { border-color: color-mix(in srgb, var(--accent, #3b82f6) 40%, var(--border, #e0e0e0)); }
+.md-outline-search:focus-within {
+  border-color: var(--accent, #3b82f6);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3b82f6) 20%, transparent);
 }
 .md-outline-search svg { width: 13px; height: 13px; flex: none; }
 .md-outline-search input {
   flex: 1; min-width: 0; border: none; outline: none; background: none;
   font-size: 12px; padding: 5px 0; color: var(--text, #333);
+}
+@media (forced-colors: active) {
+  .md-outline-search:focus-within { outline: 2px solid Highlight; outline-offset: 1px; }
 }
 .md-outline-item { display: flex; align-items: center; gap: 2px; }
 .md-outline-l1 { padding-left: 8px; }
@@ -388,6 +404,31 @@ body.md-col-resizing { cursor: col-resize; user-select: none; }
 .md-theme-name { flex: 1; text-align: left; background: none; border: none; cursor: pointer; font-size: 13px; }
 .md-paths { margin: 0; padding-left: 16px; font-size: 12px; }
 .md-paths code { font-family: var(--mono, monospace); word-break: break-all; }
+/* 设置页：行内字段 / 数字网格 / 复选组 / 下拉 */
+.md-set-row { display: flex; gap: 8px; align-items: center; }
+.md-set-row .pk-input { flex: 1; min-width: 0; }
+.md-set-select { width: 100%; max-width: 320px; }
+.md-set-num { width: 120px; }
+.md-set-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; }
+.md-set-inline { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.md-set-inline > input { margin-top: 3px; flex: none; }
+.md-set-inline .md-set-label { margin-bottom: 0; color: var(--text, #333); font-size: 12.5px; }
+.md-set-checks { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+
+/* 图片尺寸小工具（点击渲染态图片弹出） */
+.md-img-tool {
+  position: fixed; z-index: 58;
+  background: var(--surface, #fff); border: 1px solid var(--border, #e0e0e0);
+  border-radius: 12px; padding: 8px; min-width: 208px;
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--text, #000) 14%, transparent);
+}
+.md-img-tool-row { display: flex; gap: 4px; padding: 3px 4px; flex-wrap: wrap; }
+.md-img-tool-row button {
+  flex: 1 1 auto; min-width: 44px; padding: 5px 8px; font-size: 12px;
+  background: none; border: 1px solid var(--border, #e0e0e0); border-radius: 7px;
+  color: var(--text, #333); cursor: pointer;
+}
+.md-img-tool-row button:hover { border-color: var(--accent, #3b82f6); color: var(--accent, #3b82f6); }
 
 /* 快捷键表 */
 .md-kbd-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -427,20 +468,153 @@ html.md-printing .md-statusbar { display: none !important; }
 
 /* 现有侧栏只脱离布局，不卸载大纲、文件树或编辑器。 */
 .md-body { position: relative; }
-.md-sidebar-toggle {
+
+/* ---------------- 侧栏隐藏把手（侧栏右边缘垂直居中的细长条） ---------------- */
+/* 展开时：贴在侧栏右边缘中线，视觉上是 4px 宽 56px 高的半透明竖条，
+   命中区更宽（不遮文字：只在侧栏边框上）；hover 展开成带竖线与箭头的胶囊。
+   收起时：把手贴到编辑区左边缘（原侧栏右边缘位置），只露一条细线，
+   鼠标移上去由 PluginKit.bindHoverPanel 触发 peek 展开。 */
+.md-sidebar-handle {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 50%;
+  left: var(--md-sidebar-width, 232px);
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 64px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3, var(--text-2, #999));
+  cursor: pointer;
   z-index: 41;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    width .18s cubic-bezier(.16, 1, .3, 1),
+    height .18s cubic-bezier(.16, 1, .3, 1),
+    background-color .18s ease,
+    box-shadow .18s ease,
+    opacity .18s ease,
+    left .22s cubic-bezier(.16, 1, .3, 1);
+  opacity: .45;
+  touch-action: none;
 }
-.md-sidebar-tabs { padding-left: 42px; }
+/* 视觉竖条（真正的"露出来的一点"） */
+.md-sidebar-handle::before {
+  content: '';
+  width: 4px;
+  height: 40px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: .5;
+  transition: width .18s ease, height .18s ease, opacity .18s ease, background-color .18s ease;
+}
+/* hover 时的箭头提示（指向收起/展开方向） */
+.md-sidebar-handle::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-left: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  opacity: 0;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.md-sidebar-handle:hover,
+.md-sidebar-handle:focus-visible {
+  width: 20px;
+  height: 76px;
+  opacity: 1;
+  background: var(--surface, #fff);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--text, #000) 14%, transparent);
+  color: var(--accent, #3b82f6);
+}
+.md-sidebar-handle:hover::before,
+.md-sidebar-handle:focus-visible::before {
+  width: 3px;
+  height: 30px;
+  opacity: .95;
+  background: currentColor;
+}
+/* 展开态 hover：箭头指向左（点击即收起） */
+.md-app[data-sidebar='open'] .md-sidebar-handle:hover::after,
+.md-app[data-sidebar='open'] .md-sidebar-handle:focus-visible::after {
+  opacity: .9;
+  transform: rotate(45deg);
+  margin-left: -2px;
+}
+.md-sidebar-handle:active { opacity: 1; }
+
+/* 展开态：把手贴在侧栏右边缘（left 由内联 --md-sidebar-width 提供） */
+.md-app[data-sidebar='open'] .md-sidebar-handle { left: var(--md-sidebar-width, 232px); }
+/* 收起态：贴编辑区左边缘，只露一条细线；命中区 10px 但背景透明 */
+.md-app[data-sidebar='closed'] .md-sidebar-handle {
+  left: 0;
+  width: 10px;
+  height: 88px;
+  opacity: .55;
+  background: transparent;
+  border-radius: 0 999px 999px 0;
+  transform: translate(0, -50%);
+  color: var(--text-3, var(--text-2, #999));
+}
+.md-app[data-sidebar='closed'] .md-sidebar-handle::before {
+  width: 3px;
+  height: 44px;
+  opacity: .55;
+  background: color-mix(in srgb, var(--text-3, var(--text-2, #999)) 70%, transparent);
+}
+/* 收起态 hover：露出更明显的把手，箭头指向右（点击即展开） */
+.md-app[data-sidebar='closed'] .md-sidebar-handle:hover,
+.md-app[data-sidebar='closed'] .md-sidebar-handle:focus-visible,
+.md-app[data-sidebar='closed'] .md-sidebar[data-peek='true'] ~ .md-sidebar-handle {
+  width: 14px;
+  height: 88px;
+  opacity: 1;
+  border-radius: 0 999px 999px 0;
+  background: var(--surface, #fff);
+  box-shadow: 2px 0 14px color-mix(in srgb, var(--text, #000) 12%, transparent);
+  color: var(--accent, #3b82f6);
+}
+.md-app[data-sidebar='closed'] .md-sidebar-handle:hover::before,
+.md-app[data-sidebar='closed'] .md-sidebar-handle:focus-visible::before {
+  width: 3px;
+  height: 34px;
+  opacity: 1;
+  background: currentColor;
+}
+.md-app[data-sidebar='closed'] .md-sidebar-handle:hover::after,
+.md-app[data-sidebar='closed'] .md-sidebar-handle:focus-visible::after {
+  opacity: .9;
+  transform: rotate(-135deg);
+  margin-left: 2px;
+}
+/* 拖拽调宽期间不做过渡，避免跟手迟滞 */
+.md-app[data-sidebar-resizing='on'] .md-sidebar-handle { transition: none; }
+body.md-sidebar-resizing { cursor: col-resize; user-select: none; }
+body.md-sidebar-resizing * { cursor: col-resize !important; }
+
+/* peek 展开（收起态悬停）：从左侧滑出 */
 .md-app[data-sidebar='closed'] .md-sidebar[data-peek='true'] {
   display: flex;
   position: absolute;
   inset: 0 auto 0 0;
-  width: min(272px, calc(100% - 40px));
+  width: min(var(--md-sidebar-width, 272px), calc(100% - 40px));
   z-index: 40;
   box-shadow: 6px 0 24px color-mix(in srgb, var(--text, #333) 12%, transparent);
+  animation: md-sidebar-peek-in .18s cubic-bezier(.16, 1, .3, 1);
 }
-@media print { .md-sidebar-toggle { display: none !important; } }
-html.md-printing .md-sidebar-toggle { display: none !important; }
+@keyframes md-sidebar-peek-in {
+  from { transform: translateX(-8px); opacity: .6; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .md-sidebar-handle,
+  .md-sidebar-handle::before,
+  .md-sidebar-handle::after { transition: none !important; animation: none !important; }
+  .md-app[data-sidebar='closed'] .md-sidebar[data-peek='true'] { animation: none !important; }
+}
+@media print { .md-sidebar-handle { display: none !important; } }
+html.md-printing .md-sidebar-handle { display: none !important; }

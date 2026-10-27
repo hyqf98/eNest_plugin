@@ -41,7 +41,7 @@ export class SqlEditor extends LightweightEditor {
     if (this.usingMonaco) { this.activateModel(); this.instance.updateOptions({ lineNumbers: surface === 'quick' ? 'off' : 'on', ...this.editorFontOptions(), padding: { top: surface === 'quick' ? 5 : 14, bottom: surface === 'quick' ? 5 : 14 } }); this.instance.layout() }
   }
   async enhance() {
-    const { monaco, format } = await loadRuntime()
+    const [{ monaco }, { format }] = await Promise.all([loadRuntime(), import('sql-formatter')])
     this.monaco = monaco; this.format = format
     if (!monaco.languages.getLanguages().some((language) => language.id === 'flux')) {
       monaco.languages.register({ id: 'flux' })
@@ -297,7 +297,7 @@ export class SqlEditor extends LightweightEditor {
     const model = this.instance?.getModel(), selection = this.instance?.getSelection()
     const ta = this.el.ta, start = model ? model.getOffsetAt(selection.getStartPosition()) : ta.selectionStart, end = model ? model.getOffsetAt(selection.getEndPosition()) : ta.selectionEnd
     if (selectionOnly && start === end) throw new Error('请先选择需要格式化的查询文本')
-    if (!this.format) { const runtime = await loadRuntime(); this.format = runtime.format }
+    if (!this.format) { const { format } = await import('sql-formatter'); this.format = format }
     if (this.documentId !== documentId || this.getValue() !== source || (model && model !== this.instance?.getModel())) throw new Error('查询文档已切换或改变，请重新格式化')
     const from = selectionOnly ? start : 0, to = selectionOnly ? end : source.length
     let text

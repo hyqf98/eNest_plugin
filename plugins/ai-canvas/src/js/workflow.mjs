@@ -1,15 +1,60 @@
 /**
  * workflow — 画布执行引擎。
- * 拓扑排序（环检测）+ 双模式运行：
- *  - runNode：单节点运行，输入取上游节点最近一次成功输出（Dify 同款）
- *  - runAll：整画布按层级推进，同层并行 ≤4，失败节点标错并跳过其下游
- * 生成图片经 assets 落盘，节点 data.lastRun 持久化 asset 引用（不存图数据）。
+ *
+ * 数据流：RunContext 是唯一真源。执行成功的节点把标准化的 outputs 写入上下文，
+ * 下游 collectInputs 优先读上下文、回落该节点最近一次成功输出（data.lastRun）。
+ * 因此同一次「运行全部」里下游一定能拿到本轮上游产物，不再读到运行前的旧值。
+ *
+ * 输出标准（execute 返回值 → 落库形态）：
+ *   text  → string
+ *   image → ImageRef[] { assetId, name?, createdAt? }，图片先落 storage.assets
+ *   json  → 普通对象
+ * 落库不存图片字节，避免草稿 KV 触顶。
  */
 
 import { getNodeDef } from './nodeRegistry.mjs'
 import { getDefaultProvider } from './providers.mjs'
 import { saveAsset, attachGalleryMeta, getAsset } from './assets.mjs'
 import { fromDataUrl } from './netFetch.mjs'
+import { PORT_KIND, normalizeOutput } from './nodeSchema.mjs'
+import { resolveParams } from './variables.mjs'
+
+/** 运行上下文：nodeId → 本轮标准输出 */
+export function createRunContext(seedNodes) {
+  const pool = new Map()
+  if (seedNodes) {
+    for (const node of seedNodes) {
+      const outputs = node?.data?.lastRun?.outputs
+      if (outputs && typeof outputs === 'object') pool.set(node.id, outputs)
+    }
+  }
+  return {
+    getOutputs: nodeId => pool.get(nodeId) ?? null,
+    setOutputs: (nodeId, outputs) => { pool.set(nodeId, outputs) },
+    forget: nodeId => { pool.delete(nodeId) },
+    clear: () => pool.clear()
+  }
+}
+
+/** 从某节点沿连线正向可达的全部下游（不含自身） */
+export function downstreamOf(nodeId, edges) {
+  const adjacency = new Map()
+  for (const e of edges) {
+    if (!adjacency.has(e.source)) adjacency.set(e.source, [])
+    adjacency.get(e.source).push(e.target)
+  }
+  const seen = new Set([nodeId])
+  const queue = [...(adjacency.get(nodeId) ?? [])]
+  const result = []
+  while (queue.length) {
+    const id = queue.shift()
+    if (seen.has(id)) continue
+    seen.add(id)
+    result.push(id)
+    queue.push(...(adjacency.get(id) ?? []))
+  }
+  return result
+}
 
 /** nodes/edges → 层级拓扑；环则抛错 */
 export function topoLevels(nodes, edges) {
@@ -39,22 +84,34 @@ export function topoLevels(nodes, edges) {
   return levels
 }
 
-/** 收集某节点某输入口的全部上游输出（多入边合并为数组） */
-function collectInputs(nodeId, edges, nodesById) {
+/**
+ * 收集某节点的输入。
+ * - multiple 输入口：合并全部入边为数组
+ * - 单值输入口：取第一条有效入边（顺序稳定，不因遍历顺序抖动）
+ */
+function collectInputs(node, edges, nodesById, getOutputs) {
+  const def = getNodeDef(node.data.type)
   const inputs = {}
+  const claimed = new Set()
   for (const edge of edges) {
-    if (edge.target !== nodeId) continue
+    if (edge.target !== node.id) continue
     const targetPort = edge.targetHandle || 'default'
     const sourcePort = edge.sourceHandle || 'default'
-    const source = nodesById.get(edge.source)
-    const value = source?.data?.lastRun?.outputs?.[sourcePort]
-    if (value === undefined || value === null) continue
-    const def = getNodeDef(nodesById.get(nodeId)?.data?.type)
     const portDef = def?.inputs.find(p => p.key === targetPort)
-    if (portDef?.multiple || Array.isArray(inputs[targetPort])) {
-      inputs[targetPort] = [...(inputs[targetPort] ?? []), ...(Array.isArray(value) ? value : [value])]
-    } else {
-      inputs[targetPort] = value
+    if (!portDef) continue
+    const source = nodesById.get(edge.source)
+    if (!source) continue
+    const value = getOutputs(edge.source)?.[sourcePort]
+      ?? source?.data?.lastRun?.outputs?.[sourcePort]
+    if (value === undefined || value === null) continue
+    if (Array.isArray(value) && !value.length) continue
+
+    if (portDef.multiple) {
+      const list = Array.isArray(value) ? value : [value]
+      inputs[targetPort] = [...(inputs[targetPort] ?? []), ...list]
+    } else if (!claimed.has(targetPort)) {
+      claimed.add(targetPort)
+      inputs[targetPort] = Array.isArray(value) ? value[0] : value
     }
   }
   return inputs
@@ -70,73 +127,108 @@ async function resolveImageRef(ref) {
   return fromDataUrl(asset.dataUrl)
 }
 
-/**
- * 执行单个节点（不递归上游）。
- * 图片输入（上游输出/本地上传的 asset 引用）先解析为字节数据再交给节点协议。
- * @returns 更新后的 data 片段（state/lastRun），由调用方合回 React Flow 节点
- */
-export async function executeNode(node, { edges, nodesById, providers, draftId, onProgress }) {
-  const def = getNodeDef(node.data.type)
-  if (!def) throw new Error(`未知节点类型：${node.data.type}`)
-  const inputs = collectInputs(node.id, edges, nodesById)
-  const params = node.data.params ?? {}
-
-  // 图片口：无上游连线时回落到节点本地上传图
+/** 图片输入标准化：恒为 {bytes,mime}[]；无上游时回落旧草稿的 data.localImage */
+async function resolveImageInputs(node, def, inputs) {
   for (const port of def.inputs) {
-    if (port.kind !== 'image') continue
-    const empty = inputs[port.key] === undefined || (Array.isArray(inputs[port.key]) && !inputs[port.key].length)
+    if (port.kind !== PORT_KIND.IMAGE) continue
+    const empty = inputs[port.key] === undefined
+      || (Array.isArray(inputs[port.key]) && !inputs[port.key].length)
     if (empty && node.data.localImage?.assetId) inputs[port.key] = [{ assetId: node.data.localImage.assetId }]
-  }
-  // asset 引用 → bytes
-  for (const port of def.inputs) {
-    if (port.kind !== 'image' || inputs[port.key] === undefined) continue
+    if (inputs[port.key] === undefined) continue
     const refs = Array.isArray(inputs[port.key]) ? inputs[port.key] : [inputs[port.key]]
     const resolved = []
     for (const ref of refs) {
       const image = await resolveImageRef(ref)
       if (image) resolved.push(image)
     }
-    inputs[port.key] = Array.isArray(inputs[port.key]) ? resolved : resolved[0]
+    inputs[port.key] = resolved
   }
+  return inputs
+}
+
+/** 图片输出落盘：已是 assetId 引用的不重复保存 */
+async function persistImageOutputs(node, images, meta) {
+  const out = []
+  for (const [index, image] of images.entries()) {
+    if (image?.assetId && !image.bytes) {
+      out.push({ assetId: image.assetId, name: image.name ?? null, createdAt: image.createdAt ?? null })
+      continue
+    }
+    const saved = await saveAsset({
+      bytes: image.bytes, mime: image.mime,
+      name: `${node.data.type}-${node.id.slice(0, 6)}-${index + 1}`
+    })
+    out.push({ assetId: saved.assetId, name: saved.name ?? null, createdAt: saved.createdAt ?? Date.now() })
+    await attachGalleryMeta(saved.assetId, {
+      prompt: meta.prompt, providerName: meta.providerName, model: meta.model,
+      nodeId: node.id, draftId: meta.draftId, at: Date.now()
+    })
+  }
+  return out
+}
+
+/**
+ * 执行单个节点（不递归上游）。
+ * @returns 更新后的 data 片段（state/lastRun），由调用方合回 React Flow 节点
+ */
+export async function executeNode(node, { edges, nodesById, providers, draftId, runContext, onProgress }) {
+  const def = getNodeDef(node.data.type)
+  if (!def) throw new Error(`未知节点类型：${node.data.type}`)
+
+  const getOutputs = id => runContext?.getOutputs(id) ?? null
+  const inputs = await resolveImageInputs(node, def, collectInputs(node, edges, nodesById, getOutputs))
+
+  const { params, missing } = resolveParams(def, node.data.params ?? {}, {
+    nodeId: node.id, nodes: Array.from(nodesById.values()), edges, getOutputs
+  })
 
   const providerId = node.data.providerId
   const provider = (providerId && providers.find(p => p.id === providerId)) || await getDefaultProvider(providers)
   if (def.protocol && !provider?.secretRef) throw new Error('尚未配置 API 密钥：请先在设置中完成供应商配置')
 
+  const startedAt = Date.now()
   const result = await def.execute({ inputs, params, provider, onProgress })
-  const images = []
-  for (const [index, image] of result.images.entries()) {
-    const saved = await saveAsset({ bytes: image.bytes, mime: image.mime, name: `${node.data.type}-${node.id.slice(0, 6)}-${index + 1}` })
-    images.push({ assetId: saved.assetId, name: saved.name, bytes: saved.bytes, createdAt: saved.createdAt })
-    await attachGalleryMeta(saved.assetId, {
-      prompt: String(params.prompt ?? inputs.prompt ?? params.template ?? ''),
-      providerName: provider?.name ?? '', model: provider?.model ?? '',
-      nodeId: node.id, draftId, at: Date.now()
-    })
+  const durationMs = Date.now() - startedAt
+
+  const galleryMeta = {
+    prompt: String(params.prompt ?? inputs.prompt ?? params.template ?? ''),
+    providerName: provider?.name ?? '', model: provider?.model ?? '',
+    draftId
   }
   const outputs = {}
   for (const port of def.outputs) {
-    if (port.kind === 'image') outputs[port.key] = images.map(i => ({ assetId: i.assetId }))
-    else outputs[port.key] = result.texts?.[0] ?? null
+    const value = normalizeOutput(port, result.outputs?.[port.key])
+    outputs[port.key] = port.kind === PORT_KIND.IMAGE
+      ? await persistImageOutputs(node, Array.isArray(value) ? value : [], galleryMeta)
+      : value
   }
-  return {
+  runContext?.setOutputs(node.id, outputs)
+
+  const patch = {
     state: 'success',
     error: null,
-    lastRun: { at: Date.now(), outputs, usage: result.usage ?? null, images }
+    warnings: missing.length ? [`未解析的变量引用：${Array.from(new Set(missing)).join('、')}`] : [],
+    lastRun: {
+      at: Date.now(), durationMs, outputs,
+      resolvedParams: params, usage: result.usage ?? null,
+      display: result.display ?? null
+    }
   }
+  return patch
 }
 
 /** 整画布运行：层级推进，同层并行 ≤4；onNodeState(nodeId, statePatch) 实时回报 */
-export async function runWorkflow({ nodes, edges, providers, draftId, onNodeState, shouldStop }) {
+export async function runWorkflow({ nodes, edges, providers, draftId, onNodeState, shouldStop, runContext }) {
   const levels = topoLevels(nodes, edges)
   const nodesById = new Map(nodes.map(n => [n.id, n]))
+  // 默认从当前 lastRun 起步：上下文由本轮逐层刷新，下游一定读到本轮上游新产物
+  const context = runContext ?? createRunContext(nodes)
   const failed = new Set()
   for (const level of levels) {
     if (shouldStop?.()) break
     const runnable = level.filter(id => {
       const node = nodesById.get(id)
       if (!node) return false
-      // 下游有失败上游则跳过（标 error 且不执行）
       const upstreamFailed = edges.some(e => e.target === id && failed.has(e.source))
       if (upstreamFailed) {
         onNodeState(id, { state: 'error', error: '上游节点失败，已跳过' })
@@ -150,7 +242,7 @@ export async function runWorkflow({ nodes, edges, providers, draftId, onNodeStat
       if (shouldStop?.()) break
       const node = nodesById.get(id)
       onNodeState(id, { state: 'running', error: null })
-      batch.push(executeNode(node, { edges, nodesById, providers, draftId })
+      batch.push(executeNode(node, { edges, nodesById, providers, draftId, runContext: context })
         .then(patch => onNodeState(id, patch))
         .catch(error => {
           failed.add(id)

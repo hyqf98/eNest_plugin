@@ -1,22 +1,20 @@
-# 插件图标与壳离线快照
+# 插件图标与浏览器预览夹具
 
-插件图标的权威源为 `plugins/<id>/public/assets/market/icon.svg`。构建后复制到插件发行包的 `assets/market/icon.svg`，manifest 路径保持不变。
+插件图标的权威源为 `plugins/<短名>/public/assets/market/icon.svg`，其中短名为完整插件 ID 的末段。构建后复制到插件发行包的 `assets/market/icon.svg`，manifest 路径保持不变。
 
 图标须自带足够对比度，不能依赖宿主当前主题。工具图标使用各自功能配色的圆角底板与白色图形：备忘录为金黄、时间戳为蓝、番茄钟为珊瑚红、待办为绿。32 × 32 图标的图形保留约 20% 内边距，在 24 / 48 px 和浅深主题下都要可辨认。不要为所有工具统一添加黑色底板；已有独立品牌图形保留自身配色。
 
-壳使用全部 `com.github.eNest.*` 官方插件真实 SVG 的静态快照，运行时不读取或依赖插件仓库。离线市场与旧图标兼容共享同一份素材，未知插件仍显示自己的图标或通用占位图。
+宿主的 DEV 浏览器预览使用插件真实 SVG 的静态夹具，便于未启动 Electron 时展示示例目录。夹具只服务浏览器预览，不是生产 main/shared 模块，也不是正式市场的离线回退数据。
 
-修改图标或离线市场名单后，在插件仓库执行：
+正式应用按插件声明读取图标或显示通用占位图，不按官方插件 ID、旧 SVG 签名或 GitHub URL 替换图标。插件图标更新通过插件自身的发布包或市场资源分发，宿主生产代码不依赖此快照或插件仓库源码。
+
+修改图标或浏览器预览名单后，在插件仓库执行：
 
 ```bash
 node scripts/sync-shell-plugin-icons.mjs --host-root /path/to/eNest
 node scripts/sync-shell-plugin-icons.mjs --host-root /path/to/eNest --check
 npm run validate
-npm run build -- <受影响的插件ID>
+npm run build -- <受影响的插件短名>
 ```
 
-同步命令只生成宿主 `src/shared/builtinPluginIcons.ts`，供 main 和 renderer 共用；`--check` 为只读一致性校验。宿主快照与插件源码应一起提交。现有安装包的文件不会被此命令覆盖，新图标随插件更新分发。
-
-旧版 24 个工具的深色与透明 SVG 签名保存在 `scripts/legacy-plugin-icons.json`。SHA256 输入是 UTF-8 SVG 去除首尾空白及标签之间空白后的内容；不要以新图标重新生成旧签名。宿主 `enest://` 协议在完成文件路径校验后，仅为内容匹配这些签名的默认 `icon.svg` / `assets/market/icon.svg` 返回新素材，保留包内原文件及缓存/HEAD语义。自定义 SVG、第三方图标、运行时 `ui.setIcon` glyph 均不会被替换。
-
-旧远程市场无需额外下载图标：宿主只对官方 `hyqf98/eNest_plugin` GitHub raw / Release 默认图标路径启用快照，且插件版本不得超过 `throughVersion`。其它 origin、自定义路径、带查询参数的 URL、未来版本均保持原图。未来插件更新使用新的素材和版本正常发布，不要提高此兼容版本上限。
+同步命令只生成宿主 `tests/fixtures/browser-preview/builtinPluginIcons.ts`，不得再写回 `src/`。预览入口只能在 DEV 分支加载该夹具；main、preload 和生产 renderer 均不得导入。`--check` 是只读的一致性校验，不会改写图标或夹具；校验失败时先确认图标源变更，再决定是否重新生成。宿主预览夹具与插件图标源码应一起提交，现有插件安装包不会被此命令覆盖。

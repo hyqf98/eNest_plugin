@@ -7,7 +7,9 @@
 body{overflow:hidden}
 /* 基础控件：按钮统一由 .pk-btn 提供（kit + pk-ui.css），此处只保留表单控件 */
 input,select,textarea{border:1px solid var(--line);border-radius:calc(var(--radius) - 1px);background:var(--paper);color:inherit;padding:6px 9px;min-height:28px;transition:background-color var(--speed),border-color var(--speed)}
-input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+/* 聚焦：贴合圆角的柔光环（outline 是矩形，不会跟随 border-radius）。
+   鼠标态只有细边框收紧，键盘态才给环。 */
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid transparent;outline-offset:0;border-color:var(--blue);box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 20%,transparent)}
 input,textarea{outline:none}
 textarea{resize:vertical}
 h1,h2,p{margin:0}
@@ -91,6 +93,11 @@ header input{margin-left:auto;flex:1;max-width:460px}
 .file small{color:var(--muted-c);margin-top:4px}
 .file.invalid{opacity:.6}
 .empty{padding:52px 20px;text-align:center;color:var(--muted-c);line-height:1.9}
+/* 读取失败 / 能力缺失：空态要给出原因与可执行动作，而不是只剩一行字。 */
+.empty-blocked{display:flex;flex-direction:column;align-items:center;gap:6px}
+.empty-blocked p{margin:0;max-width:46ch;overflow-wrap:anywhere}
+.empty-blocked b{color:var(--text);font-weight:600}
+.empty-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:6px}
 
 /* —— 底栏操作 —— */
 .selection{display:flex;gap:8px;align-items:center;font-size:11px;color:var(--muted-c);min-width:0}

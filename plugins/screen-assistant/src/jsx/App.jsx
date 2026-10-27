@@ -40,6 +40,7 @@ export function App() {
 
   const [history, setHistory] = useState([])
   const [recordings, setRecordings] = useState([])
+  const [recordLimit, setRecordLimit] = useState(30)
   const [drafts, setDrafts] = useState({})
   const [pinNames, setPinNames] = useState({})
   const [activeId, setActiveId] = useState('')
@@ -122,7 +123,8 @@ export function App() {
 
   function persist(current) {
     const s = current ?? stateRef.current
-    const snapshot = structuredClone({ history: s.history, recordings: s.recordings, drafts: s.drafts, activeId: s.activeId, pinNames: s.pinNames })
+    // Completed files are authoritative; keep only recent recording annotations in the bounded KV value.
+    const snapshot = structuredClone({ history: s.history, recordings: s.recordings.slice(0, 30), drafts: s.drafts, activeId: s.activeId, pinNames: s.pinNames })
     saveQueue.current = saveQueue.current.catch(() => {}).then(() => kitRef.current.save('screen_workspace_v2', snapshot))
     saveQueue.current.catch(fail)
     return saveQueue.current
@@ -541,6 +543,57 @@ export function App() {
       renderRecordingState()
     }
   }
+  function recordingFileId(item) {
+    const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/
+    if (typeof item?.id === 'string' && uuid.test(item.id)) return item.id
+    const name = String(item?.path || '').split(/[\\/]/).pop()
+    const legacy = /^([0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12})\.webm$/.exec(name)
+    return legacy?.[1] || null
+  }
+  function privateRecordingFiles() {
+    const files = api?.storage?.files
+    if (!files || !['list', 'get', 'remove', 'export'].every(method => typeof files[method] === 'function')) throw new Error('此版本缺少私有录制文件管理，请升级 eNest')
+    return files
+  }
+  async function loadRecordingFiles(previous) {
+    const files = privateRecordingFiles(), annotations = new Map(previous.map(item => [recordingFileId(item), item]))
+    const items = [], cursors = new Set()
+    let cursor
+    do {
+      const page = await files.list({ cursor, limit: 200 })
+      for (const file of page.items) {
+        if (file.extension !== 'webm') continue
+        const old = annotations.get(file.id)
+        items.push({ id: file.id, size: file.size, durationMs: old?.durationMs ?? 0, ts: old?.ts ?? file.createdAt })
+      }
+      cursor = page.nextCursor
+      if (cursor && (cursors.has(cursor) || cursors.size >= 41)) throw new Error('录制文件列表异常，请重试')
+      if (cursor) cursors.add(cursor)
+    } while (cursor)
+    return items.sort((a, b) => b.ts - a.ts)
+  }
+  async function refreshRecordingFiles() {
+    const next = await loadRecordingFiles(stateRef.current.recordings)
+    stateRef.current.recordings = next
+    setRecordings(next)
+    await persist({ ...stateRef.current, recordings: next })
+  }
+  async function exportRecording(item) {
+    const id = recordingFileId(item)
+    if (!id) throw new Error('此旧记录没有可验证的私有文件 ID，不能直接操作保存路径')
+    const result = await privateRecordingFiles().export(id, { defaultName: `录制-${new Date(item.ts).toLocaleString('sv-SE').replaceAll(':', '-')}.webm` })
+    setStatusText(result ? `已导出到 ${result.path}` : '已取消导出')
+  }
+  async function deleteRecording(item) {
+    const id = recordingFileId(item)
+    if (!id) throw new Error('此旧记录没有可验证的私有文件 ID，不能直接删除保存路径')
+    await privateRecordingFiles().remove(id)
+    const next = stateRef.current.recordings.filter(record => recordingFileId(record) !== id)
+    await persist({ ...stateRef.current, recordings: next })
+    stateRef.current.recordings = next
+    setRecordings(next)
+    setStatusText('录制文件已删除，私有存储空间已释放')
+  }
   function stopRecording() {
     if (recStopRef.current) return recStopRef.current
     const pending = finishRecording()
@@ -553,18 +606,20 @@ export function App() {
     setRecBusy(true)
     renderRecordingState()
     const id = recSession.current
+    let fileSaved = false
     try {
       const result = await api.screen.record.stop(id)
+      fileSaved = true
       recSession.current = null
-      const next = [{ ...result, ts: Date.now() }, ...stateRef.current.recordings].slice(0, 30)
+      const next = [{ id: result.id, size: result.size, durationMs: result.durationMs, ts: Date.now() }, ...stateRef.current.recordings]
       setRecordings(next)
       stateRef.current.recordings = next
       await persist({ ...stateRef.current, recordings: next })
-      setRecInfo(`已保存：${result.path}`)
-      setStatusText('录制完成，文件已保存')
+      setRecInfo('已保存到本插件私有文件，可在记录中导出或删除。')
+      setStatusText('录制完成，私有文件已保存')
     } catch (error) {
       recSession.current = null
-      setRecInfo('录制未能保存，请检查权限与磁盘空间。')
+      setRecInfo(fileSaved ? '录制文件已保存，但记录信息保存失败；可刷新文件列表恢复。' : '录制完成状态未确认，请刷新文件列表核对，并检查权限与磁盘空间。')
       throw error
     } finally {
       recBusyRef.current = false
@@ -699,7 +754,7 @@ export function App() {
           ? state.history.filter((item) => item && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.thumb === 'string' && (typeof item.blobId === 'string' || item.legacy === true)).slice(0, 80)
           : []
         loadedRecordings = Array.isArray(state.recordings)
-          ? state.recordings.filter((item) => item && typeof item.path === 'string' && Number.isFinite(item.durationMs) && Number.isFinite(item.size)).slice(0, 30)
+          ? state.recordings.filter((item) => item && recordingFileId(item) && Number.isFinite(item.durationMs) && Number.isFinite(item.size)).slice(0, 30)
           : []
         loadedActiveId = String(state.activeId || '')
       } else {
@@ -708,6 +763,11 @@ export function App() {
           ? legacy.filter((item) => item && typeof item.thumb === 'string').map((item) => ({ id: item.id || uid(), name: '旧版截图', thumb: item.thumb, ts: Number(item.ts) || Date.now(), width: Number(item.w) || 0, height: Number(item.h) || 0, legacy: true }))
           : []
       }
+      if (api?.storage?.files) {
+        try { loadedRecordings = await loadRecordingFiles(loadedRecordings) }
+        catch (error) { fail(error); setRecInfo('录制文件列表读取失败，请在录制记录中刷新重试。') }
+      }
+      else setRecInfo('当前宿主缺少私有录制文件管理；请升级后使用录制、导出和删除。')
       setHistory(loadedHistory)
       setRecordings(loadedRecordings)
       setDrafts(loadedDrafts)
@@ -1016,19 +1076,21 @@ export function App() {
             <p className="helper">音频支持取决于系统与权限；无法获取时宿主可能录制无声视频。</p>
           </div>
           <div className="record-history">
-            <div className="section-head"><h2>录制记录</h2></div>
+            <div className="section-head"><h2>录制记录</h2><button className="pk-btn pk-btn-ghost pk-btn-sm" disabled={recBusy || busy} onClick={() => void run(() => work(refreshRecordingFiles))}>刷新文件</button></div>
             <div id="record-list">
               {recordings.length ? (
-                recordings.map((recording2, i) => (
-                  <article className="record-row" key={i}>
+                recordings.slice(0, recordLimit).map((recording2, i) => (
+                  <article className="record-row" key={recordingFileId(recording2) || i}>
                     <strong>{`${new Date(recording2.ts).toLocaleString()} · ${elapsed(recording2.durationMs)} · ${(recording2.size / 1024 / 1024).toFixed(1)} MB`}</strong>
-                    <p>{recording2.path}</p>
-                    <button className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void run(() => kitRef.current.copy(recording2.path))}>复制文件路径</button>
+                    <p>{recordingFileId(recording2)}.webm</p>
+                    <button className="pk-btn pk-btn-ghost pk-btn-sm" disabled={recBusy || busy} onClick={() => void run(() => work(() => exportRecording(recording2)))}>导出文件</button>
+                    <button className="pk-btn pk-btn-danger pk-btn-sm" disabled={recBusy || busy} onClick={() => void run(() => work(() => deleteRecording(recording2)))}>删除文件</button>
                   </article>
                 ))
               ) : (
-                <p className="empty">录制完成后，文件路径与时长会保留在这里。</p>
+                <p className="empty">录制完成后可在这里导出文件，或删除并释放存储空间。</p>
               )}
+              {recordings.length > recordLimit && <button className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => setRecordLimit(value => value + 30)}>显示更多（还有 {recordings.length - recordLimit} 条）</button>}
             </div>
           </div>
         </div>

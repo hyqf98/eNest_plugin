@@ -5,6 +5,7 @@
  * snapshot.tokens / fonts / components / layout 写成 CSS 变量。这里只实现公开契约
  * （见 docs/site/plugin/themes.md 的 appearanceStyleProperties），不读宿主私有设置。
  */
+import { setAttribute, setStyle } from './dom.js'
 
 const TOKEN_KEYS = [
   '--bg', '--surface', '--surface-2', '--surface-3', '--text', '--text-2', '--text-3',
@@ -65,7 +66,7 @@ function backgroundProperties(background = {}) {
 /** 只监听可见性，无计时器或逐帧 JS；页面卸载时由入口显式解除。 */
 export function observeDocumentVisibility() {
   const root = document.documentElement
-  const sync = () => { root.dataset.skVisible = String(!document.hidden) }
+  const sync = () => { setAttribute(root, 'data-sk-visible', !document.hidden) }
   sync()
   document.addEventListener('visibilitychange', sync)
   return () => {
@@ -84,13 +85,13 @@ export function applyAppearance(appearance, resources) {
   const mode = appearance.mode
   const tokens = appearance.tokens ?? {}
 
-  root.dataset.theme = mode
-  root.dataset.appearanceTheme = appearance.theme?.id ?? ''
-  root.dataset.appearanceLayout = layout.variant ?? ''
-  root.dataset.anim = animation.effective ?? 'medium'
-  root.dataset.skContinuous = String(animation.continuous !== false)
-  root.dataset.skBackground = background.kind === 'none' ? 'none' : 'paper'
-  root.style.colorScheme = mode
+  setAttribute(root, 'data-theme', mode)
+  setAttribute(root, 'data-appearance-theme', appearance.theme?.id ?? '')
+  setAttribute(root, 'data-appearance-layout', layout.variant ?? '')
+  setAttribute(root, 'data-anim', animation.effective ?? 'medium')
+  setAttribute(root, 'data-sk-continuous', animation.continuous !== false)
+  setAttribute(root, 'data-sk-background', background.kind === 'none' ? 'none' : 'paper')
+  setStyle(root, 'color-scheme', mode)
 
   const vars = {
     ...Object.fromEntries(TOKEN_KEYS.filter(key => tokens[key]).map(key => [key, tokens[key]])),
@@ -111,15 +112,12 @@ export function applyAppearance(appearance, resources) {
     '--appearance-tab-opacity': String(layout.tabOpacity ?? 1),
   }
 
-  for (const key of appliedKeys) if (!(key in vars)) root.style.removeProperty(key)
-  for (const [key, value] of Object.entries(vars)) {
-    if (value) root.style.setProperty(key, value)
-    else root.style.removeProperty(key)
-  }
+  for (const key of appliedKeys) if (!(key in vars)) setStyle(root, key, null)
+  for (const [key, value] of Object.entries(vars)) setStyle(root, key, value)
   appliedKeys = new Set(Object.keys(vars))
 
   const hasMedia = Boolean(appearance.background?.media?.value)
-  root.classList.toggle('has-bg-media', hasMedia)
+  if (root.classList.contains('has-bg-media') !== hasMedia) root.classList.toggle('has-bg-media', hasMedia)
 
   const wanted = resources?.fonts ?? []
   for (const [family, entry] of fontFaces) {

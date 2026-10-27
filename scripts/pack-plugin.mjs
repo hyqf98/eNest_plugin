@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 import { mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises'
-import { existsSync, realpathSync } from 'node:fs'
+import { realpathSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { buildPlugin } from './build-plugin.mjs'
-import { repositoryRoot, pluginIds, readManifest, DSH_DIR } from './plugin-contract.mjs'
-import { packDshRuntime } from './pack-dsh-runtime.mjs'
+import { repositoryRoot, pluginIds, readManifest } from './plugin-contract.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 import { distributionDirectory, normalizeTarget, platformPackagePlan, projectPlatformDistribution, readDistributionTarget } from './distribution-target.mjs'
+import { loadPluginBuildHooks } from './plugin-build-hooks.mjs'
 
 export async function packPlugin(id, { repositoryRoot: root = repositoryRoot, outDir = join(root, 'dist'), build = true, target = 'universal', project = false } = {}) {
   normalizeTarget(target)
@@ -22,11 +22,11 @@ export async function packPlugin(id, { repositoryRoot: root = repositoryRoot, ou
     if (project) {
       if (target === 'universal') throw new Error('Projection requires a platform target')
       const portable = join(source, 'dist')
-      await validateDistribution(portable)
+      await validateDistribution(portable, { source, repositoryRoot: root })
       stage = await mkdtemp(join(outDir, '.platform-stage-'))
       directory = await projectPlatformDistribution(portable, join(stage, id), source, { root, target })
     } else directory = build ? await buildPlugin(id, { repositoryRoot: root, target }) : distributionDirectory(source, target, root)
-    await validateDistribution(directory)
+    await validateDistribution(directory, { source, repositoryRoot: root, target })
     if (await readDistributionTarget(directory) !== target) throw new Error(`Refusing to package a different distribution target as ${target}`)
     const manifest = readManifest(directory)
     const suffix = target === 'universal' ? '' : `-${target}`
@@ -40,7 +40,8 @@ export async function packPlugin(id, { repositoryRoot: root = repositoryRoot, ou
       await rename(temporary, output)
     } finally { await rm(temporary, { force: true }) }
     const data = await readFile(output)
-    if (id === DSH_DIR && existsSync(join(directory, 'runtime'))) await packDshRuntime(directory, { outDir })
+    const hooks = await loadPluginBuildHooks(source)
+    await hooks.afterPack?.({ source, directory, repositoryRoot: root, target, project, outDir })
     return { name, path: output, size: data.length, sha256: createHash('sha256').update(data).digest('hex'), target }
   } finally { if (stage) await rm(stage, { recursive: true, force: true }) }
 }

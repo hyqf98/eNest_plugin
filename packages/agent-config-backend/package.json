@@ -10,6 +10,6 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:migration": "node --test tests/agent-migration-20261024.test.mjs"
+    "test:migration": "node --test tests/agent-migration.test.mjs"
   }
 }

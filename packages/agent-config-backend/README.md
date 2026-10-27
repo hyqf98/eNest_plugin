@@ -18,6 +18,6 @@ Session reads are read-only JSON/JSONL, at most 512 KiB per call. Asset uploads 
 
 ## Focused migration verification
 
-`node --test packages/agent-config-backend/tests/agent-migration-20261024.test.mjs`
+`node --test packages/agent-config-backend/tests/agent-migration.test.mjs`
 
 The dedicated migration checks use synthetic configuration, sessions and assets under OS temporary directories plus a mocked generic host-control port. They do not read real application configs, sessions, API keys or connect to services. Existing historical suites are not part of this check.

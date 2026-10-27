@@ -1,7 +1,8 @@
 # SQL intelligence
 
 This is plugin-owned local analysis. No SQL is executed by a suggestion, diagnostic,
-preview or signature request. The host database API and permissions remain unchanged.
+preview or signature request. Database metadata and drivers belong to this plugin's
+backend; the host provides only generic native capabilities and permission checks.
 
 The current interaction follows the user's decision to keep completion in a list beneath
 the cursor. Types, comments, signatures and short SQL summaries belong in candidate rows.
@@ -23,11 +24,12 @@ playground only.
 | `configuration/` | Versioned schema, validation, inheritance, migration and stable rule IDs |
 | `settings/` | Draft forms, physical SELECT field extraction, pointer/keyboard ordering, scoped functions/enums/profiles, templates, playground and import/export |
 | `runtime/`, `index.js` | Worker transport, sanitized requests, session-local facts and atomic editor edits |
-| `../completion.js` | Thin store/host adapter; retains compatibility for native query languages |
+| `../completion.js` | Thin store/backend adapter; retains compatibility for native query languages |
 | `../editor.js`, `../monacoEditor.js` | Present the list beneath the cursor, show inline summaries and apply only to the captured document/context |
 
 Cross-directory production imports use `@db`. Node tests install the same mapping
-through `scripts/tests/register-db-alias.mjs` before dynamically importing a module.
+through `plugins/database/tests/register-db-alias.mjs` from the plugin repository root
+before dynamically importing a module.
 
 ## Extension recipe
 

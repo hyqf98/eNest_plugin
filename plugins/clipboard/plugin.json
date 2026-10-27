@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.clipboard",
   "name": "剪贴板",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "搜索文本、图片与文件历史；快捷回贴，文本变换工具条与暂存片段，批量整理。",
   "author": "eNest Labs",
   "main": "index.html",

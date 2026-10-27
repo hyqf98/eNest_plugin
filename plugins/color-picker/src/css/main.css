@@ -38,7 +38,7 @@ button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--cp-dan
 button.ghost { background: color-mix(in srgb, var(--cp-ink) 5%, transparent); border-color: transparent; color: var(--cp-ink-2); }
 button.ghost:hover:not(:disabled) { border-color: color-mix(in srgb, var(--cp-brand) 45%, transparent); background: color-mix(in srgb, var(--cp-brand) 7%, transparent); color: var(--cp-ink); }
 button:disabled { opacity: .45; cursor: default; }
-button:focus-visible, input:focus-visible, select:focus-visible, canvas:focus-visible { outline: 2px solid var(--cp-brand); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible, canvas:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-brand) 20%, transparent); }
 input, select { background: var(--cp-raise); color: var(--cp-ink); border: 1px solid var(--cp-line-strong); border-radius: var(--radius-sm, 6px); padding: 4px 10px; min-height: 28px; font-size: 12.5px; min-width: 0; width: 100%; transition: border-color var(--t); }
 input:hover:not(:disabled):not([type="range"]), select:hover:not(:disabled) { border-color: color-mix(in srgb, var(--cp-brand) 45%, var(--cp-line-strong)); }
 input:disabled, select:disabled { opacity: .45; }

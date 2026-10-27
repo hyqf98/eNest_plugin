@@ -7,6 +7,7 @@
     "dev": "vite --host 127.0.0.1 --port 5185 --strictPort",
     "build": "node ../../scripts/build-plugin.mjs dsh",
     "pack": "node ../../scripts/pack-plugin.mjs dsh",
+    "pack:runtime": "node scripts/pack-runtime.mjs",
     "prod": "node ../../scripts/build-plugin.mjs dsh",
     "typecheck:backend": "tsc -p backend/tsconfig.json",
     "test:backend:migration": "node --test backend/tests/backend-migration.test.mjs"
@@ -34,5 +35,8 @@
   "enestBackend": {
     "entry": "backend/index.ts",
     "dependencies": ["js-yaml", "undici", "socks"]
+  },
+  "enestBuild": {
+    "entry": "scripts/build-hooks.mjs"
   }
 }

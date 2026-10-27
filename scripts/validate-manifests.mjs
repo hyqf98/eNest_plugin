@@ -52,6 +52,10 @@ export function validateSource(directory, { release = true } = {}) {
       if (!pkg.enestBackend?.entry || !Array.isArray(pkg.enestBackend.dependencies)) throw new Error('Declared backend requires package.enestBackend build config')
       localFile(directory, pkg.enestBackend.entry)
     }
+    if (pkg.enestBuild !== undefined) {
+      if (!pkg.enestBuild || typeof pkg.enestBuild !== 'object' || Array.isArray(pkg.enestBuild) || typeof pkg.enestBuild.entry !== 'string') throw new Error('enestBuild requires a plugin-local entry')
+      localFile(directory, pkg.enestBuild.entry)
+    }
     resolveMarketAssets(manifest, publicRoot, { release })
     if (manifest.development?.main) {
       const url = new URL(manifest.development.main)

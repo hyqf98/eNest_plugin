@@ -17,7 +17,7 @@
 .app .sql-completion-settings :is(input:not([type=checkbox]), select, textarea) { width: 100%; min-width: 0; box-sizing: border-box; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong, var(--border)); border-radius: 6px; padding: 6px 8px; font: inherit; line-height: 1.5; }
 .app .sql-completion-settings input[type=checkbox] { accent-color: var(--accent); margin: 0; flex-shrink: 0; }
 .app .sql-completion-settings textarea { font-family: var(--mono, ui-monospace, monospace); resize: vertical; tab-size: 2; }
-.app .sql-completion-settings :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app .sql-completion-settings :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 .app .sql-completion-settings button:active:not(:disabled) { background: var(--accent-soft); }
 .app .sql-completion-settings .btn { border-radius: 6px; white-space: nowrap; font-size: .92em; }
 .app .sql-completion-settings fieldset { min-width: 0; margin: 10px 0 0; padding: 0; border: 0; }

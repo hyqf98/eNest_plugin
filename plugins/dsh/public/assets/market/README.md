@@ -70,10 +70,12 @@ dsh-runtime-<version>-<platform>-<arch>.tgz.sha256
 npm run dev --workspace dsh
 node scripts/build-plugin.mjs dsh
 node scripts/pack-plugin.mjs dsh
-node scripts/pack-dsh-runtime.mjs
+npm run pack:runtime --workspace dsh
 ```
 
-运行时版本固定在 `scripts/plugin-contract.mjs` 的 `DSH_VERSION`。常规构建默认不再嵌入内核；只有 `pack-dsh-runtime.mjs`（CI 三平台矩阵调用）会显式构建 `dist/runtime/` 并输出热更新 tgz 资产。需要本地捆绑内核调试时，用 `node scripts/build-plugin.mjs dsh --runtime`。包含原生模块的运行时必须在目标平台构建。
+运行时版本固定在插件自己的 `plugins/dsh/scripts/runtime-contract.mjs` 的 `DSH_VERSION`。`package.json` 通过 `enestBuild.entry` 声明插件构建扩展；常规构建默认不安装或嵌入内核，显式传入 `--runtime` 才复用或安装对应本机平台的缓存。CI 平台矩阵调用 `plugins/dsh/scripts/pack-runtime.mjs`，显式构建 `dist/runtime/` 并输出带 SHA-256 边车的热更新 tgz 资产。需要本地捆绑内核调试时，用 `node scripts/build-plugin.mjs dsh --runtime`。
+
+包含原生模块的运行时必须在目标平台构建和打包；跨平台投影不生成 DSH 内核资产。指定平台的分发若携带 `runtime/`，附件 `package.json` 必须显式声明并匹配 `platform`、`arch`，校验不会用当前机器的平台补写或猜测。已有 `runtime/` 的非投影分发在打包时可附带生成内核资产，但不会自动安装内核；没有 `runtime/` 的常规插件包不需要它。
 
 插件后端源码和私有协议位于 `backend/`，更改后重新构建并关闭、重开插件实例；插件前端开发可使用 Vite 热更新。只有壳的通用后端协议或预加载能力变更才需要重启 eNest 开发进程。
 

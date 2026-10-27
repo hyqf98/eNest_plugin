@@ -88,6 +88,7 @@ export function createNativeSurfaces(host) {
     async start(options = {}) {
       check()
       if (!host.files?.stream) throw new Error('此版本不支持有界文件流')
+      if (!['list', 'get', 'remove', 'export'].every(method => typeof host.storage?.files?.[method] === 'function')) throw new Error('此版本缺少私有录制文件管理，请升级 eNest 后录制')
       if (recordings.size) throw new Error('已有录制正在进行')
       const id = crypto.randomUUID(), state = { id, ready: defer(), result: defer(), done: false, startedAt: 0, windowId: null, streamId: null, timer: null }
       recordings.set(id, state)
@@ -115,7 +116,7 @@ export function createNativeSurfaces(host) {
             void host.files.stream.finish(state.streamId).then(async result => {
               if (state.done) return
               state.done = true; clearTimeout(state.timer); recordings.delete(id)
-              const saved = { path: result.path, size: result.size, durationMs: Math.max(0, stoppedAt - state.startedAt) }
+              const saved = { id: result.id, path: result.path, size: result.size, durationMs: Math.max(0, stoppedAt - state.startedAt) }
               if (!state.stopping) {
                 finished.set(id, saved)
                 while (finished.size > 8) finished.delete(finished.keys().next().value)

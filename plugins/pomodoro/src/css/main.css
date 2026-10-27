@@ -71,8 +71,9 @@
       input:focus-visible,
       select:focus-visible,
       button:focus-visible {
-        outline: 2px solid var(--focus);
-        outline-offset: 2px;
+        outline: 2px solid transparent;
+        outline-offset: 0;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 20%, transparent);
       }
       input:disabled,
       select:disabled {

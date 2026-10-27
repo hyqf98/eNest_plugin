@@ -114,7 +114,7 @@ html, body, #root { height: 100%; }
     var(--surface-2, #eeefed);
   transform: scale(0.995);
 }
-.drop-zone:focus-visible { outline: 2px solid var(--accent, #bd542b); outline-offset: 2px; }
+.drop-zone:focus-visible { outline: 2px solid transparent; outline-offset: 0; border-color: var(--accent, #bd542b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #bd542b) 20%, transparent); }
 .dz-glyph {
   width: 40px;
   height: 40px;
@@ -266,7 +266,7 @@ html, body, #root { height: 100%; }
 .btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger, #c54f46) 10%, transparent); }
 .btn.sm { min-height: 24px; padding: 2px 9px; font-size: 12px; }
 .btn:disabled { opacity: 0.45; }
-.btn:focus-visible { outline: 2px solid var(--accent, #bd542b); outline-offset: 2px; }
+.btn:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #bd542b) 20%, transparent); }
 
 /* —— 分享中 —— */
 .live-grid {
@@ -415,7 +415,7 @@ html, body, #root { height: 100%; }
   transition: border-color var(--pk-speed, 120ms);
 }
 .device-input:hover { border-color: color-mix(in srgb, var(--accent, #bd542b) 45%, var(--border, #d9dfe6)); }
-.device-input:focus-visible { outline: 2px solid var(--accent, #bd542b); outline-offset: 1px; }
+.device-input:focus-visible { outline: 2px solid transparent; outline-offset: 0; border-color: var(--accent, #bd542b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #bd542b) 20%, transparent); }
 .device-input:disabled { opacity: 0.45; }
 
 .history-list {

@@ -94,8 +94,9 @@ export async function requestJson({ url, method = 'GET', headers = {}, body, sec
  * POST + 流式响应收集：适配大响应（gpt-image b64_json 单响应可达数十 MB）。
  * 先订阅 net.chunk 再发起请求；早到分片暂存，宿主对每块独立 base64 编码。
  * 返回 { status, json }（响应体解码为 UTF-8 文本后按 JSON 解析）。
+ * timeoutMs 缺省贴着宿主 net.fetch 的 120s 上限留 2s 余量，避免被静默截断。
  */
-export async function requestJsonStreamed({ url, method = 'POST', headers = {}, body, bodyBase64, secretRef, timeoutMs = 300000, onProgress }) {
+export async function requestJsonStreamed({ url, method = 'POST', headers = {}, body, bodyBase64, secretRef, timeoutMs = 118000, onProgress }) {
   return schedule(() => new Promise((resolve, reject) => {
     const enest = api()
     const parts = []

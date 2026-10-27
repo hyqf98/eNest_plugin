@@ -32,7 +32,8 @@ html, body {
 
 button { font: inherit; color: inherit; }
 input, textarea, select { font: inherit; color: var(--text); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* 聚焦：贴合圆角的柔光环（矩形 outline 不会跟随 border-radius）。 */
+:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 
 .app { display: flex; height: 100%; overflow: hidden; }
 #root { height: 100%; }
@@ -187,7 +188,7 @@ input[type="search"]:hover:not(:disabled), input[type="text"]:hover:not(:disable
 input[type="password"]:hover:not(:disabled), textarea:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent, #4772bf) 45%, var(--border, #d9dfe6));
 }
-input:focus, textarea:focus { border-color: var(--accent, #4772bf); }
+input:focus, textarea:focus { border-color: var(--accent, #4772bf); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #4772bf) 18%, transparent); }
 input:disabled, textarea:disabled { opacity: 0.5; }
 textarea { width: 100%; resize: vertical; }
 

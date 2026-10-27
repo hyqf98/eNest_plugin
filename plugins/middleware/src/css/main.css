@@ -135,7 +135,10 @@ input, select, textarea { font: inherit; color: var(--text); }
 .search {
   display: flex; align-items: center; gap: 8px; width: 240px; padding: 6px 11px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-3);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+/* 边框画在容器上，聚焦反馈也交给容器，环才会贴合 radius。 */
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 .search input { flex: 1; border: none; background: none; outline: none; font-size: calc(var(--font-size-base, 13px) * 0.961538); color: var(--text); min-width: 0; }
 .search input::placeholder { color: var(--text-3); }
 .btn {
@@ -244,7 +247,7 @@ table.grid .empty-row td { text-align: center; color: var(--text-3); padding: 28
   width: 100%; padding: 8px 11px; background: var(--bg); border: 1px solid var(--border);
   border-radius: var(--radius-sm); font-size: calc(var(--font-size-base, 13px) * 1); outline: none;
 }
-.form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--accent); }
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .form-row textarea { resize: vertical; min-height: 64px; font-family: var(--mono); font-size: calc(var(--font-size-base, 13px) * 0.961538); }
 .form-row .tip { font-size: calc(var(--font-size-base, 13px) * 0.884615); color: var(--text-3); margin-top: 5px; }
 .form-row .err { font-size: calc(var(--font-size-base, 13px) * 0.884615); color: var(--danger); margin-top: 5px; }
@@ -310,7 +313,7 @@ table.grid .empty-row td { text-align: center; color: var(--text-3); padding: 28
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 5px 9px; font-size: calc(var(--font-size-base, 13px) * 0.961538); color: var(--text); outline: none;
 }
-.fld select:focus, .fld input:focus { border-color: var(--accent); }
+.fld select:focus, .fld input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .seg { display: flex; background: var(--surface-2); border-radius: var(--radius-sm); padding: 2px; }
 .seg button { padding: 4px 11px; font-size: calc(var(--font-size-base, 13px) * 0.923077); color: var(--text-3); border-radius: 5px; }
 .seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-soft); }

@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 import { readdir, readFile, lstat } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
 import { resolve, join, dirname, extname, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { init, parse } from 'es-module-lexer'
-import { repositoryRoot, pluginIds, readManifest, localFile, validPath, validBackendPath, pluginHtmlEntries, DSH_ID, DSH_BUNDLED_RUNTIME } from './plugin-contract.mjs'
+import { repositoryRoot as root, pluginIds, readManifest, localFile, validPath, validBackendPath, pluginHtmlEntries } from './plugin-contract.mjs'
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
 import { resolveMarketAssets, markdownImagePaths } from './market-assets.mjs'
+import { loadPluginBuildHooks } from './plugin-build-hooks.mjs'
 
-export async function validateDistribution(directory, { release = true, requireRuntime = DSH_BUNDLED_RUNTIME } = {}) {
+export async function validateDistribution(directory, { release = true, requireRuntime = false, source, repositoryRoot = root, target = 'universal' } = {}) {
+  if (requireRuntime && !source) throw new Error('Runtime-specific validation requires the owning plugin source')
   const manifest = readManifest(directory), errors = validateManifest(loadManifestValidator(), manifest, manifest.id)
   if (errors.length) throw new Error(errors.join('\n'))
   if (manifest.development) throw new Error('Published manifest must not contain development')
@@ -33,7 +34,6 @@ export async function validateDistribution(directory, { release = true, requireR
     }
   }
   await walk(directory)
-  if (requireRuntime && manifest.id === DSH_ID && !existsSync(join(directory, 'runtime/node_modules/@deepseek-ai/dsh/package.json'))) throw new Error('DSH runtime is missing')
   await init
   function reference(from, value) {
     if (!value || value.startsWith('#') || /^(data:|blob:|https?:|enest:)/.test(value)) return
@@ -58,8 +58,16 @@ export async function validateDistribution(directory, { release = true, requireR
   // README media must resolve within its packaged directory.
   const readme = await readFile(join(directory, manifest.market.readme), 'utf8')
   for (const path of markdownImagePaths(readme)) if (release) reference(manifest.market.readme, path)
+  if (source) {
+    if (readManifest(source).id !== manifest.id) throw new Error('Build extension source must match the distribution')
+    const hooks = await loadPluginBuildHooks(source)
+    await hooks.validateDistribution?.({ source, directory, repositoryRoot, target, release, requireRuntime })
+  }
   return { id: manifest.id, files: files.length }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  for (const id of pluginIds()) console.log(await validateDistribution(join(repositoryRoot, 'plugins', id, 'dist')))
+  for (const id of pluginIds()) {
+    const source = join(root, 'plugins', id)
+    console.log(await validateDistribution(join(source, 'dist'), { source }))
+  }
 }

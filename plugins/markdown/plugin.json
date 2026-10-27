@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.markdown",
   "name": "Markdown 编辑器",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Typora 式所见即所得 Markdown 编辑器：即时渲染、Typora 主题、手绘风 Mermaid、图床上传（PicList/GitHub/自定义脚本）与本地文件工作台。",
   "author": "eNest Labs",
   "main": "index.html",
@@ -72,9 +72,16 @@
     "openWith": [
       {
         "id": "markdown-files",
-        "extensions": ["md", "markdown"],
-        "mimeTypes": ["text/markdown"],
-        "schemes": ["enest-md"],
+        "extensions": [
+          "md",
+          "markdown"
+        ],
+        "mimeTypes": [
+          "text/markdown"
+        ],
+        "schemes": [
+          "enest-md"
+        ],
         "role": "Editor"
       }
     ],
@@ -166,10 +173,126 @@
             ]
           },
           {
+            "key": "localImageDir",
+            "type": "text",
+            "label": "本地图片目录",
+            "default": ""
+          },
+          {
             "key": "autoSave",
             "type": "switch",
             "label": "自动保存（500ms 防抖）",
             "default": true
+          },
+          {
+            "key": "codeTheme",
+            "type": "select",
+            "label": "代码块配色",
+            "default": "default",
+            "options": [
+              {
+                "value": "default",
+                "label": "默认（跟随主题）"
+              },
+              {
+                "value": "github",
+                "label": "GitHub"
+              },
+              {
+                "value": "monokai",
+                "label": "Monokai"
+              },
+              {
+                "value": "dracula",
+                "label": "Dracula"
+              },
+              {
+                "value": "solarized",
+                "label": "Solarized Light"
+              },
+              {
+                "value": "nord",
+                "label": "Nord"
+              }
+            ]
+          },
+          {
+            "key": "motionEnabled",
+            "type": "switch",
+            "label": "开启动效（箭头流光 / 呼吸灯）",
+            "default": false
+          },
+          {
+            "key": "motionPreset",
+            "type": "select",
+            "label": "动效预设",
+            "default": "both",
+            "options": [
+              {
+                "value": "both",
+                "label": "全开（流光 + 呼吸）"
+              },
+              {
+                "value": "flow",
+                "label": "只做流光"
+              },
+              {
+                "value": "breathe",
+                "label": "只做呼吸灯"
+              },
+              {
+                "value": "subtle",
+                "label": "轻微"
+              }
+            ]
+          },
+          {
+            "key": "motionMermaid",
+            "type": "switch",
+            "label": "Mermaid 箭头流光",
+            "default": true
+          },
+          {
+            "key": "motionTable",
+            "type": "switch",
+            "label": "表格动效",
+            "default": true
+          },
+          {
+            "key": "motionHighlight",
+            "type": "switch",
+            "label": "高亮文字呼吸灯",
+            "default": true
+          },
+          {
+            "key": "motionCode",
+            "type": "switch",
+            "label": "代码块边框流光",
+            "default": true
+          },
+          {
+            "key": "imageMaxWidth",
+            "type": "number",
+            "label": "图片最大宽度（%，0 = 不限）",
+            "default": 100
+          },
+          {
+            "key": "imageMaxHeight",
+            "type": "number",
+            "label": "图片最大高度（px，0 = 不限）",
+            "default": 0
+          },
+          {
+            "key": "htmlBlockMaxWidth",
+            "type": "number",
+            "label": "HTML 块最大宽度（%，0 = 不限）",
+            "default": 100
+          },
+          {
+            "key": "htmlBlockMaxHeight",
+            "type": "number",
+            "label": "HTML 块最大高度（px，0 = 不限）",
+            "default": 0
           },
           {
             "key": "settingsPage",

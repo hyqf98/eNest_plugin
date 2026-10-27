@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Offline shell artwork is a snapshot of the same SVGs shipped by the plugins. */
+/** DEV browser-preview fixture only; production main/shared code must not import this snapshot. */
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,15 +17,15 @@ for (const dir of dirs) {
   if (manifest.icon !== 'assets/market/icon.svg') throw new Error(`Unexpected icon contract: ${manifest.id}`)
   icons[manifest.id] = (await readFile(join(repository, 'plugins', dir, 'public/assets/market/icon.svg'), 'utf8')).trim()
 }
-const target = join(host, 'src/shared/builtinPluginIcons.ts')
+const target = join(host, 'tests/fixtures/browser-preview/builtinPluginIcons.ts')
 const output = `/** Generated from plugin market SVGs. Run eNest_plugin/scripts/sync-shell-plugin-icons.mjs; do not hand edit. */\nexport const BUILTIN_PLUGIN_ICON_SVGS: Readonly<Record<string, string>> = ${JSON.stringify(icons, null, 2)}\n`
 if (check) {
   if (await readFile(target, 'utf8').catch(() => '') !== output) {
-    console.error('Shell built-in plugin icon snapshot is out of date')
+    console.error('Browser-preview plugin icon fixture is out of date')
     process.exitCode = 1
-  } else console.log(`Checked ${Object.keys(icons).length} shell plugin icons`)
+  } else console.log(`Checked ${Object.keys(icons).length} browser-preview plugin icons`)
 } else {
   await mkdir(dirname(target), { recursive: true })
   await writeFile(target, output)
-  console.log(`Synced ${Object.keys(icons).length} shell plugin icons`)
+  console.log(`Synced ${Object.keys(icons).length} browser-preview plugin icons`)
 }

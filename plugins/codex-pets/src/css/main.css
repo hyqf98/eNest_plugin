@@ -88,7 +88,7 @@ html, body {
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
   border-radius: 8px; padding: 6px 10px; font-size: 13px; outline: none;
 }
-.cp-search input:focus { border-color: var(--accent); }
+.cp-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 .cp-sorts { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; }
 .cp-sort {
   border: 0; background: transparent; color: var(--text-2);
@@ -114,7 +114,7 @@ html, body {
 }
 .cp-btn:hover:not(:disabled) { background: var(--surface-3); border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong)); }
 .cp-btn:active:not(:disabled) { transform: scale(0.97); }
-.cp-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cp-btn:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 .cp-btn:disabled { opacity: 0.5; cursor: default; }
 .cp-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast, #fff); font-weight: 600; }
 /* hover 背景需显式重申：通用 .cp-btn:hover 规则（更高优先级）否则把主按钮刷成浅色底、白字不可见 */

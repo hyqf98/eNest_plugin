@@ -20,4 +20,4 @@ npm test --workspace @enest/ssh-backend
 node scripts/build-plugin.mjs com.github.eNest.ssh com.github.eNest.remote-desktop
 ```
 
-Current migration coverage is `tools/packaging/ssh-generic-backend-20261024.test.mjs` in the host repository. It uses isolated mocks for the generic transport, ownership, limits, native capabilities, event adapter, shutdown, dynamic loopback port allocation, and Remote Desktop cleanup. It does not establish a real SSH connection, read user keys, or claim native UI / remote-server acceptance. Older tests referencing the deleted host SSH facade are not migration acceptance tests.
+Current migration coverage is `tests/packaging/ssh-generic-backend.test.mjs` in the host repository. It uses isolated mocks for the generic transport, ownership, limits, native capabilities, event adapter, shutdown, dynamic loopback port allocation, and Remote Desktop cleanup. It does not establish a real SSH connection, read user keys, or claim native UI / remote-server acceptance. Older tests referencing the deleted host SSH facade are not migration acceptance tests.

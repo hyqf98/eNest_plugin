@@ -64,7 +64,11 @@ node scripts/pack-plugin.mjs calculator
 
 禁止包一层 `{id}/` 或 `dist/`。禁止绝对路径、`..`、反斜杠、编码分隔符、隐藏段、软链接、源码或测试目录。路径大小写必须与引用一致。校验器检查 HTML 的脚本/样式/图片、CSS URL、JS 模块与 worker 引用及 README 图片是否存在。
 
-DSH 是唯一允许附带 `runtime/` 的插件，其固定版本位于 `scripts/plugin-contract.mjs`。构建器把生产依赖缓存到仓库 `dist/runtime-cache/`，再复制到插件 `dist/runtime/`；源码中不建立运行时软链接。宿主掌管该运行时的进程、端口和权限，插件页面不能自己访问 Node。运行时升级附件命名为 `dsh-runtime-<version>-<platform>-<arch>.tgz` 及 `.sha256`。
+声明后台的插件可携带私有 `runtime/` 附件；依赖、版本和专属打包逻辑归该插件维护，通用工具不按插件 ID 分支。源码中不建立运行时软链接。
+
+需要扩展构建的插件在自身 `package.json` 声明 `enestBuild: { "entry": "scripts/build-hooks.mjs" }`。入口必须是插件内的相对文件路径，不能越界或使用软链接；它是受信任的源码工具，不复制到发行包，也不会从发行包加载执行。可导出三个异步函数：`afterBuild` 在前后端完成后、发行校验前运行；`validateDistribution` 在通用发行校验后运行；`afterPack` 在插件归档完成后生成附加资产。上下文包含 `source`、`directory`、`repositoryRoot`、`target`，各阶段另提供 `runtime`、`requireRuntime` 或 `outDir/project`。无扩展声明时不执行插件钩子；常规构建默认 `runtime: false`，不能由打包阶段隐式安装运行时。
+
+DSH 的版本、缓存构建和运行时归档均位于 `plugins/dsh/scripts/`，由其构建扩展和专用 CLI 维护；数据库解析器生成工具位于 `plugins/database/scripts/`，由数据库自己的 Vite 配置接入 dev/build。公共脚本只负责统一编译、校验和归档，不持有上述业务实现。路径按工具位置解析，构建产物仍使用相对引用，不依赖开发机目录。
 
 ## 数据与响应式布局
 

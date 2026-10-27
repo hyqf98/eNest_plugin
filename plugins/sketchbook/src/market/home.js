@@ -12,6 +12,7 @@ import { resolveBridge } from './bridge.js'
 import { createMarketView } from './SketchMarket.js'
 import { applyAppearance, observeDocumentVisibility, releaseFonts } from '../shared/applyAppearance.js'
 import { mountSketchDefs } from '../shared/sketchPrimitives.js'
+import { setAttribute } from '../shared/dom.js'
 
 const container = document.getElementById('home-root')
 if (!container) throw new Error('#home-root is missing')
@@ -41,7 +42,7 @@ async function boot() {
 
   const controller = createController(bridge, {
     applyAppearance(snapshot) { applyAppearance(snapshot.appearance, snapshot.resources) },
-    applyVisibility(visible) { root.dataset.homeVisible = String(visible) },
+    applyVisibility(visible) { setAttribute(root, 'data-home-visible', visible) },
     // 预览没有 enest-home 协议，用 mock 自带的纯文本；真实宿主走 controller 内的受控 fetch。
     loadReadme: preview && mock ? async () => preview.readMockReadme() : undefined,
   })
@@ -52,8 +53,8 @@ async function boot() {
 
   const unsubscribe = controller.subscribe(() => {
     const state = controller.getState()
-    root.dataset.homeVisible = String(state.visible)
-    root.dataset.workspaceRoute = state.route.page
+    setAttribute(root, 'data-home-visible', state.visible)
+    setAttribute(root, 'data-workspace-route', state.route.page)
     view.update(state)
   })
 

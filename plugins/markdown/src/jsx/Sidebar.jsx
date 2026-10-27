@@ -1,12 +1,13 @@
 /**
  * markdown v2 —— 侧栏：大纲（折叠+检索定位） / 文件树（多根） / 资源（链接聚合卡片）。
  * 资源面板从当前文档动态提取全部引用，按类型分图标小卡片；图片卡悬停放大预览。
+ * 宽度拖拽在 App 层（把手元素与侧栏相邻），本组件只负责内容。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { call, resolveImageToDataUrl } from '../js/rpc.js'
 import { extractResources, KIND_ICON, KIND_LABEL, isImageExt, titleFor } from '../js/resources.js'
 
-export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVersion, recentFiles, onOpenFile, onJump, toast, viewRef }) {
+export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVersion, recentFiles, onOpenFile, onJump, toast, viewRef, imageDir }) {
   const [tree, setTree] = useState([])
   const [roots, setRoots] = useState([])
   const [activeRoot, setActiveRoot] = useState('')
@@ -129,9 +130,8 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
 
   /* —— 外链转本地 —— */
   const externalize = useCallback(async (r) => {
-    if (!docPath) return
     try {
-      const { url: local } = await call('assets.externalize', docPath, r.url)
+      const { url: local } = await call('assets.externalize', docPath || '', r.url, imageDir || undefined)
       const view = viewRef?.current
       const text = textRef.current || ''
       if (!view || !text.includes(r.url)) { toast('未能在文档中定位该链接', 'error'); return }
@@ -144,7 +144,7 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
     } catch (e) {
       toast(`转存失败：${e.message}`, 'error')
     }
-  }, [docPath, viewRef, textRef, toast])
+  }, [docPath, viewRef, textRef, toast, imageDir])
 
   /* —— 大纲：检索过滤 + 层级折叠 —— */
   const visibleOutline = useMemo(() => {

@@ -38,7 +38,7 @@ select {
 }
 input:focus-visible,
 textarea:focus-visible,
-select:focus-visible { border-color: var(--warm); }
+select:focus-visible { border-color: var(--warm); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warm) 18%, transparent); }
 
 /* —— 两栏骨架 —— */
 .app {
@@ -93,6 +93,9 @@ h1 {
   border-bottom-color: var(--line);
   border-radius: 0;
 }
+/* 下划线风格的输入不适合画整圈边框，用容器柔光环表达聚焦。 */
+.search-wrap { transition: box-shadow 0.15s ease; }
+.search-wrap:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--warm) 18%, transparent); }
 .search-wrap input:focus-visible {
   border-color: transparent;
   border-bottom-color: var(--warm);

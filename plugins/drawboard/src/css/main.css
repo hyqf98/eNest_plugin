@@ -241,6 +241,7 @@ button, input, textarea { font: inherit; color: inherit; }
   border: 1.5px dashed var(--selection, #3579dd);
   border-radius: 4px;
   outline: none; resize: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--selection, #3579dd) 16%, transparent);
   overflow: hidden; white-space: pre;
 }
 

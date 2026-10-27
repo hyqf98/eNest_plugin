@@ -33,7 +33,7 @@ button:active:not(:disabled) { transform: scale(0.97); }
 button:disabled { opacity: 0.45; cursor: default; }
 button.danger { color: var(--danger, #b44c50); border-color: color-mix(in srgb, var(--danger, #b44c50) 45%, var(--line)); }
 button.danger:hover { background: color-mix(in srgb, var(--danger, #b44c50) 8%, transparent); }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--mark); outline-offset: 1px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark) 20%, transparent); }
 input, select {
   font: inherit;
   color: inherit;
@@ -47,7 +47,8 @@ input, select {
   transition: border-color var(--speed);
 }
 input:hover:not(:disabled), select:hover:not(:disabled) { border-color: color-mix(in srgb, var(--mark) 45%, var(--line)); }
-input:focus-visible, select:focus-visible { outline: none; border-color: var(--mark); }
+/* 聚焦：细边框 + 沿圆角贴合的柔光环（不用矩形 outline）。 */
+input:focus-visible, select:focus-visible { outline: none; border-color: var(--mark); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark) 20%, transparent); }
 input:disabled { opacity: .45; }
 /* 已升级的自定义下拉：display-bar 内紧凑触发器、汇率基准占自适应宽 */
 .display-bar .pk-select .pk-select-trigger { min-height: 26px; padding: 2px 8px; font-size: 12px; }

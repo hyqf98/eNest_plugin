@@ -197,7 +197,7 @@ const CONTENT_CSS = `
 .md-scope pre.md-fences {
   margin: 0.75em 0;
   padding: 14px 18px;
-  background: var(--md-surface);
+  background: var(--md-code-block-bg, var(--md-surface));
   border: 1px solid var(--md-border);
   border-radius: var(--md-radius-lg);
   font-family: var(--md-font-mono);
@@ -205,18 +205,79 @@ const CONTENT_CSS = `
   line-height: 1.6;
   overflow-x: auto;
   tab-size: 2;
+  position: relative;
 }
 .md-scope pre.md-fences .cm-static-lines { margin: 0; white-space: pre; }
-.md-scope .cm-keyword { color: #9f2f2d; }
-.md-scope .cm-string { color: #346538; }
-.md-scope .cm-number { color: #956400; }
-.md-scope .cm-comment { color: var(--md-text-2); font-style: italic; }
-.md-scope .cm-variable-2 { color: #1f6c9f; }
-.md-scope .cm-variable-3 { color: #7a4fa3; }
-.md-scope .cm-tag { color: #9f2f2d; }
-.md-scope .cm-attribute { color: #956400; }
-.md-scope .cm-operator, .md-scope .cm-meta { color: var(--md-text-2); }
-.md-scope .cm-atom { color: #1f6c9f; }
+/* 代码 token 配色：全部走 CSS 变量，data-code-theme 切换变量组即可换肤 */
+.md-scope .cm-keyword { color: var(--md-tok-keyword, #9f2f2d); }
+.md-scope .cm-string { color: var(--md-tok-string, #346538); }
+.md-scope .cm-number { color: var(--md-tok-number, #956400); }
+.md-scope .cm-comment { color: var(--md-tok-comment, var(--md-text-2)); font-style: italic; }
+.md-scope .cm-variable, .md-scope .cm-def { color: var(--md-tok-variable, var(--md-text)); }
+.md-scope .cm-variable-2 { color: var(--md-tok-function, #1f6c9f); }
+.md-scope .cm-variable-3 { color: var(--md-tok-type, #7a4fa3); }
+.md-scope .cm-tag { color: var(--md-tok-tag, #9f2f2d); }
+.md-scope .cm-attribute { color: var(--md-tok-attribute, #956400); }
+.md-scope .cm-operator, .md-scope .cm-meta { color: var(--md-tok-operator, var(--md-text-2)); }
+.md-scope .cm-atom { color: var(--md-tok-atom, #1f6c9f); }
+.md-scope .cm-header, .md-scope .cm-link { color: var(--md-tok-link, var(--md-link)); }
+/* 代码块语言角标（渲染态） */
+.md-scope pre.md-fences[data-lang]:not([data-lang=""])::after {
+  content: attr(data-lang);
+  position: absolute; top: 6px; right: 10px;
+  font-size: 10px; letter-spacing: .04em; text-transform: lowercase;
+  color: var(--md-text-2); opacity: .55; pointer-events: none;
+}
+
+/* ---------------- 代码块配色主题（设置 → 代码配色） ---------------- */
+/* 变量定义在 :root 上（由设置写 data-code-theme），后代选择器统一走 :root 前缀，
+   这样编辑器、设置页预览和导出容器都命中同一套变量。 */
+:root[data-code-theme='github'] {
+  --md-code-block-bg: #f6f8fa;
+  --md-tok-keyword: #cf222e; --md-tok-string: #0a3069; --md-tok-number: #0550ae;
+  --md-tok-comment: #6e7781; --md-tok-function: #8250df; --md-tok-type: #953800;
+  --md-tok-tag: #116329; --md-tok-attribute: #0550ae; --md-tok-operator: #24292f; --md-tok-atom: #0550ae;
+}
+:root[data-code-theme='monokai'] {
+  --md-code-block-bg: #272822; --md-code-block-ink: #f8f8f2;
+  --md-tok-keyword: #f92672; --md-tok-string: #e6db74; --md-tok-number: #ae81ff;
+  --md-tok-comment: #75715e; --md-tok-function: #a6e22e; --md-tok-type: #66d9ef;
+  --md-tok-tag: #f92672; --md-tok-attribute: #a6e22e; --md-tok-operator: #f8f8f2; --md-tok-atom: #ae81ff;
+}
+:root[data-code-theme='dracula'] {
+  --md-code-block-bg: #282a36; --md-code-block-ink: #f8f8f2;
+  --md-tok-keyword: #ff79c6; --md-tok-string: #f1fa8c; --md-tok-number: #bd93f9;
+  --md-tok-comment: #6272a4; --md-tok-function: #50fa7b; --md-tok-type: #8be9fd;
+  --md-tok-tag: #ff79c6; --md-tok-attribute: #50fa7b; --md-tok-operator: #f8f8f2; --md-tok-atom: #bd93f9;
+}
+:root[data-code-theme='solarized'] {
+  --md-code-block-bg: #fdf6e3; --md-code-block-ink: #657b83;
+  --md-tok-keyword: #859900; --md-tok-string: #2aa198; --md-tok-number: #d33682;
+  --md-tok-comment: #93a1a1; --md-tok-function: #268bd2; --md-tok-type: #b58900;
+  --md-tok-tag: #268bd2; --md-tok-attribute: #b58900; --md-tok-operator: #657b83; --md-tok-atom: #d33682;
+}
+:root[data-code-theme='nord'] {
+  --md-code-block-bg: #2e3440; --md-code-block-ink: #d8dee9;
+  --md-tok-keyword: #81a1c1; --md-tok-string: #a3be8c; --md-tok-number: #b48ead;
+  --md-tok-comment: #616e88; --md-tok-function: #88c0d0; --md-tok-type: #8fbcbb;
+  --md-tok-tag: #81a1c1; --md-tok-attribute: #8fbcbb; --md-tok-operator: #81a1c1; --md-tok-atom: #b48ead;
+}
+/* 深色底主题：整块正文色跟着变量走，避免浅色主题下代码看不清 */
+:root[data-code-theme='monokai'] .md-scope pre.md-fences,
+:root[data-code-theme='dracula'] .md-scope pre.md-fences,
+:root[data-code-theme='nord'] .md-scope pre.md-fences {
+  color: var(--md-code-block-ink, #f8f8f2);
+}
+:root[data-code-theme='solarized'] .md-scope pre.md-fences { color: var(--md-code-block-ink, #657b83); }
+:root[data-code-theme='github'] .md-scope pre.md-fences { color: #24292f; }
+/* 源码态代码行也跟随代码配色 */
+:root[data-code-theme='monokai'] .md-scope .md-fence-src,
+:root[data-code-theme='dracula'] .md-scope .md-fence-src,
+:root[data-code-theme='nord'] .md-scope .md-fence-src {
+  background: var(--md-code-block-bg);
+  color: var(--md-code-block-ink, #f8f8f2);
+  border-color: color-mix(in srgb, var(--md-code-block-ink, #fff) 18%, transparent);
+}
 /* \u8868\u683C\uFF1Afigure.md-table-figures \u5305\u88F9\uFF0C\u5706\u89D2 1px \u7EBF */
 .md-scope figure.md-table-figures {
   margin: 0.75em 0;
@@ -250,8 +311,37 @@ const CONTENT_CSS = `
 /* hr */
 .md-scope hr { border: none; border-top: 1px solid var(--md-border); margin: 2em 0; }
 /* \u56FE\u7247 */
-.md-scope img { max-width: 100%; border-radius: var(--md-radius); display: block; margin: 0.4em auto; }
+/* 全局尺寸由设置写入根元素变量；单张可在源码里用 HTML <img width height> 或
+   ![](url){width=300 height=180} 覆盖（渲染层会把它转成内联样式）。
+   注意：这里不写 width/height:auto，否则会盖掉 HTML 的 width/height 属性。 */
+.md-scope img {
+  max-width: var(--md-img-max-w, 100%);
+  max-height: var(--md-img-max-h, none);
+  object-fit: contain;
+  border-radius: var(--md-radius);
+  display: block;
+  margin: 0.4em auto;
+}
 .md-scope span.md-image { display: inline-block; }
+/* 编辑态图片预览（行内 widget）：尺寸跟随设置变量，单张覆盖写内联样式 */
+.md-scope .md-image-widget {
+  display: inline-block;
+  max-width: var(--md-img-max-w, 100%);
+  line-height: 0;
+  vertical-align: bottom;
+}
+.md-scope .md-image-widget img {
+  max-width: var(--md-img-max-w, 100%);
+  max-height: var(--md-img-max-h, none);
+  border-radius: var(--md-radius);
+  display: inline-block;
+  margin: 0.2em 0;
+  cursor: pointer;
+}
+.md-scope .md-image-widget[data-align='left'] { display: block; text-align: left; }
+.md-scope .md-image-widget[data-align='center'] { display: block; text-align: center; }
+.md-scope .md-image-widget[data-align='right'] { display: block; text-align: right; }
+.md-scope .md-image-widget.is-broken { font-family: var(--md-font-mono); font-size: 0.85em; color: var(--md-text-2); }
 /* \u6570\u5B66 */
 .md-scope .katex { font-size: 1.02em; }
 .md-scope p.md-math-block { text-align: center; margin: 0.75em 0; overflow-x: auto; }
@@ -285,13 +375,39 @@ const CONTENT_CSS = `
   white-space: pre-wrap;
 }
 /* HTML \u5757 */
-.md-scope .md-html-block { margin: 1em 0; }
+/* 尺寸同样走设置变量：超宽 HTML（iframe/表格/长图）不会撑破内容栏；
+   内容本身按变量上限收窄并居中。 */
+.md-scope .md-html-block {
+  margin: 1em 0;
+  max-width: var(--md-html-max-w, 100%);
+  max-height: var(--md-html-max-h, none);
+  overflow: auto;
+  margin-inline: auto;
+}
+.md-scope .md-html-block > img,
+.md-scope .md-html-block img { max-width: 100%; height: auto; }
 .md-scope pre.md-html-raw { font-family: var(--md-font-mono); font-size: 0.84em; color: var(--md-text-2); background: var(--md-quote-bg); border-radius: var(--md-radius); padding: 10px 14px; white-space: pre-wrap; }
 /* \u6E90\u7801\u6001\uFF08\u5149\u6807\u6240\u5728\u5757\uFF09\u878D\u5165 */
 .md-scope .cm-line { padding: 0 2px; }
 .md-scope .cm-content { caret-color: var(--md-link); }
-.md-scope .cm-selectionBackground, .md-scope .cm-editor ::selection { background: color-mix(in srgb, var(--md-link) 18%, transparent) !important; }
+/* 选中背景统一由 drawSelection 的 .cm-selectionBackground 层绘制（贴合文本盒）；
+   原生 ::selection 保持透明，否则全选时行 padding 与折叠空行会画出重叠方块。 */
+.md-scope .cm-selectionBackground,
+.md-scope .cm-editor.cm-focused .cm-selectionBackground {
+  background: color-mix(in srgb, var(--md-link) 18%, transparent) !important;
+}
+.md-scope .cm-editor .cm-line::selection,
+.md-scope .cm-editor .cm-line ::selection,
+.md-scope .cm-editor .cm-content::selection,
+.md-scope .cm-editor .cm-content ::selection {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+.md-scope .cm-editor .cm-selectionMatch { background: color-mix(in srgb, var(--md-link) 12%, transparent); }
 .md-scope .cm-cursor { border-left-color: var(--md-link); }
+/* 折叠空行不画背景块（全选时高亮保持连续） */
+.md-scope .cm-blank-line,
+.md-scope .cm-blank-line::after { background: transparent; }
 /* \u6253\u5B57\u673A/\u4E13\u6CE8 */
 .md-scope[data-focus-mode="on"] .md-live-block { opacity: 0.35; transition: opacity .35s cubic-bezier(.16,1,.3,1); }
 .md-scope[data-focus-mode="on"] .md-live-block.is-active, .md-scope[data-focus-mode="on"] .cm-active-line { opacity: 1; }

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { fixture as databaseFixture, connect as connectDatabase, setQuery } from './database-fixture.js'
-import { sshFixture, connectSsh, setCommand, fitSshTerminal } from './ssh-fixture.js'
-import { fixture as middlewareFixture, openConnection, openPage } from './middleware-fixture.js'
+import { fixture as databaseFixture, connect as connectDatabase, setQuery } from '../../plugins/database/tests/database-fixture.js'
+import { sshFixture, connectSsh, setCommand, fitSshTerminal } from '../../plugins/ssh/tests/ssh-fixture.js'
+import { fixture as middlewareFixture, openConnection, openPage } from '../../plugins/middleware/tests/middleware-fixture.js'
 import { applyWorkbenchTheme } from './workbench-theme.js'
 
 const preferences = [

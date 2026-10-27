@@ -32,7 +32,8 @@ header .muted { margin-top: 3px; }
 header [data-open-settings] { margin-left: 0; }
 .searchbar { display: flex; gap: 8px; padding: 10px 14px; }
 .searchbar #query { flex: 1; font-size: 14px; padding: 8px 12px; background: var(--page); }
-.searchbar #query:focus-visible { outline-offset: 0; }
+/* 搜索框：贴合圆角的柔光环；内层 input 自己不再画矩形 outline。 */
+.searchbar #query:focus-visible { outline: 2px solid transparent; outline-offset: 0; border-color: var(--accent, #3579dd); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #3579dd) 20%, transparent); }
 .searchbar #scope-pick, .searchbar #sort { font-size: 12px; color: var(--muted); max-width: 180px; }
 .searchbar #sort { width: auto; }
 

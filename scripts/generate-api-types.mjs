@@ -18,7 +18,8 @@ for(const file of files){
  for(const node of source.statements) if(ts.isInterfaceDeclaration(node)||ts.isTypeAliasDeclaration(node)||ts.isEnumDeclaration(node)) if(!declarations.has(node.name.text)) declarations.set(node.name.text,{node,source})
 }
 const printer=ts.createPrinter({newLine:ts.NewLineKind.LineFeed})
-const queue=['EnestPluginApi','EnestHomeApi','EnestWorkspaceApi','EnestQuickApi','ThemeChromeApi','EnestSettingsApi','PluginBackgroundBridge','AuxiliaryPageApi','McpToolDeclaration','McpErrorCode'],seen=new Set(queue),blocks=[]
+// Manifest-only contributions are public even when no runtime method references their types.
+const queue=['EnestPluginApi','EnestHomeApi','EnestWorkspaceApi','EnestQuickApi','ThemeChromeApi','EnestSettingsApi','PluginBackgroundBridge','AuxiliaryPageApi','McpToolDeclaration','McpErrorCode','OpenWithContribution','OpenWithEnterPayload'],seen=new Set(queue),blocks=[]
 while(queue.length){
  const name=queue.shift();const entry=declarations.get(name)
  if(!entry)throw new Error(`Missing public API type ${name}`)

@@ -6,7 +6,7 @@
   "description": "eNest 插件仓库：manifest 校验 / registry 生成 / 发布资产测试",
   "scripts": {
     "validate": "node scripts/validate-manifests.mjs",
-    "test": "node --test scripts/*.test.mjs scripts/tests/*.test.mjs",
+    "test": "node --test scripts/*.test.mjs scripts/tests/*.test.mjs plugins/*/tests/*.test.mjs",
     "registry": "node scripts/build-registry.mjs",
     "build": "node scripts/build-plugin.mjs",
     "test:ui": "playwright test",
@@ -26,7 +26,6 @@
     "es-module-lexer": "^1.7.0",
     "fflate": "^0.8.2",
     "monaco-editor": "^0.57.0",
-    "sql-formatter": "^15.9.0",
     "typescript": "^5.9.3",
     "vite": "^8.3.4",
     "esbuild": "^0.28.2"

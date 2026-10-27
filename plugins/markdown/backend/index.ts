@@ -13,7 +13,7 @@ import { createHash, webcrypto } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { watch } from 'node:fs'
 import { readFile, writeFile, mkdir, readdir, stat, rename, rm, copyFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve, basename, extname, isAbsolute } from 'node:path'
+import { dirname, join, relative, resolve, basename, extname, isAbsolute, sep } from 'node:path'
 import vm from 'node:vm'
 
 type Request = {
@@ -64,9 +64,10 @@ function normalize(p: string): string {
 function grant(p: string): void {
   grantedPaths.add(normalize(p))
 }
-/** 授权检查：路径等于已授权项，或位于已授权目录之内 */
+/** 授权检查：路径等于已授权项，或位于已授权目录之内；插件自管目录天然放行 */
 function assertAccess(p: string): string {
   const abs = normalize(p)
+  if (isPluginManaged(abs)) return abs
   for (const g of grantedPaths) {
     if (abs === g) return abs
     const rel = relative(g, abs)
@@ -77,8 +78,36 @@ function assertAccess(p: string): string {
 /** 收件箱/主题等插件自管路径天然放行 */
 function isPluginManaged(p: string): boolean {
   const abs = normalize(p)
-  const root = dataRoot()
-  return abs === root || abs.startsWith(root + '/')
+  const root = normalize(dataRoot())
+  return abs === root || abs.startsWith(root + sep)
+}
+/**
+ * 持久授权：用户在设置里手输的图片目录，重启后仍需可读（预览要走 assets.readDataUrl）。
+ * 记在 config.imageDirs 里（最多 16 个，最近使用的优先），启动时回灌 grantedPaths。
+ */
+async function grantPersistent(dir: string): Promise<void> {
+  const abs = normalize(dir)
+  grant(abs)
+  const cfg = await loadConfig()
+  const next = [abs, ...cfg.imageDirs.filter((item) => normalize(item) !== abs)].slice(0, 16)
+  if (next.length !== cfg.imageDirs.length || next.some((item, i) => item !== cfg.imageDirs[i])) {
+    cfg.imageDirs = next
+    await saveConfig(cfg)
+  }
+}
+/** 启动时回灌持久授权（不阻塞首个请求：调用方 await 一次即可） */
+let grantsLoaded: Promise<void> | null = null
+function ensureGrantsLoaded(): Promise<void> {
+  if (!grantsLoaded) {
+    grantsLoaded = (async () => {
+      try {
+        const cfg = await loadConfig()
+        for (const dir of cfg.imageDirs ?? []) grant(dir)
+        grant(defaultAssetDir())
+      } catch { /* 配置不可读时按无授权处理 */ }
+    })()
+  }
+  return grantsLoaded
 }
 
 /* ---------------- 配置 ---------------- */
@@ -94,6 +123,10 @@ interface PluginConfig {
   darkTheme: string
   recentRoots: string[]
   migrated: boolean
+  /** 本地图片目录（用户手输的原始值，如 `~/图片`）；空 = 插件私有 assets */
+  imageDir: string
+  /** 持久授权的图片目录（绝对路径）：重启后预览仍可读 */
+  imageDirs: string[]
 }
 const defaultConfig = (): PluginConfig => ({
   uploaders: {
@@ -106,6 +139,8 @@ const defaultConfig = (): PluginConfig => ({
   darkTheme: 'enest-minimal-dark',
   recentRoots: [],
   migrated: false,
+  imageDir: '',
+  imageDirs: [],
 })
 const SCRIPT_TEMPLATE = `// 自定义图床脚本：module.exports = async (ctx) => url 或 { url, markdown }
 // ctx = { fileName, mime, bytes(Uint8Array), config, log }；可用全局：fetch/FormData/Blob/Buffer/crypto/URL/TextEncoder
@@ -236,16 +271,40 @@ async function atomicWrite(path: string, text: string): Promise<void> {
 }
 
 /* ---------------- 图片资产 ---------------- */
-async function saveAssetBytes(docPath: string, fileName: string, bytes: Uint8Array): Promise<string> {
-  const abs = assertAccess(docPath)
-  const base = basename(abs, extname(abs))
-  const assetDir = join(dirname(abs), `${base}.assets`)
-  await ensureDir(assetDir)
-  const target = join(assetDir, fileName)
-  const finalPath = isPluginManaged(target) ? target : assertAccess(target)
+
+/** 插件私有 assets 目录（默认图片落盘位置）：{dataRoot}/assets */
+function defaultAssetDir(): string {
+  return join(dataRoot(), 'assets')
+}
+
+/**
+ * 把图片写进指定目录并返回可写进 Markdown 的链接。
+ *
+ * 目录来源有两类：
+ *  - 前端经 `shell.resolvePath({ base: 'data' })` 解析出的绝对路径（用户手输的
+ *    `~/图片`、`./assets` 等），必须显式登记授权后才允许写入；
+ *  - 未配置时回落到插件私有 assets 目录（天然放行）。
+ *
+ * 返回 `{ url, dir }`：`dir` 是实际落盘目录（前端用它展示生效路径）。
+ */
+async function saveAssetBytes(docPath: string, fileName: string, bytes: Uint8Array, dir?: string): Promise<{ url: string; dir: string }> {
+  const targetDir = dir ? normalize(dir) : defaultAssetDir()
+  // 用户自定义目录：登记为持久授权（等价于用户在设置里明确指定了落盘位置）
+  if (targetDir !== normalize(defaultAssetDir())) await grantPersistent(targetDir)
+  else grant(targetDir)
+  await ensureDir(targetDir)
+  const finalPath = join(targetDir, fileName)
+  if (!isPluginManaged(finalPath)) assertAccess(finalPath)
   await writeFile(finalPath, bytes)
-  grant(dirname(finalPath))
-  return `${assetDir}/${fileName}`
+  grant(finalPath)
+
+  const abs = docPath ? normalize(docPath) : ''
+  if (abs) {
+    // 优先写相对文档的路径（移动整个文件夹后仍然有效）
+    const rel = relative(dirname(abs), finalPath)
+    if (rel && !rel.startsWith('..') && !isAbsolute(rel)) return { url: `./${rel.split(sep).join('/')}`, dir: targetDir }
+  }
+  return { url: finalPath.split(sep).join('/'), dir: targetDir }
 }
 
 /* ---------------- 上传器 ---------------- */
@@ -265,10 +324,9 @@ function stampName(prefix: string, mime: string, fileName: string): string {
   return `${date}-${time}-${cleanName}${ext}`
 }
 
-async function uploadLocal(docPath: string, fileName: string, mime: string, bytes: Uint8Array): Promise<{ url: string; markdown: string }> {
-  const saved = await saveAssetBytes(docPath, stampName('', mime, fileName), bytes)
-  const relUrl = `./${basename(dirname(saved))}/${basename(saved)}`
-  return { url: relUrl, markdown: `![](${relUrl})` }
+async function uploadLocal(docPath: string, fileName: string, mime: string, bytes: Uint8Array, dir?: string): Promise<{ url: string; markdown: string; dir: string }> {
+  const saved = await saveAssetBytes(docPath, stampName('', mime, fileName), bytes, dir)
+  return { url: saved.url, markdown: `![](${saved.url})`, dir: saved.dir }
 }
 
 async function uploadPiclist(server: string, fileName: string, mime: string, bytes: Uint8Array): Promise<{ url: string; markdown: string }> {
@@ -564,19 +622,31 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
     if (which === 'script') return runUploadScript(cfg.uploaders.script.code, { fileName: name, mime: 'image/png', bytes: png }, cfg)
     throw new Error('未知图床: ' + which)
   },
-  'upload.run': async ([docPath, fileName, mime, bytesB64]) => {
+  /**
+   * 保存粘贴/拖入的图片。
+   * `imageDir` 是前端用 `shell.resolvePath({ base: 'data' })` 解析出的绝对路径；
+   * 空/缺省时落到插件私有 assets 目录。
+   */
+  'upload.run': async ([docPath, fileName, mime, bytesB64, imageDir]) => {
     const cfg = await loadConfig()
     const bytes = Buffer.from(String(bytesB64), 'base64')
     const name = stampName('', String(mime), String(fileName))
     const which = cfg.uploaders.active
+    const dir = typeof imageDir === 'string' && imageDir.trim() ? imageDir.trim() : undefined
     if (which === 'local') {
-      if (!docPath) throw new Error('本地 assets 模式需要先保存文档')
-      return uploadLocal(String(docPath), name, String(mime), bytes)
+      return uploadLocal(docPath ? String(docPath) : '', name, String(mime), bytes, dir)
     }
     if (which === 'piclist') return uploadPiclist(cfg.uploaders.piclist.server, name, String(mime), bytes)
     if (which === 'github') return uploadGithub(cfg.uploaders.github, name, String(mime), bytes)
     if (which === 'script') return runUploadScript(cfg.uploaders.script.code, { fileName: name, mime: String(mime), bytes }, cfg)
     throw new Error('未知图床: ' + which)
+  },
+  /** 单独存本地图片（与图床选择无关；前端"存本地"动作直接走这里） */
+  'upload.local': async ([docPath, fileName, mime, bytesB64, imageDir]) => {
+    const bytes = Buffer.from(String(bytesB64), 'base64')
+    const name = stampName('', String(mime), String(fileName))
+    const dir = typeof imageDir === 'string' && imageDir.trim() ? imageDir.trim() : undefined
+    return uploadLocal(docPath ? String(docPath) : '', name, String(mime), bytes, dir)
   },
   'script.compileCheck': async ([code]) => {
     const sandbox = buildScriptSandbox()
@@ -629,16 +699,16 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
   'assets.index': async ([docPath, docText]) => {
     return indexAssets(String(docPath), String(docText ?? ''))
   },
-  'assets.externalize': async ([docPath, url]) => {
-    // 外链转本地：下载到 assets 目录，返回相对链接
+  'assets.externalize': async ([docPath, url, imageDir]) => {
+    // 外链转本地：下载到配置的图片目录（缺省为插件私有 assets），返回可写进源码的链接
     if (!/^https?:\/\//i.test(String(url))) throw new Error('仅支持 http(s) 外链')
     const res = await fetch(String(url), { signal: AbortSignal.timeout(20000) })
     if (!res.ok) throw new Error(`下载失败 HTTP ${res.status}`)
     const buf = new Uint8Array(await res.arrayBuffer())
     const mime = res.headers.get('content-type')?.split(';')[0] ?? 'image/png'
-    const saved = await saveAssetBytes(String(docPath), stampName('', mime, basename(new URL(String(url)).pathname) || 'image'), buf)
-    const relUrl = `./${basename(dirname(saved))}/${basename(saved)}`
-    return { url: relUrl }
+    const dir = typeof imageDir === 'string' && imageDir.trim() ? imageDir.trim() : undefined
+    const saved = await saveAssetBytes(String(docPath), stampName('', mime, basename(new URL(String(url)).pathname) || 'image'), buf, dir)
+    return { url: saved.url, dir: saved.dir }
   },
   'assets.remove': async ([path]) => {
     const abs = assertAccess(String(path))
@@ -697,7 +767,22 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
 
   /* —— 路径信息 —— */
   'info.paths': async () => {
-    return { dataRoot: dataRoot(), themesDir: join(dataRoot(), 'themes'), inboxDir: join(dataRoot(), 'inbox') }
+    const cfg = await loadConfig()
+    return {
+      dataRoot: dataRoot(),
+      themesDir: join(dataRoot(), 'themes'),
+      inboxDir: join(dataRoot(), 'inbox'),
+      assetsDir: defaultAssetDir(),
+      imageDir: cfg.imageDir || '',
+    }
+  },
+  /** 设置页展示：登记手输目录（解析由前端 shell.resolvePath 完成）并回报落盘位置 */
+  'images.setDir': async ([abs, raw]) => {
+    if (typeof abs === 'string' && abs.trim()) await grantPersistent(abs.trim())
+    const cfg = await loadConfig()
+    cfg.imageDir = typeof raw === 'string' ? raw.trim() : ''
+    await saveConfig(cfg)
+    return { ok: true, assetsDir: defaultAssetDir(), imageDir: cfg.imageDir }
   },
 }
 
@@ -711,6 +796,8 @@ port.on('message', ({ data: request }) => {
     if (!owner || request.pluginId !== owner) throw new Error('Invalid backend owner')
     const handler = methods[request.method ?? '']
     if (!handler) throw new Error(`Unknown backend method: ${request.method}`)
+    // 首次请求前回灌持久授权（图片目录重启后仍可读）
+    await ensureGrantsLoaded()
     return handler(request.args ?? [])
   })().then(
     (data) => port.postMessage({ id: request.id, ok: true, data }),

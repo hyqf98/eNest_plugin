@@ -591,12 +591,19 @@ export function App() {
       notifyObjects()
     })()
 
-    const flushOnHide = () => persist.flush()
+    const flushOnHide = () => { void persist.flush().catch(error => kit.toast(`保存失败：${error.message}`, 'error')) }
+    const offBeforeClose = kit.api?.onBeforeClose?.(() => persist.flush())
+    const offBeforeSuspend = kit.api?.onBeforeSuspend?.(() => persist.flush())
+    const offSaveRequested = kit.api?.onSaveRequested?.(() => persist.flush())
     window.addEventListener('beforeunload', flushOnHide)
     return () => {
       disposed = true
       flushOnHide()
       window.removeEventListener('beforeunload', flushOnHide)
+      offBeforeClose?.()
+      offBeforeSuspend?.()
+      offSaveRequested?.()
+      kit.destroy()
     }
   }, [notifyObjects])
 

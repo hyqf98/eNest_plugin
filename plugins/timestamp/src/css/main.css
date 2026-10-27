@@ -37,7 +37,7 @@ button:active:not(:disabled) { transform: scale(0.97); }
 button:disabled { opacity: 0.45; cursor: default; }
 button.danger { color: var(--time-danger); border-color: color-mix(in srgb, var(--time-danger) 45%, var(--line)); }
 button.danger:hover { background: color-mix(in srgb, var(--time-danger) 8%, transparent); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 input, select {
   border: 1px solid var(--line);
   background: var(--card, #ffffff);
@@ -123,7 +123,7 @@ footer { display: flex; justify-content: space-between; gap: 12px; padding: 8px 
 .pane-scroll { min-height: 0; overflow: auto; }
 .converter, .batch, .date-math { padding: 22px 24px 30px; }
 .query > input { width: 100%; font: 15px var(--mono); padding: 8px 12px; min-height: 36px; background: var(--card); }
-.query > input:focus-visible { border-color: var(--accent); }
+.query > input:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
 .options { display: flex; align-items: center; gap: 14px; margin: 14px 0 10px; flex-wrap: wrap; }
 .options label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
 #zone { width: 170px; }

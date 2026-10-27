@@ -3,14 +3,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-export const DSH_DIR = 'dsh'
-export const DSH_ID = 'com.github.eNest.dsh'
 export const MAX_README_BYTES = 512 * 1024
-export const DSH_VERSION = '0.2.0-rc.2'
-// Release archives no longer embed the DSH runtime. Users install a published
-// dsh-runtime-<version>-<platform>-<arch>.tgz from GitHub Releases on first launch.
-// Only pack-dsh-runtime.mjs (and explicit `build-plugin.mjs --runtime`) build it.
-export const DSH_BUNDLED_RUNTIME = false
 // Generated from the host policy by api:generate; never maintain a second list here.
 export const pluginPermissionPolicy = JSON.parse(readFileSync(join(repositoryRoot, 'docs/plugin-permission-policy.json'), 'utf8'))
 export function requiresUserConsent(permission) { return !pluginPermissionPolicy.builtin.includes(permission) }

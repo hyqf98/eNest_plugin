@@ -5,6 +5,22 @@
    未注入时使用与 @enest/plugin-kit 一致的浅色 fallback。
    ============================================================ */
 
+/* —— 统一聚焦环 ——
+   outline 是矩形，永远不跟随 border-radius：9px 输入框、胶囊开关、圆形滑块
+   聚焦时会露出四角，看起来"不贴合、加粗"。这里统一改用 box-shadow 柔光环，
+   沿控件圆角自然贴合；与壳 src/renderer/components/ui/ui.css 的 --focus-ring 同参数。
+   文本输入在规范上鼠标聚焦也匹配 :focus-visible，所以鼠标态必须只给细边框 +
+   极淡柔光，不能再用 2px 实心 outline。 */
+:root {
+  --pk-focus-ring-width: 3px;
+  --pk-focus-ring-color: color-mix(in srgb, var(--accent, #3579dd) 20%, transparent);
+  --pk-focus-ring: 0 0 0 var(--pk-focus-ring-width) var(--pk-focus-ring-color);
+}
+@media (forced-colors: active) {
+  /* 高对比模式不渲染 box-shadow：各控件退回系统高亮描边。 */
+  :root { --pk-focus-ring: none; }
+}
+
 /* —— 基础控件统一规范：`.btn` 别名映射到 @enest/plugin-kit 的 .pk-btn 参数 ——
    pk-ui.css 在每插件级联中最后加载（业务 CSS → kit CSS → 本文件），故此处
    的 .btn 基础参数即全插件统一标准；业务变体（.btn.primary/.btn.icon 等
@@ -25,12 +41,12 @@
   line-height: 1.4;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color var(--pk-speed, 0.15s) ease, background-color var(--pk-speed, 0.15s) ease, color var(--pk-speed, 0.15s) ease, transform 0.1s ease;
+  transition: border-color var(--pk-speed, 0.15s) ease, background-color var(--pk-speed, 0.15s) ease, color var(--pk-speed, 0.15s) ease, box-shadow var(--pk-speed, 0.15s) ease, transform 0.1s ease;
 }
 .btn:hover:not(:disabled), .pk-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line, #dfe3e8)); }
 .btn:active:not(:disabled), .pk-btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled, .pk-btn:disabled { opacity: 0.45; cursor: default; }
-.btn:focus-visible, .pk-btn:focus-visible { outline: 2px solid var(--accent, #3579dd); outline-offset: 2px; }
+.btn:focus-visible, .pk-btn:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring); }
 
 /* —— Button 变体 —— */
 .pk-btn-primary {
@@ -69,11 +85,13 @@
   min-width: 0;
   font: inherit;
   color: inherit;
-  transition: border-color 0.12s;
+  transition: border-color 0.12s, box-shadow 0.12s;
 }
 .pk-input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line, #dfe3e8)); }
 .pk-input:disabled { opacity: 0.4; }
-.pk-input:focus-visible { outline: 2px solid var(--accent, #3579dd); outline-offset: 2px; }
+/* 文本输入：鼠标态只有细边框收紧，键盘态才给柔光环（避免"鼠标点一下就加粗"）。 */
+.pk-input:focus { outline: none; border-color: color-mix(in srgb, var(--accent, #3579dd) 72%, var(--line, #dfe3e8)); }
+.pk-input:focus-visible { outline: 2px solid transparent; outline-offset: 0; border-color: var(--accent, #3579dd); box-shadow: var(--pk-focus-ring); }
 
 /* —— Checkbox（对齐 16px 方框 + accent 勾） —— */
 .pk-checkbox {
@@ -92,7 +110,7 @@
 }
 .pk-checkbox[data-state='checked'] { background: var(--accent, #3579dd); border-color: var(--accent, #3579dd); }
 .pk-checkbox:disabled { opacity: 0.45; cursor: default; }
-.pk-checkbox:focus-visible { outline: 2px solid var(--accent, #3579dd); outline-offset: 2px; }
+.pk-checkbox:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring); }
 .pk-checkbox-indicator { display: grid; place-items: center; color: var(--accent-contrast, #fff); line-height: 0; }
 .pk-checkbox-indicator svg { width: 10px; height: 8px; }
 
@@ -111,7 +129,7 @@
 }
 .pk-switch[data-state='checked'] { background: var(--accent, #3579dd); border-color: transparent; }
 .pk-switch:disabled { opacity: 0.45; cursor: default; }
-.pk-switch:focus-visible { outline: 2px solid var(--accent, #3579dd); outline-offset: 2px; }
+.pk-switch:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring); }
 .pk-switch-thumb {
   display: block;
   width: 18px;
@@ -176,8 +194,11 @@ select.pk-select-native { display: none !important; }
 }
 .pk-select-trigger:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line, #dfe3e8)); }
 .pk-select-trigger:disabled { opacity: 0.4; cursor: default; }
-.pk-select-trigger:focus-visible { outline: 2px solid var(--accent, #3579dd); outline-offset: 2px; }
-.pk-select-value { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-select-trigger:focus { outline: none; border-color: color-mix(in srgb, var(--accent, #3579dd) 72%, var(--line, #dfe3e8)); }
+.pk-select-trigger:focus-visible { outline: 2px solid transparent; outline-offset: 0; border-color: var(--accent, #3579dd); box-shadow: var(--pk-focus-ring); }
+/* value 吃掉剩余空间并从左对齐：短文案不会居中留白，caret 始终贴右。 */
+.pk-select-value { flex: 1 1 auto; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-select-hint { flex: 0 0 auto; max-width: 45%; color: var(--text-2, #747c88); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pk-select-caret { flex: 0 0 auto; color: var(--text-2, #747c88); display: inline-flex; transition: transform 0.15s; }
 .pk-select-trigger[data-state='open'] .pk-select-caret { transform: rotate(180deg); }
 .pk-select-pop {
@@ -285,7 +306,7 @@ select.pk-select-native { display: none !important; }
   border: 2px solid var(--surface, #fff);
   box-shadow: 0 0 0 1px var(--line, #dfe3e8);
 }
-.pk-slider-thumb:focus-visible { outline: 2px solid var(--accent, #3579dd); outline-offset: 3px; }
+.pk-slider-thumb:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 1px var(--line, #dfe3e8), var(--pk-focus-ring); }
 
 /* —— DropdownMenu：弹层复用 plugin-kit 的 .pk-menu-* 视觉；Radix 状态用 data-* —— */
 .pk-menu.pk-menu-radix {
@@ -300,6 +321,15 @@ select.pk-select-native { display: none !important; }
 
 /* —— 动画档位对齐 plugin-kit —— */
 :root[data-anim='low'] .pk-btn, :root[data-anim='low'] .pk-switch-thumb { transition-duration: 0ms; }
+:root[data-anim='low'] .pk-input, :root[data-anim='low'] .pk-select-trigger { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .pk-btn, .pk-switch-thumb, .pk-segmented-item, .pk-select-trigger { transition-duration: 0.01ms !important; }
+  .pk-input { transition-duration: 0.01ms !important; }
+}
+
+/* —— 高对比模式：柔光环不可见，退回系统高亮描边（贴合圆角不是这里的首要目标） —— */
+@media (forced-colors: active) {
+  .btn:focus-visible, .pk-btn:focus-visible,
+  .pk-input:focus-visible, .pk-checkbox:focus-visible, .pk-switch:focus-visible,
+  .pk-select-trigger:focus-visible, .pk-slider-thumb:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
 }

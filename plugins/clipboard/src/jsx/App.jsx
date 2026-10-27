@@ -39,7 +39,8 @@ export function App() {
   const [selected, setSelected] = useState(() => new Set())
   const [groups, setGroups] = useState({ names: [], entries: {} })
   const [countText, setCountText] = useState('正在读取…')
-  const [emptyReason, setEmptyReason] = useState(null) // null | 'read-failed'
+  const [emptyReason, setEmptyReason] = useState(null) // null | 'read-failed' | 'unsupported'
+  const [emptyError, setEmptyError] = useState('')
   const [capPaste, setCapPaste] = useState(true)
   const [capReason, setCapReason] = useState('')
   const [capPermissionRequired, setCapPermissionRequired] = useState(false)
@@ -53,6 +54,10 @@ export function App() {
   const [confirmState, setConfirmState] = useState(null) // { title, text, action }
   const [monitoring, setMonitoring] = useState(true)
 
+  // A host without the background bridge can never serve history; show the reason instead of a bare toast.
+  const historySupported = api.clipboard.history.supported !== false
+  const historyUnavailableReason = api.clipboard.history.unavailableReason || ''
+
   const stateRef = useRef({})
   stateRef.current = { items, total, hasCursor, current, query, type, collection, selected, groups, mode, monitoring, snippets }
 
@@ -65,6 +70,7 @@ export function App() {
   const pendingImages = useRef(new Map())
   const observer = useRef(null)
   const confirmAction = useRef(null)
+  const unsupportedNotified = useRef(false)
 
   const run = useCallback(async (task) => {
     try {
@@ -184,15 +190,22 @@ export function App() {
         })
         setCountText(`${result.total} 条记录${kitRef.current?.settings.monitoring ? '' : ' · 已暂停监控'}`)
         setMonitoring(!!kitRef.current?.settings.monitoring)
+        setEmptyReason(null)
+        setEmptyError('')
       } catch (error) {
         if (revision === requestId.current) {
-          setCountText('读取失败')
-          setEmptyReason('read-failed')
-          kitRef.current?.toast(`读取历史失败：${error.message}`, 'error')
+          const message = error?.message || String(error)
+          setCountText(historySupported ? '读取失败' : '历史不可用')
+          // Capability gaps get a persistent empty state with an action; real read failures stay a retry.
+          setEmptyReason(historySupported ? 'read-failed' : 'unsupported')
+          setEmptyError(message)
+          // The empty state already explains a missing backend; toast that case once, not on every refresh.
+          if (historySupported) kitRef.current?.toast(`读取历史失败：${message}`, 'error')
+          else if (!unsupportedNotified.current) { unsupportedNotified.current = true; kitRef.current?.toast(`读取历史失败：${message}`, 'error') }
         }
       }
     },
-    [api],
+    [api, historySupported],
   )
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
@@ -812,8 +825,25 @@ export function App() {
                   </div>
                 </div>
               ))
+            ) : emptyReason === 'unsupported' ? (
+              <div className="empty empty-blocked">
+                <p><b>剪贴板历史暂不可用</b></p>
+                <p className="muted">{historyUnavailableReason || '当前 eNest 版本不提供剪贴板历史后台。'}</p>
+                <div className="empty-actions">
+                  <button className="pk-btn pk-btn-sm" onClick={() => window.location.reload()}>重新加载</button>
+                  <button className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void api?.ui?.openSettings?.().catch(() => {})}>查看详情</button>
+                </div>
+              </div>
+            ) : emptyReason === 'read-failed' ? (
+              <div className="empty empty-blocked">
+                <p><b>读取失败</b></p>
+                {emptyError ? <p className="muted">{emptyError}</p> : null}
+                <div className="empty-actions">
+                  <button className="pk-btn pk-btn-sm" onClick={() => void refresh()}>重试</button>
+                </div>
+              </div>
             ) : (
-              <div className="empty">{emptyReason === 'read-failed' ? '读取失败' : <Fragment>没有匹配的记录<br />复制文本、图片或文件后，会自动出现在这里。</Fragment>}</div>
+              <div className="empty"><Fragment>没有匹配的记录<br />复制文本、图片或文件后，会自动出现在这里。</Fragment></div>
             )}
           </div>
           <button id="more" className="pk-btn" hidden={!hasCursor} onClick={() => void refresh(true)}>载入更多</button>
