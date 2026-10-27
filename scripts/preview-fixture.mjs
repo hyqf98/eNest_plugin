@@ -33,6 +33,9 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
     ] },
     'totp_v1': { entries: [{ id: 'demo-totp', issuer: 'eNest Demo', account: 'demo@example.test', secret: 'JBSWY3DPEHPK3PXP', digits: 6, period: 30, algorithm: 'SHA1' }] }
   }
+  if (pluginId === 'drawboard') {
+    seed['drawboard.data.v1'] = null  // 画板截图场景由 market-scenarios 的 __drawboardDemo 现画
+  }
   for (const [key, value] of Object.entries(seed)) values.set(key, value)
   const handlers = {
     getLaunchMode: () => mode, getLaunchContext: () => ({ mode, code: 'main', payload: null }),

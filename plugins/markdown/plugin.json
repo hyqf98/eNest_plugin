@@ -69,6 +69,15 @@
     ]
   },
   "contributes": {
+    "openWith": [
+      {
+        "id": "markdown-files",
+        "extensions": ["md", "markdown"],
+        "mimeTypes": ["text/markdown"],
+        "schemes": ["enest-md"],
+        "role": "Editor"
+      }
+    ],
     "homeCards": [
       {
         "id": "markdown-card",

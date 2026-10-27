@@ -1,0 +1,22 @@
+{
+  "name": "ai-canvas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5212 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs ai-canvas",
+    "pack": "node ../../scripts/pack-plugin.mjs ai-canvas",
+    "prod": "node ../../scripts/build-plugin.mjs ai-canvas"
+  },
+  "dependencies": {
+    "@enest/plugin-kit": "1.0.0",
+    "@xyflow/react": "^12.3.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "roughjs": "4.6.6"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

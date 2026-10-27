@@ -50,5 +50,20 @@
   },
   "development": {
     "main": "http://127.0.0.1:5184/"
+  },
+  "contributes": {
+    "openWith": [
+      {
+        "id": "text-compare",
+        "extensions": [
+          "txt",
+          "log"
+        ],
+        "mimeTypes": [
+          "text/plain"
+        ],
+        "role": "Viewer"
+      }
+    ]
   }
 }

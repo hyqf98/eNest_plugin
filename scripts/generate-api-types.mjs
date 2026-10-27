@@ -18,7 +18,7 @@ for(const file of files){
  for(const node of source.statements) if(ts.isInterfaceDeclaration(node)||ts.isTypeAliasDeclaration(node)||ts.isEnumDeclaration(node)) if(!declarations.has(node.name.text)) declarations.set(node.name.text,{node,source})
 }
 const printer=ts.createPrinter({newLine:ts.NewLineKind.LineFeed})
-const queue=['EnestPluginApi','EnestHomeApi','EnestWorkspaceApi','EnestQuickApi','ThemeChromeApi','EnestSettingsApi','PluginBackgroundBridge','AuxiliaryPageApi'],seen=new Set(queue),blocks=[]
+const queue=['EnestPluginApi','EnestHomeApi','EnestWorkspaceApi','EnestQuickApi','ThemeChromeApi','EnestSettingsApi','PluginBackgroundBridge','AuxiliaryPageApi','McpToolDeclaration','McpErrorCode'],seen=new Set(queue),blocks=[]
 while(queue.length){
  const name=queue.shift();const entry=declarations.get(name)
  if(!entry)throw new Error(`Missing public API type ${name}`)
@@ -56,6 +56,11 @@ const policyPath=join(repository,'docs/plugin-permission-policy.json')
 if(check){if(!fs.existsSync(policyPath)||fs.readFileSync(policyPath,'utf8')!==policyText){console.error('Plugin permission policy snapshot is out of date');stale=true}}
 else fs.writeFileSync(policyPath,policyText)
 const sdkSchema=join(repository,'packages/plugin-sdk/src/manifest-schema.json')
+const mcpValidatorSource=fs.readFileSync(join(host,'src/shared/mcpTools.ts'),'utf8')
+const mcpValidatorText='/** Generated from the host shared MCP declaration validator. Do not edit. */\n'+ts.transpileModule(mcpValidatorSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText
+const mcpValidatorPath=join(repository,'packages/plugin-sdk/src/mcp-tools.mjs')
+if(check){if(!fs.existsSync(mcpValidatorPath)||fs.readFileSync(mcpValidatorPath,'utf8')!==mcpValidatorText){console.error(`Out of date: ${mcpValidatorPath}`);stale=true}}
+else fs.writeFileSync(mcpValidatorPath,mcpValidatorText)
 const schemaText=JSON.stringify(schema,null,2)+'\n'
 for(const schemaCopy of [join(host,'src/shared/pluginManifest.schema.json'),sdkSchema]){
  if(check){if(!fs.existsSync(schemaCopy)||fs.readFileSync(schemaCopy,'utf8')!==schemaText){console.error(`Out of date: ${schemaCopy}`);stale=true}}

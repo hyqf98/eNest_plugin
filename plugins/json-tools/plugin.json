@@ -49,6 +49,19 @@
     "minHeight": 280
   },
   "contributes": {
+    "openWith": [
+      {
+        "id": "json-files",
+        "extensions": [
+          "json",
+          "jsonc"
+        ],
+        "mimeTypes": [
+          "application/json"
+        ],
+        "role": "Editor"
+      }
+    ],
     "settings": [
       {
         "id": "json-tools.preferences",

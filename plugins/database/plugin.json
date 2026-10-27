@@ -20,6 +20,22 @@
     "backend.node"
   ],
   "contributes": {
+    "openWith": [
+      {
+        "id": "sqlite-files",
+        "extensions": [
+          "db",
+          "sqlite"
+        ],
+        "mimeTypes": [
+          "application/vnd.sqlite3"
+        ],
+        "schemes": [
+          "enest-db"
+        ],
+        "role": "Viewer"
+      }
+    ],
     "settings": [
       {
         "id": "database.prefs",

@@ -474,6 +474,21 @@ export function App() {
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
+  /* 打开方式：双击 .txt/.log 进入 → 载入左侧原文（右侧留待粘贴/选择对照） */
+  useEffect(() => {
+    api?.onEnter?.((event) => {
+      if (event?.code !== 'open-file' || !event?.payload?.handles?.length) return
+      const handle = event.payload.handles[0]
+      void api.localFiles
+        .read({ handleId: handle.id, encoding: 'text', maxBytes: 2 * 1024 * 1024 })
+        .then((text) => {
+          setSource(String(text ?? ''))
+          kitRef.current?.toast(`已载入 ${handle.name}，选择右侧对照内容`, 'success')
+        })
+        .catch((error) => kitRef.current?.toast(error?.message ?? String(error), 'error'))
+    })
+  }, [])
+
   /* ⌘/Ctrl+Shift+H hex 模式（等价原 keydown + result-mode dblclick） */
   useEffect(() => {
     const onKey = (e) => {

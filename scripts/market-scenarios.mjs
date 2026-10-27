@@ -3,7 +3,9 @@ export async function runMarketScenario(page, id) {
   const fill = (selector, value) => page.locator(selector).fill(value)
   const click = selector => page.locator(selector).click()
   const wait = predicate => page.waitForFunction(predicate, undefined, { timeout: 8000 })
-  switch (id) {
+  // 插件目录已切换为短名，case 标签保持 com.github.eNest.<短名> 全名形态
+  const fullId = id.includes('.') ? id : `com.github.eNest.${id}`
+  switch (fullId) {
     case 'com.github.eNest.calculator':
       await fill('#expr', '(1280 + 720) * 0.85'); await page.locator('#expr').press('Enter')
       await fill('#expr', 'sqrt(144) * 32'); await page.locator('#expr').press('Enter')
@@ -72,6 +74,16 @@ export async function runMarketScenario(page, id) {
       await page.locator('#g-search button[type=submit]').click()
       await wait(() => document.querySelectorAll('.cp-card').length >= 3)
       return '隔离演示数据画廊：搜索过滤后恢复三只演示宠物'
+    case 'com.github.eNest.drawboard':
+      await wait(() => {
+        if (window.__drawboardDemo && !window.__drawboardSeeded) {
+          window.__drawboardSeeded = true
+          window.__drawboardDemo()
+        }
+        const status = document.querySelector('.db-status')?.textContent || ''
+        return window.__drawboardSeeded && /\d+ 项/.test(status) && !/(^|\s)0 项/.test(status)
+      })
+      return '画出示例墨迹、手绘图形与手写体文字'
     default:
       return '真实初始界面；如有外部服务数据，仅使用隔离模拟数据'
   }

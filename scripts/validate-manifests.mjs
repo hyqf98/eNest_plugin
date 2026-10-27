@@ -5,13 +5,13 @@ import { pathToFileURL } from 'node:url'
 import Ajv2020 from 'ajv/dist/2020.js'
 import { repositoryRoot as root, pluginIds, assertMediaPaths, localFile, readManifest, pluginHtmlEntries } from './plugin-contract.mjs'
 import { resolveMarketAssets } from './market-assets.mjs'
-import { homeContributionErrors } from '../packages/plugin-sdk/src/validate.mjs'
+import { homeContributionErrors, mcpContributionErrors } from '../packages/plugin-sdk/src/validate.mjs'
 
 export function loadManifestValidator() {
   return new Ajv2020({ allErrors: true, strict: false }).compile(JSON.parse(readFileSync(join(root, 'docs/plugin-manifest.schema.json'), 'utf8')))
 }
 export function validateManifest(validator, manifest, label) {
-  return validator(manifest) ? homeContributionErrors(manifest).map(error => `${label}: ${error}`) : validator.errors.map(error => `${label}: ${error.instancePath || '(root)'} ${error.message}`)
+  return validator(manifest) ? [...homeContributionErrors(manifest), ...mcpContributionErrors(manifest)].map(error => `${label}: ${error}`) : validator.errors.map(error => `${label}: ${error.instancePath || '(root)'} ${error.message}`)
 }
 export function validateSource(directory, { release = true } = {}) {
   const errors = []

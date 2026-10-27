@@ -236,11 +236,82 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "label"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "img"
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    },
+                    "extensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]{1,10}$"
+                      },
+                      "maxItems": 16,
+                      "description": "可选的小写扩展名白名单（不含点）；缺省接受任意图片"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "label"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "files"
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    },
+                    "extensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]{1,10}$"
+                      },
+                      "maxItems": 16,
+                      "description": "可选的小写扩展名白名单（不含点）；缺省接受任意文件"
+                    },
+                    "minCount": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20,
+                      "default": 1
+                    },
+                    "maxCount": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20,
+                      "default": 20
+                    },
+                    "allowDirectory": {
+                      "type": "boolean",
+                      "default": false,
+                      "description": "是否把目录计入有效选择数"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               ]
             },
             "minItems": 1,
-            "description": "文本触发关键词、regex 内容匹配或 over 文本处理；maxLength 不得小于 minLength，正则语法由安装器补充校验；图片和文件指令暂不支持"
+            "description": "文本触发关键词、regex/over 文本内容匹配、img/files 粘贴上下文指令；maxLength 不得小于 minLength，正则语法由安装器补充校验"
           }
         },
         "additionalProperties": false
@@ -558,6 +629,14 @@
           "description": "保留字段：Quick 搜索 provider 仅支持运行时注册（enest.contribute.registerQuickProvider），manifest 声明不生效",
           "items": {
             "type": "object"
+          }
+        },
+        "mcpTools": {
+          "type": "array",
+          "maxItems": 128,
+          "description": "MCP tools automatically exposed while the host service is enabled. Handlers must match these declarations exactly; no MCP-specific permission exists.",
+          "items": {
+            "$ref": "#/$defs/mcpTool"
           }
         }
       }
@@ -2258,6 +2337,72 @@
               "type": "string",
               "maxLength": 240,
               "pattern": "^(?:(?!(?:backend|runtime|node_modules|src|tests?)/)[A-Za-z0-9_@-]+/)*[A-Za-z0-9_-]+\\.html$"
+            }
+          }
+        }
+      }
+    },
+    "mcpTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "inputSchema"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "object"
+            }
+          },
+          "description": "Self-contained JSON Schema 2020-12, max 64 KiB / depth 20 / 10000 nodes, local fragment references only. The host validates and compiles it in an isolated worker."
+        },
+        "outputSchema": {
+          "type": "object",
+          "description": "Optional success structuredContent schema. Same dialect and bounds as inputSchema; error results do not have to match it."
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Descriptive hints, never authorization.",
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "readOnlyHint": {
+              "type": "boolean"
+            },
+            "destructiveHint": {
+              "type": "boolean"
+            },
+            "idempotentHint": {
+              "type": "boolean"
+            },
+            "openWorldHint": {
+              "type": "boolean"
             }
           }
         }

@@ -731,7 +731,26 @@ export function App() {
       },
     })
     kitRef.current = kit
-    api?.onEnter?.(({ payload }) => {
+    api?.onEnter?.(({ payload, code }) => {
+      // 打开方式：双击 .json 进入，读取句柄文本并立即格式化
+      if (code === 'open-file' && payload?.handles?.length) {
+        const handle = payload.handles[0]
+        void (async () => {
+          try {
+            const text = await api?.localFiles?.read?.({ handleId: handle.id, encoding: 'text' })
+            if (typeof text === 'string') {
+              setInput(text)
+              requestAnimationFrame(() => {
+                invalidateRef.current()
+                transformRef.current('format')
+              })
+            }
+          } catch (error) {
+            kitRef.current?.toast(`打开文件失败：${error?.message ?? error}`, 'error')
+          }
+        })()
+        return
+      }
       const text = typeof payload === 'string' ? payload : payload?.text
       if (typeof text === 'string' && text) {
         setInput(text)

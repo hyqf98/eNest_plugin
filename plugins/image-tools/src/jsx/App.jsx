@@ -707,7 +707,28 @@ export function App() {
         document.documentElement.dataset.followTheme = settings.followShellTheme === false ? 'off' : 'on'
       }
     })
-    if (api?.onEnter) api.onEnter(() => initRef.current?.())
+    if (api?.onEnter) api.onEnter(async (event) => {
+      initRef.current?.()
+      // 打开方式：双击图片文件进入，读句柄 dataUrl 导入处理队列
+      if (event?.code === 'open-file' && event?.payload?.handles?.length) {
+        for (const handle of event.payload.handles.slice(0, 8)) {
+          try {
+            const dataUrl = await api?.localFiles?.read?.({ handleId: handle.id, encoding: 'dataUrl' })
+            if (typeof dataUrl === 'string' && dataUrl) {
+              await importDataUrl(dataUrl, handle.name || '打开图片', null)
+            }
+          } catch (error) {
+            kitRef.current?.toast(`打开图片失败：${error?.message ?? error}`, 'error')
+          }
+        }
+        return
+      }
+      // Quick 粘贴上下文（img 指令）：进入即导入随启动交付的图片。
+      for (const pasted of event?.input?.images ?? []) {
+        try { await importDataUrl(pasted.dataUrl, `粘贴图片 ${new Date().toLocaleString('sv-SE')}`, null) }
+        catch (error) { kitRef.current?.toast(`粘贴图片导入失败：${error?.message ?? error}`, 'error') }
+      }
+    })
     let alive = true
     void (async () => {
       await kit.ready

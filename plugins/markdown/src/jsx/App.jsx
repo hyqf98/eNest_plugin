@@ -520,6 +520,15 @@ export function App() {
 
     api()?.onEnter?.((event) => {
       if (event?.code === 'settings') { setPage('settings'); setMode('shell') ; return }
+      // 打开方式：双击 .md / enest-md:// 链接进入，读首个文件切主窗打开
+      if (event?.code === 'open-file' || event?.code === 'open-url') {
+        setMode('shell')
+        const target = event?.code === 'open-file'
+          ? event?.payload?.paths?.[0]
+          : undefined
+        if (target) void openFile(target)
+        return
+      }
       if (event?.code === 'inbox' || k.mode === 'quick') setMode('quick')
       else setMode('shell')
     })

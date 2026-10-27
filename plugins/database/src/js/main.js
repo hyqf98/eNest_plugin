@@ -565,6 +565,15 @@ async function boot() {
 
   api?.onEnter?.((event) => {
     if (event?.code === 'settings') workbench.navigate('settings')
+    // 打开方式：双击 .db/.sqlite 或 enest-db:// 进入，用宿主签发的只读句柄预填连接表单
+    if ((event?.code === 'open-file' || event?.code === 'open-url') && event?.payload?.handles?.length) {
+      const handle = event.payload.handles[0]
+      const label = handle.displayPath || handle.name || 'SQLite 文件'
+      void openConnectionForm({
+        id: uid('conn'), name: handle.name || label, driver: 'sqlite', env: 'dev', options: {},
+        fileHandleId: handle.id, fileLabel: label, readOnly: true
+      })
+    }
     side?.render()
     renderAll()
   })
