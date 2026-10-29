@@ -5,6 +5,7 @@
  * Markdown 预览、相对时间、字数统计等纯函数原样搬运。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { PanelView } from './PanelView.jsx'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -135,7 +136,7 @@ export function App() {
   const [saveState, setSaveState] = useState('已保存')
   const [noteVersion, setNoteVersion] = useState(0) // 触发列表相对时间刷新
   const [colorMenuOpen, setColorMenuOpen] = useState(false)
-  const [mode, setMode] = useState('shell')
+  const [mode, setMode] = useState(() => api?.getLaunchMode?.() || 'shell')
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 580px)').matches)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [libraryPinned, setLibraryPinned] = useState(false)
@@ -154,6 +155,7 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    if (mode === 'panel') return
     const binding = PluginKit.bindHoverPanel(libraryToggleRef.current, libraryRef.current, {
       enabled: () => libraryCollapsed,
       onOpenChange: setLibraryPeek,
@@ -163,7 +165,7 @@ export function App() {
     })
     libraryBindingRef.current = binding
     return () => { binding.destroy(); libraryBindingRef.current = null }
-  }, [libraryCollapsed])
+  }, [libraryCollapsed, mode])
 
   const notesRef = useRef(notes)
   notesRef.current = notes
@@ -578,6 +580,18 @@ export function App() {
         ...(current.deletedAt ? [{ key: 'purge', label: '永久删除', danger: true, onSelect: () => purgeNote() }] : []),
       ]
     : []
+
+  if (mode === 'panel') {
+    const live = notes.filter(note => !note.deletedAt && !note.archived)
+    const note = live.find(note => note.id === selected)
+      || [...live].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)[0]
+    return <PanelView note={note} title={note ? noteTitle(note) : ''} count={live.length} ready={ready} error={loadError}
+      onCopy={() => copyNote(note.id)}
+      onOpen={() => {
+        if (note) open(note.id)
+        void api.ui.openInShell().catch(error => kitRef.current?.toast(error.message, 'error'))
+      }} />
+  }
 
   return (
     <div className={`app${grid ? ' grid-layout' : ''}${libraryCollapsed ? ' sidebar-collapsed' : ''}`} id="app"

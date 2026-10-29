@@ -48,6 +48,7 @@
   const defaultUi = () => ({
     collapsedGroups: {},
     fontSize: 13,
+    paper: 'auto', // auto | paper | cream | dark | board（纸感手绘主题）
     selectCopy: true,
     recordHistory: true,
     search: '',

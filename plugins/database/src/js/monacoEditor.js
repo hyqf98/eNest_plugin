@@ -57,7 +57,7 @@ export class SqlEditor extends LightweightEditor {
       accessibilitySupport: 'auto', ariaLabel: 'SQL 查询编辑器', quickSuggestions: true,
       wordBasedSuggestions: 'off', parameterHints: { enabled: false },
       suggest: { showKeywords: true, snippetsPreventQuickSuggestions: false, showInlineDetails: true, showStatusBar: false },
-      theme: document.querySelector('#app')?.dataset.workbenchTheme === 'graphite' || document.documentElement.dataset.theme === 'dark' ? 'vs-dark' : 'vs'
+      theme: ['dark', 'board'].includes(document.documentElement.dataset.paper) || document.documentElement.dataset.theme === 'dark' ? 'vs-dark' : 'vs'
     })
     this.monacoHost.addEventListener('pointerover', event => {
       const row = event.target.closest('.suggest-widget .monaco-list-row')
@@ -176,9 +176,7 @@ export class SqlEditor extends LightweightEditor {
     }
     syncTheme()
     this.themeObserver = new MutationObserver(syncTheme)
-    this.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme', 'style'] })
-    const themeRoot = document.querySelector('#app')
-    if (themeRoot) this.themeObserver.observe(themeRoot, { attributes: true, attributeFilter: ['data-workbench-theme'] })
+    this.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-scheme', 'data-paper', 'style'] })
     document.addEventListener('database-workbench-theme', syncTheme)
     this.disposables.push({ dispose: () => document.removeEventListener('database-workbench-theme', syncTheme) })
     this.activateModel()

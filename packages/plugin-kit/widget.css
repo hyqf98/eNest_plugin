@@ -1,0 +1,55 @@
+/* Opt-in content surfaces. Native desktop materials and dragging remain host-owned. */
+.pk-widget {
+  --pk-widget-fill: color-mix(in srgb, var(--surface, #fff) 78%, transparent);
+  --pk-widget-padding: clamp(10px, min(4vw, 6vh), 20px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--pk-widget-padding);
+  overflow: hidden;
+  color: var(--text, #292c2e);
+  background: var(--pk-widget-fill);
+  border: var(--appearance-border-width, 1px) solid var(--border, #292c2e18);
+  border-radius: var(--appearance-panel-radius, 24px);
+  font-family: var(--font, inherit);
+}
+.pk-widget-heading,
+.pk-widget-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pk-widget-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-heading, var(--font, sans-serif));
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.pk-widget-content { flex: 1; min-width: 0; min-height: 0; }
+.pk-widget-value {
+  font-size: clamp(2rem, 18vw, 4.5rem);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.pk-widget-caption { margin: 0; color: var(--text-2, #666c70); font-size: .85em; line-height: 1.4; }
+.pk-widget-empty { display: grid; place-content: center; text-align: center; }
+.pk-widget-actions { flex-wrap: wrap; }
+.pk-widget[hidden], .pk-widget [hidden] { display: none !important; }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .pk-widget { background: var(--surface, #fff); border-color: var(--border-strong, currentColor); }
+}

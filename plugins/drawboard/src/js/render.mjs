@@ -145,22 +145,50 @@ export function anyFading(objects, now = performance.now()) {
   return objects.some((obj) => obj._born && now - obj._born < BORN_FADE_MS)
 }
 
-/** 点阵网格（世界坐标网格，随缩放平移） */
-export function renderGrid(ctx, vp, width, height, color) {
-  const spacing = 24
+/** 纸面纹理（世界坐标，随缩放平移）：横线 / 方格 / 点阵 */
+export function renderGrid(ctx, vp, width, height, color, mode = 'dots') {
+  if (mode === 'dots') {
+    const spacing = 24
+    const step = spacing * vp.zoom
+    if (step < 6) return
+    const startX = ((vp.x % step) + step) % step
+    const startY = ((vp.y % step) + step) % step
+    ctx.save()
+    ctx.fillStyle = color
+    for (let x = startX; x < width; x += step) {
+      for (let y = startY; y < height; y += step) {
+        ctx.beginPath()
+        ctx.arc(x, y, 1.1, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+    ctx.restore()
+    return
+  }
+  // 横线 / 方格：草稿纸的横线间隔略大于点阵，缩得太小就隐去避免糊成一片
+  const spacing = mode === 'squares' ? 28 : 32
   const step = spacing * vp.zoom
-  if (step < 6) return
+  if (step < 8) return
   const startX = ((vp.x % step) + step) % step
   const startY = ((vp.y % step) + step) % step
   ctx.save()
-  ctx.fillStyle = color
-  for (let x = startX; x < width; x += step) {
-    for (let y = startY; y < height; y += step) {
-      ctx.beginPath()
-      ctx.arc(x, y, 1.1, 0, Math.PI * 2)
-      ctx.fill()
+  ctx.strokeStyle = color
+  ctx.globalAlpha = 0.85
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  for (let y = startY; y < height; y += step) {
+    const py = Math.round(y) + 0.5
+    ctx.moveTo(0, py)
+    ctx.lineTo(width, py)
+  }
+  if (mode === 'squares') {
+    for (let x = startX; x < width; x += step) {
+      const px = Math.round(x) + 0.5
+      ctx.moveTo(px, 0)
+      ctx.lineTo(px, height)
     }
   }
+  ctx.stroke()
   ctx.restore()
 }
 
@@ -174,7 +202,7 @@ export function renderFrame(ctx, canvas, { vp, dpr, objects, images, theme, sett
   ctx.clearRect(0, 0, width / dpr, height / dpr)
   ctx.fillStyle = theme.paper
   ctx.fillRect(0, 0, width / dpr, height / dpr)
-  if (settings.grid === 'dots') renderGrid(ctx, vp, width / dpr, height / dpr, theme.grid)
+  if (settings.grid && settings.grid !== 'none') renderGrid(ctx, vp, width / dpr, height / dpr, theme.grid, settings.grid)
 
   const hasErase = objects.some((o) => o.kind === 'erase')
   if (hasErase) {

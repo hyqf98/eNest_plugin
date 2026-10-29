@@ -51,8 +51,8 @@ async function migrateLegacy() {
 }
 
 export async function loadDrafts() {
-  const enest = store()
   try {
+    const enest = store()
     let index = await enest.storage.get(INDEX_KEY)
     if (!Array.isArray(index) || !index.length) {
       index = await migrateLegacy()

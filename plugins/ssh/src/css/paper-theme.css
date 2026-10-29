@@ -1,0 +1,316 @@
+/* paper-theme — 纸感手绘主题层（移植自 ai-canvas / database 的纸面令牌桥）。
+ *
+ * 手法：在 :root[data-paper] 重定义宿主语义 token（bg/surface/border/text/accent/
+ * brand/term/radius/shadow/font 系列）。ssh 现有规则几乎全部经 var()/color-mix()
+ * 消费这些 token，故换纸即全局换肤，不逐组件重写。
+ *
+ * 宿主 token 由 api.js applyThemeTokens 以 element.style.setProperty 内联注入，
+ * 故桥接值一律 !important，且全部写具体量（hex/color-mix 字面）—— term.js/tips 经
+ * getComputedStyle().getPropertyValue 读变量，var() 链在 JS 里不会被解析。
+ * 偏好 auto 由 applyPaper 解析成具体纸面（浅色=paper / 深色=dark），故桥始终生效。
+ *
+ * 终端区保持等宽矩形（只换纸面底色与 ANSI 色板），UI chrome 用手写体。
+ */
+
+:root {
+  /* 手写字体：霞鹜文楷 Lite（OFL），unicode-range 子集懒加载；缺失回落系统楷体。 */
+  --ink-hand: 'LXGW WenKai Lite', 'Kaiti SC', 'STKaiti', serif;
+  /* 墨迹圆角：像素值不对称四值（百分比在大尺寸会摊成椭圆）。 */
+  --ink-radius-card: 14px 18px 15px 19px / 17px 14px 19px 15px;
+  --ink-radius-pop: 13px 17px 14px 18px / 16px 13px 18px 14px;
+  --ink-radius-input: 8px 11px 9px 12px / 11px 8px 12px 9px;
+  --ink-speed: 0.16s;
+}
+
+/* ══ 白纸 paper ══ */
+:root[data-paper='paper'] {
+  color-scheme: light !important;
+  --ac-edge: #8a5a2b; --ac-shadow: rgba(74, 60, 34, 0.14);
+  --scrim: #3a2f1e !important;
+  --bg: #f7f3e8 !important;
+  --surface: #fffdf6 !important;
+  --surface-2: #efe8d6 !important;
+  --surface-3: #e7e5e5 !important;
+  --border: rgba(58, 47, 30, 0.20) !important;
+  --border-strong: rgba(58, 47, 30, 0.34) !important;
+  --text: #3a2f1e !important;
+  --text-2: #7a6c52 !important;
+  --text-3: #918469 !important;
+  --accent: #1d5c8a !important;
+  --accent-soft: rgba(29, 92, 138, 0.12) !important;
+  --accent-contrast: #fffdf6 !important;
+  --brand: #1d5c8a !important;
+  --brand-strong: #1d5c8a !important;
+  --brand-soft: rgba(29, 92, 138, 0.12) !important;
+  --ok: #3f9b57 !important;
+  --ok-soft: rgba(63, 155, 87, 0.12) !important;
+  --danger: #a61e1e !important;
+  --danger-soft: rgba(166, 30, 30, 0.12) !important;
+  --warn: #b07c2a !important;
+  --warn-soft: rgba(176, 124, 42, 0.14) !important;
+  --link: #1d5c8a !important;
+  --line: rgba(58, 47, 30, 0.34) !important;
+  --wash: #fffdf6 !important;
+  --term-bg: #fffdf6 !important;
+  --term-fg: #3a2f1e !important;
+  --term-cursor: #1d5c8a !important;
+  --font: var(--ink-hand) !important;
+  --radius-xs: 6px !important; --radius-sm: 8px !important;
+  --radius-md: 10px !important; --radius-lg: 12px !important;
+  --radius-xl: 14px !important; --radius-pill: 999px !important;
+  --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
+  --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
+  /* 终端 ANSI 16 色：暖墨版（xterm 从这些变量重建色板） */
+  --ansi-0: #6b5b3e; --ansi-1: #a61e1e; --ansi-2: #3f9b57; --ansi-3: #b07c2a;
+  --ansi-4: #1d5c8a; --ansi-5: #7c3aed; --ansi-6: #0e7490; --ansi-7: #5c523e;
+  --ansi-8: #8a7c5e; --ansi-9: #c53030; --ansi-10: #4faf6b; --ansi-11: #c9942f;
+  --ansi-12: #2c74a8; --ansi-13: #9255d8; --ansi-14: #23899f; --ansi-15: #2d2413;
+}
+
+/* ══ 米黄 cream ══ */
+:root[data-paper='cream'] {
+  color-scheme: light !important;
+  --ac-edge: #96662f; --ac-shadow: rgba(94, 72, 34, 0.16);
+  --scrim: #43331d !important;
+  --bg: #f3e9d2 !important;
+  --surface: #faf3e0 !important;
+  --surface-2: #eadfc2 !important;
+  --surface-3: #e4dcc9 !important;
+  --border: rgba(67, 51, 29, 0.20) !important;
+  --border-strong: rgba(67, 51, 29, 0.34) !important;
+  --text: #43331d !important;
+  --text-2: #8a7752 !important;
+  --text-3: #9d8c69 !important;
+  --accent: #27607f !important;
+  --accent-soft: rgba(39, 96, 127, 0.12) !important;
+  --accent-contrast: #faf3e0 !important;
+  --brand: #27607f !important;
+  --brand-strong: #27607f !important;
+  --brand-soft: rgba(39, 96, 127, 0.12) !important;
+  --ok: #4f8b3f !important;
+  --ok-soft: rgba(79, 139, 63, 0.12) !important;
+  --danger: #b0431f !important;
+  --danger-soft: rgba(176, 67, 31, 0.12) !important;
+  --warn: #b3822c !important;
+  --warn-soft: rgba(179, 130, 44, 0.14) !important;
+  --link: #27607f !important;
+  --line: rgba(67, 51, 29, 0.34) !important;
+  --wash: #faf3e0 !important;
+  --term-bg: #faf3e0 !important;
+  --term-fg: #43331d !important;
+  --term-cursor: #27607f !important;
+  --font: var(--ink-hand) !important;
+  --radius-xs: 6px !important; --radius-sm: 8px !important;
+  --radius-md: 10px !important; --radius-lg: 12px !important;
+  --radius-xl: 14px !important; --radius-pill: 999px !important;
+  --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
+  --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
+  --ansi-0: #6b5b3e; --ansi-1: #b0431f; --ansi-2: #4f8b3f; --ansi-3: #b3822c;
+  --ansi-4: #27607f; --ansi-5: #7c3aed; --ansi-6: #0e7490; --ansi-7: #5c523e;
+  --ansi-8: #8a7752; --ansi-9: #c2572f; --ansi-10: #5fa04f; --ansi-11: #c99a3a;
+  --ansi-12: #347294; --ansi-13: #9255d8; --ansi-14: #23899f; --ansi-15: #35280f;
+}
+
+/* ══ 深色 dark ══ */
+:root[data-paper='dark'] {
+  color-scheme: dark !important;
+  --ac-edge: #cfa96a; --ac-shadow: rgba(0, 0, 0, 0.4);
+  --scrim: #26231e !important;
+  --bg: #26231e !important;
+  --surface: #302c25 !important;
+  --surface-2: #3a352c !important;
+  --surface-3: #47423a !important;
+  --border: rgba(236, 229, 211, 0.22) !important;
+  --border-strong: rgba(236, 229, 211, 0.38) !important;
+  --text: #ece5d3 !important;
+  --text-2: #a89c83 !important;
+  --text-3: #8b8169 !important;
+  --accent: #7fb2d4 !important;
+  --accent-soft: rgba(127, 178, 212, 0.16) !important;
+  --accent-contrast: color-mix(in srgb, #ece5d3 88%, #26231e) !important;
+  --brand: #7fb2d4 !important;
+  --brand-strong: #7fb2d4 !important;
+  --brand-soft: rgba(127, 178, 212, 0.16) !important;
+  --ok: #83bd8a !important;
+  --ok-soft: rgba(131, 189, 138, 0.16) !important;
+  --danger: #e0705c !important;
+  --danger-soft: rgba(224, 112, 92, 0.16) !important;
+  --warn: #d8b25e !important;
+  --warn-soft: rgba(216, 178, 94, 0.16) !important;
+  --link: #7fb2d4 !important;
+  --line: rgba(236, 229, 211, 0.38) !important;
+  --wash: #302c25 !important;
+  --term-bg: #26231e !important;
+  --term-fg: #ece5d3 !important;
+  --term-cursor: #7fb2d4 !important;
+  --font: var(--ink-hand) !important;
+  --radius-xs: 6px !important; --radius-sm: 8px !important;
+  --radius-md: 10px !important; --radius-lg: 12px !important;
+  --radius-xl: 14px !important; --radius-pill: 999px !important;
+  --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
+  --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
+  --ansi-0: #4a4438; --ansi-1: #e0705c; --ansi-2: #83bd8a; --ansi-3: #d8b25e;
+  --ansi-4: #7fb2d4; --ansi-5: #c79ae0; --ansi-6: #6fc4d4; --ansi-7: #a89c83;
+  --ansi-8: #6a624e; --ansi-9: #ef8a75; --ansi-10: #9bd2a2; --ansi-11: #e4c47c;
+  --ansi-12: #9cc5e2; --ansi-13: #d8b2ec; --ansi-14: #92d4e0; --ansi-15: #f4eedd;
+}
+
+/* ══ 黑板 board ══ */
+:root[data-paper='board'] {
+  color-scheme: dark !important;
+  --ac-edge: #d8d2ae; --ac-shadow: rgba(0, 0, 0, 0.38);
+  --scrim: #2c3a2f !important;
+  --bg: #2c3a2f !important;
+  --surface: #344537 !important;
+  --surface-2: #3c4c3e !important;
+  --surface-3: #4a584a !important;
+  --border: rgba(233, 232, 214, 0.22) !important;
+  --border-strong: rgba(233, 232, 214, 0.38) !important;
+  --text: #e9e8d6 !important;
+  --text-2: #a9b39a !important;
+  --text-3: #8d9882 !important;
+  --accent: #9fc3d8 !important;
+  --accent-soft: rgba(159, 195, 216, 0.16) !important;
+  --accent-contrast: color-mix(in srgb, #e9e8d6 88%, #2c3a2f) !important;
+  --brand: #9fc3d8 !important;
+  --brand-strong: #9fc3d8 !important;
+  --brand-soft: rgba(159, 195, 216, 0.16) !important;
+  --ok: #a8d0a0 !important;
+  --ok-soft: rgba(168, 208, 160, 0.16) !important;
+  --danger: #e8937a !important;
+  --danger-soft: rgba(232, 147, 122, 0.16) !important;
+  --warn: #d6c07a !important;
+  --warn-soft: rgba(214, 192, 122, 0.16) !important;
+  --link: #9fc3d8 !important;
+  --line: rgba(233, 232, 214, 0.38) !important;
+  --wash: #344537 !important;
+  --term-bg: #2c3a2f !important;
+  --term-fg: #e9e8d6 !important;
+  --term-cursor: #9fc3d8 !important;
+  --font: var(--ink-hand) !important;
+  --radius-xs: 6px !important; --radius-sm: 8px !important;
+  --radius-md: 10px !important; --radius-lg: 12px !important;
+  --radius-xl: 14px !important; --radius-pill: 999px !important;
+  --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
+  --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
+  --ansi-0: #4a5a4c; --ansi-1: #e8937a; --ansi-2: #a8d0a0; --ansi-3: #d6c07a;
+  --ansi-4: #9fc3d8; --ansi-5: #cfaee8; --ansi-6: #8fd4d8; --ansi-7: #a9b39a;
+  --ansi-8: #6b7a6d; --ansi-9: #f0a894; --ansi-10: #bcdaaf; --ansi-11: #e2cf94;
+  --ansi-12: #b6d4e4; --ansi-13: #ddc4f0; --ansi-14: #b0e2e6; --ansi-15: #f2f1de;
+}
+
+/* ── 数据/终端保持等宽；chrome 用 --font（手写体） ── */
+:root[data-paper] .term-host, :root[data-paper] .term-fallback,
+:root[data-paper] .xterm, :root[data-paper] .file-list, :root[data-paper] code,
+:root[data-paper] .mono, :root[data-paper] .cs-opt-hint {
+  font-family: var(--mono) !important;
+}
+:root[data-paper] .pk-select-trigger, :root[data-paper] .pk-select-value,
+:root[data-paper] .pk-dialog-content, :root[data-paper] .pk-menu, :root[data-paper] .pk-menu-item,
+:root[data-paper] .pk-input, :root[data-paper] .pk-btn {
+  font-family: var(--ink-hand) !important;
+}
+
+/* ── 手绘签名：浮层/弹框墨边 + 硬偏移投影 + 入场动画 ── */
+:root[data-paper] .ctx-menu, :root[data-paper] .cs-dropdown {
+  position: relative;
+  border: 0 !important;
+  border-radius: var(--ink-radius-pop) !important;
+  box-shadow: 3px 4px 0 var(--ac-shadow) !important;
+  animation: ink-pop var(--ink-speed) ease-out;
+}
+:root[data-paper] .ctx-menu::before, :root[data-paper] .cs-dropdown::before {
+  content: ''; position: absolute; inset: -2px; pointer-events: none; z-index: 1;
+  border: 1.4px solid var(--text); border-radius: var(--ink-radius-pop);
+  filter: url(#ink-rough-fine); opacity: .72;
+}
+/* 自绘弹窗 .modal-root/.modal（main.css）与 kit .wb-dialog：纸面实底遮罩，去毛玻璃。 */
+:root[data-paper] .modal-root { backdrop-filter: none !important; background: color-mix(in srgb, var(--text) 34%, transparent) !important; }
+:root[data-paper] .modal {
+  position: relative; border: 0 !important;
+  border-radius: var(--ink-radius-card) !important;
+  box-shadow: 3px 4px 0 var(--ac-shadow) !important;
+  animation: ink-pop var(--ink-speed) ease-out;
+}
+:root[data-paper] .modal::before {
+  content: ''; position: absolute; inset: -3px; pointer-events: none; z-index: 3;
+  border: 1.6px solid var(--text); border-radius: var(--ink-radius-card);
+  filter: url(#ink-rough); opacity: .8;
+}
+body:has(.app[data-paper]) dialog::backdrop { backdrop-filter: none !important; }
+body:has(.app[data-paper]) :is(.wb-dialog, .modal) {
+  position: relative; border: 0 !important;
+  border-radius: var(--ink-radius-card) !important;
+  box-shadow: 3px 4px 0 var(--ac-shadow) !important;
+}
+body:has(.app[data-paper]) :is(.wb-dialog, .modal)::before {
+  content: ''; position: absolute; inset: -3px; pointer-events: none; z-index: 3;
+  border: 1.6px solid var(--text); border-radius: var(--ink-radius-card);
+  filter: url(#ink-rough); opacity: .8;
+}
+/* 输入框墨角圆角 */
+body:has(.app[data-paper]) input:not([type=checkbox]):not([type=radio]),
+body:has(.app[data-paper]) select, body:has(.app[data-paper]) textarea { border-radius: var(--ink-radius-input); }
+
+/* 活动态统一墨下划线（替换绿环/铜橙/蓝多种写法）。 */
+:root[data-paper] .session-tab.active { box-shadow: inset 0 -2px 0 var(--text) !important; }
+:root[data-paper] .rail-btn.active, :root[data-paper] .icon-btn.active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 10%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text) 35%, transparent) !important;
+}
+
+/* 连接卡选中：墨边手绘。 */
+:root[data-paper] .profile-card {
+  position: relative;
+  border-radius: var(--ink-radius-pop);
+}
+:root[data-paper] .profile-card.selected { border-radius: var(--ink-radius-pop); }
+:root[data-paper] .profile-card.selected::before {
+  content: ''; position: absolute; inset: -2px; pointer-events: none;
+  border: 1.4px solid var(--text); border-radius: var(--ink-radius-pop);
+  filter: url(#ink-rough-fine); opacity: .6;
+}
+
+/* 浮动 tooltip（tips-global.js 内联硬编码 rgba 阴影/边框）在纸面下走令牌：
+ * 内联样式需 !important 才能覆盖。 */
+:root[data-paper] .enest-float-tip {
+  font-family: var(--ink-hand) !important;
+  border-radius: 8px 11px 9px 12px !important;
+  box-shadow: 2px 3px 0 var(--ac-shadow) !important;
+}
+
+/* ── 焦点环：中性墨色收紧（打掉 workbench 绿环 / brand 铜橙环 / accent 蓝环）── */
+:root[data-paper] :focus-visible {
+  outline: 2px solid transparent !important;
+  outline-offset: 0 !important;
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 55%, transparent) !important;
+}
+
+/* ── hover 微旋转 + 按压物理感 ── */
+:root[data-paper] .btn, :root[data-paper] .rail-btn, :root[data-paper] .icon-btn {
+  transition: background var(--ink-speed) ease, color var(--ink-speed) ease,
+    border-color var(--ink-speed) ease, transform 0.09s ease;
+}
+:root[data-paper] .rail-btn:hover, :root[data-paper] .icon-btn:hover { transform: rotate(-5deg) scale(1.08); }
+:root[data-paper] .btn:active:not(:disabled) { transform: scale(0.96) !important; }
+
+/* ── 滚动条跟随纸面 ── */
+:root[data-paper] ::-webkit-scrollbar { width: 9px; height: 9px; }
+:root[data-paper] ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ac-edge) 42%, transparent) !important;
+  border-radius: 6px 8px 7px 9px !important; border: 2px solid transparent; background-clip: padding-box;
+}
+:root[data-paper] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--ac-edge) 68%, transparent) !important; }
+:root[data-paper] ::-webkit-scrollbar-track, :root[data-paper] ::-webkit-scrollbar-corner { background: transparent !important; }
+
+@keyframes ink-pop {
+  from { opacity: 0; transform: translateY(-4px) rotate(-0.6deg); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── 动画档位降级 ── */
+:root[data-paper][data-anim='low'] * { animation: none !important; transition-duration: 0.001ms !important; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-paper] * { animation: none !important; transition-duration: 0.001ms !important; }
+}

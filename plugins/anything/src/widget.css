@@ -1,0 +1,24 @@
+html, body { background: transparent !important; }
+:root:not([data-mode="panel"]) #root { background: var(--bg, #f6f7f9); }
+:root[data-mode="panel"] #root { background: transparent !important; box-shadow: none; }
+:root[data-mode="panel"]::before, :root[data-mode="panel"]::after,
+:root[data-mode="panel"] body::before, :root[data-mode="panel"] body::after,
+:root[data-mode="panel"] #root::before, :root[data-mode="panel"] #root::after { content: none !important; display: none !important; animation: none !important; }
+
+.anything-widget { gap: 6px; }
+.anything-widget .anything-widget-query { width: 100%; min-width: 0; min-height: 28px; flex: 0 0 auto; box-sizing: border-box; font: inherit; }
+.anything-widget-results { overflow: hidden; }
+.anything-widget-results ul { margin: 0; padding: 0; list-style: none; }
+.anything-widget-result { display: flex; align-items: center; gap: 8px; width: 100%; height: 44px; min-width: 0; padding: 4px 2px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.anything-widget-result:hover { background: var(--surface-2, #f0f3f6); }
+.anything-widget-result:focus-visible, .anything-widget-query:focus-visible { outline: 2px solid var(--accent, #bd542b); outline-offset: -2px; }
+.anything-widget-icon { display: flex; flex: 0 0 22px; color: var(--accent, #bd542b); }
+.anything-widget-icon svg { width: 22px; height: 22px; }
+.anything-widget-file { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.anything-widget-file strong { font-size: 12px; font-weight: 500; }
+.anything-widget-file small { font-size: 10px; color: var(--text-2, #666c70); }
+.anything-widget-file strong, .anything-widget-file small, .anything-widget-status { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.anything-widget-empty { padding-top: 8px; }
+.anything-widget-status { flex: 0 0 auto; margin-top: auto; font-size: 10px; }
+.anything-widget-status[data-kind="error"] { color: var(--danger, #b44c50); }
+.anything-widget[data-compact="true"] .pk-widget-title { font-size: 12px; }

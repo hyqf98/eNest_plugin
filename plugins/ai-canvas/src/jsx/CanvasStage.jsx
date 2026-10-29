@@ -10,14 +10,15 @@ import { getNodeDef } from '../js/nodeRegistry.mjs'
 import { compatibleKinds, findPort } from '../js/nodeSchema.mjs'
 import { RegistryNode, CanvasActionsContext } from './nodes/RegistryNode.jsx'
 import { HandDrawnEdge } from './HandDrawnEdge.jsx'
+import { HandDrawnConnectionLine, ConnectionGhost } from './ConnectionLine.jsx'
 import { RunningEdgesContext } from './RunningState.jsx'
 import { useAlignGuides } from './hooks/useAlignGuides.jsx'
 
 const nodeTypes = { registry: RegistryNode }
 const edgeTypes = { handdrawn: HandDrawnEdge }
 
-export function CanvasStage({ nodes, edges, onNodesChange, onEdgesChange, onConnect,
-  actions, runningEdges, mode, readOnly, nodesRef, onDropNode,
+export function CanvasStage({ nodes, edges, onNodesChange, onEdgesChange, onConnect, onConnectEnd,
+  actions, runningEdges, mode, readOnly, nodesRef, onDropNode, ghost,
   onPaneContextMenu, onNodeContextMenu, onEdgeContextMenu }) {
 
   const { screenToFlowPosition } = useReactFlow()
@@ -81,6 +82,7 @@ export function CanvasStage({ nodes, edges, onNodesChange, onEdgesChange, onConn
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectEnd={onConnectEnd}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             nodeOrigin={[0.5, 0.5]}
@@ -96,7 +98,8 @@ export function CanvasStage({ nodes, edges, onNodesChange, onEdgesChange, onConn
             onNodeContextMenu={onNodeContextMenu}
             onEdgeContextMenu={onEdgeContextMenu}
             defaultEdgeOptions={{ type: 'handdrawn' }}
-            connectionLineStyle={{ stroke: 'var(--ac-accent)', strokeWidth: 2, strokeDasharray: '6 5' }}
+            connectionLineComponent={HandDrawnConnectionLine}
+            connectionLineContainerStyle={{ zIndex: 20 }}
             panOnScroll={pointerMode}
             zoomOnScroll={!pointerMode}
             zoomActivationKeyCode={pointerMode ? 'Meta' : null}
@@ -115,7 +118,7 @@ export function CanvasStage({ nodes, edges, onNodesChange, onEdgesChange, onConn
           >
             <Background variant={BackgroundVariant.Dots} gap={26} size={1.6} color="var(--ac-grid)" className="ac-paper-grid" />
             <MiniMap pannable zoomable className="ac-minimap" nodeColor={() => 'var(--ac-minimap-node)'} maskColor="var(--ac-minimap-mask)" />
-            <ViewportPortal>{guides.guideElements}</ViewportPortal>
+            <ViewportPortal>{guides.guideElements}{ghost && <ConnectionGhost {...ghost} />}</ViewportPortal>
           </ReactFlow>
         </RunningEdgesContext.Provider>
       </CanvasActionsContext.Provider>

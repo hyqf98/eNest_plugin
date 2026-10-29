@@ -26,28 +26,29 @@
 
   function termThemeFromCss() {
     const appearance = document.documentElement.hasAttribute('data-appearance-layout')
+    const ansi = (n, fallback) => cssVar(`--ansi-${n}`, fallback)
     return {
       background: cssVar(appearance ? '--surface' : '--term-bg', '#0b0f14'),
       foreground: cssVar(appearance ? '--text' : '--term-fg', '#e8eef7'),
       cursor: cssVar(appearance ? '--accent' : '--term-cursor', '#e8ecf4'),
       cursorAccent: cssVar(appearance ? '--surface' : '--term-bg', '#0b0f14'),
       selectionBackground: cssVar('--accent-soft', 'rgba(232,236,244,0.22)'),
-      black: '#1c2330',
-      red: '#ff6b7a',
-      green: '#3dd68c',
-      yellow: '#f5b942',
-      blue: '#5b8cff',
-      magenta: '#c792ea',
-      cyan: '#56c8d8',
-      white: '#e8eef7',
-      brightBlack: '#6b7789',
-      brightRed: '#ff8b98',
-      brightGreen: '#6ee7b0',
-      brightYellow: '#ffd27a',
-      brightBlue: '#8eb0ff',
-      brightMagenta: '#d7b3f5',
-      brightCyan: '#8adce8',
-      brightWhite: '#ffffff',
+      black: ansi(0, '#1c2330'),
+      red: ansi(1, '#ff6b7a'),
+      green: ansi(2, '#3dd68c'),
+      yellow: ansi(3, '#f5b942'),
+      blue: ansi(4, '#5b8cff'),
+      magenta: ansi(5, '#c792ea'),
+      cyan: ansi(6, '#56c8d8'),
+      white: ansi(7, '#e8eef7'),
+      brightBlack: ansi(8, '#6b7789'),
+      brightRed: ansi(9, '#ff8b98'),
+      brightGreen: ansi(10, '#6ee7b0'),
+      brightYellow: ansi(11, '#ffd27a'),
+      brightBlue: ansi(12, '#8eb0ff'),
+      brightMagenta: ansi(13, '#d7b3f5'),
+      brightCyan: ansi(14, '#8adce8'),
+      brightWhite: ansi(15, '#ffffff'),
     }
   }
 
@@ -266,8 +267,8 @@
               decorations: o.highlight === false
                 ? undefined
                 : {
-                    matchOverviewRuler: '#5b8cff',
-                    activeMatchColorOverviewRuler: '#f5b942',
+                    matchOverviewRuler: cssVar('--ansi-4', '#5b8cff'),
+                    activeMatchColorOverviewRuler: cssVar('--ansi-3', '#f5b942'),
                   },
             }))
           }
@@ -281,6 +282,7 @@
       }
 
       const resizeNow = () => {
+        if (document.documentElement.dataset.mode === 'panel' || !container.clientWidth || !container.clientHeight) return
         const previousCols = term.cols
         try {
           if (fit) fit.fit()
@@ -300,7 +302,7 @@
         resizeNow()
       }
       const appearanceObserver = new MutationObserver(syncAppearance)
-      appearanceObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-theme', 'data-appearance-layout'] })
+      appearanceObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-theme', 'data-paper', 'data-appearance-layout'] })
       syncAppearance()
 
       // 延迟 fit，确保布局完成
@@ -396,8 +398,8 @@
               hit = Boolean(searchBox.addon.findPrevious(String(q), {
                 caseSensitive: !!(opts && opts.caseSensitive),
                 decorations: {
-                  matchOverviewRuler: '#5b8cff',
-                  activeMatchColorOverviewRuler: '#f5b942',
+                  matchOverviewRuler: cssVar('--ansi-4', '#5b8cff'),
+                  activeMatchColorOverviewRuler: cssVar('--ansi-3', '#f5b942'),
                 },
               }))
             } else if (term.__enestSearch && typeof term.__enestSearch.findNext === 'function') {
@@ -513,6 +515,7 @@
     }
 
     function resizeNow() {
+      if (document.documentElement.dataset.mode === 'panel' || !container.clientWidth || !container.clientHeight) return
       const size = estimateSize(pre.parentElement || container)
       if (handlers && handlers.onResize) handlers.onResize(size.cols, size.rows)
     }

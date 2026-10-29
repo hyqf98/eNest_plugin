@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.image-tools",
   "name": "图片工具箱",
-  "version": "1.3.0",
+  "version": "0.0.1",
   "description": "图片压缩、格式转换、批量缩放、裁剪旋转、文字水印、EXIF 查看、色板提取与贴图预览。",
   "author": "eNest Labs",
   "main": "index.html",

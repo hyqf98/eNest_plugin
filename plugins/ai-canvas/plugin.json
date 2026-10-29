@@ -1,35 +1,84 @@
 {
   "id": "com.github.eNest.ai-canvas",
   "name": "AI 画布",
-  "version": "1.1.0",
+  "version": "0.0.1",
   "description": "AI 视觉工作台：手绘风节点画布编排文生图、图生图与提示词工作流，端口点击即建节点，标准输出协议与变量引用，OpenAI Images 协议自定义接入，生成图自动入库画廊。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "设计",
   "icon": "assets/market/icon.svg",
-  "engines": { "enest": ">=0.2.3" },
-  "permissions": ["net.fetch"],
-  "net": { "allowInsecure": true },
-  "window": { "width": 1280, "height": 840, "minWidth": 960, "minHeight": 600 },
-  "features": [
-    { "code": "main", "explain": "AI 画布 / 节点工作流", "cmds": ["AI画布", "画布", "视觉工作台", "文生图", "图生图", "节点", "ai-canvas"] }
+  "engines": {
+    "enest": ">=0.2.3"
+  },
+  "permissions": [
+    "net.fetch",
+    "backend.node"
   ],
-  "ui": { "chrome": "none", "themeAware": true, "background": "opaque", "preferredColorScheme": "auto" },
+  "net": {
+    "allowInsecure": true
+  },
+  "window": {
+    "width": 1280,
+    "height": 840,
+    "minWidth": 960,
+    "minHeight": 600
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "AI 画布 / 节点工作流",
+      "cmds": [
+        "AI画布",
+        "画布",
+        "视觉工作台",
+        "文生图",
+        "图生图",
+        "节点",
+        "ai-canvas"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
   "contributes": {
     "settings": [
       {
         "id": "ai-canvas.prefs",
         "title": "AI 画布",
         "items": [
-          { "key": "openPrefs", "type": "page", "label": "打开 AI 画布设置", "entry": { "code": "settings", "payload": {} } }
+          {
+            "key": "openPrefs",
+            "type": "page",
+            "label": "打开 AI 画布设置",
+            "entry": {
+              "code": "settings",
+              "payload": {}
+            }
+          }
         ]
       }
     ]
   },
   "market": {
-    "tags": ["AI 绘画", "节点编排", "gpt-image", "手绘"],
+    "tags": [
+      "AI 绘画",
+      "节点编排",
+      "gpt-image",
+      "手绘"
+    ],
     "readme": "assets/market/README.md",
-    "screenshots": ["assets/market/screenshots/01-canvas.png"]
+    "screenshots": [
+      "assets/market/screenshots/01-canvas.png"
+    ]
   },
-  "development": { "main": "http://127.0.0.1:5212/" }
+  "development": {
+    "main": "http://127.0.0.1:5212/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
+  }
 }

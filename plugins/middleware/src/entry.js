@@ -17,3 +17,5 @@ import './js/workbench.js'
 
 createRoot(document.getElementById('root')).render(createElement(App))
 import './ui/pk-ui.css'
+// 纸感手绘主题层最后加载：令牌桥用 !important 接管宿主内联 token。
+import './css/paper-theme.css'

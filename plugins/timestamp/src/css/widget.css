@@ -1,0 +1,75 @@
+html[data-mode="panel"],
+html[data-mode="panel"] body,
+html[data-mode="panel"] #root { background: transparent; overflow: hidden; }
+
+.clock-widget {
+  padding: clamp(9px, 4vw, 18px);
+  gap: 6px;
+  overflow: hidden;
+}
+.clock-widget-heading { gap: 6px; min-height: 24px; }
+.clock-widget .clock-widget-open {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+}
+.clock-widget-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  min-height: 0;
+}
+.clock-widget .clock-widget-face {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 5px;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  white-space: nowrap;
+}
+.clock-widget .clock-widget-face:hover { background: transparent; color: var(--accent); }
+.clock-widget-time {
+  display: flex;
+  align-items: baseline;
+  gap: .12em;
+  font-family: var(--font, var(--font-family, sans-serif));
+  font-size: clamp(32px, min(18vw, 29vh), 76px);
+  font-weight: 500;
+  letter-spacing: -.045em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.clock-widget-time > span { font-size: .35em; letter-spacing: -.02em; color: var(--muted); }
+.clock-widget-date { font-size: clamp(11px, 4vw, 14px); }
+.clock-widget-offset { color: var(--muted); font-size: 11px; }
+.clock-widget-world { flex: none; min-width: 0; padding: 0; margin: 0; list-style: none; }
+.clock-widget-world li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 39px; border-top: 1px solid var(--line); }
+.clock-widget-city { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.clock-widget-city small { margin-left: 6px; font-size: 10px; color: var(--muted); }
+.clock-widget-world time { flex: none; font-size: 17px; font-variant-numeric: tabular-nums; }
+.clock-widget-hint { flex: none; font-size: 11px; }
+.clock-widget-invalid { margin-block: auto; }
+.clock-widget[data-wide="true"] .clock-widget-body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 18px; }
+.clock-widget[data-wide="true"] .clock-widget-time { font-size: clamp(32px, min(10vw, 29vh), 76px); }
+.clock-widget[data-wide="true"] .clock-widget-world li:first-child { border-top: 0; }
+@media (max-height: 170px) {
+  .clock-widget { padding: 8px 10px; gap: 4px; }
+  .clock-widget .clock-widget-face { gap: 3px; }
+  .clock-widget-offset { font-size: 10px; }
+}

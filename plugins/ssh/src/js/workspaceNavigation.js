@@ -54,6 +54,14 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
   }
   function hideFlyouts() { flyouts.forEach(flyout => flyout.hide()) }
   function layout() {
+    if (mode === 'panel') {
+      hideFlyouts()
+      cancelAnimationFrame(overlayFrame); overlayFrame = 0; overlayVelocity = 0
+      overlayPosition = overlayTarget = -1; paintOverlay()
+      sideBody.inert = true; scrim.hidden = true; resize.tabIndex = -1
+      connectionButton.setAttribute('aria-expanded', 'false')
+      return
+    }
     const collapsed = compact() ? !opened : !!store.state.ui.sidebarCollapsed
     if (lastCompact !== compact() || !collapsed) hideFlyouts()
     lastCompact = compact()
@@ -69,11 +77,13 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     onLayout?.()
   }
   function closeConnections(restoreFocus = true) {
+    if (mode === 'panel') return
     if (compact()) opened = false
     else store.setUi({ sidebarCollapsed: true })
     layout(); if (restoreFocus) (returnFocus?.isConnected ? returnFocus : connectionButton).focus()
   }
   function revealConnections() {
+    if (mode === 'panel') return
     hideFlyouts()
     returnFocus = document.activeElement
     if (compact()) opened = true
@@ -81,6 +91,7 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     layout(); app.querySelector('#search-input')?.focus()
   }
   function navigate(target) {
+    if (mode === 'panel') return
     hideFlyouts()
     if (target === 'connections') return revealConnections()
     if (compact()) closeConnections(false)
@@ -116,9 +127,11 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     return items
   }
   function pickFlyout(key) {
+    if (mode === 'panel' || disposed) return
     const item = flyoutItems().find(entry => entry.key === key)
     if (!item || item.disabled) return
     return Promise.resolve().then(async () => {
+      if (mode === 'panel' || disposed) return
       if (key === 'new') return bridge.openProfileForm(null)
       if (!key.startsWith('connect:')) return navigate(key)
       const profile = store.findProfile(key.slice('connect:'.length))
@@ -131,7 +144,7 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     }).catch(error => bridge.api.toast(error.message || String(error), 'error'))
   }
   if (window.PluginKit?.hoverFlyout) {
-    const options = { enabled: () => !disposed && app.dataset.sidebarOpen === 'false', handleClick: false, onPick: pickFlyout, side: 'right', delay: 120, hideDelay: 300, ariaLabel: 'SSH 工作区导航与连接' }
+    const options = { enabled: () => !disposed && mode !== 'panel' && app.dataset.sidebarOpen === 'false', handleClick: false, onPick: pickFlyout, side: 'right', delay: 120, hideDelay: 300, ariaLabel: 'SSH 工作区导航与连接' }
     flyouts = [window.PluginKit.hoverFlyout(connectionButton, flyoutItems, options)]
   }
   scrim.onclick = () => closeConnections()
@@ -142,7 +155,7 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
   resize.onpointerup = () => stopResize(); resize.onpointercancel = () => stopResize(true); resize.onlostpointercapture = () => stopResize()
   resize.onkeydown = event => { const value = { ArrowLeft: width - 10, ArrowRight: width + 10, Home: 220, End: 360 }[event.key]; if (value !== undefined) { event.preventDefault(); setWidth(value) } }
   function onKey(event) {
-    if (event.key !== 'Escape' || event.defaultPrevented) return
+    if (mode === 'panel' || event.key !== 'Escape' || event.defaultPrevented) return
     if (drag) { event.preventDefault(); stopResize(true); resize.focus(); return }
     if (app.querySelector('#drawer.open') && !document.querySelector('.modal-root.show,dialog[open]')) { event.preventDefault(); bridge.setDrawerOpen(false); rail.querySelector(`[data-navigation="${store.state.ui.rightTab || 'history'}"]`)?.focus(); return }
     if (compact() && opened && !document.querySelector('.modal-root.show,dialog[open]')) { event.preventDefault(); closeConnections() }
@@ -158,7 +171,7 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
   window.addEventListener('pagehide', dispose)
   layout()
   return {
-    setMode(next) { hideFlyouts(); mode = next; opened = false; layout() }, revealConnections, closeConnections,
+    setMode(next) { hideFlyouts(); mode = next; opened = false; if (mode === 'panel') stopResize(true); layout() }, revealConnections, closeConnections,
     setView(view) { currentView = view; for (const button of rail.querySelectorAll('[data-navigation]')) if (button !== connectionButton) { const selected = button.dataset.navigation === view; button.classList.toggle('active', selected); button.setAttribute('aria-current', selected ? 'page' : 'false') } },
     dispose,
   }

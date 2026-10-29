@@ -1,10 +1,15 @@
 {
   "id": "com.github.eNest.markdown",
   "name": "Markdown 编辑器",
-  "version": "2.1.0",
+  "version": "0.0.1",
   "description": "Typora 式所见即所得 Markdown 编辑器：即时渲染、Typora 主题、手绘风 Mermaid、图床上传（PicList/GitHub/自定义脚本）与本地文件工作台。",
   "author": "eNest Labs",
   "main": "index.html",
+  "views": {
+    "layouts": ["quick", "shell", "panel"],
+    "default": "shell",
+    "panel": { "size": { "width": 320, "height": 260 } }
+  },
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "engines": {
@@ -53,7 +58,7 @@
   "ui": {
     "chrome": "none",
     "themeAware": true,
-    "background": "opaque",
+    "background": "transparent",
     "preferredColorScheme": "auto"
   },
   "market": {

@@ -4,7 +4,7 @@
  * 通过 props 与 App 交换文档对象与视口。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { hitTest, marqueeSelect, objectBBox, selectionBBox, translateObject, scaleObject, hitImage } from '../js/objects.mjs'
+import { hitChain, hitShape, marqueeSelect, objectBBox, selectionBBox, translateObject, scaleObject, hitImage } from '../js/objects.mjs'
 import { applyWheel, screenToWorld, worldToScreen } from '../js/viewport.mjs'
 import { renderFrame, anyFading } from '../js/render.mjs'
 import { toolCursor, grabCursor } from '../js/cursors.mjs'
@@ -33,6 +33,7 @@ export function CanvasStage(props) {
   const draftInkRef = useRef(null)                  // 正在画的墨迹/擦除笔迹（ref 存点，避免 stale closure 丢点）
   const [draftInkTick, setDraftInkTick] = useState(0) // 仅驱动重绘
   const dragRef = useRef(null)                      // 指针会话状态
+  const cycleRef = useRef(null)                     // 层叠循环选中：同点连击位置（screen）
   const eraseGhostRef = useRef(null)                // 橡皮圆圈指示（屏幕空间 {x,y,r}；null 隐藏）
   const [hoverText, setHoverText] = useState(null)
   const hoverImageRef = useRef({ id: null, t0: 0, from: 1, to: 1 })  // 贴图悬停放大动画状态
@@ -183,8 +184,17 @@ export function CanvasStage(props) {
           return
         }
       }
-      const hit = hitTest(objectsRef.current, world.x, world.y, 6 / vp.zoom)
-      if (hit) {
+      // 同点层叠循环：连点同一位置在叠放对象间切换（第一个命中选中后，再点跳到其下的候选）
+      const { strict, interior } = hitChain(objectsRef.current, world.x, world.y, 6 / vp.zoom)
+      const candidates = strict.length ? strict : interior
+      if (candidates.length) {
+        const prev = selection.length === 1 ? selection[0] : null
+        const prevIdx = prev ? candidates.findIndex((o) => o.id === prev) : -1
+        const sameSpot = Math.hypot(pos.x - (cycleRef.current?.x ?? -1e4), pos.y - (cycleRef.current?.y ?? -1e4)) < 6
+        const hit = (prevIdx >= 0 && candidates.length > 1 && sameSpot)
+          ? candidates[(prevIdx + 1) % candidates.length]
+          : candidates[0]
+        cycleRef.current = { x: pos.x, y: pos.y }
         const multi = e.shiftKey
         let nextSel
         if (multi) nextSel = selection.includes(hit.id) ? selection.filter((id) => id !== hit.id) : [...selection, hit.id]
@@ -194,6 +204,7 @@ export function CanvasStage(props) {
         dragRef.current = { mode: 'move', ids: nextSel, last: pos, moved: false, from: world }
         return
       }
+      cycleRef.current = null
       if (!e.shiftKey) setSelection([])
       dragRef.current = { mode: 'marquee', start: pos, additive: e.shiftKey, base: e.shiftKey ? [...selection] : [] }
       return
@@ -236,12 +247,14 @@ export function CanvasStage(props) {
   }
 
   const runErase = (world) => {
-    // 像素擦除由 erase 笔迹对象在渲染层完成；这里只处理图形/文字/贴图的包围盒整删（可撤销）
+    // 像素擦除由 erase 笔迹在渲染层完成；这里处理图形/文字/贴图整删（可撤销）。
+    // 图形按笔画/边框命中（橡皮圆半径即命中容差），空心框内部划过不误删整框
     const r = settings.eraserSize / 2 / vp.zoom
     onCommitObjects((objects) => {
       for (let i = objects.length - 1; i >= 0; i--) {
         const obj = objects[i]
         if (obj.kind === 'ink' || obj.kind === 'erase') continue
+        if (obj.kind === 'shape') { if (hitShape(obj, world.x, world.y, r)) objects.splice(i, 1); continue }
         const b = objectBBox(obj)
         if (world.x >= b.x - r && world.x <= b.x + b.w + r && world.y >= b.y - r && world.y <= b.y + b.h + r) {
           objects.splice(i, 1)
@@ -415,8 +428,14 @@ export function CanvasStage(props) {
       const ds = draftShapeRef.current
       const w = Math.abs(ds.x2 - ds.x), h = Math.abs(ds.y2 - ds.y)
       if (w > 4 || h > 4) {
-        if (ds.type === 'line' || ds.type === 'arrow') onAddObject({ ...ds })
-        else onAddObject({ ...ds, x: Math.min(ds.x, ds.x2), y: Math.min(ds.y, ds.y2), w, h, x2: undefined, y2: undefined })
+        // 草稿临时 id 必须剥离：否则所有图形共享 'draft-shape'，选中其一等于全选
+        if (ds.type === 'line' || ds.type === 'arrow') onAddObject({ ...ds, id: undefined }, { select: true })
+        else {
+          const box = { ...ds, id: undefined, x: Math.min(ds.x, ds.x2), y: Math.min(ds.y, ds.y2), w, h }
+          delete box.x2
+          delete box.y2
+          onAddObject(box, { select: true })
+        }
       }
       draftShapeRef.current = null
       setShapeTick((n) => n + 1)

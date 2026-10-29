@@ -8,6 +8,19 @@
 export function App() {
   return (
     <>
+      {/* 手绘描边位移滤镜：挂 body 隐藏 svg，供 paper-theme.css 的 ::before filter:url(#ink-rough) 引用。 */}
+      <svg className="ink-defs" aria-hidden="true" focusable="false" width="0" height="0" style={{ position: 'absolute' }}>
+        <defs>
+          <filter id="ink-rough" x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.028" numOctaves="3" seed="11" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          <filter id="ink-rough-fine" x="-8%" y="-8%" width="116%" height="116%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.05 0.065" numOctaves="2" seed="5" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
       <div className="app" id="app">
         {/* 单条 chrome：侧栏开关 + 查询 Tab + 连接状态 + ⋯ */}
         <div className="workspace">
@@ -29,9 +42,6 @@ export function App() {
             <div className="query-surface" id="query-surface" role="tabpanel">
               <div className="editor-pane">
                 <div className="editor-host" id="editor-host"></div>
-                <div className="fab-dock" id="fab-dock">
-                  <button type="button" className="fab-execute" id="fab-run" title="执行当前语句" aria-label="执行当前语句" data-tip="执行当前语句">▶</button>
-                </div>
               </div>
               <div className="resizer bottom" id="resizer-bottom" hidden></div>
               <div className="results" id="results" hidden></div>

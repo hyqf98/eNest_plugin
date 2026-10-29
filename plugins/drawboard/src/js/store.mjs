@@ -36,11 +36,40 @@ export function makeDraft(name = '草稿 1') {
   return { id: draftId(), name, createdAt: Date.now(), updatedAt: Date.now(), objects: [], viewport: null }
 }
 
+/** 载入旧存档时修复共享 'draft-shape' 临时 id 的缺陷：重复 id 重发新号，保证选中/编辑按对象隔离 */
+export function normalizeDraftObjects(objects) {
+  if (!Array.isArray(objects)) return []
+  const seen = new Set()
+  for (const obj of objects) {
+    if (!obj || typeof obj !== 'object') continue
+    if (!obj.id || seen.has(obj.id)) obj.id = `o${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    seen.add(obj.id)
+  }
+  return objects
+}
+
+/** 宿主只收有限 JSON：undefined / NaN / Infinity 会让整次保存被拒，落盘前统一清洗。 */
+function sanitizeValue(value) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (Array.isArray(value)) return value.filter((item) => item !== undefined).map(sanitizeValue)
+  if (value && typeof value === 'object') {
+    const out = {}
+    for (const [key, item] of Object.entries(value)) {
+      if (item === undefined) continue
+      out[key] = sanitizeValue(item)
+    }
+    return out
+  }
+  return undefined
+}
+
 export function serializeDraft(draft) {
-  // objects 里的临时字段（_w/_measured/_born）不落盘
-  return {
+  // objects 里的临时字段（_w/_measured/_born）与 undefined/NaN 不落盘
+  return sanitizeValue({
     ...draft,
     updatedAt: Date.now(),
+    viewport: draft.viewport ?? null,
     objects: draft.objects.map((obj) => {
       const clean = { ...obj }
       delete clean._w
@@ -48,7 +77,7 @@ export function serializeDraft(draft) {
       delete clean._born
       return clean
     }),
-  }
+  })
 }
 
 export function createPersistence(kit) {

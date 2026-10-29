@@ -18,6 +18,19 @@ export function App() {
   }, [])
   return (
     <>
+      {/* 手绘描边位移滤镜：隐藏 svg 供 paper-theme.css 的 ::before filter:url(#ink-rough) 引用。 */}
+      <svg aria-hidden="true" focusable="false" width="0" height="0" style={{ position: 'absolute' }}>
+        <defs>
+          <filter id="ink-rough" x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.028" numOctaves="3" seed="11" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          <filter id="ink-rough-fine" x="-8%" y="-8%" width="116%" height="116%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.05 0.065" numOctaves="2" seed="5" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
       <div className="app" id="app">
         <div className="workbench-head"><button id="nav-toggle" className="icon-button" aria-label="显示连接导航" aria-controls="tree" title="连接导航">☰</button><span>中间件</span><span className="workbench-head-hint">连接与消息工作台</span><button id="open-shell" className="btn sm" hidden>在桌面打开</button></div>
         <div className="app-body">

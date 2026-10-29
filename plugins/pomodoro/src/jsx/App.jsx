@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPomodoroController } from '../timer/pomodoro.js'
+import { PanelView } from './PanelView.jsx'
 
 const api = window.enest || window.zapi
 const timer = createPomodoroController(api)
@@ -15,6 +16,7 @@ const RING = 339.292
 
 export function App() {
   const kitRef = useRef(null)
+  const [mode, setMode] = useState(() => api?.getLaunchMode?.() || 'shell')
   const [snapshot, setSnapshot] = useState(null)
   const [now, setNow] = useState(Date.now)
   const [task, setTask] = useState('')
@@ -24,6 +26,7 @@ export function App() {
   const [legacy, setLegacy] = useState(null)
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [todayStats, setTodayStats] = useState({ todayCount: 0, minutes: 0, weekCount: 0 })
   const [quickToday, setQuickToday] = useState('')
 
@@ -110,6 +113,10 @@ export function App() {
   const toggleRef = useRef(toggle)
   toggleRef.current = toggle
 
+  const openSettings = useCallback(() => {
+    void api.ui.openSettings().catch(error => kitRef.current?.toast(error.message, 'error'))
+  }, [])
+
   // —— 记录编辑 / 导出（等价原 handlers）——
   const openEdit = useCallback((r) => {
     editIdRef.current = r.id
@@ -141,7 +148,7 @@ export function App() {
       durationMs,
       counted: document.getElementById('record-counted').checked,
     })
-    document.getElementById('record-dialog').close()
+    document.getElementById('record-dialog')?.close()
   }, [call])
 
   const exportCsv = useCallback(() => {
@@ -208,6 +215,8 @@ export function App() {
       },
     })
     kitRef.current = kit
+    setMode(kit.mode)
+    const offMode = kit.onMode(setMode)
     kit.onSettings(() => {
       const snap = snapshotRef.current
       if (!snap || snap.state.status === 'idle') {
@@ -243,6 +252,7 @@ export function App() {
         if (legacyData && !(await kit.load('pomo_stats_v1_backup', null))) await kit.save('pomo_stats_v1_backup', legacyData)
         setReady(true)
       } catch (e) {
+        setLoadError(e.message)
         setHint(e.message)
         kit.toast(e.message, 'error')
       }
@@ -259,6 +269,7 @@ export function App() {
       offKey()
       offEnter?.()
       offClose?.()
+      offMode()
       kit.destroy?.()
     }
   }, [])
@@ -310,6 +321,35 @@ export function App() {
     setQuickToday(`今日 ${today.length} 次专注 · ${minutes} 分钟`)
   }, [snapshot, records])
 
+  const status = s?.status ?? 'idle'
+  const ms = status === 'idle'
+    ? (Number(focusMin) || 25) * 60000
+    : status === 'running' && s.deadline !== null ? Math.max(0, s.deadline - now) : s.remainingMs
+  const seconds = Math.ceil(ms / 1000)
+  const timeText = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0')
+  const statusText = status === 'idle' ? '准备开始' : status === 'running' ? phaseLabels[s.phase] + '进行中' : '已暂停 · ' + phaseLabels[s.phase]
+  const toggleText = status === 'running' ? '暂停' : status === 'paused' ? '继续计时' : '开始专注'
+  const total = status === 'idle' ? (Number(focusMin) || 25) * 60000
+    : (s.phase === 'focus' ? opts.focusMin : s.phase === 'break' ? opts.breakMin : opts.longBreakMin) * 60000
+  const remaining = total > 0 ? Math.min(1, Math.max(0, ms / total)) : 0
+  const ringOffset = RING * (1 - remaining)
+
+  if (mode === 'panel') {
+    return <PanelView
+      timeText={timeText}
+      statusText={statusText}
+      task={status === 'idle' ? task : opts.task}
+      remaining={remaining}
+      ready={ready}
+      busy={busy}
+      error={loadError}
+      todayCount={todayStats.todayCount}
+      toggleText={toggleText}
+      onToggle={() => void toggle()}
+      onExpand={() => { void api.ui.openInShell().catch(error => kitRef.current?.toast(error.message, 'error')) }}
+    />
+  }
+
   if (!s) {
     // 等价原 render() 的 if (!snapshot) return：快照未就绪时呈现静态初始 DOM
     return (
@@ -317,7 +357,7 @@ export function App() {
         <header>
           <h1>番茄钟</h1>
           <span className="shell-only">一次只做一件事</span>
-          <button data-open-settings>偏好设置</button>
+          <button onClick={openSettings}>偏好设置</button>
         </header>
         <main className="workspace">
           <section className="focus-panel">
@@ -380,18 +420,6 @@ export function App() {
       </div>
     )
   }
-  const ms = s.status === 'idle'
-    ? (Number(focusMin) || 25) * 60000
-    : s.status === 'running' && s.deadline !== null ? Math.max(0, s.deadline - now) : s.remainingMs
-  const seconds = Math.ceil(ms / 1000)
-  const timeText = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0')
-  const statusText = s.status === 'idle' ? '准备开始' : s.status === 'running' ? phaseLabels[s.phase] + '进行中' : '已暂停 · ' + phaseLabels[s.phase]
-  const toggleText = s.status === 'running' ? '暂停' : s.status === 'paused' ? '继续计时' : '开始专注'
-  const total = s.status === 'idle' ? (Number(focusMin) || 25) * 60000
-    : (s.phase === 'focus' ? opts.focusMin : s.phase === 'break' ? opts.breakMin : opts.longBreakMin) * 60000
-  const ringOffset = RING * (1 - Math.min(1, Math.max(0, ms / total)))
-
-
   const derivedPresetKey = `${Number(focusMin) || focusMin},${Number(breakMin) || breakMin}`
   const weekStart = new Date()
   weekStart.setHours(0, 0, 0, 0)
@@ -409,7 +437,7 @@ export function App() {
       <header>
         <h1>番茄钟</h1>
         <span className="shell-only">一次只做一件事</span>
-        <button data-open-settings>偏好设置</button>
+        <button onClick={openSettings}>偏好设置</button>
       </header>
       <main className="workspace">
         <section className="focus-panel">

@@ -4,6 +4,8 @@ import { RemoteFiles } from './files.js'
 import { createWorkspaceNavigation } from './workspaceNavigation.js'
 import { renderCompletionSettings } from './completionSettings.js'
 import { isReservedSshShortcut, displaySshShortcut } from './shortcutPolicy.js'
+import { PAPER_OPTIONS, applyPaper, normalizePaper } from './paper-theme.js'
+import { publishResourceState } from './resource-state.js'
 
 const host = createSshHost(window.enest || window.zapi)
 const mac = /Mac/.test(navigator.platform)
@@ -22,7 +24,7 @@ async function boot() {
   const bridge = window.SshWorkbenchBridge, store = bridge.store, app = document.querySelector('#app'), main = document.querySelector('.main'), workspace = document.querySelector('.workspace')
   if (!bridge || app.dataset.workbench) return
   app.dataset.workbench = 'ready'
-  let mode = host?.getLaunchMode?.() || 'shell', view = 'terminal', tool = 'processes', toolRevision = 0, activeKey = '', prefs = { shortcuts: {}, monitorInterval: 5000, ...await host?.storage?.get(PREFERENCES) }, activeEditor = null, toolData = [], sampleBusy = false, lastSample = null, transferTimer = null
+  let mode = host?.getLaunchMode?.() || 'shell', view = 'terminal', tool = 'processes', toolRevision = 0, activeKey = '', prefs = { shortcuts: {}, monitorInterval: 5000, ...await host?.storage?.get(PREFERENCES) }, activeEditor = null, toolData = [], sampleBusy = false, lastSample = null, transferTimer = null, disposed = false
   const editors = new Map(), registry = new CommandRegistry()
   const toast = (message, type = 'info') => bridge.api.toast(message, type)
   const error = e => toast(e?.message || String(e), 'error')
@@ -88,6 +90,7 @@ async function boot() {
   const navigation = createWorkspaceNavigation({ app, bridge, changeView, openSettings: () => void settings(), onLayout: () => requestAnimationFrame(() => bridge.activeSession()?.term?.fit()) })
 
   function changeView(next) {
+    if (mode === 'panel') return
     if (next === 'connections') { navigation.revealConnections(); return }
     const settingsPage = main.querySelector('.wb-settings-page'); if (settingsPage) settingsPage.hidden = true
     view = next; app.dataset.view = view; document.documentElement.dataset.sshView = view
@@ -100,6 +103,7 @@ async function boot() {
   function setMode(next) {
     mode = next; document.documentElement.dataset.launchMode = mode
     navigation.setMode(mode)
+    if (mode === 'panel') return
     header.querySelector('.wb-mode-label').textContent = mode === 'quick' ? '快速连接' : '工作台'
     if (mode === 'quick') void host?.ui?.resize?.({ width: 720, height: 420 })
     changeView(view)
@@ -167,7 +171,7 @@ async function boot() {
   window.addEventListener('ssh-activate-terminal', () => changeView('terminal'))
   window.addEventListener('ssh-terminal-command', event => { void registry.run(event.detail) })
   document.addEventListener('keydown', event => {
-    if (isSshCompositionEvent(event) || event.defaultPrevented || event.target.closest?.('[data-binding]') || document.querySelector('dialog[open],.modal-root.show')) return
+    if (mode === 'panel' || isSshCompositionEvent(event) || event.defaultPrevented || event.target.closest?.('[data-binding]') || document.querySelector('dialog[open],.modal-root.show')) return
     // macOS Control belongs to the remote terminal; Mod shortcuts require Command.
     if (mac && event.ctrlKey && !event.metaKey) return
     const chord = normalizeShortcut(event), bound = registry.list().find(command => registry.shortcut(command.id) === chord)
@@ -332,17 +336,25 @@ async function boot() {
   }
 
   async function sample() {
-    if (!connected() || sampleBusy || document.hidden) return
+    if (disposed || !connected() || sampleBusy || document.hidden) return
     const sessionId = bridge.activeSession().sessionId; sampleBusy = true
+    publishResourceState({ loading: true })
     try {
       const value = await request('system.snapshot')
-      if (bridge.activeSession()?.sessionId !== sessionId) return
+      if (disposed || bridge.activeSession()?.sessionId !== sessionId) return
       lastSample = value
+      publishResourceState({ sample: value, sampledAt: value.ts || Date.now(), loading: false, error: '' })
       const network = value.net.reduce((sum,x) => sum + x.rxKbps + x.txKbps, 0)
       summary.innerHTML = `<button data-resource="processes"><span>CPU</span><strong>${percentage(value.cpuPercent)}</strong></button><button data-resource="processes"><span>内存</span><strong>${percentage(value.memPercent)}</strong><small>${formatBytes(value.memUsed)} / ${formatBytes(value.memTotal)}</small></button><button data-resource="disks"><span>磁盘</span><strong>${percentage(value.disks[0]?.usedPercent)}</strong></button><button data-resource="ports"><span>网络</span><strong>${network.toFixed(1)} KB/s</strong></button><span class="wb-platform">${({ linux:'Linux',darwin:'macOS',win32:'Windows' })[value.platform]}</span><button data-resource="ports">端口</button><button data-resource="processes">进程</button><button data-resource="integration">启用提示</button>`
       summary.querySelectorAll('[data-resource]').forEach(button => button.onclick = () => { const resource = button.dataset.resource; if (resource === 'integration') void registry.run('integration'); else if (resource === 'disks') inspect('磁盘使用', value.disks.map(d => `${d.mount} · ${percentage(d.usedPercent)} · ${formatBytes(d.used)} / ${formatBytes(d.total)}`).join('\n')); else openTool(resource) })
-    } catch (e) { if (bridge.activeSession()?.sessionId !== sessionId) return; summary.innerHTML = `<span class="wb-inline-error" title="${esc(e.message)}">资源采集暂不可用</span><button data-retry>重试</button><button data-integration>启用提示</button>`; summary.querySelector('[data-retry]').onclick = sample; summary.querySelector('[data-integration]').onclick = () => registry.run('integration') }
-    finally { sampleBusy = false }
+    } catch (e) {
+      if (disposed || bridge.activeSession()?.sessionId !== sessionId) return
+      publishResourceState({ loading: false, error: e?.message || '资源采集暂不可用' })
+      summary.innerHTML = `<span class="wb-inline-error" title="${esc(e.message)}">资源采集暂不可用</span><button data-retry>重试</button><button data-integration>启用提示</button>`; summary.querySelector('[data-retry]').onclick = sample; summary.querySelector('[data-integration]').onclick = () => registry.run('integration')
+    } finally {
+      sampleBusy = false
+      if (!disposed && connected() && bridge.activeSession()?.sessionId !== sessionId) void sample()
+    }
   }
   function onWorkspaceChange(event) {
     const session = bridge.activeSession(), key = session?.sessionId || session?.tabId || ''
@@ -356,20 +368,31 @@ async function boot() {
     context.querySelector('[data-hints]').disabled = !session?.sessionId
     statusbar.querySelector('.wb-connection-state').textContent = session ? `${store.findProfile(session.profileId)?.name || session.profileId} · ${session.status === 'connected' ? '已连接' : session.status === 'connecting' ? '连接中' : '未连接'}` : '未连接'
     statusbar.querySelector('.wb-connection-state').title = statusbar.querySelector('.wb-connection-state').textContent
-    if (key !== activeKey) {
-      activeKey = key; lastSample = null; toolRevision++; summary.innerHTML = connected() ? '<span>正在读取服务器资源…</span>' : '<span>连接后显示服务器资源</span>'; void files.refresh(); void sample()
-      if (dock.classList.contains('open')) void loadTool()
+    const changed = key !== activeKey
+    publishResourceState({
+      sessionId: session?.sessionId || null,
+      name: session?.title || profile?.name || '',
+      target: profile ? `${profile.username}@${profile.host}:${profile.port || 22}` : '',
+      status: session?.status || 'idle',
+      ...(changed ? { sample: null, sampledAt: 0, loading: connected(), error: '' } : {}),
+    })
+    if (changed) {
+      activeKey = key; lastSample = null; toolRevision++; summary.innerHTML = connected() ? '<span>正在读取服务器资源…</span>' : '<span>连接后显示服务器资源</span>'
+      if (mode !== 'panel') void files.refresh()
+      void sample()
+      if (mode !== 'panel' && dock.classList.contains('open')) void loadTool()
     }
-    if (event?.detail?.connected) { if (app.dataset.compactNavigation === 'true') navigation.closeConnections(false); changeView('terminal') }
+    if (mode !== 'panel' && event?.detail?.connected) { if (app.dataset.compactNavigation === 'true') navigation.closeConnections(false); changeView('terminal') }
   }
   window.addEventListener('ssh-workspace-change', onWorkspaceChange)
   host?.on('ssh.exit', () => setTimeout(onWorkspaceChange, 0))
   onWorkspaceChange()
+  bridge.refreshResources = sample
   let sampleTimer = setInterval(() => void sample(), Math.max(2000, Number(prefs.monitorInterval) || 5000))
-  transferTimer = setInterval(() => { if (dock.classList.contains('open') && tool === 'transfers') void loadTool(true) }, 1000)
+  transferTimer = setInterval(() => { if (mode !== 'panel' && dock.classList.contains('open') && tool === 'transfers') void loadTool(true) }, 1000)
   host?.onOut?.(() => { /* Remote sessions and tasks remain alive; only visible work pauses. */ })
-  host?.onDestroy?.(() => { clearInterval(sampleTimer); clearInterval(transferTimer); navigation.dispose(); fileObserver.disconnect(); for (const doc of editors.values()) doc.editor?.dispose?.() })
-  host?.onEnter?.(event => { if (event.code === 'settings') void settings(); else if (event.code === 'files') changeView('files'); else onWorkspaceChange() })
+  host?.onDestroy?.(() => { disposed = true; delete bridge.refreshResources; clearInterval(sampleTimer); clearInterval(transferTimer); navigation.dispose(); fileObserver.disconnect(); for (const doc of editors.values()) doc.editor?.dispose?.() })
+  host?.onEnter?.(event => { if (mode === 'panel') onWorkspaceChange(); else if (event.code === 'settings') void settings(); else if (event.code === 'files') changeView('files'); else onWorkspaceChange() })
 
   async function openFile(path) {
     const sessionId = bridge.activeSession()?.sessionId, key = `${sessionId}:${path}`
@@ -405,13 +428,23 @@ async function boot() {
     let existing = document.querySelector('.wb-settings-page'); if (existing) { existing.hidden = false; navigation.setView('settings'); if (section !== 'terminal') existing.querySelector(`[data-section="${section}"]`)?.click(); existing.querySelector('[data-back]').focus(); return }
     const returnFocus = document.activeElement
     const page = document.createElement('section'); page.className = 'wb-settings-page'; page.setAttribute('aria-label', 'SSH 设置'); main.append(page); navigation.setView('settings')
-    page.innerHTML = `<header><button data-back>← 返回工作区</button><strong>SSH 设置</strong><span>仅作用于 SSH 插件</span></header><div class="wb-settings-layout"><nav>${[['terminal','终端与历史'],['completion','命令提示'],['shortcuts','快捷键'],['monitor','资源监控'],['trust','可信服务器']].map(([id,label]) => `<button data-section="${id}">${label}</button>`).join('')}</nav><div class="wb-settings-content"></div></div>`
+    page.innerHTML = `<header><button data-back>← 返回工作区</button><strong>SSH 设置</strong><span>仅作用于 SSH 插件</span></header><div class="wb-settings-layout"><nav>${[['appearance','界面主题'],['terminal','终端与历史'],['completion','命令提示'],['shortcuts','快捷键'],['monitor','资源监控'],['trust','可信服务器']].map(([id,label]) => `<button data-section="${id}">${label}</button>`).join('')}</nav><div class="wb-settings-content"></div></div>`
     const content = page.querySelector('.wb-settings-content')
     const close = () => { page.hidden = true; navigation.setView(view); if (returnFocus?.isConnected) returnFocus.focus(); else bridge.termFocus() }
     page.querySelector('[data-back]').onclick = close
     page.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close() } })
     async function show(next) {
       section = next; page.querySelectorAll('[data-section]').forEach(button => button.classList.toggle('active', button.dataset.section === next))
+      if (next === 'appearance') {
+        const paper = normalizePaper(store.state.ui.paper)
+        content.innerHTML = `<h2>界面主题</h2><p>纸感手绘主题：墨色描边与纸面色板，仅作用于 SSH 插件界面；终端区保持等宽字体与自身底色。「跟随明暗」在浅色环境用白纸、深色环境用墨纸。</p><div class="wb-theme-options" role="group" aria-label="纸面界面主题">${PAPER_OPTIONS.map((item) => `<button type="button" class="wb-theme-option" data-paper-option="${item.id}" aria-pressed="${paper === item.id}"><span class="wb-theme-swatch" aria-hidden="true">${item.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span><span class="wb-theme-copy"><strong>${item.label}</strong><small>${item.desc}</small></span></button>`).join('')}</div>`
+        content.querySelectorAll('[data-paper-option]').forEach((button) => button.onclick = () => {
+          const next2 = normalizePaper(button.dataset.paperOption)
+          store.setUi({ paper: next2 }, true)
+          applyPaper(next2)
+          content.querySelectorAll('[data-paper-option]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)))
+        })
+      }
       if (next === 'completion') renderCompletionSettings(content, { store, toast, integrate: enableSessionHints, connected, shortcuts: bridge.completionShortcuts })
       if (next === 'terminal') {
         content.innerHTML = `<h2>终端与历史</h2><form class="wb-settings-form"><label>终端字号<input name="fontSize" type="number" min="10" max="28" value="${store.state.ui.fontSize || 13}"></label><label><input type="checkbox" name="selectCopy" ${store.state.ui.selectCopy ? 'checked' : ''}>选中后复制</label><label><input type="checkbox" name="recordHistory" ${store.state.ui.recordHistory ? 'checked' : ''}>记录增强提示识别到的命令历史</label><label><input type="checkbox" name="maskHistory" ${store.state.ui.maskHistory ? 'checked' : ''}>历史中的常见密钥字段脱敏</label><p>历史仅采集明确的 Bash / Zsh 命令提示符。密码提示和全屏程序不参与采集。</p><button class="btn primary" type="submit">保存</button></form>`

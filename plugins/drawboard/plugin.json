@@ -1,8 +1,8 @@
 {
   "id": "com.github.eNest.drawboard",
   "name": "画板",
-  "version": "1.0.0",
-  "description": "手绘风自由画板：压感钢笔、荧光笔、手绘图形与文字、贴图标注，滚轮缩放空格平移，多页草稿自动保存，一键复制与导出 PNG/JPG。",
+  "version": "0.0.1",
+  "description": "手绘风自由画板：压感钢笔、荧光笔、手绘图形与文字、贴图标注，滚轮缩放空格平移，多页草稿自动保存，一键复制与导出 PNG/JPG；并作为 eNest MCP 工具供 AI 直接绘制草图与回看截图。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "设计",
@@ -13,6 +13,516 @@
   "permissions": [
     "clipboard.writeImage"
   ],
+  "contributes": {
+    "mcpTools": [
+      {
+        "id": "capture",
+        "title": "Capture draft as image",
+        "description": "Render the draft to a PNG/JPEG image and return it as MCP image content so the AI can see the drawing. Default: the whole content bounding box of the active draft. Use ids to capture only selected elements, draftId for another draft, smaller maxDim or format jpeg to keep the result under the 1MiB limit.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "draftId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Target draft id; omit or use the value from draft.list activeId for the active draft."
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "maxItems": 500,
+              "description": "Only these element ids (erase strokes overlapping them apply automatically)."
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpeg"
+              ],
+              "description": "Image format, default png; jpeg is much smaller for large drafts."
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 400,
+              "description": "World-space margin around content, default 24."
+            },
+            "maxDim": {
+              "type": "number",
+              "minimum": 160,
+              "maximum": 2400,
+              "description": "Longest output edge in pixels, default 1600; auto-downscaled if the result would exceed the size limit."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "draft.list",
+        "title": "List drafts",
+        "description": "List all drafts with id, name, updatedAt, object count and which draft is active.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "draft.get",
+        "title": "Read draft objects",
+        "description": "Return the draft's element objects as JSON (structuredContent) so the AI can inspect and then update/delete them. Coordinates are world units. Results are capped; use limit and check the truncated flag.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "draftId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1200,
+              "description": "Max objects returned, default 400."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "draft.create",
+        "title": "Create draft",
+        "description": "Create a new draft page. Optionally copy elements from an existing draft, and optionally switch it to active.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "copyFrom": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Draft id to copy elements from."
+            },
+            "switchActive": {
+              "type": "boolean",
+              "description": "Make the new draft the active one, default false."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "draft.rename",
+        "title": "Rename draft",
+        "description": "Rename a draft page.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "draftId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Target draft; defaults to the active draft."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "draft.switch",
+        "title": "Switch active draft",
+        "description": "Switch which draft page is active (visible when the board opens). Other write tools accept draftId directly, so switching is usually unnecessary.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "draftId": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "draftId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "draft.clear",
+        "title": "Clear draft",
+        "description": "Remove ALL elements from a draft. Destructive; the active draft can be recovered with history.undo.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "draftId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Target draft; defaults to the active draft."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "elements.add",
+        "title": "Add elements",
+        "description": "Draw elements on the board in one batch. Element kinds and required fields: ink {points, color?, size?, highlighter?}; shape {type:rect|ellipse|line|arrow, x, y, w?, h? for rect/ellipse, x2,y2 for line/arrow, color?, stroke?, fill? (hex or none), seed?}; text {x, y, text, size?, color?}; erase {points, size?} pixel-erases ink it passes over; image {dataUrl:base64 png/jpeg/webp/gif, x?, y?, width?}. points items are [x,y] / [x,y,pressure 0..1] arrays or {x,y,p?} objects (the form draft.get returns). Colors are #hex; omit to use the board theme ink. Coordinates are world units (origin = initial canvas center). Returns created ids for later update/delete/capture. Default target is the active draft.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "elements": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 300,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ink",
+                      "shape",
+                      "text",
+                      "erase",
+                      "image"
+                    ]
+                  },
+                  "points": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "array",
+                          "minItems": 2,
+                          "maxItems": 3,
+                          "items": {
+                            "type": "number",
+                            "minimum": -1000000,
+                            "maximum": 1000000
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "type": "number",
+                              "minimum": -1000000,
+                              "maximum": 1000000
+                            },
+                            "y": {
+                              "type": "number",
+                              "minimum": -1000000,
+                              "maximum": 1000000
+                            },
+                            "p": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "rect",
+                      "ellipse",
+                      "line",
+                      "arrow"
+                    ]
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "x2": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "y2": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "w": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "h": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 8,
+                    "maximum": 4096
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{3,8}$"
+                  },
+                  "fill": {
+                    "type": "string",
+                    "pattern": "^(none|#[0-9a-fA-F]{3,8})$"
+                  },
+                  "stroke": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 24
+                  },
+                  "size": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 240
+                  },
+                  "seed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "highlighter": {
+                    "type": "boolean"
+                  },
+                  "dataUrl": {
+                    "type": "string",
+                    "maxLength": 512000
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "draftId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Target draft; defaults to the active draft."
+            }
+          },
+          "required": [
+            "elements"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "elements.update",
+        "title": "Update elements",
+        "description": "Modify elements by id. Per update: {id, plus any of dx,dy (translate, all kinds incl. ink), x,y (absolute reposition for non-stroke kinds), color, size, text (text elements), stroke/fill/seed/type (shapes), width/height (images), bringToFront, sendToBack}. Size limits per kind are enforced.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "updates": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 300,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "dx": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "dy": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": -1000000,
+                    "maximum": 1000000
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{3,8}$"
+                  },
+                  "size": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 240
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "stroke": {
+                    "type": "number",
+                    "minimum": 0.5,
+                    "maximum": 24
+                  },
+                  "fill": {
+                    "type": "string",
+                    "pattern": "^(none|#[0-9a-fA-F]{3,8})$"
+                  },
+                  "seed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "rect",
+                      "ellipse",
+                      "line",
+                      "arrow"
+                    ]
+                  },
+                  "highlighter": {
+                    "type": "boolean"
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 8,
+                    "maximum": 4096
+                  },
+                  "height": {
+                    "type": "number",
+                    "minimum": 8,
+                    "maximum": 4096
+                  },
+                  "bringToFront": {
+                    "type": "boolean"
+                  },
+                  "sendToBack": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "draftId": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "updates"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "elements.delete",
+        "title": "Delete elements",
+        "description": "Delete elements by id list.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "ids": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2000,
+              "items": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            "draftId": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "ids"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "history.undo",
+        "title": "Undo",
+        "description": "Undo the last change on the ACTIVE draft only (shares the undo stack with manual editing).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "history.redo",
+        "title": "Redo",
+        "description": "Redo the last undone change on the ACTIVE draft only.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    ]
+  },
   "window": {
     "width": 960,
     "height": 640,

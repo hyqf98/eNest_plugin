@@ -5,19 +5,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PluginKit from '@enest/plugin-kit'
 import { bindFileInput } from '@enest/plugin-kit/file-inputs'
 import { CanvasStage } from './CanvasStage.jsx'
-import { Toolbar } from './Toolbar.jsx'
 import { DraftTabs } from './DraftTabs.jsx'
+import { ColorDock } from './ColorDock.jsx'
 import { DraftPanel } from './DraftPanel.jsx'
 import { openCascadeMenu } from './CascadeMenu.jsx'
 import { MenuColorPicker, MenuSlider } from './MenuWidgets.jsx'
 import { TextEditOverlay } from './TextEditOverlay.jsx'
 import { SettingsDialog, SettingsFab } from './SettingsDialog.jsx'
-import { TooltipProvider } from '../ui/index.jsx'
 import { contentBBox, cloneObjects, makeText, makeShape, uid } from '../js/objects.mjs'
 import { makeViewport, fitToContent, ZOOM_STEP } from '../js/viewport.mjs'
 import { THEMES, normalizeSettings } from '../js/theme.mjs'
 import { composeExport } from '../js/render.mjs'
-import { createPersistence, makeDraft, putImageBlob, getImageBlob } from '../js/store.mjs'
+import { createPersistence, makeDraft, normalizeDraftObjects, putImageBlob, getImageBlob } from '../js/store.mjs'
+import { createAiActions } from '../js/aiActions.mjs'
+import { registerDrawboardMcp } from '../js/mcp.mjs'
 
 const UNDO_LIMIT = 50
 const TOOLS_FOR_MENU = [
@@ -59,11 +60,15 @@ export function App() {
   const [drafts, setDrafts] = useState([])
   const [activeId, setActiveId] = useState(null)
   const objectsRef = useRef([])           // 当前草稿对象（可变，渲染直读）
+  const draftsRef = useRef(drafts); draftsRef.current = drafts
+  const activeIdRef = useRef(activeId); activeIdRef.current = activeId
+  const selectionRef = useRef([])         // 在 render 后与 selection 同步；AI 动作同步预写
   const [, forceObjects] = useState(0)    // 对象变更的 React 通知
   const [objectsTick, setObjectsTick] = useState(0) // 传给 CanvasStage 触发拖动中实时重绘（橡皮/移动）
   const [vp, setVp] = useState(makeViewport())
   const vpRef = useRef(vp); vpRef.current = vp
   const [selection, setSelection] = useState([])
+  selectionRef.current = selection
   const [tool, setTool] = useState('pen')
   const toolRef = useRef(tool); toolRef.current = tool
   const [settings, setSettings] = useState(normalizeSettings(null))
@@ -121,10 +126,13 @@ export function App() {
     })
   }, [activeId, persistNow])
 
-  const addObject = useCallback((obj) => {
-    commitObjects((objects) => { objects.push({ ...obj, id: obj.id || uid(), _born: performance.now() }) })
+  const addObject = useCallback((obj, { select = false } = {}) => {
+    const finalObj = { ...obj, id: obj.id || uid(), _born: performance.now() }
+    commitObjects((objects) => { objects.push(finalObj) })
     syncDraftDoc()
-    setSelection([])
+    setSelection(select ? [finalObj.id] : [])
+    if (select) setTool('select')
+    return finalObj
   }, [commitObjects, syncDraftDoc])
 
   /* ---------- 撤销/重做 ---------- */
@@ -214,7 +222,8 @@ export function App() {
       const center = atScreen
         ? { x: (atScreen.x - vpRef.current.x) / vpRef.current.zoom, y: (atScreen.y - vpRef.current.y) / vpRef.current.zoom }
         : { x: (0 - vpRef.current.x) / vpRef.current.zoom, y: (0 - vpRef.current.y) / vpRef.current.zoom }
-      const obj = { id: uid(), kind: 'image', x: center.x - w / 2, y: center.y - h / 2, w, h, blobId, dataUrl: blobId ? undefined : dataUrl }
+      const obj = { id: uid(), kind: 'image', x: center.x - w / 2, y: center.y - h / 2, w, h, blobId }
+      if (!blobId) obj.dataUrl = dataUrl
       if (blobId) setImages((prev) => new Map(prev).set(blobId, img))
       else setImages((prev) => new Map(prev).set(`inline:${obj.id}`, img))
       addObject(obj)
@@ -488,6 +497,9 @@ export function App() {
     // 当前草稿回写
     const withCurrent = drafts.map((d) => (d.id === activeId ? { ...d, objects: JSON.parse(JSON.stringify(objectsRef.current)), viewport: vpRef.current } : d))
     const next = withCurrent.map((d) => ({ ...d }))
+    draftsRef.current = next
+    activeIdRef.current = id
+    selectionRef.current = []
     setDrafts(next)
     persistRef.current?.saveData({ version: 1, activeId: id, drafts: next })
     objectsRef.current = JSON.parse(JSON.stringify(target.objects || []))
@@ -501,6 +513,9 @@ export function App() {
   const createDraft = useCallback(() => {
     const draft = makeDraft(`草稿 ${drafts.length + 1}`)
     const next = [...drafts.map((d) => (d.id === activeId ? { ...d, objects: JSON.parse(JSON.stringify(objectsRef.current)), viewport: vpRef.current } : d)), draft]
+    draftsRef.current = next
+    activeIdRef.current = draft.id
+    selectionRef.current = []
     setDrafts(next)
     persistRef.current?.saveData({ version: 1, activeId: draft.id, drafts: next })
     objectsRef.current = []
@@ -514,6 +529,7 @@ export function App() {
     if (!src) return
     const copy = { ...JSON.parse(JSON.stringify(src)), id: `d${Date.now().toString(36)}`, name: `${src.name} 副本`, createdAt: Date.now(), updatedAt: Date.now() }
     const next = [...drafts, copy]
+    draftsRef.current = next
     setDrafts(next)
     persistRef.current?.saveData({ version: 1, activeId, drafts: next })
   }, [drafts, activeId])
@@ -521,6 +537,7 @@ export function App() {
   const renameDraft = useCallback((id, name) => {
     setDrafts((prev) => {
       const next = prev.map((d) => (d.id === id ? { ...d, name } : d))
+      draftsRef.current = next
       persistRef.current?.saveData({ version: 1, activeId, drafts: next })
       return next
     })
@@ -531,7 +548,10 @@ export function App() {
     setDrafts((prev) => {
       const next = prev.filter((d) => d.id !== id)
       const nextActive = id === activeId ? next[0].id : activeId
+      draftsRef.current = next
       if (id === activeId) {
+        activeIdRef.current = nextActive
+        selectionRef.current = []
         setActiveId(nextActive)
         objectsRef.current = JSON.parse(JSON.stringify(next[0].objects || []))
         setSelection([]); notifyObjects()
@@ -558,6 +578,7 @@ export function App() {
       let nextActive
       if (data) {
         nextDrafts = data.drafts
+        for (const d of nextDrafts) d.objects = normalizeDraftObjects(d.objects)
         nextActive = data.drafts.some((d) => d.id === data.activeId) ? data.activeId : data.drafts[0].id
       } else {
         const draft = makeDraft('草稿 1')
@@ -606,6 +627,24 @@ export function App() {
       kit.destroy()
     }
   }, [notifyObjects])
+
+  /* ---------- AI/MCP 动作层（隐藏冷启动同样可用；注册一次，键集合须与 manifest 一致） ---------- */
+
+  const aiRef = useRef(null)
+  if (!aiRef.current) {
+    aiRef.current = createAiActions({
+      objectsRef, draftsRef, activeIdRef, selectionRef, imagesRef, settingsRef, vpRef,
+      undoRef, redoRef, kitRef, persistRef,
+      setDrafts, setSelection, setActiveId, setVp, setImages, setUndoTick,
+      notifyObjects, persistNow,
+    })
+  }
+
+  useEffect(() => {
+    if (!ready) return
+    // 业务初始化完成后立即注册（不等 onEnter：MCP 冷启动页面是隐藏的）
+    void registerDrawboardMcp(aiRef.current).catch(() => { /* 宿主不支持 MCP 或注册握手失败：静默降级为纯手绘 */ })
+  }, [ready])
 
   /* ---------- 设置持久化 ---------- */
 
@@ -683,81 +722,81 @@ export function App() {
   }
 
   return (
-    <TooltipProvider>
-      <div className="db-app" data-paper-theme={theme.id}>
-        <Toolbar
-          theme={theme}
-          settings={settings}
-          onOpenColorPicker={(ev) => {
-            const r = ev.currentTarget.getBoundingClientRect()
-            openCascadeMenu(r.left, r.bottom + 6, [
-              { key: 'palette', label: '选择墨色', widget: () => <MenuColorPicker palette={theme.palette} current={settingsRef.current.color || theme.ink} onPick={(c) => setSettings((s) => ({ ...s, color: c === theme.ink ? null : c }))} /> },
-              { key: 'paletteAuto', label: '跟随主题墨色', hint: '自动' },
-            ], (key) => { if (key === 'paletteAuto') setSettings((s) => ({ ...s, color: null })) })
-          }}
-          canUndo={undoRef.current.length > 0} canRedo={redoRef.current.length > 0}
-          onUndo={undo} onRedo={redo}
-        />
-        <DraftTabs
+    <div className="db-app" data-paper-theme={theme.id} style={{ '--paper': theme.paper, '--ink': theme.ink }}>
+      <svg className="db-defs" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs>
+          {/* 手绘描边：草稿版 Tab / 按钮的边框用它做轻微抖动，避免圆角贴皮的规整感 */}
+          <filter id="db-wobble" x="-12%" y="-12%" width="124%" height="124%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.032" numOctaves="2" seed="9" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.8" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
+      <DraftTabs
+        drafts={drafts}
+        activeId={activeId}
+        onSelect={switchDraft}
+        onCreate={createDraft}
+        onRename={renameDraft}
+        onDelete={deleteDraft}
+      />
+      <div className="db-body">
+        <DraftPanel
+          open={draftsOpen}
           drafts={drafts}
           activeId={activeId}
           onSelect={switchDraft}
           onCreate={createDraft}
           onRename={renameDraft}
+          onDuplicate={duplicateDraft}
           onDelete={deleteDraft}
+          onClose={() => setDraftsOpen(false)}
         />
-        <div className="db-body">
-          <DraftPanel
-            open={draftsOpen}
-            drafts={drafts}
-            activeId={activeId}
-            onSelect={switchDraft}
-            onCreate={createDraft}
-            onRename={renameDraft}
-            onDuplicate={duplicateDraft}
-            onDelete={deleteDraft}
-            onClose={() => setDraftsOpen(false)}
+        <div className="db-stage-wrap">
+          <CanvasStage
+            objectsRef={objectsRef}
+            objectsTick={objectsTick}
+            images={images}
+            vp={vp} setVp={setVp}
+            tool={tool} settings={settings} theme={theme}
+            selection={selection} setSelection={setSelection}
+            onCommitObjects={commitObjects}
+            onAddObject={addObject}
+            onTextEdit={startTextEdit}
+            onContextMenu={onCanvasContextMenu}
+            spaceDown={spaceDown}
           />
-          <div className="db-stage-wrap">
-            <CanvasStage
-              objectsRef={objectsRef}
-              objectsTick={objectsTick}
-              images={images}
-              vp={vp} setVp={setVp}
-              tool={tool} settings={settings} theme={theme}
-              selection={selection} setSelection={setSelection}
-              onCommitObjects={commitObjects}
-              onAddObject={addObject}
-              onTextEdit={startTextEdit}
-              onContextMenu={onCanvasContextMenu}
-              spaceDown={spaceDown}
+          {editing && (
+            <TextEditOverlay
+              editing={editing}
+              vp={vp}
+              color={settings.color}
+              theme={theme}
+              onCommit={commitTextEdit}
+              onCancel={() => setEditing(null)}
             />
-            {editing && (
-              <TextEditOverlay
-                editing={editing}
-                vp={vp}
-                color={settings.color}
-                theme={theme}
-                onCommit={commitTextEdit}
-                onCancel={() => setEditing(null)}
-              />
-            )}
-            <SettingsFab onClick={() => setSettingsOpen(true)} />
-          </div>
+          )}
+          <ColorDock
+            palette={theme.palette}
+            color={settings.color}
+            themeInk={theme.ink}
+            onChange={(color) => setSettings((s) => ({ ...s, color }))}
+          />
+          <SettingsFab onClick={() => setSettingsOpen(true)} />
         </div>
-        <div className="db-status">
-          <span>{objectsRef.current.filter((o) => o.kind !== 'erase').length} 项 · 已选 {selection.length}</span>
-          <span className="db-status-zoom">
-            <button type="button" className="db-zoom-btn" aria-label="缩小" onClick={() => zoomBy(1 / ZOOM_STEP)}>−</button>
-            <span className="db-zoom-value">{Math.round(vp.zoom * 100)}%</span>
-            <button type="button" className="db-zoom-btn" aria-label="放大" onClick={() => zoomBy(ZOOM_STEP)}>+</button>
-            <button type="button" className="db-zoom-btn db-fit" aria-label="适配内容" title="适配全部内容" onClick={focusContent}>⤢</button>
-          </span>
-        </div>
-        <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden />
-        <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} settings={settings} setSettings={setSettings} />
-        <span data-undo-tick={undoTick} hidden />
       </div>
-    </TooltipProvider>
+      <div className="db-status">
+        <span>{objectsRef.current.filter((o) => o.kind !== 'erase').length} 项 · 已选 {selection.length}</span>
+        <span className="db-status-zoom">
+          <button type="button" className="db-zoom-btn" aria-label="缩小" onClick={() => zoomBy(1 / ZOOM_STEP)}>−</button>
+          <span className="db-zoom-value">{Math.round(vp.zoom * 100)}%</span>
+          <button type="button" className="db-zoom-btn" aria-label="放大" onClick={() => zoomBy(ZOOM_STEP)}>+</button>
+          <button type="button" className="db-zoom-btn db-fit" aria-label="适配内容" title="适配全部内容" onClick={focusContent}>⤢</button>
+        </span>
+      </div>
+      <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} settings={settings} setSettings={setSettings} />
+      <span data-undo-tick={undoTick} hidden />
+    </div>
   )
 }

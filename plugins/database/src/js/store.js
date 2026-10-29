@@ -30,7 +30,7 @@ export const state = {
     learnUsage: true,
     exportBom: true,
     autoAliasAfterTable: false,
-    workbenchTheme: 'graphite',
+    paper: 'auto', // auto | paper | cream | dark | board（纸感手绘主题；替代旧 workbenchTheme 材质变体）
     leftTab: 'sessions' // sessions | connections | tree | history
   },
   // runtime

@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.json-tools",
   "name": "JSON 工具",
-  "version": "1.4.1",
+  "version": "0.0.1",
   "description": "无损数字 JSON 格式化、路径查询、TypeScript 类型生成、统计、树浏览与差异比较。",
   "author": "eNest Labs",
   "main": "index.html",

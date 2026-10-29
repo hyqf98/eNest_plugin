@@ -11,6 +11,7 @@ import { backend, backendReady } from '../js/backend.js'
 import { fileIcon } from '../js/icons.js'
 import { formatSize, formatWhen, highlightName, parseQuery } from '../js/query.js'
 import { createPreview } from '../js/preview.js'
+import { PanelView } from './PanelView.jsx'
 
 const api = () => window.enest || window.zapi
 const escape = PluginKit.escape
@@ -42,7 +43,7 @@ export function App() {
   const [status, setStatus] = useState({ text: '正在检测搜索引擎…', kind: '' })
   const [booted, setBooted] = useState(false)
   const [trashText, setTrashText] = useState('')
-  const [mode, setMode] = useState(null) // kit.mode 镜像（quick 行为分流）
+  const [mode, setMode] = useState(() => api()?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
 
   // latest-ref 桥接：可变搜索状态供回调读取最新值
   const stateRef = useRef({})
@@ -67,9 +68,13 @@ export function App() {
 
   // —— 预览面板（原 preview.js 工厂原样复用）——
   useEffect(() => {
-    if (!previewRef.current || previewApiRef.current) return
-    previewApiRef.current = createPreview(previewRef.current)
-  }, [])
+    if (mode !== 'shell' || !previewRef.current) return
+    const preview = createPreview(previewRef.current)
+    previewApiRef.current = preview
+    const file = resultsRef.current[selectedRef.current]
+    if (file?.path) void preview.load(file)
+    return () => { preview.destroy(); previewApiRef.current = null }
+  }, [mode])
 
   const statusText = (label, kind = '') => setStatus({ text: label, kind })
 
@@ -145,12 +150,23 @@ export function App() {
   const onQueryInput = useCallback((value) => {
     const text = String(value ?? '')
     setQuery(text)
+    stateRef.current = { ...stateRef.current, query: text }
     clearTimeout(timerRef.current)
+    // Invalidate before the debounce window: Enter must never open the previous query's file.
+    seqRef.current++
+    resultsRef.current = []
+    selectedRef.current = -1
+    searchingRef.current = Boolean(text.trim())
+    setResults([])
+    setSelected(-1)
+    setHasMore(false)
+    offsetRef.current = 0
     if (!text.trim()) {
-      seqRef.current++
       renderIdle()
       return
     }
+    statusText(`搜索中 · ${text.trim()}`, 'busy')
+    previewApiRef.current?.placeholder('正在搜索…')
     timerRef.current = setTimeout(() => void runSearch(true), stateRef.current.mode === 'quick' ? 120 : 220)
   }, [renderIdle, runSearch])
 
@@ -178,6 +194,7 @@ export function App() {
   }, [dismissQuick])
 
   const activateSelected = useCallback(async () => {
+    if (searchingRef.current) return
     const file = resultsRef.current[selectedRef.current]
     if (file) await openTarget(file.path, true)
   }, [openTarget])
@@ -368,7 +385,7 @@ export function App() {
       setBooted(true)
       registerProvider()
     })()
-    return () => { alive = false; kit.destroy?.() }
+    return () => { alive = false; clearTimeout(timerRef.current); seqRef.current++; kit.destroy?.() }
   }, [idleRef, moveRef, probeRef, registerProvider, renderIdle, searchRef])
   const openTargetRef = useRef(openTarget)
   openTargetRef.current = openTarget
@@ -422,6 +439,11 @@ export function App() {
     if (stateRef.current.query.trim()) void runSearch(true)
   }
 
+  if (mode === 'panel') return <PanelView query={query} results={results} status={status} booted={booted}
+    onQuery={onQueryInput} onOpen={path => { if (!searchingRef.current && resultsRef.current.some(file => file.path === path)) void openTarget(path, false) }}
+    onOpenShell={() => Promise.resolve(api()?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}
+  />
+
   return (
     <main className="app">
       <header className="shell-only">
@@ -434,11 +456,11 @@ export function App() {
         ) : (
           <span id="engine-badge" className="engine-badge" hidden></span>
         )}
-        <button data-open-settings className="pk-btn pk-btn-ghost">偏好设置</button>
+        <button type="button" className="pk-btn pk-btn-ghost anything-settings-button" onClick={() => Promise.resolve(api()?.ui?.openSettings?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}>偏好设置</button>
       </header>
       <section className="searchbar shell-only">
         <input
-          id="query" ref={queryRef} type="search"
+          id="query" ref={queryRef} type="search" defaultValue={query}
           placeholder='搜索文件名，如 报告 pdf　"精确"　-排除　*.sketch'
           aria-label="搜索文件" data-input-context="editor" {...inputHandlers}
         />

@@ -7,6 +7,8 @@
 import './imageGen.mjs'
 import './imageEdit.mjs'
 import './promptTemplate.mjs'
+import './llmPrompt.mjs'
 import './textInput.mjs'
 import './localImage.mjs'
 import './imageOutput.mjs'
+import './fileSave.mjs'

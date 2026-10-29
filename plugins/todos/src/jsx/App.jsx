@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
+import { PanelView } from './PanelView.jsx'
 
 const KEY = 'todos_v2'
 const LABELS = { all: '全部', today: '今天', important: '重要', done: '已完成', archived: '归档' }
@@ -46,6 +47,7 @@ export function App() {
   const [tasks, setTasks] = useState([])
   const [lists, setLists] = useState(['收件箱'])
   const [query, setQuery] = useState('')
+  const [newTaskText, setNewTaskText] = useState('')
   const [view, setView] = useState('all')
   const [list, setList] = useState('全部清单')
   const [selectedId, setSelectedId] = useState('')
@@ -57,7 +59,7 @@ export function App() {
   const [dayStats, setDayStats] = useState({ doneToday: 0, totalToday: 0 })
   const [listFormOpen, setListFormOpen] = useState(false)
   const [settings, setSettings] = useState({ showCompleted: false, defaultView: 'all' })
-  const [mode, setMode] = useState(PluginKit.create ? undefined : undefined) // 实际 mode 在 kit ready 后读取
+  const [mode, setMode] = useState(() => api?.getLaunchMode?.() || 'shell')
   const [detailOpen, setDetailOpen] = useState(false)
   const [draft, setDraft] = useState(null) // 详情编辑草稿 { text, due, priority, list, tags, note }
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 540px)').matches)
@@ -78,6 +80,7 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    if (mode === 'panel') return
     const binding = PluginKit.bindHoverPanel(navToggleRef.current, navRef.current, {
       enabled: () => navCollapsed,
       onOpenChange: setNavPeek,
@@ -87,7 +90,7 @@ export function App() {
     })
     navBindingRef.current = binding
     return () => { binding.destroy(); navBindingRef.current = null }
-  }, [navCollapsed])
+  }, [navCollapsed, mode])
 
   const newTaskRef = useRef(null)
   const listNameRef = useRef(null)
@@ -540,9 +543,9 @@ export function App() {
     api?.onEnter?.(async ({ payload }) => {
       await initializedRef.current
       const text = typeof payload === 'string' ? payload : payload?.type === 'text' ? payload.text : ''
-      if (text && newTaskRef.current) {
-        newTaskRef.current.value = text
-        newTaskRef.current.focus()
+      if (text) {
+        setNewTaskText(text.slice(0, 500))
+        newTaskRef.current?.focus()
       }
     })
     api?.onBeforeClose?.(async () => {
@@ -674,6 +677,11 @@ export function App() {
   const subAll = selectedTask ? selectedTask.subtasks.length : 0
   const subPct = subAll ? Math.round((subDone / subAll) * 100) : 0
 
+  if (mode === 'panel') {
+    return <PanelView tasks={tasks} ready={ready} failed={failed} saveState={saveState} onComplete={toggle}
+      onOpen={() => { void api.ui.openInShell().catch(error => kitRef.current?.toast(error.message, 'error')) }} />
+  }
+
   return (
     <>
       <header className="shell-only">
@@ -777,9 +785,9 @@ export function App() {
             id="composer"
             onSubmit={(e) => {
               e.preventDefault()
-              addTask(newTaskRef.current?.value ?? '')
+              addTask(newTaskText)
+              setNewTaskText('')
               if (newTaskRef.current) {
-                newTaskRef.current.value = ''
                 newTaskRef.current.focus()
               }
             }}
@@ -789,6 +797,8 @@ export function App() {
               ref={newTaskRef}
               autoComplete="off"
               maxLength={500}
+              value={newTaskText}
+              onChange={event => setNewTaskText(event.target.value)}
               placeholder="下一件要做的事…"
               aria-label="新任务"
             />

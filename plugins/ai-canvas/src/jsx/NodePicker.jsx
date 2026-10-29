@@ -4,7 +4,6 @@
  * categories 由调用方给出已过滤的候选（[{category, defs}]）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { PORT_KINDS } from '../js/nodeSchema.mjs'
 
 export function NodePicker({ anchor, groups, title = '添加节点', onPick, onClose }) {
   const [query, setQuery] = useState('')
@@ -68,10 +67,6 @@ export function NodePicker({ anchor, groups, title = '添加节点', onPick, onC
                 <span className="ac-picker-item-body">
                   <span className="ac-picker-item-title">{def.title}</span>
                   {def.description && <span className="ac-picker-item-desc">{def.description}</span>}
-                </span>
-                <span className="ac-picker-item-ports">
-                  {def.inputs.length > 0 && <i>入 {def.inputs.map(p => PORT_KINDS[p.kind]?.glyph ?? '?').join('·')}</i>}
-                  {def.outputs.length > 0 && <i>出 {def.outputs.map(p => PORT_KINDS[p.kind]?.glyph ?? '?').join('·')}</i>}
                 </span>
               </button>
             })}

@@ -21,6 +21,7 @@ export function createPreview(root) {
   }
 
   function placeholder(text) {
+    seq++
     root.replaceChildren(node('div', 'empty', text))
   }
 
@@ -74,5 +75,5 @@ export function createPreview(root) {
   }
 
   placeholder('选择左侧文件查看预览')
-  return { load, placeholder }
+  return { load, placeholder, destroy() { seq++; root.replaceChildren() } }
 }

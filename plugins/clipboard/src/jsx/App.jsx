@@ -7,6 +7,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { MoreMenu } from '../ui/index.jsx'
 import * as tk from '../js/textkit.js'
 import { createClipboardApi } from '../js/history-api.mjs'
+import { PanelView } from './PanelView.jsx'
 
 const SNIPPET_KEY = 'clipboard.snippets.v1'
 const SNIPPET_MAX = 20
@@ -45,9 +46,11 @@ export function App() {
   const [capReason, setCapReason] = useState('')
   const [capPermissionRequired, setCapPermissionRequired] = useState(false)
   const [density, setDensity] = useState('comfortable')
-  const [mode, setMode] = useState('shell')
+  const [mode, setMode] = useState(() => (window.enest || window.zapi)?.getLaunchMode?.() || 'shell')
   const [detail, setDetail] = useState({ kind: 'empty', text: '选择一条记录，查看完整内容' })
   const [snippets, setSnippets] = useState([])
+  const [snippetsReady, setSnippetsReady] = useState(false)
+  const [snippetsError, setSnippetsError] = useState('')
   const [toolsOpen, setToolsOpen] = useState(false)
   const [snipDialog, setSnipDialog] = useState(null) // { title, name, body, error }
   const [settingsDraft, setSettingsDraft] = useState({ excluded: '', collections: '' })
@@ -163,6 +166,8 @@ export function App() {
   /** 列表刷新（等价原 refresh：requestId 竞态保护 + 分类收集 + 追加去重） */
   const refresh = useCallback(
     async (append = false) => {
+      // The widget only shows deliberately saved snippets, never live clipboard history.
+      if (kitRef.current?.mode === 'panel') return
       const s = stateRef.current
       const revision = ++requestId.current
       try {
@@ -310,6 +315,7 @@ export function App() {
 
   // —— 图片懒加载 IntersectionObserver（等价原 observer） ——
   useEffect(() => {
+    if (mode === 'panel') return
     observer.current = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -325,17 +331,18 @@ export function App() {
       { root: listRef.current, rootMargin: '80px' },
     )
     return () => observer.current?.disconnect()
-  }, [imageData, run])
+  }, [imageData, run, mode])
   // 列表渲染后挂载观察
   useEffect(() => {
     const obs = observer.current
     if (!obs) return
     for (const img of listRef.current?.querySelectorAll('[data-image]') || []) obs.observe(img)
-  }, [items, emptyReason])
+  }, [items, emptyReason, mode])
 
   /** 详情渲染（等价原 renderDetail：含图片异步加载与 revision 竞态保护） */
   useEffect(() => {
     const revision = ++detailRevision.current
+    if (mode === 'panel') return
     const item = items.find((i) => i.id === current)
     if (!item) {
       setDetail({ kind: 'empty', text: '选择一条记录，查看完整内容' })
@@ -478,7 +485,14 @@ export function App() {
       setCountText(`${stateRef.current.total} 条记录${kit.settings.monitoring ? '' : ' · 已暂停监控'}`)
       if (['historyLimit', 'retentionDays'].includes(changedKey)) void run(() => api.clipboard.history.preferencesChanged())
     })
-    kit.onMode(() => setMode(kit.mode))
+    kit.onMode(() => {
+      setMode(kit.mode)
+      if (kit.mode !== 'panel') void initialized.current.then(() => {
+        if (kit.mode === 'panel') return
+        void refreshRef.current()
+        void run(capabilities)
+      })
+    })
 
     const release = api?.clipboard?.history?.onChange?.(() => void refreshRef.current())
     api?.onDestroy?.(() => {
@@ -489,6 +503,7 @@ export function App() {
     })
     api?.onEnter?.(async (event) => {
       await initialized.current
+      if (kit.mode === 'panel') return
       if (event.code === 'manage') openManager()
       if (typeof event.payload?.historyId === 'string') {
         const entry = await api.clipboard.history.get(event.payload.historyId)
@@ -515,6 +530,17 @@ export function App() {
     initialized.current = run(async () => {
       await kit.ready
       if (!alive) return
+      try {
+        const savedSnippets = await kit.load(SNIPPET_KEY, [])
+        if (!Array.isArray(savedSnippets)) throw new Error('片段数据格式异常，原数据已保留')
+        const normalized = savedSnippets.slice(0, SNIPPET_MAX).map(value => tk.normalizeSnippet(value))
+        if (alive) setSnippets(normalized)
+      } catch (error) {
+        if (alive) setSnippetsError(error.message)
+      } finally {
+        if (alive) setSnippetsReady(true)
+      }
+      if (!alive) return
       const loadedGroups = await kit.load('clipboard.groups.v2', { names: [], entries: {} })
       const view = await kit.load('clipboard.view.v2', {})
       if (!alive) return
@@ -537,7 +563,7 @@ export function App() {
       requestAnimationFrame(() => {
         if (listRef.current) listRef.current.scrollTop = view.scroll || 0
       })
-      await capabilities()
+      if (kit.mode !== 'panel') await capabilities()
     })
     return () => {
       alive = false
@@ -546,6 +572,7 @@ export function App() {
       clearTimeout(queryTimer.current)
       images.current.clear()
       document.removeEventListener('keydown', keyHandler)
+      kit.destroy?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -557,6 +584,7 @@ export function App() {
   const initialized = useRef(Promise.resolve())
 
   const keyHandler = (event) => {
+    if (stateRef.current.mode === 'panel') return
     if (event.isComposing || event.defaultPrevented || document.querySelector('dialog[open]')) return
     if (stateRef.current.mode === 'quick' && event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey) {
       event.preventDefault()
@@ -596,6 +624,15 @@ export function App() {
   const copyText = many ? '合并复制' : '复制'
   // 与原版一致：按钮内 HTML 恒为「{动作} <kbd>↵</kbd>」，动作名由 defaultAction 决定
   const pasteAction = kitRef.current?.settings.defaultAction === 'copy' ? '复制' : '回贴'
+
+  if (mode === 'panel') {
+    return <PanelView snippets={snippets} ready={snippetsReady} error={snippetsError}
+      onCopy={snippet => { void run(async () => { await api.clipboard.writeText(snippet.body); kitRef.current?.toast('已复制片段', 'success') }) }}
+      onOpen={() => {
+        setToolsOpen(true)
+        void api.ui.openInShell().catch(error => kitRef.current?.toast(error.message, 'error'))
+      }} />
+  }
 
   return (
     <main className="app" data-density={density}>

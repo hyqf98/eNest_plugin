@@ -2,6 +2,7 @@ import './css/main.css'
 import './css/motion.css'
 import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/style.css'
+import '@enest/plugin-kit/widget.css'
 import '@enest/plugin-kit'
 import 'katex/dist/katex.min.css'
 window.PluginKit.useAppearanceLayout({
@@ -12,6 +13,7 @@ import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './jsx/App.jsx'
 import './ui/pk-ui.css'
+import './css/panel.css'
 
 // Sidebar 等组件需要直接派发文档变更（避免 props drilling）
 Object.defineProperty(window, '__mdView', {

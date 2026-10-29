@@ -50,6 +50,7 @@ import {
   uid
 } from './store.js'
 import { SqlEditor } from './monacoEditor.js'
+import { mountPaper, watchPaperChanges } from './paper-theme.js'
 import { completionDialect, createCompletionConsoleLifecycle } from '@db/sql-intelligence/runtime/consoleLifecycle.js'
 import { createCatalogReader } from '@db/sql-intelligence/metadata/CatalogReader.js'
 import { DatabaseWorkbench } from './workbench.js'
@@ -83,7 +84,7 @@ import {
 } from './importExport.js'
 import { detectDangerousSql } from './tokenizer.js'
 import { openCtxMenu, closeCtxMenu } from './ctxMenu.js'
-import { bindIconTips, setTip } from './tips.js'
+import { bindIconTips } from './tips.js'
 
 const $ = (sel) => document.querySelector(sel)
 const dom = {
@@ -96,11 +97,9 @@ const dom = {
   editorHost: $('#editor-host'),
   results: $('#results'),
   resizerBottom: $('#resizer-bottom'),
-  statusbar: $('#statusbar'),
   rightPanel: $('#right-panel'),
   modalRoot: $('#modal-root'),
-  toastLocal: $('#local-toast'),
-  fabRun: $('#fab-run')
+  toastLocal: $('#local-toast')
 }
 
 let editor = null
@@ -517,6 +516,8 @@ async function boot() {
 
   await loadAll()
   initWorkspace()
+  mountPaper(() => state.ui.paper)
+  watchPaperChanges(() => state.ui.paper)
   await loadDialects()
   workbench = new DatabaseWorkbench({
     editor: () => editor, connection: currentConnection, session: currentSession, sessionKey: currentSessionKey,
@@ -626,7 +627,6 @@ function renderAll() {
   renderToolbar()
   renderEditorValue()
   renderResultTabs()
-  renderStatus()
   renderRightPanel()
   side?.render()
   workbench?.update()
@@ -669,12 +669,6 @@ function renderToolbar() {
       ${conn?.readOnly || s?.origin === 'quick' ? '<span class="badge xs warn">只读</span>' : ''}
     </span>
   `
-  if (dom.fabRun) {
-    dom.fabRun.disabled = busy
-    const label = busy ? '执行中…' : '执行选区或当前语句'
-    setTip(dom.fabRun, label)
-    dom.fabRun.innerHTML = busy ? '…' : '▶'
-  }
   workbench?.update()
 }
 
@@ -926,7 +920,7 @@ async function fetchTablePage(tab, changes = {}) {
     if (['view', 'materialized_view'].includes(ownerTab?.objectType)) result.readOnly = true
     tab.result = result; delete tab.gridSnapshot; tab.browse.request = { ...request, offset: result.page?.offset ?? request.offset, limit: result.page?.limit ?? request.limit }
     void hydrateResultMetadata(contextForTab(ownerTab), tab)
-    if (currentResultState()?.tabs?.[currentResultState().activeTab] === tab) { loadResultIntoGrid(); renderStatus() }
+    if (currentResultState()?.tabs?.[currentResultState().activeTab] === tab) loadResultIntoGrid()
     return true
   } catch (error) { showLocalToast(error.message, 'error'); return false } finally { tab.browse.loading = false }
 }
@@ -944,27 +938,6 @@ function openServerFilters(tab) {
   modal.body.querySelector('[data-add-filter]').onclick = () => { rows.push({ column: names[0], operator: 'eq', value: '' }); render() }
   modal.body.querySelector('[data-apply-filter]').onclick = async () => { const invalid = rows.find((row) => row.operator === 'in' && !Array.isArray(row.value)); if (invalid) { modal.body.querySelector('[data-error]').textContent = '属于列表的值需要填写 JSON 数组，例如 [1,2,3]'; return } if (await fetchTablePage(tab, { filters: rows, offset: 0 })) modal.close() }
   render()
-}
-
-function renderStatus() {
-  if (!dom.statusbar) return
-  const conn = currentConnection()
-  const s = currentSession()
-  const ed = currentEditor()
-  const rs = ed ? getResultState(ed.id) : null
-  const tab = rs?.tabs?.[rs.activeTab]
-  const parts = []
-  parts.push(conn ? `${conn.name || conn.id} · ${driverLabel(conn.driver)}` : '无连接')
-  if (s?.database || conn?.database) parts.push(s?.database || conn.database)
-  if (tab?.result) {
-    parts.push(`${tab.result.rows?.length ?? 0} 行`)
-    if (tab.result.durationMs != null) parts.push(`${tab.result.durationMs} ms`)
-    if (tab.result.truncated) parts.push('截断')
-  }
-  if (conn?.readOnly) parts.push('只读')
-  if (state.runtime.executing) parts.push('执行中…')
-  if (state.runtime.hostLagNotified) parts.push('功能未就绪')
-  dom.statusbar.innerHTML = parts.map((p) => `<span class="st-item">${esc(p)}</span>`).join('')
 }
 
 function renderRightPanel() {
@@ -1428,7 +1401,7 @@ async function toggleConnect(forceOpen, sourceSession = currentSession()) {
     if (state.runtime.consoleSessionKeys.has(sourceSession.id) && !forceOpen) { await closeConsole(sourceSession); showLocalToast('已断开此控制台') }
     else { await ensureConsoleConnected({ session: sourceSession, connection: conn }); showLocalToast('连接已打开', 'success') }
   } catch (error) { showLocalToast(error.message, 'error') }
-  renderToolbar(); renderStatus(); side?.render()
+  renderToolbar(); side?.render()
 }
 
 async function execute({ mode = 'current', explain = false } = {}) {
@@ -1483,7 +1456,6 @@ async function execute({ mode = 'current', explain = false } = {}) {
   state.runtime.activeQuery = { sessionKey: '', executionId, editorId: ed.id, consoleId: s.id, tabId: context.tabId, kind: 'query', invalidatesResults: rollsBack }
   state.runtime.executing = true
   renderToolbar()
-  renderStatus()
   const rs = getResultState(ed.id)
   const started = Date.now()
   let sessionKey = ''
@@ -1564,7 +1536,7 @@ async function execute({ mode = 'current', explain = false } = {}) {
     state.runtime.activeQuery = null
     renderToolbar()
     if (currentEditor()?.id === ed.id) { renderResultTabs(); syncDockFromGrid(); renderRightPanel() }
-    renderStatus(); renderEditorTabs()
+    renderEditorTabs()
   }
 }
 
@@ -1621,7 +1593,7 @@ async function commitChanges() {
     const label = withinTransaction ? `已写入当前事务：${affected} 项，尚未提交` : transactional ? `事务批量提交完成：${affected} 项` : `批量提交完成：${affected} 项`
     toast(out.anyFail ? transactional ? '批次已回滚，失败及未执行的修改保留在表格中' : '部分操作失败，失败及未执行的修改保留在表格中' : label, out.anyFail ? 'warn' : 'success')
   } catch (error) { toast(hostLag(error) ? '功能未就绪' : error.message, 'error') }
-  finally { state.runtime.executing = false; state.runtime.activeQuery = null; refreshResultSurface(); renderToolbar(); syncDockFromGrid(); renderRightPanel(); renderStatus() }
+  finally { state.runtime.executing = false; state.runtime.activeQuery = null; refreshResultSurface(); renderToolbar(); syncDockFromGrid(); renderRightPanel() }
 }
 
 function confirmBatchChanges(context, changes, preview) {
@@ -1928,7 +1900,6 @@ async function openConnectionForm(existing) {
 
 function bindChrome() {
   dom.topMore?.addEventListener('click', (e) => openChromeMenu(e))
-  dom.fabRun?.addEventListener('click', () => void execute({ mode: 'current' }))
 }
 
 function bindResizers() {

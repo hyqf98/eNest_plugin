@@ -18,12 +18,29 @@
  * - 生成型 DOM（树/会话标签/SFTP 列表/右键菜单/补全浮层等）沿用批 1/2 验证过的
  *   等价 HTML 模式：引擎继续以 innerHTML 渲染到对应容器，React 不接管其子树。
  */
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { PanelView } from './PanelView.jsx'
+
+const host = window.enest || window.zapi
+const initialMode = () => host?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell'
 
 /** 原版静态骨架逐字复刻（不含 vendor script 与模块脚本，二者由 entry/index.html 承担） */
 function AppSkeleton() {
   return (
     <>
+      {/* 手绘描边位移滤镜：隐藏 svg 供 paper-theme.css 的 ::before filter:url(#ink-rough) 引用。 */}
+      <svg aria-hidden="true" focusable="false" width="0" height="0" style={{ position: 'absolute' }}>
+        <defs>
+          <filter id="ink-rough" x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.028" numOctaves="3" seed="11" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="3.2" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          <filter id="ink-rough-fine" x="-8%" y="-8%" width="116%" height="116%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.05 0.065" numOctaves="2" seed="5" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
       <div className="app" id="app">
         {/* 左侧：可收起侧栏（收起后只剩 rail —— 搜索/抽屉/更多都住在这里） */}
         <aside className="sidebar" id="sidebar" data-collapsed="0">
@@ -336,9 +353,30 @@ function AppSkeleton() {
 }
 
 export function App() {
+  const kitRef = useRef(null)
+  const [mode, setMode] = useState(initialMode)
+  // Keep live terminal DOM after its first mount; a cold panel never boots the workbench.
+  const [workbenchMounted, setWorkbenchMounted] = useState(() => initialMode() !== 'panel')
+  useEffect(() => {
+    const kit = PluginKit.create({ title: 'SSH', height: 420 })
+    kitRef.current = kit
+    const changeMode = next => {
+      setMode(next)
+      if (next !== 'panel') setWorkbenchMounted(true)
+      else {
+        PluginKit.closeMenu({ restoreFocus: false })
+        document.querySelectorAll('dialog.wb-dialog[open]').forEach(dialog => dialog.close())
+      }
+    }
+    changeMode(kit.mode)
+    const offMode = kit.onMode(changeMode)
+    return () => { offMode(); kit.destroy() }
+  }, [])
+
   /* 静态骨架就位后按原 script 执行顺序引导业务引擎（模块 import 去重，只会运行一次）。
      app.js 的 boot 依赖以上静态节点；workbench.js 等 ssh-workbench-ready 后自举。 */
   useEffect(() => {
+    if (!workbenchMounted) return
     let alive = true
     void (async () => {
       await import('@ssh/js/tips-global.js')
@@ -353,7 +391,10 @@ export function App() {
       await import('@ssh/js/workbench.js')
     })()
     return () => { alive = false }
-  }, [])
+  }, [workbenchMounted])
 
-  return <AppSkeleton />
+  return <>
+    {workbenchMounted && <div className="ssh-workbench-surface" hidden={mode === 'panel'}><AppSkeleton /></div>}
+    {mode === 'panel' && <PanelView onOpenShell={() => Promise.resolve(host?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))} />}
+  </>
 }

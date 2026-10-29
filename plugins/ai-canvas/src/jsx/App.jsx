@@ -9,20 +9,24 @@ import '../js/nodeDefs/index.mjs'
 import { CanvasStage } from './CanvasStage.jsx'
 import { Toolbar } from './Toolbar.jsx'
 import { LeftRail } from './LeftRail.jsx'
-import { GalleryView } from './GalleryView.jsx'
+import { RightRail } from './RightRail.jsx'
+import { GalleryPanel } from './GalleryPanel.jsx'
+import { RunLogPanel } from './RunLogPanel.jsx'
 import { SettingsDialog } from './SettingsDialog.jsx'
 import { InspectorPanel } from './InspectorPanel.jsx'
 import { NodePicker } from './NodePicker.jsx'
 import { FloatingMenu } from './FloatingMenu.jsx'
 import { pickLocalImage } from './nodes/RegistryNode.jsx'
+import { pickSaveDirectory } from '../js/backendBridge.mjs'
 import { loadDrafts, saveDrafts, newDraft, removeDraftRecord, onWriteError } from '../js/store.mjs'
 import { loadProviders } from '../js/providers.mjs'
-import { loadPreferences, savePreferences } from '../js/theme.mjs'
+import { loadPreferences, savePreferences, resolvePaper, watchSystemScheme } from '../js/theme.mjs'
 import { executeNode, runWorkflow, createRunContext, downstreamOf, topoLevels } from '../js/workflow.mjs'
 import { assetPreviewUrl } from '../js/assets.mjs'
 import { getNodeDef, listNodeDefs, groupNodeDefs } from '../js/nodeRegistry.mjs'
-import { makeNode, downstreamPosition, upstreamPosition, layoutPositions } from '../js/canvasNodes.mjs'
+import { makeNode, downstreamPosition, upstreamPosition, layoutPositions, dropAnchorPosition } from '../js/canvasNodes.mjs'
 import { findPort, matchInputPort, matchOutputToTarget } from '../js/nodeSchema.mjs'
+import { serializeGraph, parseGraph } from '../js/graphIO.mjs'
 
 function toast(message, kind = 'info') {
   const kit = window.PluginKit
@@ -46,7 +50,9 @@ function Workbench() {
   const [workflowRunning, setWorkflowRunning] = useState(false)
   const [mode, setMode] = useState('pointer')
   const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
   const [picker, setPicker] = useState(null)
+  const [ghost, setGhost] = useState(null)   // 松手→选完期间的临时连线 { from, to, fromPosition, toPosition }
   const [menu, setMenu] = useState(null)
   const stopFlag = useRef(false)
   const clipboardRef = useRef(null)
@@ -128,10 +134,15 @@ function Workbench() {
     })
   }, [nodes, edges, activeId, ready])
 
-  /* —— 偏好 → DOM（纸面主题） —— */
+  /* —— 偏好 → DOM（纸面主题）：auto 解析成具体纸面，并挂到 :root 供 portal 弹框继承 —— */
+  const [schemeTick, setSchemeTick] = useState(0)
+  useEffect(() => watchSystemScheme(() => setSchemeTick(t => t + 1)), [])
+  const effectivePaper = useMemo(() => resolvePaper(prefs?.paper), [prefs?.paper, schemeTick])
   useEffect(() => {
-    if (prefs) document.getElementById('root')?.setAttribute('data-paper', prefs.paper)
-  }, [prefs])
+    if (!prefs) return
+    document.documentElement.setAttribute('data-paper', effectivePaper)
+    document.getElementById('root')?.setAttribute('data-paper', effectivePaper)
+  }, [prefs, effectivePaper])
 
   const changePrefs = useCallback(async next => {
     setPrefs(next)
@@ -221,6 +232,18 @@ function Workbench() {
       if (ref) onParamChange(nodeId, paramKey, ref)
       return ref
     } catch (err) { toast(err instanceof Error ? err.message : String(err), 'error'); return null }
+  }, [onParamChange])
+
+  /** 文件保存节点：原生目录选择器（经插件后端），结果写回 directory 参数 */
+  const onPickDirectory = useCallback(async (nodeId, paramKey) => {
+    try {
+      const dir = await pickSaveDirectory()
+      if (dir) onParamChange(nodeId, paramKey, dir)
+      return dir
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err), 'error')
+      return null
+    }
   }, [onParamChange])
 
   const openImage = useCallback(async assetId => {
@@ -315,6 +338,108 @@ function Workbench() {
       applyNodePatch(nodeId, { lastRun: { ...node.data.lastRun, outputs: { ...node.data.lastRun.outputs, [portKey]: text } } })
     }
   }, [ensureContext, applyNodePatch])
+
+  /* —— 画布 JSON 导出 / 导入（节点标准化序列化） —— */
+  const exportGraph = useCallback(async () => {
+    try {
+      const draft = draftsRef.current.find(d => d.id === activeIdRef.current)
+      const json = serializeGraph(nodesRef.current, edgesRef.current, { name: draft?.name ?? '' })
+      const enest = window.enest || window.zapi
+      if (!enest?.shell?.saveTextFile) throw new Error('宿主文件接口不可用')
+      const res = await enest.shell.saveTextFile({
+        defaultName: `${(draft?.name || 'ai-canvas').replace(/[\\/:*?"<>|]/g, '-')}.canvas.json`,
+        content: json
+      })
+      if (res?.ok) toast('画布已导出', 'success')
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error), 'error')
+    }
+  }, [])
+
+  const importGraph = useCallback(async () => {
+    try {
+      const enest = window.enest || window.zapi
+      if (!enest?.localFiles?.pick) throw new Error('宿主文件接口不可用')
+      const handles = await enest.localFiles.pick({ kind: 'file', multiple: false, access: 'read' })
+      const handle = Array.isArray(handles) ? handles[0] : handles
+      if (!handle?.id) return
+      const text = await enest.localFiles.read({ handleId: handle.id, encoding: 'utf8', maxBytes: 8 * 1024 * 1024 })
+      const { nodes: importedNodes, edges: importedEdges, warnings, name } = parseGraph(text)
+      pushHistory()
+      setNodes(importedNodes)
+      setEdges(importedEdges)
+      runContextRef.current = null
+      setTimeout(() => fitView({ duration: 260, padding: 0.18 }), 80)
+      if (warnings.length) toast(`已导入 ${importedNodes.length} 个节点，${warnings.length} 条警告`, 'info')
+      else toast(`已导入${name ? `「${name}」` : ''}：${importedNodes.length} 个节点`, 'success')
+      for (const warning of warnings.slice(0, 3)) console.warn('[ai-canvas:import]', warning)
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error), 'error')
+    }
+  }, [pushHistory, setNodes, setEdges, fitView])
+
+  /* —— 从端口拖线到空白处松手：弹节点选择器；期间幽灵线持续显示从源端口到落点 —— */
+  const onConnectEnd = useCallback((event, connectionState) => {
+    if (connectionState?.isValid) return                 // 落到合法端口：正常连线，不弹选择器
+    const from = connectionState?.fromHandle
+    const nodeId = connectionState?.fromNode?.id
+    if (!from || !nodeId) return
+    const sourceNode = nodesRef.current.find(n => n.id === nodeId)
+    if (!sourceNode) return
+    const def = getNodeDef(sourceNode.data.type)
+    const isSource = from.type === 'source'
+    const port = findPort(isSource ? def?.outputs : def?.inputs, from.id)
+    if (!port) return
+    const groups = groupNodeDefs(listNodeDefs().filter(candidate =>
+      isSource ? !!matchInputPort(port, candidate) : !!matchOutputToTarget(port, candidate)))
+    if (!groups.length) return
+    const anchor = { x: event.clientX ?? 0, y: event.clientY ?? 0 }
+    const dropPosition = screenToFlowPosition(anchor)
+    // 幽灵线起点：直接取源端口 DOM 中心（最准），失败回落按节点几何估算
+    let fromPoint = null
+    try {
+      const handleEl = document.querySelector(
+        `.react-flow__node[data-id="${nodeId}"] .react-flow__handle[data-handleid="${from.id}"]`)
+      if (handleEl) {
+        const hr = handleEl.getBoundingClientRect()
+        fromPoint = screenToFlowPosition({ x: hr.x + hr.width / 2, y: hr.y + hr.height / 2 })
+      }
+    } catch { /* DOM 查询失败走估算 */ }
+    if (!fromPoint) {
+      const pos = sourceNode.position ?? { x: 0, y: 0 }
+      const halfW = (sourceNode.measured?.width ?? 268) / 2
+      fromPoint = { x: pos.x + (isSource ? halfW : -halfW), y: pos.y }
+    }
+    setGhost({
+      from: fromPoint, to: dropPosition,
+      fromPosition: isSource ? 'right' : 'left',
+      toPosition: isSource ? 'left' : 'right'
+    })
+    const clearGhost = () => setGhost(null)
+    setPicker({
+      anchor,
+      groups,
+      title: isSource ? '接出节点' : '接入节点',
+      onPick: (picked) => {
+        clearGhost()
+        pushHistory()
+        // 松手点 = 新节点接入端口位置（画布 nodeOrigin 0.5 时 position 即中心，需偏移半宽）
+        const created = addNode(picked.type, dropAnchorPosition(dropPosition, { asTarget: isSource }))
+        if (isSource) {
+          const match = matchInputPort(port, picked)
+          setEdges(prev => addEdge({
+            source: nodeId, sourceHandle: from.id, target: created.id, targetHandle: oppositeHandle(match), type: 'handdrawn'
+          }, prev))
+        } else {
+          const match = matchOutputToTarget(port, picked)
+          setEdges(prev => addEdge({
+            source: created.id, sourceHandle: oppositeHandle(match), target: nodeId, targetHandle: from.id, type: 'handdrawn'
+          }, prev))
+        }
+        setPicker(null)
+      }
+    })
+  }, [addNode, pushHistory, setEdges, screenToFlowPosition])
 
   /* —— Dify 式建图：点击端口 ＋ 弹选择器，选中即建节点并自动连线 —— */
   const onHandleAddNode = useCallback((handle, anchor) => {
@@ -455,16 +580,10 @@ function Workbench() {
     event.preventDefault?.()
     const anchor = { x: event.clientX, y: event.clientY }
     const position = screenToFlowPosition(anchor)
-    const items = [{ glyph: '✧', label: '添加节点…', onClick: () => setPicker({
-      anchor, groups: groupNodeDefs(), onPick: (picked) => { pushHistory(); addNode(picked.type, position); setPicker(null) } }) }]
-    if (clipboardRef.current?.nodes?.length) items.push({ glyph: '⧉', label: '粘贴到此处', onClick: () => pasteNodes(position) })
-    items.push({ sep: true },
-      { glyph: '⊡', label: '适配视图', hint: '⌘1', onClick: () => fitView({ padding: 0.18 }) },
-      { glyph: '⌗', label: '自动排版', hint: '⌘O', disabled: nodes.length < 2, onClick: organizeNodes },
-      { sep: true },
-      { glyph: '▶', label: '运行全部', onClick: runAll, disabled: !nodes.length })
-    setMenu({ anchor, items })
-  }, [workflowRunning, screenToFlowPosition, pushHistory, addNode, pasteNodes, fitView, nodes.length, organizeNodes, runAll])
+    // 画布右键 = 节点库：直接列出全部节点类型供添加，不混入视图操作
+    setPicker({ anchor, groups: groupNodeDefs(), title: '添加节点',
+      onPick: (picked) => { pushHistory(); addNode(picked.type, position); setPicker(null) } })
+  }, [workflowRunning, screenToFlowPosition, pushHistory, addNode])
 
   const openNodeMenu = useCallback((event, node) => {
     if (workflowRunning) return
@@ -517,7 +636,7 @@ function Workbench() {
       if (mod && (key === '=' || key === '+')) { event.preventDefault(); zoomIn({ duration: 140 }); return }
       if (mod && key === '-') { event.preventDefault(); zoomOut({ duration: 140 }); return }
       if (key === 'delete' || key === 'backspace') { if (selectedIds.length) { event.preventDefault(); deleteNodes(selectedIds) } return }
-      if (key === 'escape') { setPicker(null); setMenu(null); return }
+      if (key === 'escape') { setPicker(null); setGhost(null); setMenu(null); return }
       if (!mod && key === 'v') { setMode('pointer'); return }
       if (!mod && key === 'h') { setMode('hand'); return }
     }
@@ -534,35 +653,33 @@ function Workbench() {
     }
     return { edges: set, roughness: prefs?.roughness ?? 1.2 }
   }, [nodes, edges, prefs?.roughness])
-  const runningCount = nodes.filter(n => n.data.state === 'running').length
 
   const getOutputs = useCallback(nodeId =>
     runContextRef.current?.getOutputs(nodeId) ?? nodesRef.current.find(n => n.id === nodeId)?.data?.lastRun?.outputs ?? null, [])
+
+  const onNodeDataChange = useCallback((nodeId, patch) => {
+    setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, data: { ...n.data, ...patch } } : n))
+  }, [setNodes])
 
   const actions = useMemo(() => ({
     onRunNode: runSingle,
     onDeleteNodes: deleteNodes,
     onParamChange,
+    onNodeDataChange,
     onPickLocalImageParam,
+    onPickDirectory,
     onOpenImage: openImage,
     onHandleAddNode,
     onEdgeInsert,
     workflowRunning,
     graphRef,
     getOutputs
-  }), [runSingle, deleteNodes, onParamChange, onPickLocalImageParam, openImage, onHandleAddNode, onEdgeInsert, workflowRunning, getOutputs])
+  }), [runSingle, deleteNodes, onParamChange, onNodeDataChange, onPickLocalImageParam, onPickDirectory, openImage, onHandleAddNode, onEdgeInsert, workflowRunning, getOutputs])
 
   if (!ready || !prefs) return <div className="ac-boot">正在准备画布…</div>
 
-  const galleryToCanvas = assetId => {
-    pushHistory()
-    const node = makeNode('localImage', screenToFlowPosition({ x: window.innerWidth * 0.55, y: window.innerHeight * 0.48 }))
-    node.data.params.image = { assetId }
-    setNodes(prev => [...prev, node])
-  }
-
   return (
-    <div className="ac-app" data-paper={prefs.paper} data-grid={prefs.grid}>
+    <div className="ac-app" data-paper={effectivePaper} data-grid={prefs.grid}>
       <svg className="ac-defs" aria-hidden="true" focusable="false">
         <defs>
           <filter id="ac-rough" x="-10%" y="-10%" width="120%" height="120%">
@@ -579,56 +696,61 @@ function Workbench() {
         <Toolbar
           drafts={drafts} activeId={activeId}
           onSelectDraft={selectDraft} onNewDraft={addDraft} onRenameDraft={renameDraft} onDeleteDraft={deleteDraft}
-          onRunAll={runAll} onStop={stopAll} workflowRunning={workflowRunning}
-          canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0}
-          onUndo={undo} onRedo={redo}
-          mode={mode} onModeChange={setMode}
-          inspectorOpen={inspectorOpen} onToggleInspector={() => setInspectorOpen(o => !o)}
-          nodeCount={nodes.length} edgeCount={edges.length} runningCount={runningCount}
+          onExport={exportGraph} onImport={importGraph}
         />
         <div className="ac-body">
           <LeftRail
             view={view}
-            onAddNode={(type, position) => { pushHistory(); addNode(type, position) }}
+            onAddNode={(type, screenPoint) => {
+              pushHistory()
+              const position = screenPoint ? screenToFlowPosition(screenPoint) : undefined
+              addNode(type, position)
+            }}
             onOpenAddMenu={openAddMenuAtCenter}
             onOpenGallery={() => setView(v => v === 'gallery' ? 'canvas' : 'gallery')}
             onOpenSettings={() => setSettingsOpen(true)}
           />
-          {view === 'canvas' ? <>
-            <CanvasStage
-              nodes={nodes} edges={edges}
-              onNodesChange={changes => {
-                const structural = changes.some(c => c.type === 'position' && c.dragging === false) || changes.some(c => c.type === 'remove')
-                if (structural) pushHistory()
-                onNodesChange(changes)
-              }}
-              onEdgesChange={changes => {
-                if (changes.some(c => c.type === 'remove')) pushHistory()
-                onEdgesChange(changes)
-              }}
-              onConnect={onConnect}
-              actions={actions}
-              runningEdges={runningEdges}
-              mode={mode}
-              readOnly={workflowRunning}
-              nodesRef={nodesRef}
-              onDropNode={(type, position) => { pushHistory(); addNode(type, position) }}
-              onPaneContextMenu={openPaneMenu}
-              onNodeContextMenu={openNodeMenu}
-              onEdgeContextMenu={openEdgeMenu}
-            />
-            {inspectorOpen && (
-              <InspectorPanel nodes={nodes} getOutputs={getOutputs}
-                onOverride={overrideOutput} onCollapse={() => setInspectorOpen(false)} />
-            )}
-          </> : <GalleryView
-            onOpenImage={openImage}
-            onToCanvas={galleryToCanvas}
-            onBack={() => setView('canvas')}
-          />}
+          <RightRail workflowRunning={workflowRunning} onRunAll={runAll} onStop={stopAll}
+            canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0}
+            onUndo={undo} onRedo={redo}
+            onFit={() => fitView({ duration: 260, padding: 0.18 })}
+            logOpen={logOpen} onToggleLog={() => setLogOpen(o => !o)}
+            inspectorOpen={inspectorOpen} onToggleInspector={() => setInspectorOpen(o => !o)} />
+          <CanvasStage
+            nodes={nodes} edges={edges}
+            onNodesChange={changes => {
+              const structural = changes.some(c => c.type === 'position' && c.dragging === false) || changes.some(c => c.type === 'remove')
+              if (structural) pushHistory()
+              onNodesChange(changes)
+            }}
+            onEdgesChange={changes => {
+              if (changes.some(c => c.type === 'remove')) pushHistory()
+              onEdgesChange(changes)
+            }}
+            onConnect={onConnect}
+          onConnectEnd={onConnectEnd}
+          actions={actions}
+          runningEdges={runningEdges}
+          mode={mode}
+          readOnly={workflowRunning}
+          nodesRef={nodesRef}
+          ghost={ghost}
+            onDropNode={(type, position) => { pushHistory(); addNode(type, position) }}
+            onPaneContextMenu={openPaneMenu}
+            onNodeContextMenu={openNodeMenu}
+            onEdgeContextMenu={openEdgeMenu}
+          />
+          {inspectorOpen && (
+            <InspectorPanel nodes={nodes} getOutputs={getOutputs}
+              onOverride={overrideOutput} onCollapse={() => setInspectorOpen(false)} />
+          )}
+          {logOpen && <RunLogPanel nodes={nodes} onClose={() => setLogOpen(false)} />}
+          {view === 'gallery' && (
+            <GalleryPanel onOpenImage={openImage} onClose={() => setView('canvas')} />
+          )}
           {picker && (
             <NodePicker anchor={picker.anchor} groups={picker.groups} title={picker.title ?? '添加节点'}
-              onPick={picker.onPick} onClose={() => setPicker(null)} />
+              onPick={picker.onPick} onClose={() => { setPicker(null); setGhost(null) }} />
           )}
           {menu && <FloatingMenu anchor={menu.anchor} items={menu.items} onClose={() => setMenu(null)} />}
         </div>

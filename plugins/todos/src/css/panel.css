@@ -1,0 +1,22 @@
+html, body { background: transparent !important; }
+#root { background: var(--bg); }
+:root[data-mode='panel'] #root { background: transparent; }
+:root[data-mode='panel'] #root::before,
+:root[data-mode='panel'] #root::after { display: none; }
+.todos-widget { --pk-widget-padding: clamp(10px, 4vw, 22px); gap: 9px; }
+.todos-widget-heading { display: flex; justify-content: space-between; gap: 8px; color: var(--text-2); font-size: 11px; line-height: 16px; }
+.todos-widget-content { overflow: hidden; }
+.todos-widget-count { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+.todos-widget-count strong { color: var(--accent); font-weight: 500; font-size: clamp(28px, 13vw, 52px); line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.todos-widget-count span { color: var(--text-2); font-size: 12px; }
+.todos-widget-next { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 0; font-size: clamp(14px, 4.5vw, 19px); font-weight: 500; line-height: 1.45; }
+.todos-widget-list { list-style: none; margin: 10px 0 0; padding: 0; color: var(--text-2); font-size: 12px; }
+.todos-widget-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 28px; }
+.todos-widget-list li::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 8px; border: 1px solid var(--border-strong, var(--text-2)); border-radius: 50%; }
+.todos-widget-actions { justify-content: flex-end; flex-wrap: nowrap; gap: 5px; }
+.todos-widget-actions > span { color: var(--danger); margin-right: auto; font-size: 10px; }
+.todos-widget[data-compact='true'] { --pk-widget-padding: 10px; gap: 6px; }
+.todos-widget[data-compact='true'] .todos-widget-count { margin-bottom: 5px; }
+.todos-widget[data-compact='true'] .todos-widget-count strong { font-size: 28px; }
+.todos-widget[data-compact='true'] .todos-widget-next { font-size: 13px; -webkit-line-clamp: 1; }
+@media (max-height: 160px) { .todos-widget-count { display: none; } }

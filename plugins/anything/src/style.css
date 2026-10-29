@@ -29,7 +29,7 @@ header .muted { margin-top: 3px; }
   margin-left: auto; padding: 3px 10px; border: 1px solid color-mix(in srgb, var(--accent, #3579dd) 40%, var(--line));
   border-radius: 999px; color: var(--accent, #3579dd); font-size: 11px; white-space: nowrap;
 }
-header [data-open-settings] { margin-left: 0; }
+header .anything-settings-button { margin-left: 0; }
 .searchbar { display: flex; gap: 8px; padding: 10px 14px; }
 .searchbar #query { flex: 1; font-size: 14px; padding: 8px 12px; background: var(--page); }
 /* 搜索框：贴合圆角的柔光环；内层 input 自己不再画矩形 outline。 */

@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.ccswitch",
   "name": "供应商切换",
-  "version": "1.3.0",
+  "version": "0.0.1",
   "description": "AI CLI 供应商切换台：10 应用配置管理、50+ 预设、切换历史与回退、全量备份、MCP 同步、会话浏览与用量统计（复刻 cc-switch）",
   "author": "eNest Labs",
   "main": "index.html",

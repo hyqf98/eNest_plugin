@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.sketchbook",
   "name": "素描本",
-  "version": "1.0.3",
+  "version": "0.0.1",
   "description": "手绘纸面主题：纸灰、灰蓝、鼠尾草三套浅深色板，保留手写字、抖动描边与胶带装订；整页低负载漂移，开屏由宿主统一呈现。",
   "author": "eNest Labs",
   "main": "index.html",

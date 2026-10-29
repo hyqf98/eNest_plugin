@@ -15,6 +15,9 @@
         --chrome-bg: color-mix(in srgb, var(--paper) 72%, transparent);
       }
       html, body, #root { height: 100%; }
+      html, body { background: transparent !important; }
+      #root { background: var(--bg); }
+      :root[data-mode='panel'] #root { background: transparent; }
       body {
         overflow: hidden;
         font-variant-numeric: tabular-nums;
@@ -523,3 +526,38 @@
           overflow: visible;
         }
       }
+
+.pomo-widget .pomo-widget-clock {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  min-height: 100px;
+}
+.pomo-widget .pomo-widget-track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+.pomo-widget-track span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+}
+.pomo-widget .pomo-widget-task { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pomo-widget .pomo-widget-today { flex: 1; }
+@media (max-height: 195px) {
+  .pk-widget.pomo-widget { --pk-widget-padding: 8px; gap: 4px; }
+  .pomo-widget .pomo-widget-clock { min-height: 0; gap: 4px; }
+  .pomo-widget .pk-widget-value { font-size: 2rem; }
+  .pomo-widget .pomo-widget-task { display: none; }
+}
+@media (max-height: 150px) {
+  .pk-widget.pomo-widget { gap: 2px; }
+  .pomo-widget .pomo-widget-clock { gap: 2px; }
+  .pomo-widget .pk-widget-value { font-size: 1.8rem; }
+  .pomo-widget .pk-widget-caption { font-size: 11px; }
+}

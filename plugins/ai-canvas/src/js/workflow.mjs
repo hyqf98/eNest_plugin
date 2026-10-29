@@ -13,11 +13,17 @@
  */
 
 import { getNodeDef } from './nodeRegistry.mjs'
-import { getDefaultProvider } from './providers.mjs'
+import { getDefaultProvider, PROVIDER_KIND } from './providers.mjs'
 import { saveAsset, attachGalleryMeta, getAsset } from './assets.mjs'
 import { fromDataUrl } from './netFetch.mjs'
 import { PORT_KIND, normalizeOutput } from './nodeSchema.mjs'
 import { resolveParams } from './variables.mjs'
+
+/** 协议 → 供应商 kind（provider 选择按此过滤） */
+const PROTOCOL_PROVIDER_KIND = {
+  'openai-images': PROVIDER_KIND.IMAGES,
+  'openai-chat': PROVIDER_KIND.CHAT
+}
 
 /** 运行上下文：nodeId → 本轮标准输出 */
 export function createRunContext(seedNodes) {
@@ -183,8 +189,10 @@ export async function executeNode(node, { edges, nodesById, providers, draftId, 
   })
 
   const providerId = node.data.providerId
-  const provider = (providerId && providers.find(p => p.id === providerId)) || await getDefaultProvider(providers)
-  if (def.protocol && !provider?.secretRef) throw new Error('尚未配置 API 密钥：请先在设置中完成供应商配置')
+  const requiredKind = def.protocol ? (PROTOCOL_PROVIDER_KIND[def.protocol] ?? PROVIDER_KIND.IMAGES) : null
+  const provider = (providerId && providers.find(p => p.id === providerId))
+    || (requiredKind ? await getDefaultProvider(providers, requiredKind) : null)
+  if (def.protocol && !provider?.secretRef) throw new Error('尚未配置 API 密钥：请先在设置中完成对应供应商配置')
 
   const startedAt = Date.now()
   const result = await def.execute({ inputs, params, provider, onProgress })
@@ -210,11 +218,31 @@ export async function executeNode(node, { edges, nodesById, providers, draftId, 
     warnings: missing.length ? [`未解析的变量引用：${Array.from(new Set(missing)).join('、')}`] : [],
     lastRun: {
       at: Date.now(), durationMs, outputs,
+      // 输入快照：运行日志面板展示"输入是什么"；图片只留引用，文本截断
+      inputs: snapshotInputs(def, inputs),
       resolvedParams: params, usage: result.usage ?? null,
       display: result.display ?? null
     }
   }
   return patch
+}
+
+/** 输入快照（紧凑、可 JSON 序列化）：文本截断 200 字，图片只留 assetId */
+function snapshotInputs(def, inputs) {
+  const out = {}
+  for (const port of def?.inputs ?? []) {
+    const value = inputs[port.key]
+    if (value === undefined || value === null) continue
+    if (port.kind === PORT_KIND.IMAGE) {
+      const list = Array.isArray(value) ? value : [value]
+      out[port.key] = list.map(item => item?.assetId).filter(Boolean)
+    } else if (typeof value === 'string') {
+      out[port.key] = value.length > 200 ? `${value.slice(0, 200)}…` : value
+    } else {
+      out[port.key] = value
+    }
+  }
+  return out
 }
 
 /** 整画布运行：层级推进，同层并行 ≤4；onNodeState(nodeId, statePatch) 实时回报 */

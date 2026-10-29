@@ -74,6 +74,22 @@ export function contentBBox(objects, padding = 16) {
   return { x: b.x - padding, y: b.y - padding, w: b.w + padding * 2, h: b.h + padding * 2 }
 }
 
+/* ---------- 箭头几何（绘制与命中共用，Excalidraw 风：箭头翼随杆长成比例） ---------- */
+
+export const ARROW_SPREAD = Math.PI / 7
+
+/** 返回 { angle, headLen, h1:[x,y], tip:[x,y], h2:[x,y], back:[x,y] }：h1→tip→h2 为箭翼折线，back 为杆的收尾点 */
+export function arrowGeometry(x1, y1, x2, y2) {
+  const angle = Math.atan2(y2 - y1, x2 - x1)
+  const shaft = Math.hypot(x2 - x1, y2 - y1)
+  const headLen = Math.min(22, Math.max(7, shaft * 0.22))
+  const h1 = [x2 - headLen * Math.cos(angle - ARROW_SPREAD), y2 - headLen * Math.sin(angle - ARROW_SPREAD)]
+  const h2 = [x2 - headLen * Math.cos(angle + ARROW_SPREAD), y2 - headLen * Math.sin(angle + ARROW_SPREAD)]
+  // 杆只画到箭翼在杆向上的投影点，箭头不“出头”
+  const back = [x2 - headLen * Math.cos(angle) * Math.cos(ARROW_SPREAD), y2 - headLen * Math.sin(angle) * Math.cos(ARROW_SPREAD)]
+  return { angle, headLen, h1, tip: [x2, y2], h2, back }
+}
+
 /* ---------- 命中检测 ---------- */
 
 function distToSegment(px, py, ax, ay, bx, by) {
@@ -95,15 +111,56 @@ export function hitInk(obj, wx, wy, tolerance = 6) {
   return false
 }
 
-export function hitShape(obj, wx, wy, tolerance = 6) {
+/** 矩形四边贴边命中（Excalidraw 同款：空心图形点内部不拦截） */
+function hitRectBorder(obj, wx, wy, tolerance) {
   const x2 = obj.x2 ?? obj.x + obj.w
   const y2 = obj.y2 ?? obj.y + obj.h
   const minX = Math.min(obj.x, x2), maxX = Math.max(obj.x, x2)
   const minY = Math.min(obj.y, y2), maxY = Math.max(obj.y, y2)
+  const t = Math.max(obj.stroke / 2, 2) + tolerance
+  return distToSegment(wx, wy, minX, minY, maxX, minY) <= t
+    || distToSegment(wx, wy, maxX, minY, maxX, maxY) <= t
+    || distToSegment(wx, wy, maxX, maxY, minX, maxY) <= t
+    || distToSegment(wx, wy, minX, maxY, minX, minY) <= t
+}
+
+/** 椭圆轮廓采样命中 */
+function hitEllipseBorder(obj, wx, wy, tolerance) {
+  const x2 = obj.x2 ?? obj.x + obj.w
+  const y2 = obj.y2 ?? obj.y + obj.h
+  const minX = Math.min(obj.x, x2), minY = Math.min(obj.y, y2)
+  const w = Math.abs(x2 - obj.x), h = Math.abs(y2 - obj.y)
+  const cx = minX + w / 2, cy = minY + h / 2
+  const a = Math.max(w / 2, 1), b = Math.max(h / 2, 1)
+  const t = Math.max(obj.stroke / 2, 2) + tolerance
+  const steps = 32
+  let px = cx + a, py = cy
+  for (let i = 1; i <= steps; i++) {
+    const ang = (i / steps) * Math.PI * 2
+    const nx = cx + a * Math.cos(ang), ny = cy + b * Math.sin(ang)
+    if (distToSegment(wx, wy, px, py, nx, ny) <= t) return true
+    px = nx; py = ny
+  }
+  return false
+}
+
+export function hitShape(obj, wx, wy, tolerance = 6) {
   if (obj.type === 'line' || obj.type === 'arrow') {
+    const x2 = obj.x2 ?? obj.x + obj.w
+    const y2 = obj.y2 ?? obj.y + obj.h
     return distToSegment(wx, wy, obj.x, obj.y, x2, y2) <= Math.max(obj.stroke / 2, 2) + tolerance
   }
-  // 矩形/椭圆：包围区域整体可选中（无填充手绘框点中心也应选中）
+  if (obj.fill && obj.fill !== 'none') return hitShapeInterior(obj, wx, wy, tolerance)
+  if (obj.type === 'rect') return hitRectBorder(obj, wx, wy, tolerance)
+  if (obj.type === 'ellipse') return hitEllipseBorder(obj, wx, wy, tolerance)
+  return false
+}
+
+function hitShapeInterior(obj, wx, wy, tolerance = 6) {
+  const x2 = obj.x2 ?? obj.x + obj.w
+  const y2 = obj.y2 ?? obj.y + obj.h
+  const minX = Math.min(obj.x, x2), maxX = Math.max(obj.x, x2)
+  const minY = Math.min(obj.y, y2), maxY = Math.max(obj.y, y2)
   return wx >= minX - tolerance && wx <= maxX + tolerance && wy >= minY - tolerance && wy <= maxY + tolerance
 }
 
@@ -117,20 +174,27 @@ export function hitImage(obj, wx, wy) {
   return wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h
 }
 
-/** 从顶（数组末尾）往下找第一个命中对象（擦除笔迹不可命中） */
-export function hitTest(objects, wx, wy, tolerance = 6) {
+/** 同点全部精确命中（从顶往下），供选中循环使用 */
+export function hitChain(objects, wx, wy, tolerance = 6) {
+  const strict = []
+  const interior = []
   for (let i = objects.length - 1; i >= 0; i--) {
     const obj = objects[i]
     if (obj.kind === 'erase') continue
-    if (obj.kind === 'ink' && hitInk(obj, wx, wy, tolerance)) return obj
-    if (obj.kind === 'shape' && hitShape(obj, wx, wy, tolerance)) return obj
-    if (obj.kind === 'text' && hitText(obj, wx, wy, tolerance)) return obj
-    if (obj.kind === 'image' && hitImage(obj, wx, wy)) return obj
+    if (obj.kind === 'ink') { if (hitInk(obj, wx, wy, tolerance)) strict.push(obj); continue }
+    if (obj.kind === 'shape') {
+      if (hitShape(obj, wx, wy, tolerance)) { strict.push(obj); continue }
+      // 空心图形内部：兜底候选，只有没有任何精确命中时才生效
+      if ((obj.type === 'rect' || obj.type === 'ellipse') && hitShapeInterior(obj, wx, wy, tolerance)) interior.push(obj)
+      continue
+    }
+    if (obj.kind === 'text') { if (hitText(obj, wx, wy, tolerance)) strict.push(obj); continue }
+    if (obj.kind === 'image') { if (hitImage(obj, wx, wy)) strict.push(obj) }
   }
-  return null
+  return { strict, interior }
 }
 
-/** 框选：bbox 与选框相交即选中（文字/图形边框语义一致）；擦除笔迹不可选 */
+/** 框选：对象必须完全落在选框内（Excalidraw 语义，避免贴边带出别的东西）；擦除笔迹不可选 */
 export function marqueeSelect(objects, rect) {
   const minX = Math.min(rect.x, rect.x + rect.w), minY = Math.min(rect.y, rect.y + rect.h)
   const maxX = Math.max(rect.x, rect.x + rect.w), maxY = Math.max(rect.y, rect.y + rect.h)
@@ -138,8 +202,7 @@ export function marqueeSelect(objects, rect) {
   for (const obj of objects) {
     if (obj.kind === 'erase') continue
     const b = objectBBox(obj)
-    if (b.x + b.w < minX || b.x > maxX || b.y + b.h < minY || b.y > maxY) continue
-    out.push(obj.id)
+    if (b.x >= minX && b.x + b.w <= maxX && b.y >= minY && b.y + b.h <= maxY) out.push(obj.id)
   }
   return out
 }
@@ -172,6 +235,9 @@ export function scaleObject(obj, sx, sy, anchor) {
     obj.y = map(obj.y, anchor.y, sy)
     if (obj.x2 != null) obj.x2 = map(obj.x2, anchor.x, sx)
     if (obj.y2 != null) obj.y2 = map(obj.y2, anchor.y, sy)
+    // 矩形/椭圆以 w/h 存形：不缩放宽高就只剩一条线
+    if (obj.w != null) obj.w *= sx
+    if (obj.h != null) obj.h *= sy
     obj.stroke *= (sx + sy) / 2
   } else if (obj.kind === 'text') {
     obj.x = map(obj.x, anchor.x, sx)

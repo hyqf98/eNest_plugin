@@ -225,12 +225,12 @@ test('UI filter/reset and every detail dismissal use the corrected controller pa
   assert.match(preview, /payload\.routes\.length !== WORKSPACE_ROUTES\.length/)
 })
 
-test('plugin, package and workspace lock all identify the 1.0.3 route fix', async () => {
+test('plugin, package and workspace lock all identify the same version', async () => {
   const root = new URL('../', import.meta.url)
   const manifest = JSON.parse(await readFile(new URL('plugin.json', root), 'utf8'))
   const pkg = JSON.parse(await readFile(new URL('package.json', root), 'utf8'))
   const lock = JSON.parse(await readFile(new URL('../../package-lock.json', root), 'utf8'))
-  assert.equal(manifest.version, '1.0.3')
+  assert.equal(manifest.version, '0.0.1')
   assert.equal(pkg.version, manifest.version)
   assert.equal(lock.packages['plugins/sketchbook'].version, manifest.version)
   assert.equal(manifest.contributes.homePages[0].entry, 'homes/sketchbook.html')

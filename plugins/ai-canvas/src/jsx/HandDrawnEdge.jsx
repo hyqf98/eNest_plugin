@@ -1,75 +1,44 @@
 /**
- * HandDrawnEdge — roughjs 手绘贝塞尔连线 + 运行态流动虚线 + 边状态色。
- * seed 取自 edge id 哈希（重绘抖动稳定）；箭头为两段短手绘线（按端点切线角）。
- * 运行中（源节点 running）叠加 dash 流动动画层；透明宽路径负责点选。
- * 边中点 hover/选中时浮出 ＋（Dify 同款：点击插入节点并重接两端）。
+ * HandDrawnEdge — 正式手绘连线：roughjs 贝塞尔 + 端点箭头（与预览线/幽灵线同用
+ * RoughStroke 渲染，保证拖线预览、松手幽灵、正式连线三者样式完全一致）。
+ * 运行中（源节点 running）叠加 dash 流动动画层；透明宽路径负责点选；
+ * 边中点 hover/选中时浮出 ＋（点击插入节点并重接两端）。
  */
-import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
 import { getBezierPath, EdgeLabelRenderer, useInternalNode } from '@xyflow/react'
-import rough from 'roughjs'
 import { RunningEdgesContext } from './RunningState.jsx'
 import { CanvasActionsContext } from './nodes/RegistryNode.jsx'
-
-function seedFrom(id) {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
-  return Math.abs(h) || 7
-}
-
-function offsetPoint(x, y, position, delta) {
-  if (position === 'left') return [x - delta, y]
-  if (position === 'right') return [x + delta, y]
-  if (position === 'top') return [x, y - delta]
-  if (position === 'bottom') return [x, y + delta]
-  return [x, y]
-}
+import { RoughStroke } from './ConnectionLine.jsx'
+import { offsetPoint } from './roughEdge.mjs'
 
 export function HandDrawnEdge({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected }) {
-  const groupRef = useRef(null)
   const [hovered, setHovered] = useState(false)
   const running = useContext(RunningEdgesContext)
   const actions = useContext(CanvasActionsContext)
   const isRunning = running?.edges?.has(id) ?? false
   const roughness = running?.roughness ?? 1.2
-  const sourceNode = useInternalNode(source)
+  const sourceState = useInternalNode(source)?.data?.state
   const targetState = useInternalNode(target)?.data?.state
-  const edgeStatus = sourceNode?.data?.state === 'error' || targetState === 'error'
+  const edgeStatus = sourceState === 'error' || targetState === 'error'
     ? 'error'
-    : sourceNode?.data?.state === 'success' && targetState === 'success' ? 'success' : 'normal'
+    : sourceState === 'success' && targetState === 'success' ? 'success' : 'normal'
 
-  const [path, endTangent, mid] = useMemo(() => {
+  const { path, endTangent, mid } = useMemo(() => {
     const [p, mx, my] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
-    const [, cy] = offsetPoint(sourceX, sourceY, sourcePosition, 50)
-    const [tx2, ty2] = offsetPoint(targetX, targetY, targetPosition, 50)
-    void cy
-    const angle = Math.atan2(targetY - ty2, targetX - tx2)
-    return [p, angle, { x: mx, y: my }]
+    const [, ty2] = offsetPoint(targetX, targetY, targetPosition, 50)
+    const [tx2] = offsetPoint(targetX, targetY, targetPosition, 50)
+    void tx2
+    return { path: p, endTangent: Math.atan2(targetY - ty2, targetX - tx2), mid: { x: mx, y: my } }
   }, [sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition])
 
-  useEffect(() => {
-    const group = groupRef.current
-    if (!group) return
-    const svg = group.ownerSVGElement ?? group.closest('svg')
-    if (!svg) return
-    const rc = rough.svg(svg)
-    const style = getComputedStyle(group)
-    const color = style.getPropertyValue(edgeStatus === 'error' ? '--ac-accent' : edgeStatus === 'success' ? '--ac-handle-ok' : '--ac-edge').trim() || '#8a5a2b'
-    const width = Math.max(1.3, 2.1 - roughness * 0.3)
-    const options = { seed: seedFrom(id), roughness, stroke: color, strokeWidth: selected ? width + 0.8 : width, bowing: 1.4 }
-    const parts = [rc.path(path, options)]
-    const head = 11
-    for (const spread of [Math.PI - 0.46, Math.PI + 0.46]) {
-      const a = endTangent + spread
-      parts.push(rc.line(targetX, targetY, targetX + Math.cos(a) * head, targetY + Math.sin(a) * head, { ...options, strokeWidth: width + 0.2 }))
-    }
-    group.replaceChildren(...parts)
-  }, [path, id, roughness, targetX, targetY, endTangent, selected, edgeStatus])
-
   const canInsert = actions?.onEdgeInsert && !actions?.workflowRunning
+  const colorVar = edgeStatus === 'error' ? '--ac-accent' : edgeStatus === 'success' ? '--ac-handle-ok' : '--ac-edge'
   return (
     <>
-      <g ref={groupRef} className={`ac-edge-rough ac-edge-${edgeStatus} ${isRunning ? 'ac-edge-hot' : ''}`}
-        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} />
+      <g className={isRunning ? 'ac-edge-hot' : ''} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+        <RoughStroke d={path} endX={targetX} endY={targetY} angle={endTangent} seed={id}
+          roughness={roughness} selected={selected} colorVar={colorVar} />
+      </g>
       {isRunning && <path d={path} className="ac-edge-flow" fill="none" />}
       <path d={path} className="ac-edge-hit" fill="none" stroke="transparent" strokeWidth={16} />
       {(canInsert && (hovered || selected)) && (

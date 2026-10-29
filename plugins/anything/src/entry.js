@@ -1,6 +1,7 @@
 import './style.css'
 import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/style.css'
+import '@enest/plugin-kit/widget.css'
 import '@enest/plugin-kit'
 window.PluginKit.useAppearanceLayout({
   plugin: 'anything', family: 'collection', scope: '#root',

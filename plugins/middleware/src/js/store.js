@@ -34,6 +34,7 @@ const state = {
   activeTab: null,
   ui: {
     treeWidth: 240,
+    paper: 'auto', // auto | paper | cream | dark | board（纸感手绘主题）
     collapsedGroups: [],
     lastPage: {} // { connId: pageId }
   },
@@ -249,6 +250,7 @@ export async function load() {
     .slice(0, LIMITS.connections)
   state.ui = {
     treeWidth: 240,
+    paper: 'auto',
     collapsedGroups: [],
     lastPage: {},
     ...savedUi,

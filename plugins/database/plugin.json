@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.database",
   "name": "数据库",
-  "version": "1.4.1",
+  "version": "0.0.1",
   "description": "多数据库工作台：离线编辑器、查询与结果编辑、结构关系、资源中心和只读数据比较",
   "author": "eNest Labs",
   "main": "index.html",

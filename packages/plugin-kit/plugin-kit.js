@@ -143,11 +143,15 @@ const PluginKit = (() => {
   }
 
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+  const launchMode = value => {
+    const mode = value && typeof value === 'object' ? value.mode : value
+    return mode === 'quick' || mode === 'shell' || mode === 'panel' ? mode : null
+  }
   function create(options = {}) {
     const api = window.enest || window.zapi
     const disposers = [], modeListeners = new Set(), settingListeners = new Set()
     let query = '', destroyed = false, noticeTimer, copyTimer, remaining = 0, noticeStarted = 0, held = false
-    const kit = { mode: api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell', settings: { ...options.defaults } }
+    const kit = { mode: launchMode(api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode')) || 'shell', settings: { ...options.defaults } }
     Object.defineProperty(kit, 'api', { value: api, enumerable: true, writable: false, configurable: false })
     const safely = promise => Promise.resolve(promise).catch(error => kit.toast(error?.message || String(error), 'error'))
     const configure = () => {
@@ -156,8 +160,9 @@ const PluginKit = (() => {
       }
     }
     const applyMode = mode => {
-      if (mode && typeof mode === 'object') mode = mode.mode
-      kit.mode = mode === 'quick' ? 'quick' : 'shell'
+      const next = launchMode(mode)
+      if (!next) return
+      kit.mode = next
       document.documentElement.dataset.mode = kit.mode
       if (kit.mode === 'quick') {
         if (options.height) safely(api?.ui?.setHeight?.(options.height))
@@ -725,8 +730,8 @@ const PluginKit = (() => {
   // Layout-only consumers do not call create(), but share the root mode selectors.
   const hostMirror = window.enest || window.zapi
   const mirrorLaunchMode = next => {
-    const raw = next && typeof next === 'object' ? next.mode : next
-    if (raw === 'quick' || raw === 'shell') document.documentElement.dataset.mode = raw
+    const mode = launchMode(next)
+    if (mode) document.documentElement.dataset.mode = mode
   }
   const offMirrorMode = hostMirror?.onModeChange?.(mirrorLaunchMode)
   const offMirrorEnter = hostMirror?.onEnter?.(event => mirrorLaunchMode(event?.mode))

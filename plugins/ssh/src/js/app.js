@@ -1,5 +1,6 @@
 import { createCommandActions } from './commandActions.js'
 import { decodeTerminalData } from './terminalData.js'
+import { mountPaper, watchPaperChanges } from './paper-theme.js'
 
 /**
  * com.github.eNest.ssh — minimalist UI shell
@@ -1110,6 +1111,7 @@ import { decodeTerminalData } from './terminalData.js'
   }
 
   function mountActiveTerminal() {
+    if (document.documentElement.dataset.mode === 'panel') return
     const panel = $('panel-term'), active = activeSession()
     if (!panel) return
     const compact = document.documentElement.dataset.launchMode === 'quick'
@@ -1187,6 +1189,7 @@ import { decodeTerminalData } from './terminalData.js'
   }
 
   function termFocus() {
+    if (document.documentElement.dataset.mode === 'panel') return
     const s = activeSession()
     if (s?.term?.focus) s.term.focus()
   }
@@ -3761,6 +3764,7 @@ import { decodeTerminalData } from './terminalData.js'
     $('btn-sftp-refresh').onclick = () => void sftpRefresh()
     // F5：SFTP 面板可见时刷新目录（保留既有行为）
     window.addEventListener('keydown', (ev) => {
+      if (document.documentElement.dataset.mode === 'panel') return
       if (ev.key !== 'F5') return
       const panel = $('panel-sftp')
       if (!panel || !panel.classList.contains('active')) return
@@ -3856,6 +3860,8 @@ import { decodeTerminalData } from './terminalData.js'
     } catch (e) {
       toast('加载失败：' + err(e), 'error')
     }
+    mountPaper(() => store.state.ui.paper)
+    watchPaperChanges(() => store.state.ui.paper)
 
     setSidebarCollapsed(!!store.state.ui.sidebarCollapsed, false)
     setDrawerOpen(!!store.state.ui.drawerOpen, false)

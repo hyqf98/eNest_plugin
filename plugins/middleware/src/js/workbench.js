@@ -11,6 +11,7 @@ import { closeContextMenu } from './components.js'
 import { renderAll, setMode as setTabsMode, closeTaskTab, disposePanels, openSettings } from './tabs.js'
 import { renderTree, applyTreeWidth, initializeNavigation, closeNavigation, disposeNavigation } from './tree.js'
 import { refreshStatus, setMode as setStatusMode } from './status.js'
+import { mountPaper, watchPaperChanges, applyPaper, normalizePaper } from './paper-theme.js'
 
 let mode = 'shell'
 let booted = false
@@ -82,9 +83,12 @@ async function boot() {
   if (booted) return
   booted = true
 
+  mountPaper(() => store.ui.paper)
   await api.applyTheme()
   applyMode(await api.mode())
   await store.load()
+  applyPaper(normalizePaper(store.ui.paper))
+  watchPaperChanges(() => store.ui.paper)
   // Runtime sessions are opened per surface and per connection.
   initializeNavigation(mode)
 

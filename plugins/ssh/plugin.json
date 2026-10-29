@@ -1,10 +1,15 @@
 {
   "id": "com.github.eNest.ssh",
   "name": "SSH管理",
-  "version": "1.4.1",
+  "version": "0.0.1",
   "description": "SSH 工作台：快速连接、终端提示、远程文件、三平台资源与进程端口、服务容器、传输和隧道",
   "author": "eNest Labs",
   "main": "index.html",
+  "views": {
+    "default": "shell",
+    "layouts": ["quick", "shell", "panel"],
+    "panel": { "size": { "width": 320, "height": 248 } }
+  },
   "category": "开发",
   "icon": "assets/market/icon.svg",
   "engines": {
@@ -64,7 +69,7 @@
   "ui": {
     "chrome": "none",
     "themeAware": true,
-    "background": "opaque",
+    "background": "transparent",
     "preferredColorScheme": "auto"
   },
   "market": {

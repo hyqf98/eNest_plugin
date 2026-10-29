@@ -5,6 +5,7 @@
  */
 
 import rough from 'roughjs'
+import { arrowGeometry } from './objects.mjs'
 
 let rc = null
 const drawableCache = new Map()
@@ -56,7 +57,11 @@ export function drawShape(ctx, canvas, obj, roughness) {
     else if (obj.type === 'ellipse') drawable = r.generator.ellipse(minX + w / 2, minY + h / 2, w, h, opts)
     else if (obj.type === 'line') drawable = r.generator.line(obj.x, obj.y, x2, y2, opts)
     else if (obj.type === 'arrow') {
-      drawable = r.generator.linearPath([obj.x, obj.y, x2, y2].length === 4 ? [[obj.x, obj.y], [x2, y2]] : [], opts)
+      // roughjs 4.6.6 无原生箭头：杆只画到箭翼根部（不“出头”），箭翼单独一条 linearPath 走手绘抖动
+      const { h1, tip, h2, back } = arrowGeometry(obj.x, obj.y, x2, y2)
+      const shaft = r.generator.line(obj.x, obj.y, back[0], back[1], opts)
+      const head = r.generator.linearPath([h1, tip, h2], { ...opts, disableMultiStroke: true })
+      drawable = { type: 'arrow', options: shaft.options, sets: [...shaft.sets, ...head.sets] }
     }
     if (drawable) {
       drawableCache.set(key, drawable)
@@ -67,7 +72,6 @@ export function drawShape(ctx, canvas, obj, roughness) {
     }
   }
   if (drawable) r.draw(drawable)
-  if (obj.type === 'arrow') drawArrowHead(ctx, obj, x2, y2)
 }
 
 /** roughness=0 的规整路径 */
@@ -84,7 +88,8 @@ export function drawCleanShape(ctx, obj, minX, minY, w, h, x2, y2) {
   ctx.beginPath()
   if (obj.type === 'rect') ctx.rect(minX, minY, w, h)
   else if (obj.type === 'ellipse') ctx.ellipse(minX + w / 2, minY + h / 2, Math.max(w / 2, 1), Math.max(h / 2, 1), 0, 0, Math.PI * 2)
-  else if (obj.type === 'line' || obj.type === 'arrow') { ctx.moveTo(obj.x, obj.y); ctx.lineTo(x2, y2) }
+  else if (obj.type === 'line') { ctx.moveTo(obj.x, obj.y); ctx.lineTo(x2, y2) }
+  else if (obj.type === 'arrow') { const { back } = arrowGeometry(obj.x, obj.y, x2, y2); ctx.moveTo(obj.x, obj.y); ctx.lineTo(back[0], back[1]) }
   if (obj.fill && obj.fill !== 'none') ctx.fill()
   ctx.globalAlpha = 1
   ctx.stroke()
@@ -92,19 +97,18 @@ export function drawCleanShape(ctx, obj, minX, minY, w, h, x2, y2) {
   if (obj.type === 'arrow') drawArrowHead(ctx, obj, x2, y2)
 }
 
-/** 箭头头：两条短线（手绘感） */
+/** 规整路径的箭头头：与 arrowGeometry 同一比例语义（Excalidraw 风，箭翼随杆长） */
 export function drawArrowHead(ctx, obj, x2, y2) {
-  const angle = Math.atan2(y2 - obj.y, x2 - obj.x)
-  const len = Math.max(12, obj.stroke * 5)
-  const spread = Math.PI / 7
+  const { h1, tip, h2 } = arrowGeometry(obj.x, obj.y, x2, y2)
   ctx.save()
   ctx.strokeStyle = obj.color
   ctx.lineWidth = obj.stroke
   ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
   ctx.beginPath()
-  ctx.moveTo(x2 - len * Math.cos(angle - spread), y2 - len * Math.sin(angle - spread))
-  ctx.lineTo(x2, y2)
-  ctx.lineTo(x2 - len * Math.cos(angle + spread), y2 - len * Math.sin(angle + spread))
+  ctx.moveTo(h1[0], h1[1])
+  ctx.lineTo(tip[0], tip[1])
+  ctx.lineTo(h2[0], h2[1])
   ctx.stroke()
   ctx.restore()
 }

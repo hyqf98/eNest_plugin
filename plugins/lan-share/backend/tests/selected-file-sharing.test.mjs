@@ -103,7 +103,7 @@ async function until(condition) {
 test('migration declares a new native permission and keeps the renderer on standard backend transport', async () => {
   const manifest = JSON.parse(await readFile(new URL('plugin.json', pluginRoot), 'utf8'))
   const pkg = JSON.parse(await readFile(new URL('package.json', pluginRoot), 'utf8'))
-  assert.equal(manifest.version, '1.2.0')
+  assert.equal(manifest.version, '0.0.1')
   assert.equal(manifest.engines.enest, '>=0.2.2')
   assert.ok(manifest.permissions.includes('backend.node'))
   assert.ok(!manifest.permissions.includes('lan.share'))

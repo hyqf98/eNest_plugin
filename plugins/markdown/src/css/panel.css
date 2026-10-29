@@ -1,0 +1,16 @@
+html, body, #root { height: 100%; min-width: 0; }
+html, body { background: transparent !important; }
+#root { background: var(--bg); }
+:root[data-mode='panel'] #root { background: transparent; }
+:root[data-mode='panel'] #root::before,
+:root[data-mode='panel'] #root::after { display: none; }
+.markdown-widget { --pk-widget-padding: clamp(10px, 4vw, 22px); gap: 8px; }
+.markdown-widget-heading { display: flex; justify-content: space-between; gap: 8px; color: var(--text-2); font-size: 11px; line-height: 16px; }
+.markdown-widget-content { overflow: hidden; }
+.markdown-widget-title { margin: 0 0 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-heading, var(--font)); font-size: clamp(17px, 6vw, 27px); font-weight: 600; line-height: 1.25; letter-spacing: -.02em; }
+.markdown-widget-excerpt { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; margin: 0; white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; line-height: 23px; color: var(--text-2); }
+.markdown-widget-actions { justify-content: space-between; flex-wrap: nowrap; }
+.markdown-widget-actions > span { color: var(--text-2); font-size: 10px; }
+.markdown-widget[data-compact='true'] { --pk-widget-padding: 10px; gap: 6px; }
+.markdown-widget[data-compact='true'] .markdown-widget-title { font-size: 17px; margin-bottom: 5px; }
+@media (min-width: 360px) and (max-height: 200px) { .markdown-widget-title { font-size: 21px; } }

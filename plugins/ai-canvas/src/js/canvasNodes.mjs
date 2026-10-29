@@ -50,6 +50,16 @@ export function upstreamPosition(targetNode, nodes) {
   return avoidOverlap({ x: base.x - NODE_WIDTH - NODE_COLUMN_GAP, y: base.y }, nodes)
 }
 
+/**
+ * 拖线松手建点的落位：nodeOrigin 是 [0.5,0.5]（position=节点中心），
+ * 但用户期望松手点 = 新节点的接入口位置。isSource（从输出端口拖出）时新节点
+ * 的输入口在左缘 → 中心右移半宽；反向拖时新节点的输出口在右缘 → 中心左移半宽。
+ */
+export function dropAnchorPosition(drop, { asTarget }) {
+  const half = NODE_WIDTH / 2
+  return { x: drop.x + (asTarget ? half : -half), y: drop.y }
+}
+
 /** 自动排版：按拓扑分层，层内纵向堆叠，返回新位置表 */
 export function layoutPositions(nodes, edges, topoLevels) {
   const levels = topoLevels(nodes, edges)

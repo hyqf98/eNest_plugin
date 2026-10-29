@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.translate",
   "name": "翻译",
-  "version": "1.4.1",
+  "version": "0.0.1",
   "description": "多引擎翻译、原文译文对照即时翻译（防抖）、语言快捷切换、历史与收藏、双语复制导出。",
   "author": "Lingua",
   "main": "index.html",

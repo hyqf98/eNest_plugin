@@ -25,3 +25,5 @@ createRoot(document.getElementById('root')).render(createElement(App))
 // 等 React 渲染出静态外壳后再启动，保证 main.js 的 boot() 能查到全部容器。
 import('./js/main.js')
 import './ui/pk-ui.css'
+// 纸感手绘主题层最后加载：令牌桥用 !important 接管宿主内联 token。
+import './css/paper-theme.css'

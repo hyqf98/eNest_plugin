@@ -33,7 +33,8 @@ export const PARAM_TYPE = {
   SELECT: 'select',
   SLIDER: 'slider',
   SWITCH: 'switch',
-  IMAGE: 'image'
+  IMAGE: 'image',
+  DIRECTORY: 'directory'
 }
 
 export function isPortKind(kind) { return Object.hasOwn(PORT_KINDS, kind) }
@@ -142,7 +143,7 @@ export function validateNodeDef(def) {
     seenParams.add(param.key)
     if (!Object.values(PARAM_TYPE).includes(param?.type)) problems.push(`params.${param.key} 的 type 非法：${param?.type}`)
     if (param?.type === PARAM_TYPE.SELECT && !Array.isArray(param.options)) problems.push(`params.${param.key} 为 select 但缺少 options`)
-    if (param?.default === undefined) problems.push(`params.${param.key} 缺少 default`)
+    if (param?.default === undefined && ![PARAM_TYPE.IMAGE, PARAM_TYPE.DIRECTORY].includes(param?.type)) problems.push(`params.${param.key} 缺少 default`)
   }
   return problems
 }
@@ -168,11 +169,13 @@ let nodeSeq = 0
 /**
  * 节点实例的唯一工厂：React Flow 节点壳 + 标准 data 结构。
  * React Flow 的 node.type 恒为 'registry'，业务类型放在 data.type。
+ * data.title 是用户自定义标题（空 = 用注册表默认标题），双击标题可改名。
  */
 export function createNodeData(def, { params, ...overrides } = {}) {
   if (!def) throw new Error('createNodeData 需要已注册的节点定义')
   return {
     type: def.type,
+    title: '',
     params: { ...defaultParams(def), ...(params ?? {}) },
     state: 'idle',
     error: null,

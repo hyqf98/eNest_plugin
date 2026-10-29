@@ -1,11 +1,8 @@
-/**
- * 计算器主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
- * 业务核心 calculate/formatNumber/parseAssignment 复用 core.mjs（未改动）。
- */
+/** Shared calculator state, evaluator, memory and history across all three layouts. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { calculate, formatNumber, parseAssignment, isVariableName } from '../js/core.mjs'
 import { TooltipProvider, MoreMenu } from '../ui/index.jsx'
+import { PanelView } from './PanelView.jsx'
 
 const VARS_KEY = 'calculator.vars.v1'
 const KEYS = [
@@ -21,6 +18,7 @@ export function App() {
   const exprRef = useRef(null)
   const listRef = useRef(null)
 
+  const [mode, setMode] = useState(() => api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
   const [expr, setExpr] = useState('')
   const [result, setResult] = useState({ text: '即输即算', error: false, value: null })
   const [memoryText, setMemoryText] = useState('M = 0')
@@ -108,10 +106,12 @@ export function App() {
       varsRef.current[assign.name] = value
       kitRef.current?.save(VARS_KEY, varsRef.current).catch(() => {})
     }
-    setExpr(resultText)
-    kitRef.current?.setQuery(resultText)
+    // Group separators are presentation only; continuation must remain a valid expression.
+    const nextExpression = formatNumber(value, settingsRef.current.precision, { group: false })
+    setExpr(nextExpression)
+    kitRef.current?.setQuery(nextExpression)
     setSelected(-1)
-    recompute(resultText)
+    recompute(nextExpression)
   }, [expr, fmt, persist, recompute])
 
   const records = useMemo(
@@ -218,6 +218,8 @@ export function App() {
       },
     })
     kitRef.current = kit
+    setMode(kit.mode)
+    const offMode = kit.onMode(setMode)
     kit.onSettings(() => { setSettings({ ...kit.settings }) })
     api?.onEnter?.(({ payload }) => {
       const text = typeof payload === 'string' ? payload : payload?.text
@@ -246,10 +248,23 @@ export function App() {
         recomputeRef.current(exprRef.current?.value ?? '')
       }
     })()
-    return () => { alive = false }
+    return () => { alive = false; offMode() }
   }, [])
   const moveRef = useRef(move)
   moveRef.current = move
+
+  if (mode === 'panel') {
+    return <PanelView
+      expr={expr}
+      inputRef={exprRef}
+      result={result}
+      recent={history[0]}
+      onChange={(value) => { setExpr(value); setSelected(-1) }}
+      onConfirm={confirmEntry}
+      onCopy={() => result.value != null && copy(fmt(result.value))}
+      onOpen={() => api?.ui?.openInShell?.().catch((error) => kitRef.current?.toast(error.message, 'error'))}
+    />
+  }
 
   return (
     <TooltipProvider>

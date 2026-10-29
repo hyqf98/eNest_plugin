@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fmtBytes, fmtTime, fmtRemain } from '../js/util.mjs'
 import { loadHistory, pushHistory, recordFromShare, historyLine, historyMeta } from '../js/history.mjs'
 import { createShareApi } from '../js/share-api.mjs'
+import { PanelView } from './PanelView.jsx'
 
 const api = window.enest || window.zapi
 const shareApi = createShareApi(api)
@@ -16,12 +17,14 @@ const DURATIONS = [5, 10, 30, 60]
 
 export function App() {
   const kitRef = useRef(null)
+  const [layoutMode, setLayoutMode] = useState(() => api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
 
   const [mode, setModeState] = useState('send') // send | receive
   const [picked, setPicked] = useState([])      // { handleId, name, size }
   const [minutes, setMinutes] = useState(10)
   const [share, setShare] = useState(null)      // LanShareStatus
   const [starting, setStarting] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [logs, setLogs] = useState([])
   const [history, setHistory] = useState([])
   const [deviceName, setDeviceName] = useState('')
@@ -44,6 +47,7 @@ export function App() {
   const offStatusRef = useRef(null)
   const nameTimerRef = useRef(null)
   const startingRef = useRef(false)
+  const stoppingRef = useRef(false)
   const mountedRef = useRef(false)
 
   /* —— 分享中：倒计时/计数渲染（等价原 tick） —— */
@@ -243,6 +247,23 @@ export function App() {
   }, [stopTick, saveHistory])
   finishShareRef.current = finishShare
 
+  const stopShare = useCallback(async () => {
+    const id = shareRef.current?.shareId
+    if (!id || stoppingRef.current) return
+    stoppingRef.current = true
+    setStopping(true)
+    try {
+      await shareApi.stop(id)
+      const done = await shareApi.status(id)
+      if (mountedRef.current && shareRef.current?.shareId === id) finishShare('分享已停止', done)
+    } catch (error) {
+      if (mountedRef.current) kitRef.current?.toast(error.message || '无法确认停止，请关闭插件', 'error')
+    } finally {
+      stoppingRef.current = false
+      if (mountedRef.current) setStopping(false)
+    }
+  }, [finishShare])
+
   /* —— 设备名 / 接收目录（等价原 bindPrefs，400ms 防抖保留） —— */
   const onDeviceNameInput = useCallback((e) => {
     const value = e.target.value
@@ -271,6 +292,7 @@ export function App() {
   /* —— Quick / 桌面双形态（等价原 kit.onMode） —— */
   const modeRef = useRef(null)
   modeRef.current = (nextMode) => {
+    setLayoutMode(nextMode)
     document.documentElement.dataset.mode = nextMode
     if (nextMode === 'quick') {
       const live = shareRef.current != null
@@ -286,6 +308,7 @@ export function App() {
     mountedRef.current = true
     const kit = window.PluginKit.create({ title: '局域网传件', height: 480 })
     kitRef.current = kit
+    modeRef.current(kit.mode)
     kit.onMode((nextMode) => modeRef.current?.(nextMode))
     // The native backend shutdown also closes sockets if the page cannot acknowledge close.
     const offBeforeClose = api?.onBeforeClose?.(() => {
@@ -307,17 +330,23 @@ export function App() {
       offBeforeClose?.()
       clearTimeout(nameTimerRef.current)
       stopTick()
+      kit.destroy?.()
     }
   }, [renderHistoryFrom, stopTick])
 
   /* —— 分享中实时渲染二维码（等价原 renderLive 中的 drawQr） —— */
   const urls = useMemo(() => shareUrls(share), [share?.shareId, shareUrls])
   useEffect(() => {
-    if (share && urls[0]) drawQr(urls[0])
-  }, [urls, drawQr])
+    if (layoutMode !== 'panel' && share && urls[0]) drawQr(urls[0])
+  }, [urls, drawQr, layoutMode])
 
   const send = mode === 'send'
   const logRows = logs.slice(-50).reverse()
+
+  if (layoutMode === 'panel') return <PanelView share={share} now={now} status={statusText}
+    onCopyLink={() => { if (urls[0]) void kitRef.current?.copy(urls[0]) }}
+    onOpenShell={() => Promise.resolve(api?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}
+  />
 
   return (
     <main className="lan-app">
@@ -411,15 +440,7 @@ export function App() {
                       <span className="meter-label">连接</span>
                       <span id="conn-count" className="meter-value pk-mono">{String(share.activeConnections ?? 0)}</span>
                     </div>
-                    <button id="stop-btn" type="button" className="btn danger" onClick={async () => {
-                      if (!shareRef.current) return
-                      try {
-                        const id = shareRef.current.shareId
-                        await shareApi.stop(id)
-                        const done = await shareApi.status(id)
-                        finishShare('分享已停止', done)
-                      } catch (error) { kitRef.current?.toast(error.message || '无法确认停止，请关闭插件', 'error') }
-                    }}>停止分享</button>
+                    <button id="stop-btn" type="button" className="btn danger" disabled={stopping} onClick={() => void stopShare()}>{stopping ? '停止中…' : '停止分享'}</button>
                   </div>
                 </div>
               </div>

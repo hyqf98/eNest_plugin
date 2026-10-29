@@ -5,6 +5,7 @@ import '@ssh/css/workbench.css'
 import '@ssh/css/completion.css'
 import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/style.css'
+import '@enest/plugin-kit/widget.css'
 import '@enest/plugin-kit/workbench.css'
 import '@enest/plugin-kit'
 window.PluginKit.useAppearanceLayout({
@@ -17,3 +18,5 @@ import { App } from './jsx/App.jsx'
 
 createRoot(document.getElementById('root')).render(createElement(App))
 import './ui/pk-ui.css'
+// 纸感手绘主题层最后加载：令牌桥用 !important 接管宿主内联 token。
+import './css/paper-theme.css'

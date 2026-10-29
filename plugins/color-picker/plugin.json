@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.color-picker",
   "name": "取色器",
-  "version": "1.4.0",
+  "version": "0.0.1",
   "description": "屏幕与图片精准取色，HEX/RGB/HSL/OKLCH 一键复制、和谐色生成、WCAG 对比度检查、命名色板与 CSS/JSON 导出。",
   "author": "eNest Labs",
   "main": "index.html",

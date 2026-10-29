@@ -150,51 +150,17 @@ body {
   border-right: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
 }
 
-
-
-
-
-
-
 .app.sidebar-collapsed .side {
   width: 48px !important;
   min-width: 48px;
   max-width: 48px;
 }
 
-
 .app.sidebar-collapsed .resizer.left { display: none; }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 .sql-preview { font-family: var(--font-mono); font-size: 11px; }
 
 /* airy tree */
-
-
-
-
-
-
-
 
 /* center stacked panes — continuous surfaces */
 .mid-col {
@@ -344,44 +310,6 @@ body {
 .results[hidden],
 .resizer.bottom[hidden] { display: none !important; }
 
-/* FAB execute — 小号、跟随壳子 accent Token，避免过大抢戏 */
-.fab-dock {
-  position: absolute;
-  right: 14px;
-  bottom: 12px;
-  z-index: 12;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  pointer-events: none;
-}
-.fab-dock > * { pointer-events: auto; }
-.fab-execute {
-  appearance: none;
-  border: 0;
-  cursor: pointer;
-  font-family: var(--font);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: 50%;
-  /* 跟随主题：底用 accent，前景用 bg，浅/深壳子自动反相 */
-  background: var(--accent);
-  color: var(--bg);
-  font-size: 11px;
-  box-shadow: var(--shadow-soft);
-  transition: transform 0.12s ease, opacity 0.12s, box-shadow 0.12s, background 0.12s, color 0.12s;
-}
-.fab-execute:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: color-mix(in srgb, var(--accent) 88%, var(--ok));
-  box-shadow: var(--shadow-float);
-}
-.fab-execute:disabled { opacity: 0.4; cursor: not-allowed; }
-
 /* right dock */
 .right-panel {
   width: var(--right-w);
@@ -429,23 +357,6 @@ body {
   box-shadow: none;
 }
 .right-body { flex: 1; overflow: auto; padding: 10px 12px; min-height: 0; }
-
-/* status */
-.statusbar {
-  flex-shrink: 0;
-  display: flex;
-  gap: 10px;
-  padding: 5px 14px;
-  border-top: 0;
-  background: transparent;
-  color: var(--text-3);
-  font-size: 11px;
-  overflow-x: auto;
-  white-space: nowrap;
-}
-.st-item { color: var(--text-2); }
-.st-item::after { content: "·"; margin-left: 10px; color: var(--text-3); }
-.st-item:last-child::after { content: ""; }
 
 /* resizers — hairline hover */
 .resizer {
@@ -521,7 +432,6 @@ body {
 }
 .btn.icon:hover:not(:disabled) { color: var(--text); background: var(--accent-soft); border-color: transparent; }
 
-.divider { width: 1px; height: 14px; background: var(--border); margin: 0 4px; }
 .muted { color: var(--text-3); }
 .muted.sm, .sm { font-size: 11px; }
 .spacer { flex: 1; }
@@ -700,21 +610,6 @@ body {
 .comp-detail { color: var(--text-3); font-size: 11px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comp-empty { padding: 10px; color: var(--text-3); font-size: 12px; text-align: center; }
 
-.completion-doc {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  width: 220px;
-  max-height: 50%;
-  overflow: auto;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 12px;
-  z-index: 18;
-  font-size: 12px;
-  box-shadow: var(--shadow-soft);
-}
 .doc-kind { font-size: 11px; color: var(--text-3); margin-bottom: 4px; }
 .doc-label { font-family: var(--font-mono); font-weight: 600; margin-bottom: 4px; color: var(--text); }
 .doc-detail { color: var(--text-2); margin-bottom: 6px; }
@@ -726,27 +621,8 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
 }
-.doc-note { margin-top: 8px; color: var(--text-3); font-size: 11px; }
 
-/* 查找条已从 UI 移除；保留选择器兼容旧缓存，强制不显示 */
-.editor-findbar {
-  display: none !important;
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 30;
-}
-.editor-findbar input {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--radius-xs);
-  padding: 4px 8px;
-  font-size: 12px;
-  outline: none;
-  width: 110px;
-  font-family: var(--font);
-}
+/* 查找条已从 UI 移除；生产编辑器是 Monaco（monacoEditor.js），自绘查找条无生产者。 */
 
 /* ── result grid: continuous surface ── */
 .result-tabs {
@@ -918,38 +794,6 @@ body {
 .ci-err { color: var(--danger); font-size: 11px; margin-top: 4px; }
 .doc-panel .doc-label { font-family: var(--font-mono); font-size: 14px; margin: 6px 0; color: var(--text); }
 
-/* modal — elevated card, less frame */
-.modal-mask {
-  position: fixed;
-  inset: 0;
-  background: color-mix(in srgb, var(--db-scrim) 28%, transparent);
-  backdrop-filter: blur(6px);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-.modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  width: min(420px, 100%);
-  max-height: min(88vh, 720px);
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-float);
-}
-.modal.wide { width: min(460px, 100%); }
-.modal.small { width: min(320px, 100%); }
-.modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px 8px;
-  font-size: 13px;
-}
-.modal-body { padding: 0 14px 14px; overflow: auto; }
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1016,7 +860,6 @@ body {
   margin: 0;
   accent-color: var(--accent);
 }
-.kv-list { display: flex; flex-direction: column; gap: 6px; }
 .kv-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
 .kv-row input { min-height: 30px; }
 .kv-add {
@@ -1177,23 +1020,6 @@ textarea:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 1
 *::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--text-3) 55%, transparent); }
 *::-webkit-scrollbar-corner { background: transparent; }
 
-/* —— 数字等宽：所有数据读数用 tabular —— */
-
-/* —— 环境徽章：低饱和 dot + 文字，不再用重色块 —— */
-
-
-/* env 圆点走语义 token（test 无对应宿主 token，保留紫色辨识） */
-
-
-
-
-/* —— 连接卡：行内 left-rail 呼吸 + 状态语义 —— */
-
-
-
-
-
-
 /* 驱动徽章弱化为 mono 缩写 + 品牌前缀点 */
 .badge.driver {
   font-family: var(--font-mono);
@@ -1207,22 +1033,7 @@ textarea:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 1
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 
-/* —— 执行按钮：主色由 --brand-strong（= --accent）驱动，文字用对比色 token —— */
-.fab-execute {
-  background: var(--brand-strong);
-  color: var(--accent-contrast);
-}
-.fab-execute:hover:not(:disabled) {
-  background: var(--brand-strong);
-  filter: brightness(1.08);
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--brand) 35%, transparent);
-}
 /* .btn.primary 已在基础层按 accent 定义，此处不再重复声明 */
-
-/* —— 侧栏 Tab：下划线式分段（替代浮起卡片） —— */
-
-
-
 
 /* —— SQL/结果 Tab：活动态品牌下划线 —— */
 .tab.active { box-shadow: none; }
@@ -1275,12 +1086,6 @@ textarea:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 1
 .grid-bar { gap: 6px; }
 .grid-bar .btn.xs { border-radius: var(--radius-xs); }
 
-/* —— 状态条 —— */
-.statusbar {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-}
-
 /* —— 微交互：按钮按压物理感 —— */
 .btn, .btn.icon, .rail-btn, .tab, .ctx-menu button {
   transition: background 0.12s, color 0.12s, transform 0.08s ease, filter 0.12s;
@@ -1288,16 +1093,6 @@ textarea:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 1
 .btn:active:not(:disabled), .btn.icon:active, .rail-btn:active, .ctx-menu button:active {
   transform: scale(0.97);
 }
-
-/* —— modal 头部节奏 —— */
-.modal-head { padding: 16px 16px 10px; }
-.modal-head h2, .modal-head h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.modal { border-radius: var(--radius-lg); }
 
 /* —— 补全弹窗：kind 色点 → kind 缩写胶囊（更 IDE 感） —— */
 .comp-kind {

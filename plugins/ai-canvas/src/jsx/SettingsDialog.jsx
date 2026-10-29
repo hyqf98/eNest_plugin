@@ -1,19 +1,20 @@
 /**
  * SettingsDialog — 弹框设置（pk-Dialog + 左侧窄图标导航）。
- * 分组：API 配置（多 Provider CRUD + 测试连接）/ 默认参数 / 外观 / 存储。
+ * 分组：图像 API / 大模型 Chat / 默认参数 / 外观 / 存储。
  * 密钥只写 vault（secretRef），编辑时留空 = 保持不变。
  */
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription, Button, Input, Segmented, Select, Slider } from '../ui/index.jsx'
-import { normalizeBaseUrl, upsertProvider, removeProvider } from '../js/providers.mjs'
-import { openaiImagesProtocol } from '../js/providers.mjs'
+import { normalizeBaseUrl, upsertProvider, removeProvider, PROVIDER_KIND } from '../js/providers.mjs'
+import { openaiImagesProtocol, openaiChatProtocol } from '../js/providers.mjs'
 import { PAPERS } from '../js/theme.mjs'
 import { storageUsage } from '../js/assets.mjs'
 import { listAssets, deleteAsset } from '../js/assets.mjs'
 
 const SECTIONS = [
-  { id: 'api', glyph: '⛨', label: 'API 配置' },
-  { id: 'defaults', glyph: '✦', label: '默认参数' },
+  { id: 'images', glyph: '✦', label: '图像 API' },
+  { id: 'chat', glyph: '☄', label: '大模型' },
+  { id: 'defaults', glyph: '⚙', label: '默认参数' },
   { id: 'appearance', glyph: '✎', label: '外观' },
   { id: 'storage', glyph: '▣', label: '存储' }
 ]
@@ -25,13 +26,31 @@ function formatBytes(bytes) {
   return `${bytes} B`
 }
 
-function ApiSection({ providers, onChange }) {
-  const [draft, setDraft] = useState({ id: '', name: '', baseUrl: '', model: 'gpt-image-1' })
+const KIND_META = {
+  [PROVIDER_KIND.IMAGES]: {
+    defaultModel: 'gpt-image-1',
+    desc: 'OpenAI Images 协议（文生图 / 图生图）。地址填到根或 /v1 均可，软件自动拼接 /images/generations 与 /images/edits；one-api / new-api 等中转站同样适用。密钥仅存宿主保险库，页面不留明文。',
+    test: provider => openaiImagesProtocol.test(provider)
+  },
+  [PROVIDER_KIND.CHAT]: {
+    defaultModel: 'gpt-4o-mini',
+    desc: 'OpenAI Chat Completions 协议，供「LLM 提示词优化」节点调用大模型。地址填到根或 /v1 均可，软件自动拼接 /chat/completions；兼容任意 OpenAI 风格中转站与自建网关。',
+    test: provider => openaiChatProtocol.test(provider)
+  }
+}
+
+/** 按 kind 复用的供应商 CRUD（images / chat 共用逻辑，只差路径与默认模型） */
+function ProviderSection({ kind, providers, onChange }) {
+  const meta = KIND_META[kind]
+  const list = providers.filter(p => (p.kind ?? PROVIDER_KIND.IMAGES) === kind)
+  const [draft, setDraft] = useState({ id: '', name: '', baseUrl: '', model: meta.defaultModel })
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [testing, setTesting] = useState('')
   const [testResult, setTestResult] = useState(null)
   const [error, setError] = useState('')
+
+  const reset = () => { setDraft({ id: '', name: '', baseUrl: '', model: meta.defaultModel }); setApiKey('') }
 
   async function addOrUpdate() {
     setError('')
@@ -39,11 +58,10 @@ function ApiSection({ providers, onChange }) {
     setBusy(true)
     try {
       const id = draft.id || `p${Date.now().toString(36)}`
-      const makingDefault = providers.length === 0 || !providers.some(p => p.isDefault)
-      await upsertProvider({ id, name: draft.name.trim(), baseUrl: draft.baseUrl, model: draft.model.trim() || 'gpt-image-1', isDefault: draft.isDefault || makingDefault }, apiKey)
+      const makingDefault = !list.length || !list.some(p => p.isDefault)
+      await upsertProvider({ id, name: draft.name.trim(), baseUrl: draft.baseUrl, model: draft.model.trim() || meta.defaultModel, kind, isDefault: draft.isDefault || makingDefault }, apiKey)
       onChange()
-      setDraft({ id: '', name: '', baseUrl: '', model: 'gpt-image-1' })
-      setApiKey('')
+      reset()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally { setBusy(false) }
@@ -52,7 +70,7 @@ function ApiSection({ providers, onChange }) {
   async function test(provider) {
     setTesting(provider.id); setTestResult(null)
     try {
-      await openaiImagesProtocol.test(provider)
+      await meta.test(provider)
       setTestResult({ id: provider.id, ok: true, message: '连接成功' })
     } catch (err) {
       setTestResult({ id: provider.id, ok: false, message: err instanceof Error ? err.message : String(err) })
@@ -60,10 +78,10 @@ function ApiSection({ providers, onChange }) {
   }
 
   return <div className="ac-set-section">
-    <p className="ac-set-desc">OpenAI Images 协议（gpt-image）。地址填到根或 <code>/v1</code> 均可，软件自动拼接 <code>/images/generations</code> 与 <code>/images/edits</code>；one-api / new-api 等中转站同样适用。密钥仅存宿主保险库，页面不留明文。</p>
+    <p className="ac-set-desc">{meta.desc}</p>
     <div className="ac-provider-list">
-      {providers.length === 0 && <div className="ac-provider-empty">还没有供应商，先在下方添加一个。</div>}
-      {providers.map(p => (
+      {list.length === 0 && <div className="ac-provider-empty">还没有供应商，先在下方添加一个。</div>}
+      {list.map(p => (
         <div key={p.id} className="ac-provider-row">
           <div className="ac-provider-main">
             <div className="ac-provider-title">
@@ -85,14 +103,14 @@ function ApiSection({ providers, onChange }) {
     <div className="ac-provider-form">
       <div className="ac-provider-form-title">{draft.id ? '编辑供应商' : '添加供应商'}</div>
       <div className="ac-form-grid">
-        <label>名称<Input value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="如 OpenAI 官方 / 某中转站" /></label>
-        <label>模型<Input value={draft.model} onChange={e => setDraft({ ...draft, model: e.target.value })} placeholder="gpt-image-1" /></label>
+        <label>名称<Input value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder={kind === PROVIDER_KIND.CHAT ? '如 OpenAI Chat / 某中转站' : '如 OpenAI 官方 / 某中转站'} /></label>
+        <label>模型<Input value={draft.model} onChange={e => setDraft({ ...draft, model: e.target.value })} placeholder={meta.defaultModel} /></label>
         <label className="ac-form-wide">接口地址（baseUrl）<Input value={draft.baseUrl} onChange={e => setDraft({ ...draft, baseUrl: e.target.value })} placeholder="https://api.openai.com/v1" /></label>
         <label className="ac-form-wide">API Key{draft.id ? '（留空 = 保持不变）' : ''}<Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-…" autoComplete="off" /></label>
       </div>
       {error && <div className="ac-error" role="alert">{error}</div>}
       <div className="ac-form-actions">
-        {draft.id && <Button size="sm" variant="ghost" onClick={() => { setDraft({ id: '', name: '', baseUrl: '', model: 'gpt-image-1' }); setApiKey('') }}>取消编辑</Button>}
+        {draft.id && <Button size="sm" variant="ghost" onClick={reset}>取消编辑</Button>}
         <Button size="sm" variant="primary" disabled={busy} onClick={addOrUpdate}>{draft.id ? '保存修改' : '添加'}</Button>
       </div>
     </div>
@@ -101,7 +119,7 @@ function ApiSection({ providers, onChange }) {
 
 function DefaultsSection({ prefs, onChange }) {
   return <div className="ac-set-section">
-    <p className="ac-set-desc">新节点的初始参数（每个节点仍可单独调整）。</p>
+    <p className="ac-set-desc">新生成/编辑类节点的初始参数（每个节点仍可单独调整）。</p>
     <div className="ac-form-grid">
       <label>默认尺寸
         <Select value={prefs.defaultSize} onChange={v => onChange({ ...prefs, defaultSize: v })} options={[
@@ -120,8 +138,8 @@ function DefaultsSection({ prefs, onChange }) {
 
 function AppearanceSection({ prefs, onChange }) {
   return <div className="ac-set-section">
-    <p className="ac-set-desc">纸感主题与手绘抖动幅度（仅影响本插件画布）。</p>
-    <div className="ac-form-grid">
+    <p className="ac-set-desc">纸感主题与手绘抖动幅度（仅影响本插件画布）。选「跟随系统」时按系统明暗自动切换纸面。</p>
+    <div className="ac-form-col">
       <label>纸面
         <Segmented value={prefs.paper} onChange={v => onChange({ ...prefs, paper: v })}
           options={PAPERS.map(p => ({ label: p.label, value: p.id }))} ariaLabel="纸面主题" />
@@ -166,7 +184,7 @@ function StorageSection({ onChanged }) {
 }
 
 export function SettingsDialog({ open, onOpenChange, providers, onProvidersChanged, prefs, onPrefsChanged }) {
-  const [section, setSection] = useState('api')
+  const [section, setSection] = useState('images')
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="ac-dialog">
@@ -182,7 +200,8 @@ export function SettingsDialog({ open, onOpenChange, providers, onProvidersChang
           <div className="ac-dialog-main">
             <DialogTitle className="ac-dialog-title">AI 画布 · 设置</DialogTitle>
             <DialogDescription className="ac-dialog-desc">{SECTIONS.find(s => s.id === section)?.label}</DialogDescription>
-            {section === 'api' && <ApiSection providers={providers} onChange={onProvidersChanged} />}
+            {section === 'images' && <ProviderSection kind={PROVIDER_KIND.IMAGES} providers={providers} onChange={onProvidersChanged} />}
+            {section === 'chat' && <ProviderSection kind={PROVIDER_KIND.CHAT} providers={providers} onChange={onProvidersChanged} />}
             {section === 'defaults' && <DefaultsSection prefs={prefs} onChange={onPrefsChanged} />}
             {section === 'appearance' && <AppearanceSection prefs={prefs} onChange={onPrefsChanged} />}
             {section === 'storage' && <StorageSection onChanged={onProvidersChanged} />}

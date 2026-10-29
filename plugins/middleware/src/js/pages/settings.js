@@ -2,20 +2,21 @@ import { el } from '@mw/components.js'
 import { COMMANDS, commands, displayShortcut, shortcutFor, shortcutFromEvent, isComposing, validateBindings } from '@mw/commands.js'
 import { RULE_KINDS, PROTOCOLS } from '@mw/completionRules.js'
 import { readProductivity, validateProductivity } from '@mw/preferences.js'
+import { PAPER_OPTIONS, applyPaper, normalizePaper } from '@mw/paper-theme.js'
 
 /** A retained workspace page: drafts never share state with the live completion engine. */
 export default {
   id: 'settings',
   render(root, { store, api }) {
     let draft = structuredClone(readProductivity(store.ui.productivity)), baseline = JSON.stringify(draft)
-    let section = 'shortcuts', selectedRule = draft.completion.rules[0]?.id, saving = false, search = ''
+    let section = 'appearance', selectedRule = draft.completion.rules[0]?.id, saving = false, search = ''
     const dirty = () => JSON.stringify(draft) !== baseline
     const status = el('span', { class: 'mw-settings-status', role: 'status', 'data-settings-status': '' })
     const save = el('button', { class: 'btn primary', 'data-save-settings': '', onclick: saveDraft }, '保存设置')
     const discard = el('button', { class: 'btn', 'data-discard-settings': '', onclick: () => { draft = JSON.parse(baseline); renderSection(); changed() } }, '放弃修改')
     const content = el('div', { class: 'mw-settings-content' })
     const nav = el('nav', { class: 'mw-settings-nav', 'aria-label': '设置分类' }, [
-      ...[['shortcuts', '快捷键'], ['completion', '输入提示规则']].map(([id, name]) => el('button', { 'data-settings-section': id, onclick: () => { section = id; renderSection() } }, name))
+      ...[['appearance', '界面主题'], ['shortcuts', '快捷键'], ['completion', '输入提示规则']].map(([id, name]) => el('button', { 'data-settings-section': id, onclick: () => { section = id; renderSection() } }, name))
     ])
     root.classList.add('mw-settings-page')
     root.append(el('header', { class: 'mw-settings-header' }, [el('div', {}, [el('h1', {}, '中间件设置'), el('p', {}, '快捷键与提示规则仅作用于此插件。')]), status, discard, save]), el('div', { class: 'mw-settings-layout' }, [nav, content]))
@@ -44,8 +45,26 @@ export default {
     function renderSection() {
       nav.querySelectorAll('button').forEach(button => button.setAttribute('aria-current', button.dataset.settingsSection === section ? 'page' : 'false'))
       content.replaceChildren()
-      if (section === 'shortcuts') renderShortcuts()
+      if (section === 'appearance') renderAppearance()
+      else if (section === 'shortcuts') renderShortcuts()
       else renderRules()
+    }
+    function renderAppearance() {
+      // 纸面主题即时生效并落盘，不进入快捷键/规则的 draft-保存流程。
+      const paper = normalizePaper(store.ui.paper)
+      const group = el('div', { class: 'mw-theme-options', role: 'group', 'aria-label': '纸面界面主题' })
+      for (const option of PAPER_OPTIONS) {
+        const swatch = el('span', { class: 'mw-theme-swatch', 'aria-hidden': 'true' }, option.swatch.map((c) => el('i', { style: `background:${c}` })))
+        const copy = el('span', { class: 'mw-theme-copy' }, [el('strong', {}, option.label), el('small', {}, option.desc)])
+        const button = el('button', { type: 'button', class: 'mw-theme-option', 'data-paper-option': option.id, 'aria-pressed': String(paper === option.id) }, [swatch, copy])
+        button.onclick = () => {
+          const next = normalizePaper(option.id)
+          if (store.ui.paper !== next) { store.patch((s) => { s.ui.paper = next }); applyPaper(next) }
+          group.querySelectorAll('[data-paper-option]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)))
+        }
+        group.append(button)
+      }
+      content.append(el('h2', {}, '界面主题'), el('p', { class: 'mw-settings-help' }, '纸感手绘主题：墨色描边与纸面色板，仅作用于中间件插件；数据表格与消息体保持等宽字体。「跟随明暗」在浅色环境用白纸、深色环境用墨纸。选择立即生效并保存在本插件设置中。'), group)
     }
     function setBinding(id, value, input) {
       try { draft.shortcuts = validateBindings({ ...draft.shortcuts, [id]: value }); input.value = value ? displayShortcut(value) : ''; changed() }

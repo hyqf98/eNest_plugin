@@ -64,3 +64,16 @@
   .mw-shortcut-row [data-reset-shortcut] { grid-column: auto; }
 }
 @media (prefers-contrast: more) { .mw-shortcut-list, .mw-shortcut-row, .mw-rule-list, .mw-rule-preview { border-color: var(--text-2); } }
+
+/* —— 纸面主题选择卡（设置页「界面主题」分区）—— */
+.mw-theme-options { display: grid; grid-template-columns: repeat(2, minmax(200px, 1fr)); gap: 9px; width: 100%; max-width: 720px; margin-top: 14px; }
+.mw-theme-option { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 11px; align-items: center; min-height: 62px; padding: 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); color: var(--text-2); cursor: pointer; text-align: left; transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease; }
+.mw-theme-option:hover { border-color: color-mix(in srgb, var(--accent) 48%, var(--border-strong)); background: var(--accent-soft); color: var(--text); }
+.mw-theme-option:active { transform: translateY(1px); }
+.mw-theme-option[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 62%, transparent); background: var(--accent-soft); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
+.mw-theme-swatch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.mw-theme-swatch i { height: 16px; border-radius: 3px; }
+.mw-theme-copy { display: grid; gap: 3px; min-width: 0; }
+.mw-theme-copy strong { font-size: .96em; font-weight: 620; color: inherit; }
+.mw-theme-copy small { font-size: .85em; line-height: 1.5; color: var(--text-3); }
+@media (max-width: 640px) { .mw-theme-options { grid-template-columns: 1fr; } }

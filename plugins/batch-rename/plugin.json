@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.batch-rename",
   "name": "批量重命名",
-  "version": "1.2.0",
+  "version": "0.0.1",
   "description": "拖入多文件，查找替换（正则）/ 序号 / 日期 / 大小写 / 插入 / 删除片段 / 扩展名规则链实时预览（diff 高亮 + 冲突检测），确认后批量改名，支持撤销。",
   "author": "eNest Labs",
   "main": "index.html",

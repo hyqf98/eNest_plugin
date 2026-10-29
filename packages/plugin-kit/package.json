@@ -9,6 +9,8 @@
     "./workbench": "./workbench.js",
     "./workbench.css": "./workbench.css",
     "./responsive.css": "./responsive.css",
+    "./widget.css": "./widget.css",
+    "./widget": "./widget.js",
     "./file-inputs": "./file-inputs.js"
   },
   "dependencies": {

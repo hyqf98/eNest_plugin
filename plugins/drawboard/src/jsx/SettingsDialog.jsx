@@ -1,9 +1,9 @@
 /**
- * SettingsDialog —— 插件内设置弹框：主题四选一 / 粗糙度 / 点阵网格
+ * SettingsDialog —— 插件内设置弹框：主题四选一 / 粗糙度 / 纸面纹理
  * 右下角浮动圆钮进入；设置存插件私有存储，不注册壳全局设置。
  */
-import { Dialog, DialogContent, DialogTitle, DialogDescription, Segmented, Slider, Switch } from '../ui/index.jsx'
-import { THEMES } from '../js/theme.mjs'
+import { Dialog, DialogContent, DialogTitle, DialogDescription, Segmented, Slider } from '../ui/index.jsx'
+import { THEMES, GRID_MODES, GRID_LABELS } from '../js/theme.mjs'
 
 export function SettingsFab({ onClick }) {
   return (
@@ -20,7 +20,7 @@ export function SettingsDialog({ open, onOpenChange, settings, setSettings }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="db-settings" aria-label="画板设置">
         <DialogTitle>画板设置</DialogTitle>
-        <DialogDescription>纸感主题与手绘风格，仅本插件内生效。</DialogDescription>
+        <DialogDescription>草稿纸质感与手绘风格，仅本插件内生效。</DialogDescription>
 
         <div className="db-settings-row">
           <span className="db-settings-label">纸感主题</span>
@@ -32,7 +32,7 @@ export function SettingsDialog({ open, onOpenChange, settings, setSettings }) {
                 className={`db-theme-card${settings.theme === t.id ? ' active' : ''}`}
                 role="radio"
                 aria-checked={settings.theme === t.id}
-                style={{ background: t.paper }}
+                style={{ background: t.paper, color: t.ink }}
                 onClick={() => setSettings({ ...settings, theme: t.id })}
               >
                 <span className="db-theme-line" style={{ background: t.palette[0] }} />
@@ -57,8 +57,15 @@ export function SettingsDialog({ open, onOpenChange, settings, setSettings }) {
         </div>
 
         <div className="db-settings-row">
-          <span className="db-settings-label">点阵网格</span>
-          <Switch checked={settings.grid === 'dots'} onCheckedChange={(on) => setSettings({ ...settings, grid: on ? 'dots' : 'none' })} aria-label="点阵网格" />
+          <span className="db-settings-label">纸面纹理</span>
+          <div className="db-settings-control">
+            <Segmented
+              value={settings.grid}
+              options={GRID_MODES.map((mode) => ({ value: mode, label: GRID_LABELS[mode] }))}
+              onChange={(grid) => setSettings({ ...settings, grid })}
+              ariaLabel="纸面纹理"
+            />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

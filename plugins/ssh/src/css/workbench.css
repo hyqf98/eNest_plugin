@@ -1,7 +1,7 @@
 /* Dense tool surfaces use the shell tokens. Motion is restricted to focus and hover. */
 :root { --ssh-ui-size: var(--font-size-base, 13px); --radius-md: 8px; --radius-sm: 6px; --radius-lg: 12px; }
 button:focus-visible,input:focus-visible,textarea:focus-visible,[tabindex]:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
-.wb-header { height: 44px; display: flex; align-items: center; gap: 20px; padding: 0 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.wb-header { display: flex; align-items: center; border-bottom: 1px solid var(--border); }
 .wb-brand { display: flex; gap: 9px; align-items: center; white-space: nowrap; }
 .wb-brand strong { font-weight: 650; letter-spacing: -.4px; }
 .wb-mode-label { color: var(--text-3); font-size: calc(var(--ssh-ui-size) * 0.846154); }
@@ -13,7 +13,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,[tabindex]:focus
 .wb-header-end { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .wb-header kbd { font: calc(var(--ssh-ui-size) * 0.769231) var(--font); opacity: .6; margin-left: 7px; }
 .wb-open-shell { display: none; }
-.app[data-workbench] { height: calc(100dvh - 44px); grid-template-columns: 232px minmax(0,1fr); transition: none; }
 .app[data-workbench] .sidebar { grid-template-columns: minmax(0,1fr); border-right: 1px solid var(--border); }
 .app[data-workbench] .side-body { grid-column: 1; opacity: 1; pointer-events: auto; padding: 8px; }
 .app[data-workbench] .side-rail { display: none; }
@@ -28,7 +27,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,[tabindex]:focus
 .app[data-workbench] .term-empty { padding-bottom: 24px; }
 .app[data-workbench] .session-tabs { padding: 0 6px; min-height: 32px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
 .app[data-workbench] .session-tab { border-radius: 0; padding: 8px 12px; border-right: 1px solid var(--border); }
-.app[data-workbench] .session-tab.active { box-shadow: inset 0 2px var(--ok); }
 .wb-legacy-hidden,.app[data-workbench] ~ .fab { display: none !important; }
 .wb-resource-strip { display: flex; align-items: center; gap: 5px; min-height: 48px; padding: 4px 12px; background: var(--surface); border-bottom: 1px solid var(--border); overflow: auto; }
 .wb-resource-strip > button { display: flex; gap: 8px; align-items: center; padding: 6px 10px; }
@@ -130,7 +128,7 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-monaco-host { height: 100%; width: 100%; }
 .wb-code-fallback { width: 100%; height: 100%; resize: none; font: calc(var(--ssh-ui-size) * 1.000000)/1.6 var(--mono); border: 0; padding: 12px; background: var(--surface); color: var(--text); tab-size: 2; }
 .wb-editor-message { padding: 5px 10px; color: var(--warn); font-size: calc(var(--ssh-ui-size) * 0.769231); }
-.wb-settings-page { position: absolute; inset: 44px 0 0; z-index: 30; background: var(--bg); display: flex; flex-direction: column; }
+.wb-settings-page { position: absolute; display: flex; flex-direction: column; }
 .wb-settings-page > header { height: 52px; display: flex; align-items: center; gap: 20px; padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .wb-settings-page > header span { color: var(--text-3); font-size: calc(var(--ssh-ui-size) * 0.846154); margin-left: auto; }
 .wb-settings-layout { display: grid; grid-template-columns: 190px minmax(0,1fr); flex: 1; min-height: 0; }
@@ -205,12 +203,12 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-session-actions button { border: 1px solid transparent; background: none; color: var(--text-2); padding: 4px; border-radius: 4px; font-size: calc(var(--ssh-ui-size) * 0.769231); white-space: nowrap; cursor: pointer; }
 .wb-session-actions button:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
 :root[data-launch-mode=quick] .wb-session-actions { display: none; }
- .wb-proxy-fields[hidden] { display: none !important; }
- .wb-proxy-fields { gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
- .wb-tab-pinned { color: var(--text-3); font-size: calc(var(--ssh-ui-size) * 0.769231); padding-inline: 4px; white-space: nowrap; }
+.wb-proxy-fields[hidden] { display: none !important; }
+.wb-proxy-fields { gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.wb-tab-pinned { color: var(--text-3); font-size: calc(var(--ssh-ui-size) * 0.769231); padding-inline: 4px; white-space: nowrap; }
 
 /* Workspace navigation: persistent tool rail, optional connection panel, focused task surface. */
-:root { --ssh-rail: 44px; --ssh-sidebar-width: 240px; --ssh-ui-size: var(--font-size-base, 13px); --ssh-chrome: color-mix(in srgb, var(--surface) 94%, var(--bg)); }
+:root { --ssh-rail: 44px; --ssh-sidebar-width: 240px; --ssh-chrome: color-mix(in srgb, var(--surface) 94%, var(--bg)); }
 .app[data-workbench], :root:not([data-launch-mode=quick]) .app[data-workbench], :root[data-launch-mode=quick] .app[data-workbench] { display: grid; position: relative; grid-template-columns: calc(var(--ssh-rail) + var(--ssh-sidebar-width)) minmax(0,1fr); }
 .app[data-workbench].side-collapsed, :root:not([data-launch-mode=quick]) .app[data-workbench].side-collapsed, :root[data-launch-mode=quick] .app[data-workbench].side-collapsed { grid-template-columns: var(--ssh-rail) minmax(0,1fr); }
 .app[data-workbench] > .sidebar, :root[data-launch-mode=quick] .app[data-workbench] > .sidebar { display: grid; grid-template-columns: var(--ssh-rail) minmax(0,1fr); height: 100%; position: relative; background: var(--ssh-chrome); }
@@ -331,3 +329,16 @@ body { font-family: var(--font, system-ui, sans-serif); font-size: var(--ssh-ui-
 .app[data-workbench] .wb-file-row { height: auto; min-height: max(29px, calc(var(--ssh-ui-size) * 2.23)); padding-block: 4px; }
 .wb-remote-completion-settings { display: grid; gap: 4px; padding-block: 8px; border-block: 1px solid var(--border); }
 .wb-remote-completion-settings h3 { margin: 0; }
+
+/* —— 纸面主题选择卡（设置页「界面主题」分区）—— */
+.wb-theme-options { display: grid; grid-template-columns: repeat(2, minmax(200px, 1fr)); gap: 9px; width: 100%; max-width: 720px; margin-top: 14px; }
+.wb-theme-option { display: grid; grid-template-columns: 44px minmax(0,1fr); gap: 11px; align-items: center; min-height: 62px; padding: 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); color: var(--text-2); cursor: pointer; text-align: left; transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease; }
+.wb-theme-option:hover { border-color: color-mix(in srgb, var(--accent) 48%, var(--border-strong)); background: var(--accent-soft); color: var(--text); }
+.wb-theme-option:active { transform: translateY(1px); }
+.wb-theme-option[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 62%, transparent); background: var(--accent-soft); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
+.wb-theme-swatch { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; padding: 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
+.wb-theme-swatch i { height: 16px; border-radius: 3px; }
+.wb-theme-copy { display: grid; gap: 3px; min-width: 0; }
+.wb-theme-copy strong { font-size: 12px; font-weight: 620; color: inherit; }
+.wb-theme-copy small { font-size: 10px; line-height: 1.5; color: var(--text-3); }
+@media (max-width:760px) { .wb-theme-options { grid-template-columns: 1fr; } }

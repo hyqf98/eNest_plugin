@@ -55,50 +55,79 @@ button, input, textarea { font: inherit; color: inherit; }
 
 .db-app { display: flex; flex-direction: column; height: 100%; min-width: 0; }
 .db-loading { display: grid; place-items: center; color: var(--muted); height: 100%; }
+.db-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 
-/* ---------- 工具栏（精简：颜色 + 撤销/重做） ---------- */
-.db-toolbar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--line);
-  background: var(--wash);
-  min-height: 40px;
+/* ---------- 悬浮墨色切换（画布右上角，悬停向左展开） ---------- */
+.db-colordock {
+  position: absolute; top: 10px; right: 12px; z-index: 12;
+  display: flex; align-items: center;
+  padding: 3px; border-radius: 999px;
+  border: 1px solid transparent;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
 }
-.db-spacer { flex: 1; }
-.db-toolbar-group { display: flex; align-items: center; gap: 6px; }
-
-/* 颜色触发按钮：双色环 + 墨点 */
-.db-color-trigger {
-  position: relative;
-  width: 30px; height: 30px; border-radius: 50%;
-  border: none; background: transparent; cursor: pointer; padding: 0;
-  display: grid; place-items: center;
+/* 手绘描边（SVG 位移滤镜）：悬停时给墨色浮标一圈轻微抖动的轮廓 */
+.db-colordock::before {
+  content: ''; position: absolute; inset: -1px;
+  border-radius: inherit;
+  border: 1.5px solid color-mix(in srgb, var(--ink, #2c3442) 24%, transparent);
+  filter: url(#db-wobble);
+  opacity: 0; transition: opacity 0.18s ease;
+  pointer-events: none;
 }
-.db-color-dot {
+.db-colordock:hover,
+.db-colordock:has(:focus-visible) {
+  background: color-mix(in srgb, var(--paper, #fff) 86%, transparent);
+  box-shadow: 0 10px 28px rgb(24 30 40 / 13%);
+  backdrop-filter: blur(12px);
+}
+.db-colordock:hover::before,
+.db-colordock:has(:focus-visible)::before { opacity: 1; }
+.db-colordock-panel {
+  display: flex; align-items: center; gap: 5px;
+  max-width: 0; opacity: 0; overflow: hidden;
+  padding-left: 0; pointer-events: none;
+  transition: max-width 0.24s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.16s ease, padding-left 0.24s ease;
+}
+.db-colordock:hover .db-colordock-panel,
+.db-colordock:has(:focus-visible) .db-colordock-panel {
+  max-width: 320px; opacity: 1; padding-left: 7px; pointer-events: auto;
+}
+.db-colordock-swatch {
+  flex: none; width: 20px; height: 20px; border-radius: 50%; padding: 0;
+  border: 1px solid rgb(0 0 0 / 14%); cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.db-colordock-swatch:hover { transform: scale(1.16); }
+.db-colordock-swatch.active {
+  box-shadow: 0 0 0 2px var(--paper, #fff), 0 0 0 3.5px color-mix(in srgb, var(--ink, #2c3442) 62%, transparent);
+}
+.db-colordock-auto {
+  flex: none; height: 20px; padding: 0 7px;
+  border-radius: 999px; border: 1px dashed color-mix(in srgb, var(--ink, #2c3442) 28%, transparent);
+  background: transparent; color: var(--text-2, #747c88);
+  font-size: 10.5px; line-height: 1; cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.db-colordock-auto:hover { color: var(--ink, #2c3442); border-style: solid; }
+.db-colordock-auto.active {
+  color: var(--ink, #2c3442); border-style: solid;
+  background: color-mix(in srgb, var(--ink, #2c3442) 7%, transparent);
+}
+.db-colordock-trigger {
+  flex: none; width: 26px; height: 26px; padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ink, #2c3442) 13%, transparent);
+  border-radius: 50%; background: transparent;
+  display: grid; place-items: center; cursor: pointer;
+  transition: border-color 0.18s ease;
+}
+.db-colordock:hover .db-colordock-trigger,
+.db-colordock:has(:focus-visible) .db-colordock-trigger { border-color: transparent; }
+.db-colordock-dot {
   width: 14px; height: 14px; border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 20%);
   transition: transform 0.15s ease;
 }
-.db-color-trigger:hover .db-color-dot { transform: scale(1.15); }
-.db-color-ring {
-  position: absolute; inset: 3px;
-  border-radius: 50%;
-  border: 1.5px dashed color-mix(in srgb, currentColor 35%, transparent);
-  opacity: 0; transition: opacity 0.15s ease, transform 0.3s ease;
-  transform: rotate(-12deg);
-}
-.db-color-trigger:hover .db-color-ring { opacity: 1; transform: rotate(8deg); }
-
-/* 工具按钮（撤销/重做沿用） */
-.db-tool {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 8px;
-  border: 1px solid transparent; background: transparent; color: var(--text-2, #747c88);
-  cursor: pointer; padding: 0;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-}
-.db-tool:hover:not(:disabled) { background: color-mix(in srgb, var(--text, #253044) 7%, transparent); color: var(--text, #253044); }
-.db-tool:disabled { opacity: 0.4; cursor: default; }
+.db-colordock:hover .db-colordock-dot { transform: scale(1.12); }
 
 /* ---------- 菜单内嵌控件（色盘 / 滑条） ---------- */
 .db-menu-widget { padding: 6px 10px; }
@@ -133,16 +162,16 @@ button, input, textarea { font: inherit; color: inherit; }
 .db-menu-slider-value { font-variant-numeric: tabular-nums; color: var(--accent, #4772bf); }
 .db-menu-slider input[type='range'] { width: 100%; accent-color: var(--accent, #4772bf); }
 
-/* ---------- 草稿 Tab 条（工具栏正下方，胶囊分页风格，紧凑单行） ---------- */
+/* ---------- 顶栏：草稿 Tab 条（草稿版只保留这一行 chrome） ---------- */
 .db-tabs {
   display: flex; align-items: center; gap: 4px;
-  padding: 3px 10px;
+  padding: 7px 12px 6px;
   border-bottom: 1px solid var(--line);
-  background: var(--wash);
-  min-height: 26px;
+  background: color-mix(in srgb, var(--paper, #fff) 42%, var(--wash, #f4f6f8));
+  min-height: 38px;
 }
 .db-tab-strip {
-  display: flex; align-items: center; gap: 3px;
+  display: flex; align-items: center; gap: 5px;
   overflow-x: auto; overflow-y: hidden;
   min-width: 0;
   scrollbar-width: thin;
@@ -150,23 +179,32 @@ button, input, textarea { font: inherit; color: inherit; }
 .db-tab-strip::-webkit-scrollbar { height: 4px; display: block; }
 .db-tab-strip::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-2, #747c88) 30%, transparent); border-radius: 999px; }
 .db-tab {
-  display: inline-flex; align-items: center; gap: 4px;
-  height: 20px; padding: 0 8px;
+  position: relative;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 9px;
   border: 1px solid transparent; border-radius: 999px;
-  color: var(--text-2, #747c88); font-size: 11.5px;
+  color: var(--text-2, #747c88); font-size: 12px;
+  font-family: var(--hand);
   cursor: pointer; white-space: nowrap; flex: none;
   background: transparent;
   user-select: none;
-  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+  transition: color 0.12s ease, background 0.12s ease;
 }
-.db-tab:hover { color: var(--text, #253044); background: color-mix(in srgb, var(--text, #253044) 6%, transparent); }
+.db-tab:hover { color: var(--ink, #2c3442); background: color-mix(in srgb, var(--ink, #2c3442) 6%, transparent); }
 .db-tab.active {
-  color: var(--accent, #4772bf);
-  background: color-mix(in srgb, var(--accent, #4772bf) 10%, transparent);
-  border-color: color-mix(in srgb, var(--accent, #4772bf) 32%, transparent);
+  color: var(--ink, #2c3442);
+  background: color-mix(in srgb, var(--ink, #2c3442) 7%, transparent);
   font-weight: 500;
 }
-.db-tab-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+/* 当前草稿的手绘圈选：边框走 SVG 位移滤镜，比圆角贴皮更像手画的一圈 */
+.db-tab.active::before {
+  content: ''; position: absolute; inset: -0.5px;
+  border-radius: inherit;
+  border: 1.5px solid color-mix(in srgb, var(--ink, #2c3442) 34%, transparent);
+  filter: url(#db-wobble);
+  pointer-events: none;
+}
+.db-tab-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 .db-tab-close {
   display: inline-flex; align-items: center; justify-content: center;
   width: 13px; height: 13px; padding: 0;
@@ -178,20 +216,26 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 .db-tab:hover .db-tab-close, .db-tab.active .db-tab-close { opacity: 1; }
 .db-tab-close:hover { background: color-mix(in srgb, var(--danger, #b44c50) 16%, transparent); color: var(--danger, #b44c50); }
-.db-tab-rename { min-height: 16px; padding: 0 6px; font-size: 11.5px; width: 78px; border-radius: 999px; }
+.db-tab-rename { min-height: 16px; padding: 0 6px; font-size: 12px; width: 84px; border-radius: 999px; font-family: var(--hand); }
 .db-tab-new {
   flex: none;
-  width: 20px; height: 20px; justify-content: center; padding: 0;
+  width: 22px; height: 22px; justify-content: center; padding: 0;
   border-radius: 50%; color: var(--text-2, #747c88); font-size: 13px; line-height: 1;
-  border: 1px dashed color-mix(in srgb, var(--text-2, #747c88) 45%, transparent);
+  font-family: var(--ui);
   background: transparent;
 }
-.db-tab-new:hover {
-  color: var(--accent, #4772bf);
-  border-color: color-mix(in srgb, var(--accent, #4772bf) 55%, transparent);
-  border-style: solid;
-  background: color-mix(in srgb, var(--accent, #4772bf) 8%, transparent);
+.db-tab-new::before {
+  content: ''; position: absolute; inset: -0.5px;
+  border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--ink, #2c3442) 30%, transparent);
+  filter: url(#db-wobble);
+  pointer-events: none;
 }
+.db-tab-new:hover {
+  color: var(--ink, #2c3442);
+  background: color-mix(in srgb, var(--ink, #2c3442) 7%, transparent);
+}
+.db-tab-new:hover::before { border-color: color-mix(in srgb, var(--ink, #2c3442) 52%, transparent); }
 
 /* ---------- 主体 ---------- */
 .db-body { display: flex; flex: 1; min-height: 0; position: relative; }
@@ -318,12 +362,17 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 .db-fab:hover { transform: scale(1.06); color: var(--accent, #4772bf); }
 
-.db-settings { max-width: 420px; }
-.db-settings-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
-.db-settings-label { width: 76px; flex: none; color: var(--text-2, #747c88); }
-.db-settings-control { flex: 1; display: flex; align-items: center; gap: 10px; }
+.db-settings { max-width: 460px; }
+/* 行改为上下结构：标题在上、控件通栏，四张主题卡与纹理分段不再互相挤窄 */
+.db-settings-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; }
+.db-settings-label { color: var(--text-2, #747c88); }
+.db-settings-control { display: flex; align-items: center; gap: 10px; width: 100%; }
+.db-settings-control .pk-segmented { flex: 1; width: 100%; }
+.db-settings-control .pk-segmented .pk-segmented-item {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center;
+}
 .db-settings-control .pk-slider { flex: 1; }
-.db-settings-value { width: 38px; text-align: right; color: var(--muted); font-size: 12px; }
+.db-settings-value { width: 38px; flex: none; text-align: right; color: var(--muted); font-size: 12px; }
 
 .db-theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: 1; }
 .db-theme-card {
@@ -358,5 +407,6 @@ button, input, textarea { font: inherit; color: inherit; }
 
 /* 窄窗收敛 */
 @media (max-width: 640px) {
-  .db-toolbar { gap: 6px; }
+  .db-tabs { padding: 6px 8px; }
+  .db-colordock { top: 8px; right: 8px; }
 }

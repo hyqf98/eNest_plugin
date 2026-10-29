@@ -15,6 +15,7 @@ import { Sidebar } from './Sidebar.jsx'
 import { SettingsPage } from './SettingsPage.jsx'
 import { UploadMenu } from './UploadMenu.jsx'
 import { ExportMenu } from './ExportMenu.jsx'
+import { PanelView } from './PanelView.jsx'
 
 const WELCOME = `# 未命名文档
 
@@ -47,8 +48,10 @@ const SIDEBAR_WIDTH_KEY = 'md.sidebarWidth'
 
 export function App() {
   const [kit, setKit] = useState(null)
-  const [mode, setMode] = useState('shell')
+  const [mode, setMode] = useState(() => api()?.getLaunchMode?.() || 'shell')
   const [page, setPage] = useState('editor')
+  const [documentsReady, setDocumentsReady] = useState(false)
+  const [documentError, setDocumentError] = useState('')
 
   /* —— 文档状态 —— */
   const [docPath, setDocPath] = useState('')
@@ -79,7 +82,14 @@ export function App() {
   const moreRef = useRef(null)
   const exportRef = useRef(null) // ExportMenu 暴露 { html, pdf, png }
   const viewRef = useRef(null)
+  const editorStateRef = useRef(null)
+  const editorScrollRef = useRef(0)
+  const scratchDraftRef = useRef('')
+  const scratchPendingRef = useRef(null)
+  const scratchActionRef = useRef(null)
+  const scratchSyncRef = useRef(null)
   const docPathRef = useRef('')
+  const docLoadRevisionRef = useRef(0)
   const dirtyRef = useRef(false)
   const saveTimerRef = useRef(0)
   const resTimerRef = useRef(0)
@@ -94,6 +104,23 @@ export function App() {
   const resizingRef = useRef(false)
   const suppressHandleClickRef = useRef(false)
   const handleClickTimerRef = useRef(0)
+
+  const saveScratchDraft = useCallback(async () => {
+    if (scratchPendingRef.current) return scratchPendingRef.current
+    const draft = scratchDraftRef.current
+    if (!draft.trim()) return false
+    // Submission belongs to the shared model, not a layout that may unmount mid-save.
+    const pending = call('scratch.append', draft.trim()).then(() => {
+      if (scratchDraftRef.current === draft) scratchDraftRef.current = ''
+      scratchSyncRef.current?.()
+      api()?.setDirty?.(scratchDraftRef.current.trim().length > 0)
+      return true
+    }).finally(() => {
+      if (scratchPendingRef.current === pending) scratchPendingRef.current = null
+    })
+    scratchPendingRef.current = pending
+    return pending
+  }, [])
 
   /* —— 侧栏宽度：持久化 + 应用到 CSS 变量 —— */
   useEffect(() => {
@@ -236,11 +263,16 @@ export function App() {
 
   /* ---------------- 打开/新建/另存 ---------------- */
   const openFile = useCallback(async (path) => {
+    const revision = ++docLoadRevisionRef.current
     try {
       await call('doc.grant', path)
+      if (revision !== docLoadRevisionRef.current) return
       const { text } = await call('doc.open', path)
+      if (revision !== docLoadRevisionRef.current) return
       dirtyRef.current = false
       textRef.current = text
+      docPathRef.current = path
+      editorStateRef.current = null
       setDocPath(path)
       setDocName(path.split('/').pop() || '文档')
       const view = viewRef.current
@@ -248,11 +280,14 @@ export function App() {
         view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
       }
       setSaveState('saved')
+      setDocumentError('')
       setStats(computeStats(text))
       setOutline(extractOutline(text))
       setDocVersion((v) => v + 1)
       api()?.ui?.setTitle?.(`${path.split('/').pop()} — Markdown`)
     } catch (e) {
+      if (revision !== docLoadRevisionRef.current) return
+      setDocumentError(`打开失败：${e.message}`)
       toast(`打开失败：${e.message}`, 'error')
     }
   }, [toast])
@@ -264,8 +299,11 @@ export function App() {
   }, [openFile])
 
   const newDoc = useCallback(() => {
+    docLoadRevisionRef.current++
     dirtyRef.current = false
     textRef.current = ''
+    docPathRef.current = ''
+    editorStateRef.current = null
     setDocPath('')
     setDocName('未命名')
     const view = viewRef.current
@@ -436,6 +474,7 @@ export function App() {
   }, [moreOpen])
 
   const onPaste = useCallback(async (e) => {
+    if (kitRef.current?.mode === 'panel') return
     const items = e.clipboardData?.items
     if (!items) return
     for (const item of items) {
@@ -471,6 +510,7 @@ export function App() {
   /* ---------------- 拖入打开 / 拖入图片 ---------------- */
 
   const onDrop = useCallback(async (e) => {
+    if (kitRef.current?.mode === 'panel') return
     const files = Array.from(e.dataTransfer?.files ?? [])
     if (!files.length) return
     e.preventDefault()
@@ -513,10 +553,14 @@ export function App() {
       } else if (!data.deleted) {
         // 干净文档：静默重载
         void call('doc.read', data.path).then(({ text }) => {
+          if (docPathRef.current !== data.path || dirtyRef.current) return
           const view = viewRef.current
-          if (!view) return
           textRef.current = text
-          view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
+          if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
+          setStats(computeStats(text))
+          setOutline(extractOutline(text))
+          setDocVersion((v) => v + 1)
+          dirtyRef.current = false
           setSaveState('saved')
         }).catch(() => {})
       } else {
@@ -615,13 +659,20 @@ export function App() {
       focus: false,
     })
     viewRef.current = view
-    if (!textRef.current) {
+    if (editorStateRef.current?.doc.toString() === textRef.current) {
+      view.setState(editorStateRef.current)
+      updateLiveOpts(view, liveOpts)
+      view.scrollDOM.scrollTop = editorScrollRef.current
+    }
+    if (!textRef.current && !editorStateRef.current && !docPathRef.current && docLoadRevisionRef.current === 0) {
       textRef.current = WELCOME
       view.dispatch({ changes: { from: 0, to: 0, insert: WELCOME } })
     }
     if (typewriter) setTypewriterCm(view, true)
 
     return () => {
+      editorStateRef.current = view.state
+      editorScrollRef.current = view.scrollDOM.scrollTop
       view.destroy()
       viewRef.current = null
     }
@@ -635,6 +686,7 @@ export function App() {
       title: 'Markdown 编辑器',
       quickPlaceholder: '速记一句话，⏎ 落收件箱…',
       height: 420,
+      onAction: action => scratchActionRef.current?.(action),
       defaults: {
         typewriterMode: false,
         focusMode: false,
@@ -654,9 +706,9 @@ export function App() {
     })
     kitRef.current = k
     setKit(k)
-    setMode(k.mode === 'quick' ? 'quick' : 'shell')
+    setMode(k.mode)
 
-    k.onMode?.((m) => setMode(m === 'quick' ? 'quick' : 'shell'))
+    k.onMode?.(setMode)
     k.onSettings?.((settings, changedKey) => {
       settingsRef.current = settings
       setTypewriter(settings.typewriterMode === true)
@@ -687,8 +739,16 @@ export function App() {
       // 恢复最近文件
       try {
         const { list } = await call('recent.list')
-        if (alive && list.length) setRecentFiles(list)
-      } catch { /* backend 未授权 */ }
+        if (alive && list.length) {
+          setRecentFiles(list)
+          // A cold widget reads the same document model without mounting CodeMirror.
+          if (k.mode === 'panel' && !textRef.current && !docPathRef.current && docLoadRevisionRef.current === 0) await openFile(list[0].path)
+        }
+      } catch (error) {
+        if (alive) setDocumentError(`读取文稿失败：${error.message}`)
+      } finally {
+        if (alive) setDocumentsReady(true)
+      }
       // 外观跟随
       try {
         const appearance = await api()?.ui?.getThemeTokens?.()
@@ -719,7 +779,7 @@ export function App() {
     window.addEventListener('md-ask-image', onAskImage)
     // 快捷键
     const keys = (e) => {
-      if (e.isComposing) return
+      if (e.isComposing || k.mode === 'panel') return
       const mod = e.metaKey || e.ctrlKey
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void doSave() }
       if (mod && e.key.toLowerCase() === 'n') { e.preventDefault(); newDoc() }
@@ -730,26 +790,29 @@ export function App() {
     document.addEventListener('keydown', keys)
 
     api()?.onEnter?.((event) => {
-      if (event?.code === 'settings') { setPage('settings'); setMode('shell') ; return }
+      setMode(k.mode)
+      if (event?.code === 'settings') { setPage('settings'); return }
       // 打开方式：双击 .md / enest-md:// 链接进入，读首个文件切主窗打开
       if (event?.code === 'open-file' || event?.code === 'open-url') {
-        setMode('shell')
+        setPage('editor')
         const target = event?.code === 'open-file'
           ? event?.payload?.paths?.[0]
           : undefined
         if (target) void openFile(target)
         return
       }
-      if (event?.code === 'inbox' || k.mode === 'quick') setMode('quick')
-      else setMode('shell')
+      if (event?.code === 'inbox') setPage('scratch')
+      else if (event?.code === 'main') setPage('editor')
     })
     api()?.onBeforeClose?.(async () => {
       clearTimeout(saveTimerRef.current)
       await flushSave().catch(() => {})
     })
+    const offScratchSave = api()?.onSaveRequested?.(saveScratchDraft)
 
     return () => {
       alive = false
+      offScratchSave?.()
       document.removeEventListener('paste', onPaste, true)
       document.removeEventListener('drop', onDrop, true)
       window.removeEventListener('md-ask-image', onAskImage)
@@ -777,8 +840,17 @@ export function App() {
   }
 
   /* ---------------- quick 速记 ---------------- */
-  if (mode === 'quick') {
-    return <QuickScratch kit={kit} />
+  if (mode === 'panel') {
+    return <PanelView name={docName} text={textRef.current} stats={stats} ready={documentsReady}
+      error={documentError} dirty={saveState === 'dirty' || saveState === 'error'} conflict={conflict}
+      onOpen={() => {
+        setPage('editor')
+        void api().ui.openInShell().catch(error => toast(error.message, 'error'))
+      }} />
+  }
+  if (mode === 'quick' || page === 'scratch') {
+    return <QuickScratch kit={kit} draftRef={scratchDraftRef} actionRef={scratchActionRef}
+      syncRef={scratchSyncRef} onSave={saveScratchDraft} />
   }
 
   /* ---------------- 设置页 ---------------- */
@@ -970,11 +1042,11 @@ export function App() {
 
 /* ---------------- Quick 速记 ---------------- */
 
-function QuickScratch({ kit }) {
+function QuickScratch({ kit, draftRef, actionRef, syncRef, onSave }) {
   const hostRef = useRef(null)
   const viewRef2 = useRef(null)
-  const draftRef = useRef('')
-  const [saved, setSaved] = useState(true)
+  const submittingRef = useRef(false)
+  const [saved, setSaved] = useState(() => !draftRef.current)
 
   useEffect(() => {
     if (!hostRef.current || viewRef2.current) return
@@ -982,7 +1054,11 @@ function QuickScratch({ kit }) {
       parent: hostRef.current,
       initialText: draftRef.current,
       opts: { renderHtml: true },
-      onChange: (text) => { draftRef.current = text; setSaved(false) },
+      onChange: (text) => {
+        draftRef.current = text
+        setSaved(!text.trim())
+        api()?.setDirty?.(text.trim().length > 0)
+      },
       focus: true,
     })
     viewRef2.current = view
@@ -991,27 +1067,32 @@ function QuickScratch({ kit }) {
 
   useEffect(() => {
     if (!kit) return
-    kit.onAction?.((action) => {
-      if (action === 'submit') {
-        const text = draftRef.current.trim()
-        if (!text) return
-        void call('scratch.append', text).then(() => {
-          draftRef.current = ''
-          viewRef2.current?.dispatch({ changes: { from: 0, to: viewRef2.current.state.doc.length, insert: '' } })
-          setSaved(true)
-          kit.toast?.('已记入收件箱', 'success')
-          api()?.ui?.dismissQuick?.()
-        }).catch((e) => kit.toast?.(`速记失败：${e.message}`, 'error'))
+    const syncDraft = () => {
+      const view = viewRef2.current
+      if (view && view.state.doc.toString() !== draftRef.current) {
+        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: draftRef.current } })
       }
-    })
+      setSaved(!draftRef.current.trim())
+    }
+    const handleAction = (action) => {
+      if (action === 'submit' && !submittingRef.current) {
+        submittingRef.current = true
+        void onSave().then((didSave) => {
+          if (!didSave) return
+          kit.toast?.('已记入收件箱', 'success')
+          if (kit.mode === 'quick' && !draftRef.current.trim()) void api()?.ui?.dismissQuick?.()
+        }).catch((e) => kit.toast?.(`速记失败：${e.message}`, 'error'))
+          .finally(() => { submittingRef.current = false })
+      }
+    }
+    actionRef.current = handleAction
+    syncRef.current = syncDraft
     api()?.setDirty?.(draftRef.current.trim().length > 0)
-    api()?.onSaveRequested?.(async () => {
-      const text = draftRef.current.trim()
-      if (text) await call('scratch.append', text).catch(() => {})
-      draftRef.current = ''
-      setSaved(true)
-    })
-  }, [kit])
+    return () => {
+      if (actionRef.current === handleAction) actionRef.current = null
+      if (syncRef.current === syncDraft) syncRef.current = null
+    }
+  }, [kit, draftRef, actionRef, syncRef, onSave])
 
   return (
     <main className="md-app md-quick md-scope">

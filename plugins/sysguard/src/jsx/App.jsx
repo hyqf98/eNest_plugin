@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
+import { PanelView } from './PanelView.jsx'
 import {
   formatKb, formatPct, isSystemProc, searchProc, searchPort,
   makeSampler, SampleRing, drawSparkline, shortName,
@@ -15,6 +16,7 @@ import {
 const api = window.enest || window.zapi
 
 const INTERVALS = [1500, 3000, 5000, 10000]
+const initialMode = () => api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell'
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -22,13 +24,16 @@ function escapeHtml(s) {
 
 export function App() {
   const kitRef = useRef(null)
-  const modeRef = useRef('shell')
+  const modeRef = useRef(initialMode())
   const dlgHostRef = useRef(null)
+  const samplingRef = useRef(false)
+  const aliveRef = useRef(true)
 
   // —— 全局状态（latest-ref，与原 state 对象对应）——
   const st = useRef({
     procs: [],
     ports: [],
+    portsError: '',
     search: '',
     hideSys: false,
     favs: new Set(),
@@ -38,6 +43,8 @@ export function App() {
     cpuRing: new SampleRing(80),
     memRing: new SampleRing(80),
     sampler: null,
+    samplerInterval: 0,
+    sampledAt: 0,
     chartTimer: null,
   }).current
 
@@ -45,7 +52,7 @@ export function App() {
   const [, forceRender] = useState(0)
   const rerender = useCallback(() => forceRender((t) => t + 1), [])
   const [foot, setFoot] = useState('就绪')
-  const [mode, setModeState] = useState('shell')
+  const [mode, setModeState] = useState(initialMode)
   const [tab, setTab] = useState('dash')
   const [hideSys, setHideSys] = useState(false)
   const [intervalMs, setIntervalMs] = useState(1500)
@@ -73,14 +80,19 @@ export function App() {
 
   // —— 数据加载 ——
   const refresh = useCallback(async ({ silent = false } = {}) => {
+    if (samplingRef.current || !aliveRef.current) return false
+    samplingRef.current = true
     try {
       if (!silent) setStatus('采样中…')
-      const [procs, ports] = await Promise.all([
+      const [procs, portResult] = await Promise.all([
         api.sys.processes(),
-        api.sys.ports().catch(() => []),
+        api.sys.ports().then(ports => ({ ports, error: '' }), error => ({ ports: [], error: error?.message || '端口数据不可用' })),
       ])
+      if (!aliveRef.current) return false
       st.procs = procs ?? []
-      st.ports = ports ?? []
+      st.ports = portResult.ports ?? []
+      st.portsError = portResult.error
+      st.sampledAt = Date.now()
       if (st.procs.length) {
         const totalCpu = Math.min(100, st.procs.reduce((n, p) => n + (p.pcpu ?? 0), 0))
         const totalMemKb = st.procs.reduce((n, p) => n + (p.rss ?? 0), 0)
@@ -95,10 +107,13 @@ export function App() {
       rerender()
       return true
     } catch (err) {
+      if (!aliveRef.current) return false
       setStatus('采样失败')
       st.error = err?.message ?? String(err)
       rerender()
       return false
+    } finally {
+      samplingRef.current = false
     }
   }, [rerender, setStatus, st])
   const refreshRef = useRef(refresh)
@@ -106,7 +121,12 @@ export function App() {
 
   // —— 采样器 ——
   const restartSampler = useCallback(() => {
+    if (st.sampler && st.samplerInterval === st.intervalMs) {
+      st.sampler.start()
+      return
+    }
     void st.sampler?.stop()
+    st.samplerInterval = st.intervalMs
     st.sampler = makeSampler({
       intervalMs: st.intervalMs,
       acquire: async () => {
@@ -480,6 +500,7 @@ export function App() {
   // —— 生命周期 / 启动 ——
   useEffect(() => {
     let alive = true
+    aliveRef.current = true
     const kit = PluginKit.create({
       title: '进程与端口',
       quickPlaceholder: '端口号查占用 / 进程名搜索',
@@ -491,17 +512,17 @@ export function App() {
     setModeState(kit.mode)
 
     document.addEventListener('visibilitychange', onVis)
-    api?.onOut?.(() => stopSamplerRef.current())
-    api?.onEnter?.((event) => {
-      applyMode(event?.mode ?? kit.mode)
+    const disposers = []
+    disposers.push(api?.onOut?.(() => stopSamplerRef.current()))
+    disposers.push(api?.onEnter?.(() => {
       void refreshRef.current({ silent: true })
-    })
-    api?.ui?.onThemeChange?.(() => setDashVersion((v) => v + 1))
-    api?.onModeChange?.((m) => applyMode(m))
-    api?.onBeforeClose?.(async () => {
+    }))
+    disposers.push(api?.ui?.onThemeChange?.(() => setDashVersion((v) => v + 1)))
+    disposers.push(kit.onMode(applyMode))
+    disposers.push(api?.onBeforeClose?.(async () => {
       stopSamplerRef.current()
       await persistRef.current()
-    })
+    }))
 
     void (async () => {
       const prefs = await kit.load('sysguard_prefs', null)
@@ -542,6 +563,8 @@ export function App() {
 
     return () => {
       alive = false
+      aliveRef.current = false
+      for (const dispose of disposers) if (typeof dispose === 'function') dispose()
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('resize', onResize)
       stopSamplerRef.current()
@@ -717,6 +740,11 @@ export function App() {
       )
     })
   }
+
+  if (mode === 'panel') return <PanelView procs={st.procs} ports={st.ports} portsError={st.portsError} sampledAt={st.sampledAt} error={st.error}
+    onRefresh={() => void refresh()}
+    onOpenShell={() => Promise.resolve(api?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}
+  />
 
   return (
     <main className="sg" id="app">

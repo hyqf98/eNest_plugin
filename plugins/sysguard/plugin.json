@@ -1,10 +1,15 @@
 {
   "id": "com.github.eNest.sysguard",
   "name": "进程与端口",
-  "version": "1.2.1",
+  "version": "0.0.1",
   "description": "本机进程与端口巡检：概览仪表盘（CPU·内存数据卡 + 迷你趋势 + 阈值告警 + Top 进程）、双表联动、搜索、收藏置顶、结束进程危险确认、滚动曲线、刷新频率可调",
   "author": "eNest Labs",
   "main": "index.html",
+  "views": {
+    "default": "shell",
+    "layouts": ["quick", "shell", "panel"],
+    "panel": { "size": { "width": 320, "height": 248 } }
+  },
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "engines": {
@@ -35,7 +40,7 @@
   "ui": {
     "chrome": "none",
     "themeAware": true,
-    "background": "opaque",
+    "background": "transparent",
     "preferredColorScheme": "auto"
   },
   "market": {

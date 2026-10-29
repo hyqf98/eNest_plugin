@@ -118,7 +118,7 @@ export function activateWithPage(connectionId, pageId) {
 function renderContext(connection, task) {
   const root = document.getElementById('subnav')
   root.replaceChildren()
-  if (task?.pageId === 'settings') { root.append(el('span', { class: 'context-connection' }, '快捷键与输入提示')); return }
+  if (task?.pageId === 'settings') { root.append(el('span', { class: 'context-connection' }, '界面主题、快捷键与输入提示')); return }
   if (!connection) return
   root.append(el('span', { class: 'context-connection', title: connection.name }, `${connection.name} · ${KIND_META[connection.kind]?.label || connection.kind}`))
   for (const page of visiblePages(connection.kind)) {

@@ -1,6 +1,7 @@
 import './css/main.css'
 import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/style.css'
+import '@enest/plugin-kit/widget.css'
 import '@enest/plugin-kit'
 window.PluginKit.useAppearanceLayout({
   plugin: 'lan-share', family: 'flow', scope: '#root',

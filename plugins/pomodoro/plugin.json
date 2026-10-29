@@ -1,10 +1,15 @@
 {
   "id": "com.github.eNest.pomodoro",
   "name": "番茄钟",
-  "version": "1.4.1",
+  "version": "0.0.1",
   "description": "主进程后台专注计时，长短休息、时长预设、完成提示音与本地统计。",
   "author": "eNest Labs",
   "main": "index.html",
+  "views": {
+    "layouts": ["quick", "shell", "panel"],
+    "default": "shell",
+    "panel": { "size": { "width": 240, "height": 240 } }
+  },
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "permissions": [
@@ -37,7 +42,7 @@
   "ui": {
     "chrome": "none",
     "themeAware": true,
-    "background": "opaque",
+    "background": "transparent",
     "preferredColorScheme": "auto"
   },
   "contributes": {

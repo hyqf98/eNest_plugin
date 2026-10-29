@@ -152,6 +152,14 @@ export async function attachGalleryMeta(assetId, record) {
   })
 }
 
+/** 画廊重命名：只改索引里的展示名，不动资源本身 */
+export async function renameAsset(assetId, name) {
+  return updateGalleryMeta(meta => {
+    const record = meta[assetId] ?? {}
+    meta[assetId] = { ...record, name: String(name ?? '').trim() || null }
+  })
+}
+
 /** 画廊合并视图：资源列表（新→旧）+ 索引元数据 */
 export async function loadGallery() {
   const [assets, meta] = await Promise.all([listAssets(), loadGalleryMeta()])

@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.net-kit",
   "name": "网络调试台",
-  "version": "1.1.0",
+  "version": "0.0.1",
   "description": "HTTP / TCP / WebSocket 调试工作台：流式响应与 SSE、十六进制字节流、编解码策略、断言、curl 导入导出、集合与历史",
   "author": "eNest Labs",
   "main": "index.html",

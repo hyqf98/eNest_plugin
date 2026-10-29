@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.cron",
   "name": "Cron 工具",
-  "version": "1.2.0",
+  "version": "0.0.1",
   "description": "五/六域可视化构建、中文人性化描述、未来执行预览、预设库与 crontab 导出。",
   "author": "eNest Labs",
   "main": "index.html",

@@ -22,7 +22,7 @@ body,
   margin: 0;
 }
 body {
-  background: var(--bg, #fafbfc);
+  background: transparent;
   color: var(--text, #253044);
   font: 13px var(--ui);
 }
@@ -126,6 +126,7 @@ footer {
 }
 .calculator {
   height: 100%;
+  background: var(--bg, #fafbfc);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
 }

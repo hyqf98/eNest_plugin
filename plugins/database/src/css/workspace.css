@@ -77,10 +77,6 @@
 .nav-tree-state { color: var(--text-3); font-size: 11px; line-height: 1.6; padding: 9px 10px 9px 26px; overflow-wrap: anywhere; }
 .nav-tree-state.error { color: var(--danger); }
 .nav-tree-state .btn { font-size: 10px; min-height: 23px; padding: 2px 6px; margin-top: 5px; }
-.nav-footer { display: flex; gap: 2px; flex-wrap: wrap; padding: 7px 7px; border-top: 1px solid var(--border); flex: none; }
-.nav-footer button { display: flex; align-items: center; justify-content: center; flex: 1; min-width: 33px; min-height: 28px; border: 0; border-radius: 5px; background: transparent; color: var(--text-2); font-size: 10px; cursor: pointer; }
-.nav-footer button:hover { background: var(--row-hover); color: var(--text); }
-.nav-footer button.active { background: var(--accent-soft); color: var(--text); }
 .wb-nav-scrim { display: none; }
 .app[data-nav-compact=true] .side { position: absolute; inset: 0 auto 0 0; z-index: 40; box-shadow: 6px 0 28px color-mix(in srgb, var(--db-scrim) 13%, transparent); }
 .app[data-nav-compact=true] #resizer-left { display: none !important; }
@@ -113,10 +109,8 @@
 .app[data-page=object] .results { height: auto !important; flex: 1; max-height: none; }
 .app .wb-table th, .app .wb-table td { padding: 5px 10px; line-height: 1.4; }
 .app .wb-table th { font-size: 11px; }
-.app .grid-table th, .app .grid-table td { line-height: 1.4; }
 .app .wb-section-heading { flex-wrap: wrap; }
 .app .wb-settings { max-width: 1000px; margin: 0; }
-.app .wb-settings-grid { gap: 24px; }
 .app .wb-diff-scroll { height: max(240px, calc(100dvh - 440px)); }
 .app[data-surface=shell][data-result-dock=right] .query-surface { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .app[data-surface=shell][data-result-dock=right] .query-surface .wb-querybar { grid-column: 1 / -1; grid-row: 1; }
@@ -197,10 +191,6 @@ body:has(.app) .wb-design-column { grid-template-columns: minmax(100px,1.2fr) mi
 .nav-tree-row:hover .nav-object-type, .nav-tree-row:focus-within .nav-object-type { display: none; }
 .nav-connection-children { padding-left: 8px; }
 .nav-tree-children { padding-left: 13px; }
-.nav-footer { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 2px; }
-.nav-footer .nav-footer-button { display: flex; flex-direction: column; gap: 4px; padding: 6px 1px; font-size: 9px; }
-.nav-footer .nav-footer-button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.nav-footer .nav-footer-button .nav-icon { width: 15px; height: 15px; }
 .nav-empty { padding: 20px 12px; text-align: center; color: var(--text-3); font-size: 11px; line-height: 1.7; }
 .nav-empty strong { color: var(--text-2); font-weight: 550; }
 .nav-scan-more { margin: 5px 0 5px 25px; border: 0; background: none; color: var(--text-2); font-size: 10px; padding: 5px; cursor: pointer; }
@@ -211,7 +201,6 @@ body:has(.app) .wb-design-column { grid-template-columns: minmax(100px,1.2fr) mi
 .app[data-surface=quick] .side { display: flex !important; }
 .wb-query-context { flex-shrink: 0; }
 .nav-connection-name { font-size: .6875rem; }
-.nav-connection-detail, .nav-footer .nav-footer-button { font-size: .5625rem; }
 .nav-tree-row, .nav-connection-row > button, .nav-tree-row > button { font-size: .6875rem; min-height: 1.75rem; }
 .wb-tab > [role=tab] { font-size: .75rem; }
 .wb-query-context, .app .wb-querybar .btn { font-size: .6875rem; }
@@ -251,7 +240,7 @@ body:has(.app) { font-size: var(--font-size-base, 13px); }
 .app .nav-connection-name, .app .nav-search, .app .wb-query-context, .app .wb-querybar .btn, .app .wb-table th, .app .wb-table td, .app .wb-object-identity strong, .app .wb-segmented button { font-size: calc(var(--db-type-unit) * .8462); }
 .app .nav-connection-detail, .app .nav-footer .nav-footer-button { font-size: calc(var(--db-type-unit) * .6923); }
 .app .wb-tab > [role=tab], .app .wb-library-row strong, .app .wb-page-title p, .app .wb-settings-grid section > label, .app .wb-shortcuts > label { font-size: calc(var(--db-type-unit) * .9231); }
-.app .wb-status, .app .wb-inspection-meta, .app .wb-transaction-status, .app .nav-group-label { font-size: calc(var(--db-type-unit) * .7692); }
+.app .wb-status, .app .wb-transaction-status, .app .nav-group-label { font-size: calc(var(--db-type-unit) * .7692); }
 .app .nav-tree-row { min-height: calc(var(--db-type-unit) * 2.154); }
 .app .nav-connection-row { min-height: calc(var(--db-type-unit) * 3.23); }
 .app .wb-page h1 { font-size: calc(var(--db-type-unit) * 1.5385); }
@@ -309,37 +298,8 @@ body:has(.app) .wb-export-dialog .export-menu .btn { justify-content: flex-start
 .nav-toolrail-button[data-nav=settings] { margin-top: 6px; }
 .nav-toolrail-button[data-nav=settings]:after { content: ''; position: absolute; left: 5px; right: 5px; top: -4px; height: 1px; background: var(--border); }
 
-/* Keep saved workbench choices as material variants, not competing palettes.
-   Floating menus inherit the same host colors; neither variant shadows --accent/--text. */
-body:has(.app[data-workbench-theme="graphite"]) {
-  --workspace: color-mix(in srgb, var(--bg) 70%, var(--surface-2));
-  --chrome: color-mix(in srgb, var(--surface-2) 85%, var(--surface));
-}
-body:has(.app[data-workbench-theme="paper"]) {
-  --workspace: color-mix(in srgb, var(--surface) 85%, var(--bg));
-  --chrome: var(--surface);
-}
-body:has(.app[data-workbench-theme]) .app { position: relative; background: var(--workspace); color: var(--text); }
-body:has(.app[data-workbench-theme]) .app:before {
-  content: ''; position: absolute; inset: 0 0 auto; height: min(100%, 420px); pointer-events: none; z-index: 0;
-}
-body:has(.app[data-workbench-theme="graphite"]) .app:before { background: radial-gradient(720px 420px at 7% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 66%); }
-body:has(.app[data-workbench-theme="paper"]) .app:before { background: radial-gradient(680px 400px at 7% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 64%); }
-body:has(.app[data-workbench-theme]) .app > * { position: relative; z-index: 1; }
-body:has(.app[data-workbench-theme]) .app :is(.side, .mid-col) { background: transparent; }
-body:has(.app[data-workbench-theme]) .app .mid-chrome { background: color-mix(in srgb, var(--chrome) 94%, transparent); border-bottom-color: var(--border); }
-body:has(.app[data-workbench-theme]) .app .wb-querybar { background: color-mix(in srgb, var(--chrome) 92%, transparent); border-bottom: 1px solid var(--border); }
-body:has(.app[data-workbench-theme]) .app .nav-toolrail { background: color-mix(in srgb, var(--bg) 42%, var(--surface)); border-right: 1px solid var(--border); }
-body:has(.app[data-workbench-theme]) .app .nav-search-wrap input { background: color-mix(in srgb, var(--surface) 72%, transparent); border-color: var(--border-strong); }
-body:has(.app[data-workbench-theme]) .app .wb-status { background: color-mix(in srgb, var(--chrome) 94%, transparent); border-top: 1px solid var(--border); }
-body:has(.app[data-workbench-theme]) .app .wb-tab.active { background: color-mix(in srgb, var(--surface) 82%, transparent); }
-body:has(.app[data-workbench-theme]) .app .wb-tab.active:after { background: linear-gradient(90deg, var(--accent), transparent); opacity: 1; }
-body:has(.app[data-workbench-theme]) .app .wb-welcome { background: radial-gradient(520px 320px at 50% 20%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 68%); }
-body:has(.app[data-workbench-theme]) .app .wb-welcome-symbol { border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent); background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 17%, transparent), transparent); color: var(--accent); border-radius: 17px; }
-body:has(.app[data-workbench-theme]) .app .wb-page-host > .wb-page { background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 18%, var(--workspace)), var(--workspace) 320px); }
-body:has(.app[data-workbench-theme="graphite"]) .app .wb-page-host > .wb-page { background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 20%, var(--bg)), var(--bg) 320px); }
-body:has(.app[data-workbench-theme="paper"]) .app .wb-page-host > .wb-page { background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 52%, var(--workspace)), var(--workspace) 320px); }
-body:has(.app[data-workbench-theme]) .app :is(.fab-execute, .btn.primary) { box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 18%, transparent); }
+/* Workbench material variants merged into the paper theme system (paper-theme.css);
+   data-workbench-theme is no longer written. Selection cards keep their styles below. */
 
 .wb-theme-options { display: grid; grid-template-columns: repeat(2, minmax(210px, 1fr)); gap: 9px; width: 100%; }
 .wb-theme-option { display: grid; grid-template-columns: 44px minmax(0,1fr); gap: 11px; align-items: center; min-height: 66px; padding: 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: color-mix(in srgb, var(--surface) 84%, var(--workspace)); color: var(--text-2); cursor: pointer; text-align: left; transition: border-color 120ms ease, background-color 120ms ease, transform 120ms ease; }
@@ -349,8 +309,6 @@ body:has(.app[data-workbench-theme]) .app :is(.fab-execute, .btn.primary) { box-
 .wb-theme-swatch { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; padding: 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
 .wb-theme-swatch i { height: 16px; border-radius: 3px; }
 /* Preview the actual material mixes under the current host theme. */
-.wb-theme-option[data-theme-option="graphite"] { --wb-swatch-1: color-mix(in srgb, var(--bg) 70%, var(--surface-2)); --wb-swatch-2: color-mix(in srgb, var(--surface-2) 85%, var(--surface)); --wb-swatch-3: var(--accent); }
-.wb-theme-option[data-theme-option="paper"] { --wb-swatch-1: color-mix(in srgb, var(--surface) 85%, var(--bg)); --wb-swatch-2: var(--surface); --wb-swatch-3: var(--accent); }
 .wb-theme-swatch i:nth-child(1) { background: var(--wb-swatch-1, var(--surface-2)); }
 .wb-theme-swatch i:nth-child(2) { background: var(--wb-swatch-2, var(--surface-3)); }
 .wb-theme-swatch i:nth-child(3) { background: var(--wb-swatch-3, var(--accent)); }

@@ -1,12 +1,8 @@
-/**
- * 时间戳主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
- * 业务核心 parseTime/timeRows/formatZoned/formatTemplates/durationText/zoneOffsetText
- * 复用 core.mjs（未改动）；原生 select 仍由 plugin-kit upgradeSelects 接管。
- */
+/** Shared controller: layout changes retain conversion state and saved world zones. */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '../ui/index.jsx'
 import { parseTime, timeRows, formatZoned, formatTemplates, durationText, zoneOffsetText } from '../js/core.mjs'
+import { PanelView } from './PanelView.jsx'
 
 const api = window.enest || window.zapi
 const WORLD_KEY = 'timestamp.worldZones.v1'
@@ -17,6 +13,8 @@ export function App() {
   const inputRef = useRef(null)
   const zoneAddRef = useRef(null)
 
+  const [mode, setMode] = useState(() => api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
+  const [liveNow, setLiveNow] = useState(Date.now)
   const [tab, setTab] = useState('convert')
   const [input, setInput] = useState('')
   const [unit, setUnit] = useState('auto')
@@ -47,10 +45,12 @@ export function App() {
   const nowRef = useRef(Date.now())
   const pausedRef = useRef(paused)
   pausedRef.current = paused
+  const modeRef = useRef(mode)
+  modeRef.current = mode
   const visibleRef = useRef(true)
   const timerRef = useRef(null)
   const stateRef = useRef({})
-  stateRef.current = { input, unit, zone, rows, selected, dateStart, dateEnd, dateAddStart, dateOffset, batchFormat, batchInput, worldZones }
+  stateRef.current = { input, unit, zone, rows, selected, dateStart, dateEnd, dateAddStart, dateOffset, batchFormat, batchInput, worldZones, zoneAddText: zoneAdd }
 
   const copy = useCallback((text) => {
     return kitRef.current.copy(text).catch((error) => {
@@ -94,7 +94,10 @@ export function App() {
   /* —— 时钟心跳（等价原 tick/start） —— */
   const tick = useCallback(() => {
     const s = stateRef.current
-    if (!pausedRef.current) nowRef.current = Date.now()
+    const now = Date.now()
+    setLiveNow(now)
+    if (!pausedRef.current) nowRef.current = now
+    if (modeRef.current === 'panel') return
     try {
       const zoned = formatZoned(nowRef.current, s.zone)
       setClock(zoned)
@@ -111,7 +114,7 @@ export function App() {
 
   const start = useCallback(() => {
     clearInterval(timerRef.current)
-    if (visibleRef.current && !pausedRef.current) timerRef.current = setInterval(tick, 1000)
+    if (visibleRef.current && (!pausedRef.current || modeRef.current === 'panel')) timerRef.current = setInterval(tick, 1000)
     tick()
   }, [tick])
 
@@ -131,8 +134,7 @@ export function App() {
       return
     }
     setWorldZones((prev) => {
-      const next = [...prev, value]
-      if (next.length > 6) return next.slice(-6)
+      const next = [...prev, value].slice(-6)
       kitRef.current?.save(WORLD_KEY, next).catch(() => {})
       return next
     })
@@ -237,29 +239,30 @@ export function App() {
       },
     })
     kitRef.current = kit
+    setMode(kit.mode)
+    const offMode = kit.onMode(setMode)
     let alive = true
     void (async () => {
       await kit.ready
       if (!alive) return
-      const tz = kit.settings.timeZone || 'UTC'
-      setZone(tz)
+      let tz = kit.settings.timeZone || 'UTC'
       try {
         formatZoned(nowRef.current, tz)
       } catch {
-        setZone('UTC')
+        tz = 'UTC'
         kit.toast('默认时区无效，已使用 UTC', 'warn')
       }
+      setZone(tz)
       setUnit(kit.settings.defaultUnit || 'auto')
       setBatchFormat(kit.settings.batchFormat || 'date')
       const savedZones = await kit.load(WORLD_KEY, [])
       if (!alive) return
-      if (Array.isArray(savedZones)) setWorldZones(savedZones.filter((z) => typeof z === 'string' && z.includes('/')).slice(0, 6))
+      if (Array.isArray(savedZones)) setWorldZones(savedZones.filter((z) => typeof z === 'string' && safeZone(() => Boolean(formatZoned(nowRef.current, z)), false)).slice(0, 6))
       const saved = await kit.load(RECENT_KEY, [])
       if (!alive) return
       if (Array.isArray(saved)) recentsRef.current = saved.filter((r) => r && r.expr).slice(0, 20)
-      const s = kit.settings.timeZone || 'UTC'
-      setDateStart(formatZoned(nowRef.current, s))
-      setDateEnd(formatZoned(nowRef.current + 86400000, s))
+      setDateStart(formatZoned(nowRef.current, tz))
+      setDateEnd(formatZoned(nowRef.current + 86400000, tz))
       kit.onSettings((settings) => {
         setZone(settings.timeZone || 'UTC')
         setUnit(settings.defaultUnit || 'auto')
@@ -281,16 +284,16 @@ export function App() {
     })
     return () => {
       alive = false
+      offMode()
       clearInterval(timerRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /* —— 时钟启动（等价原 boot start()） —— */
+  /* The widget stays live even when the converter's timestamp is paused. */
   useEffect(() => {
     start()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [mode, paused, start])
 
   /* —— 输入/单位/时区变化 → 重新渲染（等价原 oninput/onchange） —— */
   useEffect(() => {
@@ -311,9 +314,17 @@ export function App() {
   }, [dateAddStart, dateOffset, dateDiff])
 
   const pauseToggle = () => {
-    const next = !paused
-    setPaused(next)
-    start()
+    setPaused((value) => !value)
+  }
+
+  if (mode === 'panel') {
+    return <PanelView
+      now={liveNow}
+      zone={zone}
+      worldZones={worldZones}
+      onCopy={copy}
+      onOpen={() => api?.ui?.openInShell?.().catch((error) => kitRef.current?.toast(error.message, 'error'))}
+    />
   }
 
   return (

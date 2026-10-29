@@ -1,0 +1,13 @@
+html, body { background: transparent !important; }
+#root { background: var(--bg); }
+:root[data-mode='panel'] #root { background: transparent; }
+:root[data-mode='panel'] #root::before,
+:root[data-mode='panel'] #root::after { display: none; }
+.clipboard-widget { --pk-widget-padding: clamp(10px, 4vw, 22px); gap: 8px; }
+.clipboard-widget-heading { display: flex; justify-content: space-between; gap: 8px; color: var(--text-2); font-size: 11px; line-height: 16px; }
+.clipboard-widget-content { overflow: hidden; }
+.clipboard-widget-title { margin: 0 0 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-heading, var(--font)); font-size: clamp(17px, 6vw, 25px); line-height: 1.25; font-weight: 600; }
+.clipboard-widget-excerpt { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; margin: 0; white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; line-height: 23px; color: var(--text-2); }
+.clipboard-widget-actions { justify-content: flex-end; flex-wrap: nowrap; gap: 5px; }
+.clipboard-widget[data-compact='true'] { --pk-widget-padding: 10px; gap: 6px; }
+.clipboard-widget[data-compact='true'] .clipboard-widget-title { font-size: 17px; margin-bottom: 5px; }

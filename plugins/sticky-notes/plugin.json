@@ -1,16 +1,21 @@
 {
   "id": "com.github.eNest.sticky-notes",
   "name": "备忘录",
-  "version": "1.3.1",
+  "version": "0.0.1",
   "description": "快速记录、Markdown 预览、颜色筛选、标签整理、归档回收与本地备份。",
   "author": "eNest Labs",
   "main": "index.html",
+  "views": {
+    "layouts": ["quick", "shell", "panel"],
+    "default": "shell",
+    "panel": { "size": { "width": 280, "height": 240 } }
+  },
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "ui": {
     "chrome": "none",
     "themeAware": true,
-    "background": "opaque",
+    "background": "transparent",
     "preferredColorScheme": "auto"
   },
   "permissions": [

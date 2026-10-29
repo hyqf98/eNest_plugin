@@ -61,7 +61,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 button { transition: background-color var(--pk-speed), border-color var(--pk-speed), opacity var(--pk-speed); }
 button:active:not(:disabled) { filter: brightness(.96); }
 [hidden] { display: none !important; }
-:root[data-mode="quick"] .shell-only, :root[data-mode="shell"] .quick-only { display: none !important; }
+:root[data-mode]:not([data-mode="shell"]) .shell-only,
+:root[data-mode]:not([data-mode="quick"]) .quick-only,
+:root:not([data-mode="panel"]) .panel-only { display: none !important; }
 .pk-muted { color: var(--text-2, #747c88); }
 .pk-mono { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace); font-variant-numeric: tabular-nums; }
 /* 提示条本身不拦截页面交互；只有错误态的复制按钮重新接收指针。 */

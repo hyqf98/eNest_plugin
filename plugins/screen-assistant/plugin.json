@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.screen-assistant",
   "name": "屏幕助手",
-  "version": "1.5.0",
+  "version": "0.0.1",
   "description": "截图与原图历史、裁剪箭头文字马赛克标注（含工具快捷键）、区域录屏和贴图管理；粘性半透明工具头，小窗快速操作，桌面展开完整编辑。",
   "author": "eNest Labs",
   "main": "index.html",

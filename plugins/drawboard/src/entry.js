@@ -4,7 +4,7 @@ import '@enest/plugin-kit/style.css'
 import '@enest/plugin-kit'
 window.PluginKit.useAppearanceLayout({
   plugin: 'drawboard', family: 'instrument', scope: '#root',
-  regions: { toolbar: '.db-toolbar', main: '.db-stage', auxiliary: '.db-aside', status: '.db-status' }
+  regions: { toolbar: '.db-tabs', main: '.db-stage', auxiliary: '.db-aside', status: '.db-status' }
 })
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'

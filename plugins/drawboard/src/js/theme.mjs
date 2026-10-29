@@ -6,12 +6,12 @@
 export const THEMES = {
   paper: {
     id: 'paper',
-    name: '浅色纸',
-    paper: '#f8f9fa',
-    grid: '#c9ced6',
-    ink: '#1e1e1e',
-    selection: '#3579dd',
-    palette: ['#1e1e1e', '#e03131', '#e8590c', '#f08c00', '#2f9e44', '#1971c2', '#6741d9', '#c2255c'],
+    name: '草稿纸',
+    paper: '#faf7ef',
+    grid: '#c9d5e2',
+    ink: '#2c3442',
+    selection: '#3f6fb5',
+    palette: ['#2c3442', '#c92a2a', '#d9480f', '#e67700', '#2b8a3e', '#1864ab', '#5f3dc4', '#a61e4d'],
     highlighter: '#ffd43b',
   },
   dark: {
@@ -26,7 +26,7 @@ export const THEMES = {
   },
   cream: {
     id: 'cream',
-    name: '米黄纸张',
+    name: '米黄纸',
     paper: '#f6efe3',
     grid: '#d8cdb8',
     ink: '#3d2f1e',
@@ -46,21 +46,29 @@ export const THEMES = {
   },
 }
 
+export const GRID_MODES = ['lines', 'squares', 'dots', 'none']
+export const GRID_LABELS = { lines: '横线', squares: '方格', dots: '点阵', none: '无' }
+
 export const DEFAULT_SETTINGS = {
   theme: 'paper',
   roughness: 1,        // 0 规整 ~ 2 更手绘
-  grid: 'dots',        // dots | none
+  grid: 'lines',       // lines | squares | dots | none
   strokeWidth: 2.5,    // 钢笔默认笔宽
   highlightWidth: 14,
   eraserSize: 12,
   color: null,         // null = 跟随主题默认墨色
+  textureVersion: 2,   // 2 = 草稿纸改版后的纸面纹理模型（旧设置一次性迁到横线）
 }
 
 export function normalizeSettings(raw) {
-  const s = { ...DEFAULT_SETTINGS, ...(raw && typeof raw === 'object' ? raw : {}) }
+  const source = raw && typeof raw === 'object' ? raw : {}
+  const s = { ...DEFAULT_SETTINGS, ...source }
   if (!THEMES[s.theme]) s.theme = DEFAULT_SETTINGS.theme
   s.roughness = Math.min(2, Math.max(0, Number(s.roughness) || 0))
-  if (!['dots', 'none'].includes(s.grid)) s.grid = DEFAULT_SETTINGS.grid
+  if (!GRID_MODES.includes(s.grid)) s.grid = DEFAULT_SETTINGS.grid
+  // 草稿纸改版：旧版本没有 textureVersion，纸面纹理一次性切到横线，之后尊重用户选择
+  if ((Number(source.textureVersion) || 0) < 2) s.grid = DEFAULT_SETTINGS.grid
+  s.textureVersion = 2
   s.strokeWidth = Math.min(12, Math.max(0.5, Number(s.strokeWidth) || DEFAULT_SETTINGS.strokeWidth))
   s.highlightWidth = Math.min(40, Math.max(4, Number(s.highlightWidth) || DEFAULT_SETTINGS.highlightWidth))
   s.eraserSize = Math.min(80, Math.max(6, Number(s.eraserSize) || DEFAULT_SETTINGS.eraserSize))

@@ -217,7 +217,7 @@ test('private UI facade routes storage to background and native actions to the c
 test('manifest declares sandboxed background and no Node backend or plugin polling', async () => {
   const manifest = JSON.parse(await readFile(new URL('../plugin.json', import.meta.url), 'utf8'))
   const source = await readFile(new URL('../background/history.mjs', import.meta.url), 'utf8')
-  assert.equal(manifest.version, '1.4.1')
+  assert.equal(manifest.version, '0.0.1')
   assert.equal(manifest.engines.enest, '>=0.2.3')
   assert.equal(manifest.background.entry, 'assets/background.html')
   assert.equal(manifest.background.eventSettings['clipboard.changed'], 'monitoring')

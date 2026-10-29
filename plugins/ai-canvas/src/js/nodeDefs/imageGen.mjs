@@ -30,10 +30,7 @@ registerNode(defineNode({
   protocol: 'openai-images',
   runnable: true,
   inputs: [{ key: 'prompt', label: '提示词', kind: PORT_KIND.TEXT, optional: true }],
-  outputs: [
-    { key: 'image', label: '图片', kind: PORT_KIND.IMAGE, multiple: true },
-    { key: 'text', label: '改写提示词', kind: PORT_KIND.TEXT }
-  ],
+  outputs: [{ key: 'image', label: '图片', kind: PORT_KIND.IMAGE, multiple: true }],
   params: [
     { key: 'prompt', type: PARAM_TYPE.TEXTAREA, label: '提示词', rows: 4, acceptsVariable: true, default: '' },
     { key: 'size', type: PARAM_TYPE.SELECT, label: '尺寸', options: SIZE_OPTIONS, default: 'auto' },
@@ -47,7 +44,7 @@ registerNode(defineNode({
       prompt, size: params.size, quality: params.quality, n: params.n, onProgress
     })
     return {
-      outputs: { image: result.images, text: result.revised ?? null },
+      outputs: { image: result.images },
       usage: result.usage
     }
   }

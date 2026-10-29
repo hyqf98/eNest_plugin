@@ -1,13 +1,16 @@
 /**
- * providers — Provider 协议注册表 + 配置管理。
- * 首期实现 OpenAI Images 协议类（/v1/images/generations + /v1/images/edits），
- * 覆盖官方与 one-api / new-api 等中转站；后续按同一协议接口注册其他协议类。
+ * providers — Provider 配置 + 协议注册表。
+ * 首期实现 OpenAI 协议族：images（/v1/images/generations + /v1/images/edits）
+ * 与 chat（/v1/chat/completions），覆盖官方与 one-api / new-api 等中转站。
+ * Provider 带 kind（'images' | 'chat'），旧记录缺 kind 按 images 迁移。
  * 配置存插件私有 KV；密钥经 vault.set 存 secretRef，请求时交主进程解引用注入。
  */
 
 import { requestJson, requestJsonStreamed, downloadBinary, buildMultipart, toBase64 } from './netFetch.mjs'
 
 const PROVIDERS_KEY = 'ai-canvas.providers.v1'
+
+export const PROVIDER_KIND = { IMAGES: 'images', CHAT: 'chat' }
 
 function store() {
   const enest = window.enest || window.zapi
@@ -18,19 +21,22 @@ function store() {
 export function normalizeBaseUrl(input) {
   let url = String(input ?? '').trim().replace(/\/+$/, '')
   if (!/^https?:\/\//i.test(url)) url = `https://${url}`
-  // 用户填到根或 /v1 均可：末段不是 /v\d 时自动补 /v1（拼接 images 路径的统一前提）
+  // 用户填到根或 /v1 均可：末段不是 /v\d 时自动补 /v1（拼接协议路径的统一前提）
   if (!/\/v\d+$/.test(url)) url += '/v1'
   return url
 }
 
 export const DEFAULT_PROVIDERS = [
-  { id: 'default', name: 'OpenAI 官方', baseUrl: 'https://api.openai.com/v1', model: 'gpt-image-1', secretRef: '', isDefault: true }
+  { id: 'default', name: 'OpenAI 官方', baseUrl: 'https://api.openai.com/v1', model: 'gpt-image-1', kind: PROVIDER_KIND.IMAGES, secretRef: '', isDefault: true }
 ]
 
 export async function loadProviders() {
   try {
     const saved = await store().storage.get(PROVIDERS_KEY)
-    if (Array.isArray(saved) && saved.length) return saved
+    if (Array.isArray(saved) && saved.length) {
+      // 旧记录无 kind：按 images 迁移（openai-images 是首个协议）
+      return saved.map(p => ({ ...p, kind: p.kind ?? PROVIDER_KIND.IMAGES }))
+    }
   } catch { /* 首次 */ }
   return DEFAULT_PROVIDERS
 }
@@ -43,7 +49,7 @@ export async function saveProviders(list) {
 /** 保存/更新供应商：apiKey 非空时写入 vault 并仅保留 secretRef */
 export async function upsertProvider(provider, apiKey) {
   const list = await loadProviders()
-  const record = { ...provider, baseUrl: normalizeBaseUrl(provider.baseUrl) }
+  const record = { ...provider, kind: provider.kind ?? PROVIDER_KIND.IMAGES, baseUrl: normalizeBaseUrl(provider.baseUrl) }
   if (apiKey && apiKey.trim()) {
     const enest = store()
     const vaultKey = `ai-canvas.provider.${record.id}`
@@ -53,6 +59,10 @@ export async function upsertProvider(provider, apiKey) {
   const index = list.findIndex(p => p.id === record.id)
   if (index >= 0) list[index] = { ...list[index], ...record }
   else list.push(record)
+  // 同 kind 唯一默认：新记录 isDefault 时取消同 kind 其他默认
+  if (record.isDefault) {
+    for (const p of list) if (p.id !== record.id && p.kind === record.kind) delete p.isDefault
+  }
   await saveProviders(list)
   return record
 }
@@ -64,14 +74,19 @@ export async function removeProvider(id) {
     try { await store().vault.remove(`ai-canvas.provider.${id}`) } catch { /* 已不存在 */ }
   }
   const next = list.filter(p => p.id !== id)
-  if (target?.isDefault && next.length) next[0].isDefault = true
+  if (target?.isDefault) {
+    const fallback = next.find(p => p.kind === target.kind)
+    if (fallback) fallback.isDefault = true
+  }
   await saveProviders(next)
   return next
 }
 
-export async function getDefaultProvider(list) {
+/** 按 kind 取默认供应商（缺省 images） */
+export async function getDefaultProvider(list, kind = PROVIDER_KIND.IMAGES) {
   const providers = list ?? await loadProviders()
-  return providers.find(p => p.isDefault) ?? providers[0] ?? null
+  const sameKind = providers.filter(p => (p.kind ?? PROVIDER_KIND.IMAGES) === kind)
+  return sameKind.find(p => p.isDefault) ?? sameKind[0] ?? null
 }
 
 /* —— 协议注册表 ——
@@ -156,8 +171,46 @@ export const openaiImagesProtocol = {
   }
 }
 
-/** 协议注册表：节点定义引用 protocol id，运行时在此解析 */
+export const openaiChatProtocol = {
+  id: 'openai-chat',
+  label: 'OpenAI Chat Completions 协议',
+  /** 连接测试：GET {base}/models */
+  async test(provider) {
+    await requestJson({
+      url: `${provider.baseUrl}/models`,
+      secretRef: provider.secretRef || undefined,
+      timeoutMs: 20000
+    })
+    return true
+  },
+  /** 对话补全：POST /chat/completions（非流式，优化提示词场景足够） */
+  async complete(provider, { system, user, temperature = 0.7, maxTokens = 2048 }) {
+    const messages = []
+    if (String(system ?? '').trim()) messages.push({ role: 'system', content: String(system) })
+    messages.push({ role: 'user', content: String(user ?? '') })
+    const payload = { model: provider.model, messages, temperature }
+    if (maxTokens) payload.max_tokens = maxTokens
+    const json = await requestJson({
+      url: `${provider.baseUrl}/chat/completions`,
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: payload,
+      secretRef: provider.secretRef || undefined,
+      timeoutMs: 110000
+    })
+    const text = json?.choices?.[0]?.message?.content
+    if (typeof text !== 'string' || !text.trim()) throw new Error('模型未返回内容')
+    return { text: text.trim(), usage: json?.usage ?? null }
+  }
+}
+
+/** 协议注册表：节点定义引用 protocol id，运行时在此解析（找不到即抛错，不静默回退） */
 const PROTOCOLS = new Map()
 export function registerProtocol(protocol) { PROTOCOLS.set(protocol.id, protocol) }
-export function getProtocol(id) { return PROTOCOLS.get(id) ?? openaiImagesProtocol }
+export function getProtocol(id) {
+  const found = PROTOCOLS.get(id)
+  if (!found) throw new Error(`未注册的协议：${id}`)
+  return found
+}
 registerProtocol(openaiImagesProtocol)
+registerProtocol(openaiChatProtocol)

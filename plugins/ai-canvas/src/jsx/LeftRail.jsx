@@ -1,39 +1,56 @@
 /**
  * LeftRail — 左缘浮动图标轨道（overlay，不占画布布局宽度）。
- * 窄条常驻：节点库（hover 浮出面板）/ 添加节点 / 画廊 / 设置。
- * 节点项按 nodeSchema 的端口 kind 展示，新增节点自动出现在对应分类。
+ * 窄条常驻：节点库（仅悬停该按钮浮出面板）/ 添加节点 / 图片素材 / 设置。
+ * 每个按钮 hover 即时浮出功能名（零延迟 CSS 提示）；悬停其他按钮时节点库面板收起。
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { listNodeDefs, groupNodeDefs } from '../js/nodeRegistry.mjs'
-import { PORT_KINDS } from '../js/nodeSchema.mjs'
-
-const portGlyphs = ports => ports.map(p => PORT_KINDS[p.kind]?.glyph ?? '?').join('·')
 
 export function LeftRail({ onAddNode, onOpenAddMenu, onOpenGallery, onOpenSettings, view }) {
   const [peek, setPeek] = useState(false)
+  const closeTimer = useRef(0)
   const groups = groupNodeDefs(listNodeDefs())
+
+  // 移出轨道时留一点宽限：滑到浮层要跨过间隙，立即关闭会"够不着"
+  const scheduleClose = () => {
+    window.clearTimeout(closeTimer.current)
+    closeTimer.current = window.setTimeout(() => setPeek(false), 180)
+  }
+  const cancelClose = () => {
+    window.clearTimeout(closeTimer.current)
+    setPeek(true)
+  }
+  const closeNow = () => {
+    window.clearTimeout(closeTimer.current)
+    setPeek(false)
+  }
 
   return (
     <div className={`ac-rail ${peek ? 'ac-rail-peek' : ''}`}
-      onMouseLeave={() => setPeek(false)}>
+      onMouseLeave={scheduleClose}>
       <div className="ac-rail-strip" role="navigation" aria-label="画布工具轨道">
-        <button type="button" className="ac-rail-btn" title="节点库（悬停展开）"
-          onMouseEnter={() => setPeek(true)} onClick={() => setPeek(p => !p)}>
+        <button type="button" className="ac-rail-btn"
+          onMouseEnter={cancelClose} onClick={() => setPeek(p => !p)}>
           <span aria-hidden>✧</span>
+          <span className="ac-rail-tip">节点库</span>
         </button>
-        <button type="button" className="ac-rail-btn" title="添加节点" onClick={onOpenAddMenu}>
+        <button type="button" className="ac-rail-btn" onMouseEnter={closeNow} onClick={onOpenAddMenu}>
           <span aria-hidden>＋</span>
+          <span className="ac-rail-tip">添加节点</span>
         </button>
-        <button type="button" className={`ac-rail-btn ${view === 'gallery' ? 'ac-rail-active' : ''}`} title="画廊" onClick={onOpenGallery}>
+        <button type="button" className={`ac-rail-btn ${view === 'gallery' ? 'ac-rail-active' : ''}`}
+          onMouseEnter={closeNow} onClick={onOpenGallery}>
           <span aria-hidden>▦</span>
+          <span className="ac-rail-tip">图片素材</span>
         </button>
         <div className="ac-rail-spacer" />
-        <button type="button" className="ac-rail-btn" title="设置" onClick={onOpenSettings}>
+        <button type="button" className="ac-rail-btn" onMouseEnter={closeNow} onClick={onOpenSettings}>
           <span aria-hidden>⚙</span>
+          <span className="ac-rail-tip">设置</span>
         </button>
       </div>
       {peek && (
-        <aside className="ac-rail-panel" onMouseEnter={() => setPeek(true)}>
+        <aside className="ac-rail-panel" onMouseEnter={cancelClose}>
           {groups.map(group => (
             <div key={group.category} className="ac-rail-group">
               <div className="ac-rail-group-title">{group.category}</div>
@@ -41,13 +58,9 @@ export function LeftRail({ onAddNode, onOpenAddMenu, onOpenGallery, onOpenSettin
                 <div key={def.type} className="ac-rail-item" draggable
                   title={def.description || def.title}
                   onDragStart={e => { e.dataTransfer.setData('application/x-ai-canvas-node', def.type); e.dataTransfer.effectAllowed = 'move' }}
-                  onClick={() => { onAddNode(def.type); setPeek(false) }}>
+                  onClick={e => { onAddNode(def.type, { x: e.clientX, y: e.clientY }); setPeek(false) }}>
                   <span className="ac-glyph" aria-hidden>{def.glyph}</span>
                   <span className="ac-rail-item-title">{def.title}</span>
-                  <span className="ac-rail-item-ports">
-                    {def.inputs.length > 0 && <i>入 {portGlyphs(def.inputs)}</i>}
-                    {def.outputs.length > 0 && <i>出 {portGlyphs(def.outputs)}</i>}
-                  </span>
                 </div>
               ))}
             </div>

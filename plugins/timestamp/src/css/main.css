@@ -15,7 +15,7 @@
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body {
-  background: var(--bg, #fafcfc);
+  background: transparent;
   color: var(--text, #243a40);
   font: 13px/1.5 var(--font-family, -apple-system, "PingFang SC", sans-serif);
   -webkit-font-smoothing: antialiased;
@@ -60,7 +60,7 @@ h1 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
 h2 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-.time-studio { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.time-studio { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--bg, #fafcfc); }
 
 /* —— 顶栏：半透明材质，内容滚动穿过 —— */
 header {
