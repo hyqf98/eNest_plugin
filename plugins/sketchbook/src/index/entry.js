@@ -20,6 +20,15 @@ let offAppearance
 let disposeWorkbench
 let disposed = false
 let revision = -1
+let offDestroy
+
+const applyLaunchMode = mode => {
+  if (disposed || !['quick', 'shell', 'panel'].includes(mode)) return
+  document.documentElement.dataset.launchMode = mode
+}
+const offLaunchMode = api?.onModeChange?.(applyLaunchMode)
+const offEnter = api?.onEnter?.(event => applyLaunchMode(event?.mode))
+applyLaunchMode(api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
 
 const renderPreview = () => {
   if (!disposed && pack) applyAppearance(createPreviewAppearance(pack, previewMode ?? hostMode))
@@ -61,11 +70,20 @@ void loadPreviewTheme().then(theme => {
   container.replaceChildren(message)
 })
 
-window.addEventListener('pagehide', () => {
+const dispose = () => {
+  if (disposed) return
   disposed = true
+  offLaunchMode?.()
+  offEnter?.()
+  offDestroy?.()
   offAppearance?.()
+  window.removeEventListener('pagehide', dispose)
   systemMode.removeEventListener('change', followSystem)
   stopVisibility()
   disposeWorkbench?.()
   releaseFonts()
-}, { once: true })
+  delete document.documentElement.dataset.launchMode
+}
+offDestroy = api?.onDestroy?.(dispose)
+window.addEventListener('pagehide', dispose, { once: true })
+if (import.meta.hot) import.meta.hot.dispose(dispose)

@@ -57,13 +57,9 @@ export async function runMarketScenario(page, id) {
       await wait(() => document.querySelector('#match-list').children.length >= 3)
       return '匹配三个日期并展示捕获组与替换结果'
     case 'com.github.eNest.screen-assistant': {
-      const dataUrl = await page.evaluate(() => window.enest.localFiles.read({ handleId: 'demo-image' }))
       await page.getByRole('button', { name: '截图来源', exact: true }).click()
-      const [chooser] = await Promise.all([
-        page.waitForEvent('filechooser'),
-        page.getByRole('menuitem', { name: '打开图片', exact: true }).click()
-      ])
-      await chooser.setFiles({ name: 'coastal-study.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') })
+      // Host-bound inputs consume authorized handles rather than a browser filechooser.
+      await page.getByRole('menuitem', { name: '打开图片', exact: true }).click()
       await page.locator('#canvas-wrap').waitFor({ state: 'visible' })
       await wait(() => document.querySelector('#image-canvas')?.width === 1000 && document.querySelector('#image-canvas')?.height === 650)
       return '从截图来源菜单导入隔离演示图片，展示标注工作区'
