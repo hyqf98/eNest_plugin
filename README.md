@@ -81,6 +81,6 @@ node scripts/pack-plugin.mjs calculator
 REPO=hyqf98/eNest_plugin TAG=plugins-local node scripts/prepare-release.mjs
 ```
 
-推送 `v*` / `plugins-*` 标签或手动触发已有标签的工作流才会创建正式 Release。CI 顺序为源码校验、合同测试、全部构建、发行检查、生产 CSP 页面检查、打包、生成索引与媒体附件；普通分支推送不触发本发布工作流。
+推送 `v*` / `plugins-*` 标签或手动触发已有标签的工作流才会创建正式 Release。CI 要求源码校验、全部构建、发行检查、生产 CSP 页面检查、打包和索引生成全部通过；普通分支推送不触发本发布工作流。仅 `v0.0.1` 首版将存量单元与包格式测试单独保留为非阻断报告，其它标签仍要求测试通过；发包成功不代表这些历史用例全部通过。
 
 壳子从 [最新市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，通过 SHA-256 校验后安装到 `~/.eNest/plugins/`。文件名固定 `{id}@{version}.enestplugin`，分类固定为效率、开发、设计、媒体、其它。
