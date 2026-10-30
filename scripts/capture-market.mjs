@@ -16,36 +16,45 @@ const { server, url } = await createPreviewServer()
 const results = []
 try {
   for (const id of ids) {
-    const page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1, colorScheme: 'light', reducedMotion: 'reduce' })
-    const errors = [], resources = [], csp = []
-    page.on('pageerror', error => errors.push(error.message))
-    page.on('response', response => { if (response.status() >= 400) resources.push(`${response.status()} ${response.url()}`) })
-    page.on('console', message => { if (message.type() === 'error' && /Content Security Policy|Refused to/.test(message.text())) csp.push(message.text()) })
-    await page.route('**/*', route => route.request().url().startsWith(url) ? route.continue() : route.abort())
-    await page.addInitScript(installPreviewFixture, { pluginId: id, mode: id === 'dsh' ? 'quick' : 'shell' })
-    await page.goto(`${url}/plugins/${id}/index.html`, { waitUntil: 'networkidle' })
-    await page.evaluate(() => window.__preview.enter()).catch(error => errors.push(error.message))
-    const scenario = await runMarketScenario(page, id)
-    await page.waitForTimeout(250)
-    const destination = process.argv.includes('--check') ? join(repositoryRoot, 'dist/visuals', id) : join(repositoryRoot, 'plugins', id, 'public/assets/market/screenshots')
-    await mkdir(destination, { recursive: true })
-    await page.screenshot({ path: join(destination, '01-main.png'), fullPage: false })
-    const sizes = []
-    for (const [mode, width, height, font] of [['shell',720,420,13], ['shell',480,320,13], ['shell',960,640,13], ['quick',720,420,13], ['quick',480,320,13], ['shell',720,420,20]]) {
-      await page.setViewportSize({ width, height })
-      await page.evaluate(({ mode, font }) => { window.__preview.mode(mode); document.documentElement.style.setProperty('--font-size-base', font + 'px'); document.documentElement.style.fontSize = font + 'px' }, { mode, font }).catch(error => errors.push(error.message))
-      await page.evaluate(() => new Promise(requestAnimationFrame))
-      const measurements = await page.evaluate(id => {
-        const modeMarkers = [...document.querySelectorAll('[data-mode="quick"], [data-mode="shell"], [data-launch-mode], [data-surface="quick"], [data-surface="shell"]')].map(node => node.dataset.mode || node.dataset.launchMode || node.dataset.surface)
-        if (id === 'ccswitch') modeMarkers.push(document.body.classList.contains('quick-mode') ? 'quick' : 'shell')
-        return { width: innerWidth, height: innerHeight, overflow: document.documentElement.scrollWidth > innerWidth + 1, content: document.body.innerText.trim().length, modeMarkers }
-      }, id)
-      if (!measurements.modeMarkers.length || measurements.modeMarkers.some(value => value !== mode)) errors.push(`Mode transition to ${mode} did not update the rendered surface: ${measurements.modeMarkers.join(',')}`)
-      sizes.push({ mode, font, ...measurements })
+    let page, scenario = 'Scenario did not complete', phase = 'create page'
+    const errors = [], resources = [], csp = [], sizes = []
+    try {
+      page = await browser.newPage({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1, colorScheme: 'light', reducedMotion: 'reduce' })
+      page.on('pageerror', error => errors.push(error.message))
+      page.on('response', response => { if (response.status() >= 400) resources.push(`${response.status()} ${response.url()}`) })
+      page.on('console', message => { if (message.type() === 'error' && /Content Security Policy|Refused to/.test(message.text())) csp.push(message.text()) })
+      phase = 'initialize preview'
+      await page.route('**/*', route => route.request().url().startsWith(url) ? route.continue() : route.abort())
+      await page.addInitScript(installPreviewFixture, { pluginId: id, mode: id === 'dsh' ? 'quick' : 'shell' })
+      await page.goto(`${url}/plugins/${id}/index.html`, { waitUntil: 'networkidle' })
+      await page.evaluate(() => window.__preview.enter()).catch(error => errors.push(error.message))
+      phase = 'market scenario'
+      scenario = await runMarketScenario(page, id)
+      await page.waitForTimeout(250)
+      phase = 'capture screenshot'
+      const destination = process.argv.includes('--check') ? join(repositoryRoot, 'dist/visuals', id) : join(repositoryRoot, 'plugins', id, 'public/assets/market/screenshots')
+      await mkdir(destination, { recursive: true })
+      await page.screenshot({ path: join(destination, '01-main.png'), fullPage: false })
+      for (const [mode, width, height, font] of [['shell',720,420,13], ['shell',480,320,13], ['shell',960,640,13], ['quick',720,420,13], ['quick',480,320,13], ['shell',720,420,20]]) {
+        phase = `measure ${mode} ${width}x${height} font ${font}`
+        await page.setViewportSize({ width, height })
+        await page.evaluate(({ mode, font }) => { window.__preview.mode(mode); document.documentElement.style.setProperty('--font-size-base', font + 'px'); document.documentElement.style.fontSize = font + 'px' }, { mode, font }).catch(error => errors.push(error.message))
+        await page.evaluate(() => new Promise(requestAnimationFrame))
+        const measurements = await page.evaluate(id => {
+          const modeMarkers = [...document.querySelectorAll('[data-mode="quick"], [data-mode="shell"], [data-launch-mode], [data-surface="quick"], [data-surface="shell"]')].map(node => node.dataset.mode || node.dataset.launchMode || node.dataset.surface)
+          if (id === 'ccswitch') modeMarkers.push(document.body.classList.contains('quick-mode') ? 'quick' : 'shell')
+          return { width: innerWidth, height: innerHeight, overflow: document.documentElement.scrollWidth > innerWidth + 1, content: document.body.innerText.trim().length, modeMarkers }
+        }, id)
+        if (!measurements.modeMarkers.length || measurements.modeMarkers.some(value => value !== mode)) errors.push(`Mode transition to ${mode} did not update the rendered surface: ${measurements.modeMarkers.join(',')}`)
+        sizes.push({ mode, font, ...measurements })
+      }
+    } catch (error) {
+      errors.push(`${phase}: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      if (page) await page.close().catch(error => errors.push(`close page: ${error.message}`))
     }
     results.push({ id, scenario, errors: [...new Set(errors)], resources: [...new Set(resources)], csp: [...new Set(csp)], sizes })
-    console.log(`${errors.length || resources.length || csp.length ? 'FAIL' : 'OK'} ${id} ${errors.join('; ')}`)
-    await page.close()
+    console.log(`${errors.length || resources.length || csp.length || sizes.some(size => size.overflow || !size.content) ? 'FAIL' : 'OK'} ${id} ${errors.join('; ')}`)
   }
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)) }
 await mkdir(join(repositoryRoot, 'dist'), { recursive: true })

@@ -38,7 +38,10 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
   }
   for (const [key, value] of Object.entries(seed)) values.set(key, value)
   const handlers = {
+    getPluginId: () => pluginId.includes('.') ? pluginId : `com.github.eNest.${pluginId}`,
+    getEnterCode: () => 'main',
     getLaunchMode: () => mode, getLaunchContext: () => ({ mode, code: 'main', payload: null }),
+    'launch.getContext': () => 'view',
     'storage.get': async key => values.get(key) ?? null,
     'storage.set': async (key, value) => { values.set(key, value); return true },
     'storage.remove': async key => values.delete(key),
@@ -63,6 +66,11 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
     'clipboard.history.query': async () => ({ items: [{ id: 'clip-demo', type: 'text', text: '让常用工具回到工作流里。', preview: '让常用工具回到工作流里。', ts: now, bytes: 42, pinned: true, sourceApp: { name: 'eNest · 演示' } }], total: 1, nextCursor: null }),
     'clipboard.capabilities': async () => ({ paste: true, permissionRequired: false }),
     'clipboard.history.get': async () => null,
+    'background.call': async (method, args = []) => {
+      const history = { 'history.query': 'clipboard.history.query', 'history.list': 'clipboard.history.list', 'history.get': 'clipboard.history.get' }
+      if (history[method]) return handlers[history[method]](...args)
+      return true
+    },
     'agent.apps': async () => [{ id: 'claude', name: 'Claude Code', installed: false }, { id: 'codex', name: 'Codex', installed: false }],
     'agent.read': async () => ({ exists: false, data: {}, config: {} }),
     'agent.backups': async () => [], 'agent.sessions.list': async () => [],
@@ -136,16 +144,50 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
       return true
     }
   }
+  // contextBridge exposes enumerable objects. Plugin-owned facades spread both the root and namespaces.
+  const members = {
+    '': 'launch mcp setTitle setIcon setBadge resize setDirty onNotice onSaveRequested ui theme home hotkey i18n contribute settings quickInput deadlineTasks storage background auxiliary files clipboard screen net fs sys shell notify vault localFiles on off onEnter onOut runtime backend onBeforeSuspend onBeforeClose onDestroy getPluginId getEnterCode getLaunchMode onModeChange',
+    launch: 'getContext registerHandlers', mcp: 'registerHandlers',
+    ui: 'setTitle setIcon setBadge resize setHeight openInShell openSettings setInputContext focus focusSearch dismissQuick toast getThemeTokens onThemeChange',
+    theme: 'getTokens getAppearance onAppearanceChange register', home: 'register',
+    hotkey: 'register unregister onHotkey', i18n: 'getLocale onLocaleChange',
+    contribute: 'replaceLaunchIndex launchIndexState markLaunchIndexDirty registerQuickProvider unregisterQuickProvider onQuickQuery respondQuickQuery',
+    settings: 'register get set onChange', quickInput: 'configure release escape readContext onChange onAction',
+    deadlineTasks: 'start get pause resume skip cancel onChange',
+    storage: 'files blobs assets get set flush commit remove clear session',
+    'storage.files': 'list get remove export', 'storage.blobs': 'put get remove',
+    'storage.assets': 'put list get remove delete', 'storage.session': 'get set remove clear',
+    background: 'call', auxiliary: 'open send close list', files: 'stream',
+    'files.stream': 'open write finish abort',
+    clipboard: 'capabilities requestPermission readText writeText readImage writeImage writeFiles paste inspectFiles revealFile',
+    screen: 'capture displays', net: 'fetch websocket socket onNetData onNetClose onChunk',
+    'net.websocket': 'connect send close onMessage onClose', 'net.socket': 'connect send close list serveWs',
+    fs: 'rename renameBatch', sys: 'processes ports kill', shell: 'saveFile openExternal saveTextFile resolvePath',
+    vault: 'set has remove', localFiles: 'read pick pickSave fromDrop list reveal prepareDrag startDrag endDrag',
+    runtime: 'acquireActivity releaseActivity', backend: 'call stop'
+  }
+  const surfaces = new Map()
   function api(path = '') {
-    return new Proxy(function (...args) {
+    if (surfaces.has(path)) return surfaces.get(path)
+    const keys = Object.hasOwn(members, path) ? members[path].split(' ') : null
+    const target = keys ? {} : function (...args) {
       if (handlers[path]) return handlers[path](...args)
       const last = path.split('.').at(-1)
       if (/^on[A-Z]/.test(last)) return listener(path, args[0])
       if (path === 'on') return listener(args[0], args[1])
+      if (path === 'off') return events.get(args[0])?.delete(args[1])
       if (last === 'acquire' || last === 'begin') return Promise.resolve({ token: 'demo', release() {} })
       if (last === 'list' || last === 'getAll') return Promise.resolve([])
       return Promise.resolve(true)
-    }, { get(_, key) { if (key === 'then') return undefined; return api(path ? path + '.' + key : key) } })
+    }
+    const surface = new Proxy(target, { get(target, key, receiver) {
+      if (key === 'then') return undefined
+      if (typeof key !== 'string' || Reflect.has(target, key)) return Reflect.get(target, key, receiver)
+      return api(path ? path + '.' + key : key)
+    } })
+    surfaces.set(path, surface)
+    for (const key of keys ?? []) target[key] = api(path ? path + '.' + key : key)
+    return surface
   }
   window.enest = api()
   window.__preview = {
