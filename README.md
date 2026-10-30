@@ -4,6 +4,14 @@
 
 先读 [开发入门](docs/developer/getting-started.md)、[工程结构](docs/PLUGIN_STRUCTURE.md) 和 [manifest 参考](docs/manifest.md)。AI 开发入口是 [skills/enest-development/SKILL.md](skills/enest-development/SKILL.md)，完整导航在 [docs/README.md](docs/README.md)。
 
+## 下载与安装
+
+[官方插件 v0.0.1](https://github.com/hyqf98/eNest_plugin/releases/tag/v0.0.1) 提供 37 个插件，版本均为 `0.0.1`，需要 [eNest 宿主](https://github.com/hyqf98/eNest/releases/tag/v0.0.1) `>=0.0.1`。
+
+建议在 eNest 插件目录中按需安装，也可以从发布页下载 `.enestplugin` 文件后拖入 eNest。GitHub 的 Source code 压缩包是源码，不能作为插件安装。
+
+本次共 41 个插件包：37 个通用包，以及数据库插件的 4 个平台包。数据库请选择与本机系统和架构匹配的包；平台包不是额外增加的插件。DSH 运行时附件和已知限制见发布说明。
+
 ## 开发与验证
 
 在本仓库根目录执行：
@@ -17,7 +25,7 @@ npm run dev --workspace calculator
 
 开发者可以选择仓库外的源码文件夹。壳子只读标准入口，不复制源码到已安装插件目录。`development.main` 声明的开发服务未运行时，壳子自动拉起并管理进程（忘记插件/退出时回收）；端口被其它进程占用时自动改用空闲端口。插件内 F12/⌘⌥I/Ctrl+Shift+I 开关 DevTools，⌘R 重载。跨机开发可用 `--host 0.0.0.0` 启动，并将 `development.main` 配为实际 IP、端口与入口路径。
 
-每个插件的 dev 端口在各自 `package.json` 的 `scripts.dev` 中声明，且与 `plugin.json` 的 `development.main` 保持一致、全仓唯一（现按插件分配 5173–5208）。
+声明了 `development.main` 的插件，其端口应与 `package.json` 中的 `scripts.dev` 保持一致，避免与其他插件重复。
 
 ```bash
 npm run validate                 # 源码清单、包名/版本、市场资源
@@ -83,4 +91,4 @@ REPO=hyqf98/eNest_plugin TAG=plugins-local node scripts/prepare-release.mjs
 
 推送 `v*` / `plugins-*` 标签或手动触发已有标签的工作流才会创建正式 Release。CI 要求源码校验、全部构建、发行检查、生产 CSP 页面检查、打包和索引生成全部通过；普通分支推送不触发本发布工作流。仅 `v0.0.1` 首版将存量单元与包格式测试单独保留为非阻断报告，其它标签仍要求测试通过；发包成功不代表这些历史用例全部通过。
 
-壳子从 [最新市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，通过 SHA-256 校验后安装到 `~/.eNest/plugins/`。文件名固定 `{id}@{version}.enestplugin`，分类固定为效率、开发、设计、媒体、其它。
+壳子从 [最新市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，通过 SHA-256 校验后安装到当前数据根目录的 `plugins/` 下，默认位置是 `~/.eNest/plugins/`。通用包命名为 `{id}@{version}.enestplugin`，平台包命名为 `{id}@{version}-{平台}.enestplugin`；分类为效率、开发、设计、媒体、其它。
