@@ -1,6 +1,6 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { assertRuntimeTarget, DSH_VERSION, repositoryRoot as defaultRepositoryRoot } from './runtime-contract.mjs'
 
@@ -11,10 +11,24 @@ export async function afterBuild({ directory, repositoryRoot = defaultRepository
   const plugin = JSON.parse(await readFile(join(directory, 'plugin.json'), 'utf8'))
   const cache = join(repositoryRoot, 'dist/runtime-cache', `dsh-${DSH_VERSION}-${process.platform}-${process.arch}`)
   if (!existsSync(join(cache, 'node_modules/@deepseek-ai/dsh/package.json'))) {
+    let executable = 'npm'
+    const args = ['install', `@deepseek-ai/dsh@${DSH_VERSION}`, '--omit=dev', '--no-audit', '--no-fund']
+    if (process.platform === 'win32') {
+      // Windows .cmd launchers cannot be spawned directly without a shell.
+      const cli = [process.env.npm_execpath, join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')]
+        .find(file => typeof file === 'string' && file.endsWith('npm-cli.js') && existsSync(file))
+      if (!cli) throw new Error('DSH runtime install requires npm-cli.js from the current Node installation')
+      executable = process.execPath
+      args.unshift(cli)
+    }
     await mkdir(cache, { recursive: true })
     await writeFile(join(cache, 'package.json'), JSON.stringify({ name: 'enest-dsh-runtime', version: plugin.version, private: true, platform: process.platform, arch: process.arch }))
-    const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', `@deepseek-ai/dsh@${DSH_VERSION}`, '--omit=dev', '--no-audit', '--no-fund'], { cwd: cache, stdio: 'inherit' })
-    if (result.status !== 0) { await rm(cache, { recursive: true, force: true }); throw new Error('DSH runtime install failed') }
+    const result = spawnSync(executable, args, { cwd: cache, stdio: 'inherit' })
+    if (result.error || result.status !== 0) {
+      await rm(cache, { recursive: true, force: true })
+      const detail = result.error ? `${result.error.code ?? 'spawn'}: ${result.error.message}` : result.signal ? `signal ${result.signal}` : `exit code ${result.status}`
+      throw new Error(`DSH runtime install failed (${detail})`, { cause: result.error })
+    }
   }
   await cp(cache, join(directory, 'runtime'), { recursive: true, dereference: true })
   const packageFile = join(directory, 'runtime/package.json')
