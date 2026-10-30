@@ -13,7 +13,7 @@
     "shell.openExternal"
   ],
   "engines": {
-    "enest": ">=0.2.3"
+    "enest": ">=0.0.1"
   },
   "features": [
     {

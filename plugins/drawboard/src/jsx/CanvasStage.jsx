@@ -22,7 +22,7 @@ export function CanvasStage(props) {
     onCommitObjects, // (nextObjects | mutator(objects), {snapshot:boolean}) 文档变更入口
     objectsTick = 0, // 对象版本号：橡皮/移动拖动中每步变化，驱动实时重绘
     onAddObject, onDeleteObjects, onCloneSelection,
-    onTextEdit, spaceDown, draftJustLoaded,
+    onTextEdit, spaceDown, draftJustLoaded, transparent = false, onGestureStart, onGestureEnd,
   } = props
 
   const canvasRef = useRef(null)
@@ -98,7 +98,7 @@ export function CanvasStage(props) {
       if (draftShapeRef.current) objects = [...objects, draftShapeRef.current]
       const h = hoverImageRef.current
       const hoverImage = h.id ? { id: h.id, scale: curScale(h) } : null
-      renderFrame(ctx, canvas, { vp, dpr, objects, images, theme, settings, hoverImage })
+      renderFrame(ctx, canvas, { vp, dpr, objects, images, theme, settings, hoverImage, transparent })
       // 橡皮活动时的圆圈指示（屏幕空间）
       const eraseRef = eraseGhostRef.current
       if (eraseRef) {
@@ -112,7 +112,7 @@ export function CanvasStage(props) {
         ctx.fill()
       }
     })
-  }, [size, vp, images, theme, settings, objectsRef, draftInkTick, objectsTick, shapeTick])
+  }, [size, vp, images, theme, settings, objectsRef, draftInkTick, objectsTick, shapeTick, transparent])
 
   useEffect(() => { scheduleRender() }, [scheduleRender])
 
@@ -153,6 +153,7 @@ export function CanvasStage(props) {
 
   const onPointerDown = (e) => {
     if (e.button === 2) return // 右键由 contextmenu 处理
+    onGestureStart?.()
     const pos = pointerPos(e)
     const world = screenToWorld(vp, pos.x, pos.y)
     // setPointerCapture 在部分 webview/合成事件下会抛 NotFoundError，失败不致命（pointerup 由 window 兜底）
@@ -450,6 +451,7 @@ export function CanvasStage(props) {
     }
     if (drag?.mode === 'move' && drag.moved) setSelection([...selection])
     if (drag?.mode === 'placeText') onTextEdit(null, drag.world)
+    if (drag) onGestureEnd?.()
   }
 
   const onPointerUp = () => finishSession()
@@ -510,7 +512,7 @@ export function CanvasStage(props) {
           ))}
         </div>
       )}
-      {tool !== 'select' && !spaceDown && (
+      {!transparent && tool !== 'select' && !spaceDown && (
         <div className="db-toolhint">
           {tool === 'pen' && '钢笔 · 右键快速切换工具 · 滚轮缩放 · 空格平移'}
           {tool === 'highlighter' && '荧光笔 · 右键快速切换工具'}

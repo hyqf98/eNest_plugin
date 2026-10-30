@@ -1,0 +1,234 @@
+{
+  "id": "com.github.eNest.password-book",
+  "name": "密码本",
+  "version": "0.0.1",
+  "description": "本地密码本：网站账号密码加密存储，支持分类、搜索、密码强度提示与自动过期提醒，并可通过 MCP 工具让 AI 助手安全读取与写入。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "default": "shell",
+    "layouts": ["shell"]
+  },
+  "category": "效率",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.0.1"
+  },
+  "permissions": [
+    "backend.node",
+    "vault.write",
+    "clipboard.write"
+  ],
+  "contributes": {
+    "mcpTools": [
+      {
+        "id": "list",
+        "title": "List password entries",
+        "description": "List password book entries with title, site, username, category, strength and updatedAt. Never returns passwords or secret references; use get to reveal one entry when the user explicitly asks.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "keyword": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Optional filter matched against title, site and username."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "get",
+        "title": "Read one entry with password",
+        "description": "Return the full entry including the password in clear text, resolved through the plugin backend vault. Intended only for a trusted AI assistant acting on the user's explicit request; treat the result as confidential and never echo it into logs.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Entry id from list."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "Alternative to id: exact title match (only one of id/title is needed)."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "create",
+        "title": "Create password entry",
+        "description": "Create a new entry. The password is stored in the plugin encrypted vault (never in plain storage); the entry keeps only a secret reference plus title, site, username, category and notes.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "site": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "username": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "category": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "notes": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          },
+          "required": [
+            "title",
+            "username",
+            "password"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": false,
+          "idempotentHint": false
+        }
+      },
+      {
+        "id": "update",
+        "title": "Update password entry",
+        "description": "Update an existing entry by id (or exact title). Omitted fields are left unchanged; password is optional and, when provided, replaces the vault secret.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Entry id from list; alternative to title."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "Exact title match to find the entry when id is omitted. When present together with id it is also written as the new title."
+            },
+            "site": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "username": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "password": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "New password; omit to keep the current one."
+            },
+            "category": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "notes": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": false,
+          "idempotentHint": false
+        }
+      },
+      {
+        "id": "delete",
+        "title": "Delete password entry",
+        "description": "Delete an entry by id (or exact title). The vault secret is removed together with the entry metadata; this cannot be undone.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Entry id from list; alternative to title."
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "Exact title match to find the entry when id is omitted."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      }
+    ]
+  },
+  "window": {
+    "width": 920,
+    "height": 620,
+    "minWidth": 640,
+    "minHeight": 420
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "密码本 / 账号密码管理",
+      "cmds": [
+        "密码本",
+        "password",
+        "账号",
+        "密码管理",
+        "password-book"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "transparent",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "密码管理",
+      "账号",
+      "MCP",
+      "本地存储"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5215/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
+  }
+}

@@ -84,6 +84,20 @@ export async function runMarketScenario(page, id) {
         return window.__drawboardSeeded && /\d+ 项/.test(status) && !/(^|\s)0 项/.test(status)
       })
       return '画出示例墨迹、手绘图形与手写体文字'
+    case 'com.github.eNest.env-vars':
+      await wait(() => document.querySelectorAll('.table-body .row').length >= 8)
+      await fill('#query', 'JAVA')
+      await wait(() => document.querySelectorAll('.table-body .row').length >= 1 && document.querySelectorAll('.table-body .row').length < 8)
+      await page.locator('.table-body .row').first().click()
+      return '搜索过滤环境变量并展开一条详情'
+    case 'com.github.eNest.dev-env':
+      await wait(() => document.querySelectorAll('.env-list .env-row, .env-row').length >= 5)
+      await page.locator('.env-row').nth(2).click()
+      return '探测到多个开发环境，选中一个展示详情页签'
+    case 'com.github.eNest.password-book':
+      await wait(() => document.querySelectorAll('.entry-card').length >= 5)
+      await page.locator('.entry-card').first().click()
+      return '打开密码本演示条目，展示掩码密码与详情面板'
     default:
       return '真实初始界面；如有外部服务数据，仅使用隔离模拟数据'
   }

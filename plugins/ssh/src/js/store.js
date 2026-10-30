@@ -2,6 +2,8 @@
  * com.github.eNest.ssh — 状态与 KV 持久化（Spec 2.0 / SSH-H）
  * 键：ssh.profiles | ssh.groups | ssh.history | ssh.snippets | ssh.ui
  */
+import { sshLaunchIndex } from './launch-index.js'
+
 ;(function (global) {
   const KEYS = {
     profiles: 'ssh.profiles',
@@ -12,6 +14,7 @@
   }
 
   const HISTORY_MAX = 2000
+  let profilesLoaded = false
 
   function uid(prefix) {
     return (prefix || 'id') + '_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4)
@@ -99,13 +102,14 @@
   async function loadAll() {
     const api = global.SshApi
     const [profiles, groups, history, snippets, ui] = await Promise.all([
-      api.storageGet(KEYS.profiles, []),
+      sshLaunchIndex.readRecords(),
       api.storageGet(KEYS.groups, []),
       api.storageGet(KEYS.history, []),
       api.storageGet(KEYS.snippets, []),
       api.storageGet(KEYS.ui, null),
     ])
     state.profiles = Array.isArray(profiles) ? profiles.map(sanitizeProfile) : []
+    profilesLoaded = true
     state.groups = Array.isArray(groups) ? groups : []
     state.history = Array.isArray(history) ? history : []
     state.snippets = Array.isArray(snippets) ? snippets : []
@@ -131,13 +135,21 @@
     }
   }
 
+  async function saveValue(key, value) {
+    if (key === 'profiles') {
+      if (!profilesLoaded) throw new Error('连接尚未成功加载，不能覆盖已保存连接')
+      return sshLaunchIndex.commit(value)
+    }
+    return global.SshApi.storageSet(KEYS[key], value)
+  }
+
   function queueSave(key, immediate) {
     state._dirty[key] = true
     const run = async () => {
       if (!state._dirty[key]) return
       state._dirty[key] = false
       try {
-        await global.SshApi.storageSet(KEYS[key], clone(payloadFor(key)))
+        await saveValue(key, clone(payloadFor(key)))
         return true
       } catch (e) {
         state._dirty[key] = true
@@ -156,6 +168,7 @@
   }
 
   async function flushAll() {
+    let failure
     for (const key of Object.keys(KEYS)) {
       if (state._timers[key]) {
         clearTimeout(state._timers[key])
@@ -163,12 +176,15 @@
       }
       state._dirty[key] = true
       try {
-        await global.SshApi.storageSet(KEYS[key], clone(payloadFor(key)))
+        await saveValue(key, clone(payloadFor(key)))
         state._dirty[key] = false
       } catch (e) {
+        failure = e
         global.SshApi.toast('保存失败：' + global.SshApi.errMessage(e), 'error')
       }
     }
+    if (failure) throw failure
+    await global.SshApi.raw.storage.flush()
   }
 
   function findProfile(id) {
@@ -257,17 +273,26 @@
       .replace(/\b[A-Za-z0-9_-]{20,}\b/g, (m) => (/^[A-Za-z0-9_-]+$/.test(m) && m.length >= 28 ? '***' : m))
   }
 
-  function upsertProfile(profile) {
+  async function upsertProfile(profile) {
     profile = sanitizeProfile(profile)
+    const before = state.profiles
+    const next = [...before]
     const idx = state.profiles.findIndex((p) => p.id === profile.id)
-    if (idx >= 0) state.profiles[idx] = profile
-    else state.profiles.push(profile)
-    queueSave('profiles', true)
+    if (idx >= 0) next[idx] = profile
+    else next.push(profile)
+    state.profiles = next
+    const saved = await queueSave('profiles', true)
+    if (!saved && state.profiles === next) state.profiles = before
+    return saved
   }
 
-  function removeProfile(id) {
-    state.profiles = state.profiles.filter((p) => p.id !== id)
-    queueSave('profiles', true)
+  async function removeProfile(id) {
+    const before = state.profiles
+    const next = before.filter((p) => p.id !== id)
+    state.profiles = next
+    const saved = await queueSave('profiles', true)
+    if (!saved && state.profiles === next) state.profiles = before
+    return saved
   }
 
   function upsertGroup(group) {
@@ -292,15 +317,13 @@
     }
     if (mode === 'cascade') {
       state.profiles = state.profiles.filter((p) => !ids.has(p.groupId || ''))
-      queueSave('profiles', true)
     } else {
       state.profiles = state.profiles.map((p) =>
         ids.has(p.groupId || '') ? { ...p, groupId: '' } : p
       )
-      queueSave('profiles', true)
     }
     state.groups = state.groups.filter((g) => !ids.has(g.id))
-    queueSave('groups', true)
+    return Promise.all([queueSave('profiles', true), queueSave('groups', true)]).then(results => results.every(Boolean))
   }
 
   function upsertSnippet(snip) {

@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 import { build } from 'esbuild'
 import { repositoryRoot, localFile } from './plugin-contract.mjs'
 import { normalizeTarget, packageMatchesTarget, platformPackagePlan } from './distribution-target.mjs'
+import { backendPackageFileExclusions, assertPackageFilesCanBeExcluded } from './backend-package-files.mjs'
 
 const packageName = /^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i
 
@@ -36,14 +37,14 @@ function packageAt(name, from) {
 }
 
 /** Copy only the package itself, preserving runtime src/data and licenses; dependencies are resolved separately. */
-async function copyPackage(source, target, name) {
+async function copyPackage(source, target, name, excludedFiles = new Set()) {
+  assertPackageFilesCanBeExcluded(source, name, excludedFiles)
   await mkdir(target, { recursive: true })
   async function visit(dir, dest, prefix = '') {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const rel = prefix + entry.name
       if (entry.name.startsWith('.') || entry.name === 'node_modules' || /^(?:tests?|__tests__|examples?|coverage)$/.test(entry.name) || /\.(?:map|tsx?|mts|cts)$/.test(entry.name)) continue
-      // ssh2's optional native acceleration is ABI-specific. Its tested Node crypto fallback is portable.
-      if (name === 'ssh2' && rel === 'lib/protocol/crypto/build') continue
+      if (excludedFiles.has(rel)) continue
       const from = join(dir, entry.name), to = join(dest, entry.name)
       if ((await lstat(from)).isSymbolicLink()) throw new Error(`Backend package symlink: ${name}/${rel}`)
       if (entry.isDirectory()) { await mkdir(to, { recursive: true }); await visit(from, to, rel + '/') }
@@ -61,6 +62,7 @@ export async function buildBackend(source, destination, { root = repositoryRoot,
   if (!manifest.backend) return
   const pkg = JSON.parse(await readFile(join(source, 'package.json'), 'utf8')), spec = pkg.enestBackend
   if (!spec || !Array.isArray(spec.dependencies) || !manifest.permissions?.includes('backend.node')) throw new Error('backend requires enestBackend build config and backend.node permission')
+  const excludedFiles = backendPackageFileExclusions(spec)
   if (manifest.backend.entry !== 'backend/index.cjs') throw new Error('build backend output must be backend/index.cjs')
   const entry = localFile(source, spec.entry), target = join(destination, 'backend')
   await rm(target, { recursive: true, force: true }); await mkdir(target, { recursive: true })
@@ -88,7 +90,7 @@ export async function buildBackend(source, destination, { root = repositoryRoot,
     const marker = lockedPackagePath(root, directory)
     if (data.name !== name || lock.packages?.[marker]?.version !== data.version) throw new Error(`Backend dependency does not match lockfile: ${name}`)
     copied.set(directory, { name, version: data.version, path: marker, ...(optional ? { optional: true } : {}) })
-    await copyPackage(directory, join(target, marker), name)
+    await copyPackage(directory, join(target, marker), name, excludedFiles.get(name))
     const optionalDeps = data.optionalDependencies || {}
     for (const child of Object.keys(data.dependencies || {})) if (!(child in optionalDeps)) await dependency(child, directory)
     for (const child of Object.keys(optionalDeps)) await dependency(child, directory, true)
@@ -112,7 +114,7 @@ export async function buildBackend(source, destination, { root = repositoryRoot,
       if ((await lstat(installed)).isSymbolicLink()) throw new Error(`Native package symlink: ${name}`)
       const installedPackage = JSON.parse(await readFile(join(installed, 'package.json'), 'utf8'))
       if (installedPackage.name !== name || installedPackage.version !== data.version) throw new Error(`Native package identity mismatch: ${name}`)
-      await copyPackage(installed, join(target, location), name); continue
+      await copyPackage(installed, join(target, location), name, excludedFiles.get(name)); continue
     }
     const cache = join(root, 'dist/backend-cache', name.replaceAll('/', '-'), data.version)
     await mkdir(cache, { recursive: true })
@@ -128,7 +130,7 @@ export async function buildBackend(source, destination, { root = repositoryRoot,
     execFileSync('tar', ['-xzf', archive, '--no-same-owner', '--no-same-permissions', '-C', unpack])
     const unpackedPackage = JSON.parse(await readFile(join(unpack, 'package/package.json'), 'utf8'))
     if (unpackedPackage.name !== name || unpackedPackage.version !== data.version) throw new Error('Native package identity mismatch')
-    await copyPackage(join(unpack, 'package'), join(target, location), name)
+    await copyPackage(join(unpack, 'package'), join(target, location), name, excludedFiles.get(name))
   }
   await writeFile(join(target, 'dependency-inventory.json'), JSON.stringify({ node: '>=24', target: distributionTarget, supportedTargets: platformPlan.supportedTargets, dependencies: [...copied.values()], platformPackages: platformPlan.packages.map(pkg => pkg.name), nativePackages: platformInventory }, null, 2) + '\n')
 }

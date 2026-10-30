@@ -13,7 +13,7 @@
   "category": "效率",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.2.3"
+    "enest": ">=0.0.1"
   },
   "permissions": [
     "sys.inspect",
@@ -32,6 +32,8 @@
       "explain": "进程与端口巡检",
       "cmds": [
         "进程",
+        "端口",
+        "进程管理",
         "port",
         "jincheng"
       ]

@@ -10,4 +10,4 @@ There is no Node backend process. Active auxiliary windows and private output st
 
 The host permits eight simultaneous auxiliary windows per owner and 24 globally. Ephemeral Electron Sessions use stable plugin-private slots, with a per-open nonce and owner/main-frame checks. Slots cannot be reused until old handlers are detached and storage cleanup settles. Long image data URLs are converted to compressed Blob URLs and discarded; window teardown clears image/video/canvas references and capture tracks. Ordinary auxiliary windows are a basic UI capability. Native capture still requires `screen.capture`/`screen.record` and OS consent; non-capture `alwaysOnTop` uses the legacy `pin.create` permission name for generic desktop placement, not a host-owned image feature.
 
-Requires eNest >= 0.2.3. Native multi-display/media/permission and visible button interaction need actual-app verification; mock tests alone are not UI acceptance.
+Requires eNest >= 0.0.1. Native multi-display/media/permission and visible button interaction need actual-app verification; mock tests alone are not UI acceptance.

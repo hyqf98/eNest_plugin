@@ -18,7 +18,7 @@
     "clipboard.write"
   ],
   "engines": {
-    "enest": ">=0.2.2"
+    "enest": ">=0.0.1"
   },
   "backend": {
     "entry": "backend/index.cjs"

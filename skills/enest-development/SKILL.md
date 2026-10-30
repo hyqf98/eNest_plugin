@@ -22,21 +22,21 @@ description: 开发、调试和验收 eNest Electron 宿主、通用前端插件
 
 ## 不可省略的契约
 
-- 源码为 `plugins/<id>`，目录名等于 manifest.id。main 固定 `index.html`；公开资源在 `public/assets`，发布资源在 `dist/assets`。
+- 源码为 `plugins/<短名>`，目录名与 package.name 等于 manifest.id 的末段；完整 manifest.id 才是权限、安装与数据归属身份，不能按末段猜测所有者。main 固定 `index.html`；公开资源在 `public/assets`，发布资源在 `dist/assets`。
 - 图标用 `icon: assets/market/icon.svg`，详情用 `market.readme: assets/market/README.md`，截图在同一包的 `assets/market/screenshots`。开发可无截图，发布须有真实界面截图。
-- `.enestplugin` 根直接是 dist 内容，文件名 `{id}@{version}.enestplugin`。普通包只包含入口、manifest、assets；不要引入 Node 程序、源码、测试、.env、依赖目录或符号链接。
+- `.enestplugin` 根直接是 dist 内容，文件名 `{短名}@{version}.enestplugin`。普通前端包只包含入口、manifest、assets；声明 Node 后端时，构建器按锁文件收集 `backend/` 及其生产依赖。不得把源码、测试、.env、根 node_modules 或符号链接装进包；插件自有额外运行时遵循插件本地构建钩子与分发校验，不能成为宿主特判。
 - 业务界面、算法、数据模型和协议处理放在插件；壳提供统一能力，不能为每个业务功能新增宿主处理器。优先组合浏览器/WASM、私有存储、网络和文件 API，只有确实缺少原生能力时扩展通用接口。
 - 页面没有 Node 权限，浏览器原生网络/系统 API 也不是权限失败后的备选通道。window.enest 的私有存储、UI、设置、主题、声明式入口和私有密钥保存直接可用，不需声明/弹窗；仅敏感能力声明最小权限并由用户授权；动态Quick provider读取全局查询，仍需contribute授权，分类以 docs/plugin-permission-policy.json 为准。文件靠宿主选择器签发的运行代次句柄，displayPath 仅展示；业务数据用 storage API，不能拼 HOME 或写源码目录。
-- 开发者启动 npm run dev，宿主连接精确配置的 origin；不安装源码、不运行 npm、不监听文件做自动刷新。静态源码只映射 index.html、src、public/assets；生产预览明确选 dist。
+- 宿主按插件 package 声明连接精确配置的开发 origin，服务未运行时通过通用开发加载器启动并管理进程；静态源码由开发注册监听，移除注册时回收。源码不会复制成已安装插件，也不作为市场安装失败的兜底。静态源码只映射标准入口；后端须先构建，服务离线时只有版本匹配的产物可用于预览，具体以开发加载指南为准。
 - Quick/主窗由启动模式决定，断点只调整空间。持久化失败可见；在 onBeforeClose 保存，关闭后宿主统一释放资源。活动任务用 lease，不靠空转计时器逃避休眠。
-- 默认主题是宿主源码 `src/shared/theme/defaultTheme/package.ts` 内置包，直接加载外观与启动动画，不在插件仓发布，也没有首启选主题门禁。第三方主题仍沿用普通包并提供预览入口；运行时注册属于基础能力，禁用/卸载按 source 撤销。主题设置表单由壳渲染：只声明 `presentation`、`options[].preview` 和 pack 级 `palettes`（自定义氛围配色，id 不得覆盖内置 8 个），不得注入 HTML/CSS/JS 或选择器改设置界面。DSH runtime 是单独保留的专属例外，不可复制为新插件能力。
+- 默认主题是宿主源码 `src/shared/theme/defaultTheme/package.ts` 内置包，直接加载外观与启动动画，不在插件仓发布，也没有首启选主题门禁。第三方主题仍沿用普通包并提供预览入口；运行时注册属于基础能力，禁用/卸载按 source 撤销。主题设置表单由壳渲染：只声明 `presentation`、`options[].preview` 和 pack 级 `palettes`（自定义氛围配色，id 不得覆盖内置 8 个），不得注入 HTML/CSS/JS 或选择器改设置界面。DSH 的外部运行时策略归 DSH 插件本地构建钩子，不是宿主提供的通用页面沙箱或按插件 ID 放行的例外。
 
 ## 验证与交付
 
 选择与修改相关的实际验证，不把 mock 当原生验收：
 
 - 插件仓库：`npm ci`，`npm run validate`，`npm run build -- <id>`，`npm run validate:dist`，`node scripts/pack-plugin.mjs <id> --no-build`。全量时省略 build 的 id，pack 用 `npm run pack -- --no-build`。CLI 参数以仓库脚本为准。
-- 宿主：`npm run typecheck`、`npm run build` 和相关 `node --test`。主进程/preload 修改后重启 dev。
+- 宿主：`npm run typecheck`、`npm run audit:contracts`、`npm run audit:source` 与必要的构建检查。只有用户明确要求时才运行相关测试或原生用例；主进程/preload 修改后重启 dev。
 - 公共 API：`npm run api:generate -- --host-root /path/to/eNest`；`npm run api:check -- --host-root /path/to/eNest` 不写文件。同步文档后运行 `npm run docs:check -- --host-root /path/to/eNest`。
 - 使用临时数据根/独立 Electron profile，验证真实授权拒绝、句柄失效、关闭/重开、Quick 和主窗、窄窗与 150% 字号。需要外部 SSH/数据库时用测试服务与测试数据。
 - 解包成品检查资源引用，确认 README 图片与截图来自最终包对应版本。不得用设计稿冒充功能截图。

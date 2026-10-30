@@ -8,14 +8,62 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: '发布标签（须已存在，如 v0.2.0）'
+        description: '发布标签（须已存在，如 v0.0.1）'
         required: true
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
+  resolve-source:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Resolve and validate immutable release source
+        id: source
+        run: |
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const { appendFileSync } = require('node:fs')
+          const ref = `refs/tags/${process.env.RELEASE_TAG}`
+          execFileSync('git', ['check-ref-format', ref])
+          const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+          const output = execFileSync('git', ['ls-remote', '--exit-code', 'origin', ref, `${ref}^{}`], { encoding: 'utf8' })
+          const refs = new Map(output.trim().split(/\r?\n/).map(line => {
+            const [sha, name] = line.split(/\s+/)
+            return [name, sha]
+          }))
+          if ((refs.get(`${ref}^{}`) || refs.get(ref)) !== head) {
+            throw new Error('Release tag does not match the checked-out source')
+          }
+          const pkg = require('./package.json')
+          const lock = require('./package-lock.json')
+          if (lock.version !== pkg.version || lock.packages?.['']?.version !== pkg.version) {
+            throw new Error('Package and lockfile versions differ')
+          }
+          if (/^v\d/.test(process.env.RELEASE_TAG) && process.env.RELEASE_TAG !== `v${pkg.version}`) {
+            throw new Error(`Release tag does not match package version ${pkg.version}`)
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `sha=${head}\n`)
+          console.log(`Resolved ${ref} to ${head}`)
+          NODE
+
   dsh-runtime:
+    needs: resolve-source
     strategy:
       fail-fast: false
       matrix:
@@ -26,12 +74,21 @@ jobs:
             platform: darwin-x64
           - runner: windows-latest
             platform: win32-x64
+          - runner: ubuntu-22.04
+            platform: linux-x64
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-source.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          architecture: ${{ endsWith(matrix.platform, '-arm64') && 'arm64' || 'x64' }}
+      - name: Verify native runtime architecture
+        env:
+          RUNTIME_TARGET: ${{ matrix.platform }}
+        run: node -e "if (process.platform + '-' + process.arch !== process.env.RUNTIME_TARGET) throw new Error('Runner platform or architecture mismatch')"
       - name: Install deps
         run: npm ci
       - name: Build native DSH runtime asset
@@ -45,10 +102,14 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: dsh-runtime
+    needs: [resolve-source, dsh-runtime]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-source.outputs.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -93,6 +154,23 @@ jobs:
           pattern: dsh-runtime-*
           path: dist
           merge-multiple: true
+
+      - name: Verify release tag still points to this build
+        run: |
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const ref = `refs/tags/${process.env.RELEASE_TAG}`
+          const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+          const output = execFileSync('git', ['ls-remote', '--exit-code', 'origin', ref, `${ref}^{}`], { encoding: 'utf8' })
+          const refs = new Map(output.trim().split(/\r?\n/).map(line => {
+            const [sha, name] = line.split(/\s+/)
+            return [name, sha]
+          }))
+          if ((refs.get(`${ref}^{}`) || refs.get(ref)) !== head) {
+            throw new Error('Release tag moved; refuse to publish stale plugin artifacts')
+          }
+          console.log(`Publishing ${ref} from ${head}`)
+          NODE
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

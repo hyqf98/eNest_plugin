@@ -14,6 +14,7 @@
  */
 
 import { collectMcpToolDeclarationIssues } from './mcp-tools.mjs'
+import { collectPluginActivationIssues, collectPluginFeatureIssues } from './plugin-commands.mjs'
 
 /** 动态解析 ajv（2020 draft 入口）。查找顺序：裸 'ajv/dist/2020.js' → 相对本包上溯的 node_modules */
 export async function loadAjv() {
@@ -79,6 +80,10 @@ export function mcpContributionErrors(manifest) {
   return collectMcpToolDeclarationIssues(manifest?.contributes?.mcpTools)
 }
 
+export function launchContributionErrors(manifest) {
+  return [...collectPluginFeatureIssues(manifest?.features), ...collectPluginActivationIssues(manifest)]
+}
+
 /**
  * 校验 manifest 对象。
  * @param {unknown} obj — 解析后的 plugin.json 对象
@@ -93,7 +98,7 @@ export async function validateManifest(obj) {
     return { ok: false, errors: [String(e?.message ?? e)] }
   }
   if (validator(obj)) {
-    const errors = [...homeContributionErrors(obj), ...mcpContributionErrors(obj)]
+    const errors = [...homeContributionErrors(obj), ...mcpContributionErrors(obj), ...launchContributionErrors(obj)]
     return { ok: errors.length === 0, errors }
   }
   const errors = (validator.errors ?? []).map(prettyError)

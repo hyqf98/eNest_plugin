@@ -2,7 +2,7 @@
 
 The plugin owns its HTTP listener, download codes, file/Range responses, expiry,
 address discovery and transfer events. There are no third-party backend packages.
-eNest 0.2.2 or later is required. Upgrading requires an explicit `backend.node`
+eNest 0.0.1 or later is required. Upgrading requires an explicit `backend.node`
 grant; an old `lan.share` grant does not authorize native Node code.
 
 The renderer passes only handle IDs returned by the host's native picker or its

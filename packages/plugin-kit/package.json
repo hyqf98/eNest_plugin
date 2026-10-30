@@ -1,6 +1,6 @@
 {
   "name": "@enest/plugin-kit",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "type": "module",
   "private": true,
   "exports": {
@@ -11,7 +11,8 @@
     "./responsive.css": "./responsive.css",
     "./widget.css": "./widget.css",
     "./widget": "./widget.js",
-    "./file-inputs": "./file-inputs.js"
+    "./file-inputs": "./file-inputs.js",
+    "./launch-index": "./launch-index.js"
   },
   "dependencies": {
     "monaco-editor": "^0.57.0"

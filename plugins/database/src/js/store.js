@@ -1,7 +1,8 @@
 /**
  * store.js — 内存状态 + enest.storage 持久化（Spec 2.0 键空间）
  */
-import { StorageKeys, storageGet, storageSet, toast } from './api.js'
+import { api, StorageKeys, storageGet, storageSet, toast } from './api.js'
+import { databaseLaunchIndex } from './launch-index.js'
 
 const LIMITS = {
   sessions: 50,
@@ -51,7 +52,19 @@ export const state = {
 }
 
 const persistTimers = new Map()
+let connectionsLoaded = false
 const sessionData = () => state.sessions.map(({ transactionActive: _transaction, ...session }) => session)
+
+async function persistValue(key, value) {
+  if (key !== StorageKeys.connections) return storageSet(key, value)
+  try {
+    if (!connectionsLoaded) throw new Error('连接尚未成功加载，不能覆盖已保存连接')
+    return await databaseLaunchIndex.commit(value)
+  } catch (error) {
+    void toast('连接保存失败：' + (error?.message || '存储不可用'), 'error')
+    throw error
+  }
+}
 
 function schedulePersist(key, value, delay = 800) {
   clearTimeout(persistTimers.get(key))
@@ -60,7 +73,7 @@ function schedulePersist(key, value, delay = 800) {
     setTimeout(() => {
       persistTimers.delete(key)
       // storageSet displays the error; a background save must not reject globally.
-      storageSet(key, value).catch(() => {})
+      persistValue(key, value).catch(() => {})
     }, delay)
   )
 }
@@ -68,7 +81,7 @@ function schedulePersist(key, value, delay = 800) {
 export function persistNow(key, value) {
   clearTimeout(persistTimers.get(key))
   persistTimers.delete(key)
-  return storageSet(key, value)
+  return persistValue(key, value)
 }
 
 export function persistAll() {
@@ -83,23 +96,25 @@ export function persistAll() {
 }
 
 /** 清掉防抖定时器并立即落盘（beforeClose / pagehide） */
-export function flushPendingPersist() {
+export async function flushPendingPersist() {
   for (const timer of persistTimers.values()) clearTimeout(timer)
   persistTimers.clear()
-  return persistAll()
+  await persistAll()
+  await api.storage.flush()
 }
 
 export async function loadAll() {
   const [connections, sessions, activeId, history, usage, ui] = await Promise.all([
-    storageGet(StorageKeys.connections, []),
+    databaseLaunchIndex.readRecords(),
     storageGet(StorageKeys.sessions, []),
     storageGet(StorageKeys.activeSessionId, null),
     storageGet(StorageKeys.queryHistory, []),
     storageGet(StorageKeys.completionUsage, {}),
     storageGet(StorageKeys.ui, {})
   ])
+  state.connections = connections
+  connectionsLoaded = true
   try {
-    state.connections = Array.isArray(connections) ? connections : []
     state.sessions = Array.isArray(sessions) ? sessions.map((session) => ({ ...session, transactionActive: false })) : []
     state.queryHistory = Array.isArray(history) ? history : []
     state.completionUsage = usage && typeof usage === 'object' ? usage : {}
@@ -107,7 +122,6 @@ export async function loadAll() {
     state.activeSessionId =
       activeId && state.sessions.some((s) => s.id === activeId) ? activeId : state.sessions[0]?.id || null
   } catch {
-    state.connections = []
     state.sessions = []
     state.queryHistory = []
     state.completionUsage = {}
@@ -153,14 +167,15 @@ export async function saveConnection(conn) {
   return saved
 }
 
-export function removeConnection(id) {
-  state.connections = state.connections.filter((c) => c.id !== id)
+export async function removeConnection(id) {
+  const connections = state.connections.filter((c) => c.id !== id)
+  await persistNow(StorageKeys.connections, connections)
+  state.connections = connections
   state.runtime.sessionKeys.delete(id)
   state.sessions = state.sessions.filter((s) => s.connectionId !== id)
   if (state.activeSessionId && !state.sessions.some((s) => s.id === state.activeSessionId)) {
     state.activeSessionId = state.sessions[0]?.id || null
   }
-  schedulePersist(StorageKeys.connections, state.connections, 100)
   schedulePersist(StorageKeys.sessions, sessionData(), 100)
   schedulePersist(StorageKeys.activeSessionId, state.activeSessionId, 100)
 }

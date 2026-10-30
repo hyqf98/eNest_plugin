@@ -13,7 +13,7 @@ import {
   storageGet, storageSet,
   saveTextFile, copyText,
   registerQuickProvider, onQuickQuery, respondQuickQuery,
-  getThemeTokens, onThemeChange, onEnter, getLaunchMode,
+  getThemeTokens, onThemeChange, onEnter, getLaunchMode, onModeChange, onHotkey,
   settingsGet, settingsSet,
 } from '../js/api.js'
 import {
@@ -985,7 +985,7 @@ export function App() {
     try {
       const r = await registerQuickProvider({ id: 'ccswitch-providers', explain: '供应商切换：cc <名称> 直达切换' })
       if (!r || r.ok !== true) return
-      onQuickQuery(async (event) => {
+      return onQuickQuery(async (event) => {
         try {
           const q = String(event.query || '').trim().toLowerCase()
           if (!q || q.length < 1) return
@@ -1025,54 +1025,68 @@ export function App() {
   }
 
   /* ================ 启动 ================ */
-  const bootRef = useRef(false)
   useEffect(() => {
-    if (bootRef.current) return
-    bootRef.current = true
+    let disposed = false
+    let offQuickQuery
     void (async () => {
       try {
         await loadApps()
+        if (disposed) return
         const defaultApp = await settingsGet('defaultApp', 'claude-code')
+        if (disposed) return
         if (state.installed.has(defaultApp)) state.currentApp = defaultApp
         navigate('providers')
-        void registerQuick()
+        const off = await registerQuick()
+        if (disposed) off?.()
+        else offQuickQuery = off
       } catch (e) { console.warn('[ccswitch] boot:', e) }
     })()
 
-    onEnter(async (event) => {
+    const applyMode = (mode) => document.body.classList.toggle('quick-mode', mode === 'quick')
+    applyMode(getLaunchMode())
+    const offEnter = onEnter(async (event) => {
       const code = event?.code || ''
       if (code === 'mcp') navigate('mcp')
       else if (code === 'sessions') navigate('sessions')
       else if (code === 'settings') navigate('settings')
       else if (code === 'main') navigate('providers')
       if (typeof event?.payload?.providerId === 'string') await handleQuickSwitch(event.payload.providerId)
-      if (getLaunchMode() === 'quick') document.body.classList.add('quick-mode')
+      if (!disposed) applyMode(getLaunchMode())
     })
-    // onModeChange 由 themeAware kit 域提供：保底走原生 API
-    window.enest?.onModeChange?.((mode) => document.body.classList.toggle('quick-mode', mode === 'quick'))
+    const offMode = onModeChange(applyMode)
 
     applyTokens()
-    onThemeChange(() => {
+    const offTheme = onThemeChange(() => {
       applyTokens()
       if (state.page === 'usage' && state.usageData) void loadUsagePage()
     })
-    window.enest?.onHotkey?.(() => { navigate('providers') })
+    const offHotkey = onHotkey(() => { navigate('providers') })
 
     async function loadApps() {
       try {
         const list = await agentApps()
+        if (disposed) return
         const byId = new Map((list || []).map((a) => [a.app, a]))
         state.apps = APPS.map((meta) => {
           const hit = byId.get(meta.id)
           return { app: meta.id, id: meta.id, name: meta.name, mode: meta.mode, color: meta.color, configPaths: hit?.configPaths || [], installed: Boolean(hit?.installed), active: Boolean(hit?.active) }
         })
       } catch (e) {
+        if (disposed) return
         state.apps = APPS.map((a) => ({ app: a.id, id: a.id, name: a.name, mode: a.mode, color: a.color, installed: false, active: false, configPaths: [] }))
         console.warn('[ccswitch] agentApps failed:', e)
       }
       state.installed = new Set(state.apps.filter((a) => a.installed).map((a) => a.app))
       state.active = new Set(state.apps.filter((a) => a.active).map((a) => a.app))
-      renderNavApps()
+      if (!disposed) renderNavApps()
+    }
+    return () => {
+      disposed = true
+      offEnter?.()
+      offMode?.()
+      offTheme?.()
+      offHotkey?.()
+      offQuickQuery?.()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

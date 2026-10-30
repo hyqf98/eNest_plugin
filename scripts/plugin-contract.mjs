@@ -10,6 +10,16 @@ export function requiresUserConsent(permission) { return !pluginPermissionPolicy
 export function pluginIds(root = repositoryRoot) {
   return readdirSync(join(root, 'plugins'), { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(join(root, 'plugins', entry.name, 'plugin.json'))).map(entry => entry.name).sort()
 }
+export function resolvePluginSource(identifier, root = repositoryRoot) {
+  if (typeof identifier !== 'string' || !identifier || /[\\/\u0000-\u001f\u007f]/.test(identifier) || identifier === '.' || identifier === '..') throw new Error(`Invalid plugin identifier: ${identifier}`)
+  const matches = pluginIds(root).map(slug => {
+    const source = join(root, 'plugins', slug)
+    return { slug, source, manifest: readManifest(source) }
+  }).filter(plugin => plugin.slug === identifier || plugin.manifest.id === identifier)
+  if (matches.length === 0) throw new Error(`Unknown plugin: ${identifier}`)
+  if (matches.length > 1) throw new Error(`Ambiguous plugin identifier: ${identifier}`)
+  return matches[0]
+}
 export function validPath(value) {
   return typeof value === 'string' && value.length > 0 && !/[:\\?#%\u0000-\u001f\u007f]/.test(value) && !isAbsolute(value) && value.split('/').every(part => part && !part.startsWith('.'))
 }

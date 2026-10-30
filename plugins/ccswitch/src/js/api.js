@@ -33,7 +33,7 @@ function notify(title, body) {
 
 /* —— 插件私有 Node 后端 —— */
 async function backendCall(method, input) {
-  if (!has(api?.backend?.call)) throw missing('请升级 eNest 至 0.2.2 并授权本机 Node 后端')
+  if (!has(api?.backend?.call)) throw missing('请使用 eNest 0.0.1 或更新版本并授权本机 Node 后端')
   return api.backend.call(method, input === undefined ? [] : [input])
 }
 async function agentApps() {

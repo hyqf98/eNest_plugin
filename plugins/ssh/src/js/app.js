@@ -1,6 +1,7 @@
 import { createCommandActions } from './commandActions.js'
 import { decodeTerminalData } from './terminalData.js'
 import { mountPaper, watchPaperChanges } from './paper-theme.js'
+import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.js'
 
 /**
  * com.github.eNest.ssh — minimalist UI shell
@@ -365,7 +366,7 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
       const profile = store.findProfile(id)
       if (profile) openProfileForm(profile)
     },
-    duplicateProfile(id) {
+    async duplicateProfile(id) {
       const profile = store.findProfile(id)
       if (!profile) return
       const copy = {
@@ -375,7 +376,7 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
         secretRef: undefined,
         lastConnectedAt: undefined,
       }
-      store.upsertProfile(copy)
+      if (!await store.upsertProfile(copy)) return
       renderLeft()
       toast('已复制', 'success')
     },
@@ -388,6 +389,7 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
         danger: true,
       })
       if (!ok) return
+      if (!await store.removeProfile(id)) return
       if (profile.secretRef) {
         try {
           await api.vaultRemove(profile.secretRef)
@@ -395,7 +397,6 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
           /* ignore */
         }
       }
-      store.removeProfile(id)
       if (store.state.ui.selectedProfileId === id) store.setUi({ selectedProfileId: '' })
       renderLeft()
       renderTopStatus()
@@ -601,7 +602,7 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
               cancelText: '取消',
             })
             if (orphan === true) {
-              store.removeGroup(groupId, 'orphan')
+              if (!await store.removeGroup(groupId, 'orphan')) return
             } else if (orphan === false) {
               const cascade = await confirmDialog('级联删除分组及其 ' + childCount + ' 个连接？', {
                 title: '级联删除',
@@ -609,7 +610,7 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
                 danger: true,
               })
               if (!cascade) return
-              store.removeGroup(groupId, 'cascade')
+              if (!await store.removeGroup(groupId, 'cascade')) return
             } else {
               return
             }
@@ -3319,7 +3320,7 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
     delete profile.password
     delete profile.passphrase
 
-    store.upsertProfile(profile)
+    if (!await store.upsertProfile(profile)) return
     closeDropdown()
     $('form-root').classList.remove('show')
     store.setUi({ selectedProfileId: id })
@@ -3859,6 +3860,7 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
       await store.loadAll()
     } catch (e) {
       toast('加载失败：' + err(e), 'error')
+      throw e
     }
     mountPaper(() => store.state.ui.paper)
     watchPaperChanges(() => store.state.ui.paper)
@@ -3880,10 +3882,21 @@ import { mountPaper, watchPaperChanges } from './paper-theme.js'
     if (!api.raw) toast('预览模式：功能未就绪', 'warn')
     else if (!hostSshReady) toast('功能未就绪', 'warn')
 
+    sshIndexedView.setEnterHandler(async event => {
+      const payload = event.payload
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).length !== 1) throw new Error('连接入口只接受已保存的连接标识')
+      const id = savedProfileId(payload.profileId)
+      const saved = await sshLaunchIndex.readRecords()
+      if (!saved.some(profile => profile.id === id) || !store.findProfile(id)) {
+        void sshLaunchIndex.refresh().catch(() => {})
+        throw new Error('连接已删除或不可用，请重新搜索')
+      }
+      await actions.connectProfileById(id)
+    })
     window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, runHint, navigateHistory: (direction, target) => { getCompletion().hide(); return commandActions.history(direction, target) }, completionVisible: () => getCompletion().isOpen(), completionMove: delta => getCompletion().move(delta), completionAccept: () => getCompletion().accept(), openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, showMoreMenu: (el) => showMenuFromEl(el, sideMoreItems()), toggleDrawer, openCollection, setDrawerOpen, setSidebarCollapsed, api, store }
     window.dispatchEvent(new Event('ssh-workbench-ready'))
     setInterval(renderTopStatus, 30000)
   }
 
-  void boot()
+  void boot().catch(error => sshIndexedView.fail(error))
 })()

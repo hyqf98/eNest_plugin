@@ -91,24 +91,19 @@ export function createPersistence(kit) {
   async function loadData() {
     if (loadCache) return loadCache
     loadCache = (async () => {
-      try {
-        const raw = await kit.load(DATA_KEY, null)
-        if (!raw || !Array.isArray(raw.drafts) || !raw.drafts.length) return null
-        return raw
-      } catch {
-        return null
+      const raw = await kit.load(DATA_KEY, null)
+      if (raw === null) return null
+      if (!raw || !Array.isArray(raw.drafts) || !raw.drafts.length || raw.drafts.some(draft => !draft || typeof draft.id !== 'string' || !Array.isArray(draft.objects))) {
+        throw new Error('草稿格式异常，已停止写入')
       }
+      return raw
     })()
     return loadCache
   }
 
   async function loadSettings() {
-    try {
-      const raw = await kit.load(SETTINGS_KEY, null)
-      return normalizeSettings(raw)
-    } catch {
-      return normalizeSettings(null)
-    }
+    const raw = await kit.load(SETTINGS_KEY, null)
+    return normalizeSettings(raw)
   }
 
   function reportSaveError(error) {

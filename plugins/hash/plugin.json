@@ -8,7 +8,7 @@
   "category": "开发",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.0.1"
   },
   "permissions": [
     "clipboard.write",

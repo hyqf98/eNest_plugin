@@ -196,13 +196,15 @@ export function renderGrid(ctx, vp, width, height, color, mode = 'dots') {
 let inkLayerCanvas = null
 
 /** 全帧渲染（视口画布） */
-export function renderFrame(ctx, canvas, { vp, dpr, objects, images, theme, settings, hoverImage = null }) {
+export function renderFrame(ctx, canvas, { vp, dpr, objects, images, theme, settings, hoverImage = null, transparent = false }) {
   const { width, height } = canvas
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, width / dpr, height / dpr)
-  ctx.fillStyle = theme.paper
-  ctx.fillRect(0, 0, width / dpr, height / dpr)
-  if (settings.grid && settings.grid !== 'none') renderGrid(ctx, vp, width / dpr, height / dpr, theme.grid, settings.grid)
+  if (!transparent) {
+    ctx.fillStyle = theme.paper
+    ctx.fillRect(0, 0, width / dpr, height / dpr)
+    if (settings.grid && settings.grid !== 'none') renderGrid(ctx, vp, width / dpr, height / dpr, theme.grid, settings.grid)
+  }
 
   const hasErase = objects.some((o) => o.kind === 'erase')
   if (hasErase) {

@@ -2,16 +2,17 @@
   "id": "com.github.eNest.drawboard",
   "name": "画板",
   "version": "0.0.1",
-  "description": "手绘风自由画板：压感钢笔、荧光笔、手绘图形与文字、贴图标注，滚轮缩放空格平移，多页草稿自动保存，一键复制与导出 PNG/JPG；并作为 eNest MCP 工具供 AI 直接绘制草图与回看截图。",
+  "description": "手绘画板与桌面标注：压感钢笔、荧光笔、图形、文字和贴图，多页草稿自动保存。开启桌面浮动工具后，无需打开主窗口也能画草稿；支持 PNG/JPG 导出与 MCP 绘图。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "设计",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.2.3"
+    "enest": ">=0.0.1"
   },
   "permissions": [
-    "clipboard.writeImage"
+    "clipboard.writeImage",
+    "pin.create"
   ],
   "contributes": {
     "mcpTools": [
@@ -521,6 +522,21 @@
           "additionalProperties": false
         }
       }
+    ],
+    "settings": [
+      {
+        "id": "drawboard.desktop",
+        "title": "画板",
+        "items": [
+          {
+            "key": "desktopFloatingTools",
+            "type": "switch",
+            "label": "桌面浮动工具",
+            "description": "关闭主窗口后仍可切换工具画草稿；重启后仅恢复工具栏，不拦截桌面鼠标。",
+            "default": false
+          }
+        ]
+      }
     ]
   },
   "window": {
@@ -539,8 +555,23 @@
         "白板",
         "涂鸦",
         "自由画板",
-        "drawboard"
+        "drawboard",
+        "草稿板"
       ]
+    },
+    {
+      "code": "desktop-canvas",
+      "explain": "桌面画布",
+      "cmds": [
+        "画布",
+        "桌面画布",
+        "桌面画板",
+        "屏幕标注",
+        "桌面涂画"
+      ],
+      "activation": {
+        "type": "command"
+      }
     }
   ],
   "ui": {
@@ -563,5 +594,11 @@
   },
   "development": {
     "main": "http://127.0.0.1:5211/"
+  },
+  "activation": {
+    "resident": {
+      "setting": "desktopFloatingTools",
+      "code": "desktop-canvas"
+    }
   }
 }

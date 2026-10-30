@@ -1,0 +1,335 @@
+/* ============================================================
+   pk-ui —— eNest 官方插件标准控件层样式
+   与壳 components/ui 同构：行为来自 Radix，视觉直读宿主注入的
+   themeAware token（--bg/--surface/--accent/--border/--text-2…），
+   未注入时使用与 @enest/plugin-kit 一致的浅色 fallback。
+   ============================================================ */
+
+/* —— 统一聚焦环 ——
+   outline 是矩形，永远不跟随 border-radius：9px 输入框、胶囊开关、圆形滑块
+   聚焦时会露出四角，看起来"不贴合、加粗"。这里统一改用 box-shadow 柔光环，
+   沿控件圆角自然贴合；与壳 src/renderer/components/ui/ui.css 的 --focus-ring 同参数。
+   文本输入在规范上鼠标聚焦也匹配 :focus-visible，所以鼠标态必须只给细边框 +
+   极淡柔光，不能再用 2px 实心 outline。 */
+:root {
+  --pk-focus-ring-width: 3px;
+  --pk-focus-ring-color: color-mix(in srgb, var(--accent, #3579dd) 20%, transparent);
+  --pk-focus-ring: 0 0 0 var(--pk-focus-ring-width) var(--pk-focus-ring-color);
+}
+@media (forced-colors: active) {
+  /* 高对比模式不渲染 box-shadow：各控件退回系统高亮描边。 */
+  :root { --pk-focus-ring: none; }
+}
+
+/* —— 基础控件统一规范：`.btn` 别名映射到 @enest/plugin-kit 的 .pk-btn 参数 ——
+   pk-ui.css 在每插件级联中最后加载（业务 CSS → kit CSS → 本文件），故此处
+   的 .btn 基础参数即全插件统一标准；业务变体（.btn.primary/.btn.icon 等
+   双类选择器）specificity 更高，继续生效。 */
+.btn, .pk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  border-radius: calc(var(--pk-radius, 8px) - 2px);
+  background: var(--wash, var(--surface, #f4f6f8));
+  color: var(--text, #252a32);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--pk-speed, 0.15s) ease, background-color var(--pk-speed, 0.15s) ease, color var(--pk-speed, 0.15s) ease, box-shadow var(--pk-speed, 0.15s) ease, transform 0.1s ease;
+}
+.btn:hover:not(:disabled), .pk-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line, #dfe3e8)); }
+.btn:active:not(:disabled), .pk-btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled, .pk-btn:disabled { opacity: 0.45; cursor: default; }
+.btn:focus-visible, .pk-btn:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring); }
+
+/* —— Button 变体 —— */
+.pk-btn-primary {
+  background: var(--accent, #3579dd);
+  border-color: var(--accent, #3579dd);
+  color: var(--accent-contrast, #fff);
+}
+.pk-btn-primary:hover:not(:disabled) { border-color: var(--accent, #3579dd); filter: brightness(1.03); }
+.pk-btn-danger { color: var(--danger, #b44c50); border-color: color-mix(in srgb, var(--danger, #b44c50) 45%, var(--line, #dfe3e8)); }
+.pk-btn-danger:hover:not(:disabled) { border-color: var(--danger, #b44c50); }
+.pk-btn-ghost {
+  background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
+  border-color: transparent;
+  color: var(--text-2, #747c88);
+}
+.pk-btn-ghost:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, transparent);
+  background: color-mix(in srgb, var(--accent, #3579dd) 7%, transparent);
+  color: var(--text, #252a32);
+}
+.pk-btn-sm { min-height: 24px; padding: 2px 9px; font-size: 12px; }
+/* toggle 态（aria-pressed / Radix data-state） */
+.pk-btn[data-pressed='true'], .pk-btn[aria-pressed='true'] {
+  color: var(--accent, #3579dd);
+  border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line, #dfe3e8));
+  background: color-mix(in srgb, var(--accent, #3579dd) 10%, transparent);
+}
+
+/* —— Input —— */
+.pk-input {
+  background: var(--surface, transparent);
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  border-radius: calc(var(--pk-radius, 8px) - 2px);
+  padding: 6px 9px;
+  min-height: 28px;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.pk-input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line, #dfe3e8)); }
+.pk-input:disabled { opacity: 0.4; }
+/* 文本输入：鼠标态只有细边框收紧，键盘态才给柔光环（避免"鼠标点一下就加粗"）。 */
+.pk-input:focus { outline: none; border-color: color-mix(in srgb, var(--accent, #3579dd) 72%, var(--line, #dfe3e8)); }
+.pk-input:focus-visible { outline: 2px solid transparent; outline-offset: 0; border-color: var(--accent, #3579dd); box-shadow: var(--pk-focus-ring); }
+
+/* —— Checkbox（对齐 16px 方框 + accent 勾） —— */
+.pk-checkbox {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 auto;
+  border: 1px solid var(--line, var(--border-strong, #c4ccd6));
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.pk-checkbox[data-state='checked'] { background: var(--accent, #3579dd); border-color: var(--accent, #3579dd); }
+.pk-checkbox:disabled { opacity: 0.45; cursor: default; }
+.pk-checkbox:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring); }
+.pk-checkbox-indicator { display: grid; place-items: center; color: var(--accent-contrast, #fff); line-height: 0; }
+.pk-checkbox-indicator svg { width: 10px; height: 8px; }
+
+/* —— Switch（40×24 圆角胶囊 + thumb） —— */
+.pk-switch {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  border-radius: 99px;
+  background: var(--wash, var(--surface-3, #e6e9ee));
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pk-switch[data-state='checked'] { background: var(--accent, #3579dd); border-color: transparent; }
+.pk-switch:disabled { opacity: 0.45; cursor: default; }
+.pk-switch:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring); }
+.pk-switch-thumb {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: auto;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+  will-change: transform;
+}
+.pk-switch[data-state='checked'] .pk-switch-thumb { transform: translateX(8px); }
+
+/* —— Segmented —— */
+.pk-segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: calc(var(--pk-radius, 8px) + 4px);
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  background: color-mix(in srgb, var(--wash, #f0f2f5) 88%, transparent);
+}
+.pk-segmented-item {
+  min-height: 24px;
+  padding: 2px 12px;
+  border: 0;
+  border-radius: var(--pk-radius, 8px);
+  background: transparent;
+  color: var(--text-2, #747c88);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pk-segmented-item[data-state='on'] {
+  background: var(--surface, #fff);
+  color: var(--text, #252a32);
+  box-shadow: 0 0.5px 1px rgba(15, 23, 42, 0.05), inset 0 0 0 0.5px color-mix(in srgb, var(--line, #dfe3e8) 70%, transparent);
+}
+.pk-segmented-item:disabled { opacity: 0.45; cursor: default; }
+
+/* —— Select：参数以壳设置页 .ui-select-* 为标准（surface-2 底 / 32px 高 / 同款弹层），
+   与 @enest/plugin-kit upgradeSelects 的 .pk-select-* 完全一致（双通道同视觉） —— */
+/* 已被 upgradeSelects 接管的原生 select 隐藏（kit style.css 的等价规则，防止未引 style.css 的插件露出原生控件） */
+select.pk-select-native { display: none !important; }
+.pk-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  max-width: 100%;
+  padding: 4px 12px;
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  border-radius: var(--pk-radius, 8px);
+  background: var(--surface-2, #f0f2f5);
+  color: var(--text, #252a32);
+  font: inherit;
+  font-size: 12.5px;
+  min-width: 120px;
+  cursor: pointer;
+  transition: border-color 0.12s;
+}
+.pk-select-trigger:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line, #dfe3e8)); }
+.pk-select-trigger:disabled { opacity: 0.4; cursor: default; }
+.pk-select-trigger:focus { outline: none; border-color: color-mix(in srgb, var(--accent, #3579dd) 72%, var(--line, #dfe3e8)); }
+.pk-select-trigger:focus-visible { outline: 2px solid transparent; outline-offset: 0; border-color: var(--accent, #3579dd); box-shadow: var(--pk-focus-ring); }
+/* value 吃掉剩余空间并从左对齐：短文案不会居中留白，caret 始终贴右。 */
+.pk-select-value { flex: 1 1 auto; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-select-hint { flex: 0 0 auto; max-width: 45%; color: var(--text-2, #747c88); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-select-caret { flex: 0 0 auto; color: var(--text-2, #747c88); display: inline-flex; transition: transform 0.15s; }
+.pk-select-trigger[data-state='open'] .pk-select-caret { transform: rotate(180deg); }
+.pk-select-pop {
+  box-sizing: border-box;
+  z-index: 60;
+  width: max(var(--radix-select-trigger-width, 180px), 180px);
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border-radius: calc(var(--pk-radius, 8px) + 4px);
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  background: var(--surface, #fff);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.pk-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: calc(var(--pk-radius, 8px) - 3px);
+  background: transparent;
+  color: var(--text, #252a32);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.pk-select-option[data-highlighted] { background: var(--wash, var(--surface-2, #f0f2f5)); }
+.pk-select-option[data-state='checked'] { color: var(--accent, #3579dd); }
+.pk-select-option:disabled { color: var(--text-2, #747c88); opacity: 0.55; cursor: not-allowed; }
+.pk-select-check { flex: 0 0 16px; text-align: center; font-size: 11px; }
+
+/* —— Tooltip —— */
+.pk-tooltip {
+  box-sizing: border-box;
+  max-width: 260px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  background: var(--surface, #fff);
+  color: var(--text, #252a32);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 6px 24px rgba(20, 32, 52, 0.14);
+  user-select: none;
+  z-index: 80;
+  animation: pk-tooltip-in 0.12s ease-out;
+}
+@keyframes pk-tooltip-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* —— Dialog —— */
+.pk-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(16, 24, 36, 0.33);
+  backdrop-filter: blur(2px);
+}
+.pk-dialog-content {
+  box-sizing: border-box;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 71;
+  min-width: 280px;
+  max-width: min(480px, 92vw);
+  padding: 20px 22px;
+  border-radius: calc(var(--pk-radius, 8px) + 4px);
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  background: var(--surface, #fff);
+  color: var(--text, #252a32);
+  box-shadow: 0 18px 48px rgba(20, 32, 52, 0.22);
+}
+.pk-dialog-title { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.pk-dialog-description { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-2, #747c88); }
+
+/* —— Slider —— */
+.pk-slider {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 120px;
+  height: 16px;
+  cursor: pointer;
+  touch-action: none;
+}
+.pk-slider:disabled { opacity: 0.55; cursor: not-allowed; }
+.pk-slider-track { position: relative; flex: 1; height: 4px; border-radius: 4px; background: var(--wash, var(--surface-3, #e6e9ee)); }
+.pk-slider-range { position: absolute; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--accent, #3579dd) 35%, transparent); }
+.pk-slider-thumb {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent, #3579dd);
+  border: 2px solid var(--surface, #fff);
+  box-shadow: 0 0 0 1px var(--line, #dfe3e8);
+}
+.pk-slider-thumb:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 1px var(--line, #dfe3e8), var(--pk-focus-ring); }
+
+/* —— DropdownMenu：弹层复用 plugin-kit 的 .pk-menu-* 视觉；Radix 状态用 data-* —— */
+.pk-menu.pk-menu-radix {
+  position: relative;
+  min-width: min(max(var(--radix-dropdown-menu-trigger-width, 0px), 160px), calc(100vw - 24px));
+  max-height: min(420px, var(--radix-dropdown-menu-content-available-height, calc(100dvh - 24px)));
+}
+.pk-btn.pk-btn-sm { min-height: 24px; padding: 2px 9px; font-size: 12px; }
+.pk-menu-item[data-highlighted] { background: color-mix(in srgb, var(--accent, #3579dd) 9%, transparent); outline: none; }
+.pk-menu-item.danger[data-highlighted] { background: color-mix(in srgb, var(--danger, #b44c50) 10%, transparent); }
+.pk-menu-item[data-disabled] { color: var(--text-2, #747c88); opacity: 0.55; cursor: not-allowed; }
+
+/* —— 动画档位对齐 plugin-kit —— */
+:root[data-anim='low'] .pk-btn, :root[data-anim='low'] .pk-switch-thumb { transition-duration: 0ms; }
+:root[data-anim='low'] .pk-input, :root[data-anim='low'] .pk-select-trigger { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .pk-btn, .pk-switch-thumb, .pk-segmented-item, .pk-select-trigger { transition-duration: 0.01ms !important; }
+  .pk-input { transition-duration: 0.01ms !important; }
+}
+
+/* —— 高对比模式：柔光环不可见，退回系统高亮描边（贴合圆角不是这里的首要目标） —— */
+@media (forced-colors: active) {
+  .btn:focus-visible, .pk-btn:focus-visible,
+  .pk-input:focus-visible, .pk-checkbox:focus-visible, .pk-switch:focus-visible,
+  .pk-select-trigger:focus-visible, .pk-slider-thumb:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+}

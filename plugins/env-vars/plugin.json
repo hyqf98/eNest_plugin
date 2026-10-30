@@ -1,0 +1,50 @@
+{
+  "id": "com.github.eNest.env-vars",
+  "name": "环境变量管理",
+  "version": "0.0.1",
+  "description": "跨平台环境变量管理：macOS 与 Windows 用户/系统变量分区查看、编辑、写入与删除，PATH 专用编辑器，写入前自动备份。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "default": "shell",
+    "layouts": ["shell"]
+  },
+  "category": "开发",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.0.1"
+  },
+  "permissions": [
+    "backend.node"
+  ],
+  "window": {
+    "width": 960,
+    "height": 640,
+    "minWidth": 640,
+    "minHeight": 420
+  },
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "transparent",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "环境变量",
+      "开发",
+      "系统管理",
+      "跨平台"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5213/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
+  }
+}

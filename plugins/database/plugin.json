@@ -5,10 +5,11 @@
   "description": "多数据库工作台：离线编辑器、查询与结果编辑、结构关系、资源中心和只读数据比较",
   "author": "eNest Labs",
   "main": "index.html",
+  "activation": { "indexSync": true },
   "category": "开发",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.2.3"
+    "enest": ">=0.0.1"
   },
   "permissions": [
     "db.connect",
@@ -77,6 +78,12 @@
         "mysql",
         "sqlite"
       ]
+    },
+    {
+      "code": "connect-connection",
+      "explain": "打开已保存的数据库连接",
+      "cmds": [],
+      "activation": { "type": "view", "target": "shell" }
     }
   ],
   "ui": {

@@ -20,6 +20,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { PanelView } from './PanelView.jsx'
+import { sshIndexedView } from '@ssh/js/launch-index.js'
 
 const host = window.enest || window.zapi
 const initialMode = () => host?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell'
@@ -376,7 +377,7 @@ export function App() {
   /* 静态骨架就位后按原 script 执行顺序引导业务引擎（模块 import 去重，只会运行一次）。
      app.js 的 boot 依赖以上静态节点；workbench.js 等 ssh-workbench-ready 后自举。 */
   useEffect(() => {
-    if (!workbenchMounted) return
+    if (!workbenchMounted) { sshIndexedView.ready(); return }
     let alive = true
     void (async () => {
       await import('@ssh/js/tips-global.js')
@@ -389,7 +390,7 @@ export function App() {
       await import('@ssh/js/term.js')
       await import('@ssh/js/app.js')
       await import('@ssh/js/workbench.js')
-    })()
+    })().catch(error => sshIndexedView.fail(error))
     return () => { alive = false }
   }, [workbenchMounted])
 

@@ -111,7 +111,7 @@ test('pack CLI executes from directories containing spaces and # instead of sile
   await cp(new URL('./plugin-build-hooks.mjs', import.meta.url), join(scripts, 'plugin-build-hooks.mjs'))
   await writeFile(join(scripts, 'build-plugin.mjs'), 'export const buildPlugin=()=>{throw new Error("unexpected build")}')
   await writeFile(join(scripts, 'validate-dist.mjs'), 'export const validateDistribution=async()=>{}')
-  await writeFile(join(scripts, 'plugin-contract.mjs'), `export const repositoryRoot=${JSON.stringify(f.root)}; export const pluginIds=()=>['com.fixture.backend'];export const readManifest=()=>({id:'com.fixture.backend',version:'1.0.0'}); export const localFile=()=>{throw new Error('unexpected build extension')};`)
+  await writeFile(join(scripts, 'plugin-contract.mjs'), `export const repositoryRoot=${JSON.stringify(f.root)}; export const pluginIds=()=>['com.fixture.backend']; export const resolvePluginSource=()=>({slug:'com.fixture.backend',source:${JSON.stringify(f.source)}});export const readManifest=()=>({id:'com.fixture.backend',version:'1.0.0'}); export const localFile=()=>{throw new Error('unexpected build extension')};`)
   await mkdir(f.destination, { recursive: true })
   await writeFile(join(f.destination, 'index.html'), 'fixture')
   const output = execFileSync(process.execPath, [join(scripts, 'pack-plugin.mjs'), 'com.fixture.backend', '--no-build'], { encoding: 'utf8' })

@@ -6,15 +6,14 @@ import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { buildPlugin } from './build-plugin.mjs'
-import { repositoryRoot, pluginIds, readManifest } from './plugin-contract.mjs'
+import { repositoryRoot, pluginIds, resolvePluginSource, readManifest } from './plugin-contract.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 import { distributionDirectory, normalizeTarget, platformPackagePlan, projectPlatformDistribution, readDistributionTarget } from './distribution-target.mjs'
 import { loadPluginBuildHooks } from './plugin-build-hooks.mjs'
 
 export async function packPlugin(id, { repositoryRoot: root = repositoryRoot, outDir = join(root, 'dist'), build = true, target = 'universal', project = false } = {}) {
   normalizeTarget(target)
-  if (!pluginIds(root).includes(id)) throw new Error(`Unknown plugin: ${id}`)
-  const source = join(root, 'plugins', id)
+  const { slug, source } = resolvePluginSource(id, root)
   await mkdir(outDir, { recursive: true })
   let stage
   try {
@@ -24,13 +23,13 @@ export async function packPlugin(id, { repositoryRoot: root = repositoryRoot, ou
       const portable = join(source, 'dist')
       await validateDistribution(portable, { source, repositoryRoot: root })
       stage = await mkdtemp(join(outDir, '.platform-stage-'))
-      directory = await projectPlatformDistribution(portable, join(stage, id), source, { root, target })
-    } else directory = build ? await buildPlugin(id, { repositoryRoot: root, target }) : distributionDirectory(source, target, root)
+      directory = await projectPlatformDistribution(portable, join(stage, slug), source, { root, target })
+    } else directory = build ? await buildPlugin(slug, { repositoryRoot: root, target }) : distributionDirectory(source, target, root)
     await validateDistribution(directory, { source, repositoryRoot: root, target })
     if (await readDistributionTarget(directory) !== target) throw new Error(`Refusing to package a different distribution target as ${target}`)
     const manifest = readManifest(directory)
     const suffix = target === 'universal' ? '' : `-${target}`
-    const name = `${id}@${manifest.version}${suffix}.enestplugin`, output = join(outDir, name)
+    const name = `${slug}@${manifest.version}${suffix}.enestplugin`, output = join(outDir, name)
     if (resolve(output, '..') !== resolve(outDir)) throw new Error('Invalid package output path')
     // Keep the last valid archive if packing fails; only publish complete final bytes.
     const temporary = `${output}.${process.pid}.tmp.zip`
@@ -54,7 +53,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
   for (const id of ids) {
     console.log(JSON.stringify(await packPlugin(id, { build: !input.includes('--no-build'), target })))
     if (variants) {
-      for (const variant of platformPackagePlan(join(repositoryRoot, 'plugins', id)).supportedTargets) {
+      for (const variant of platformPackagePlan(resolvePluginSource(id).source).supportedTargets) {
         console.log(JSON.stringify(await packPlugin(id, { build: false, project: true, target: variant })))
       }
     }

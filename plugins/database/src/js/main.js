@@ -83,6 +83,7 @@ import {
   exportHistory
 } from './importExport.js'
 import { detectDangerousSql } from './tokenizer.js'
+import { databaseIndexedView, databaseLaunchIndex, savedConnectionId } from './launch-index.js'
 import { openCtxMenu, closeCtxMenu } from './ctxMenu.js'
 import { bindIconTips } from './tips.js'
 
@@ -578,8 +579,20 @@ async function boot() {
     side?.render()
     renderAll()
   })
+  databaseIndexedView.setEnterHandler(async event => {
+    const payload = event.payload
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).length !== 1) throw new Error('连接入口只接受已保存的连接标识')
+    const id = savedConnectionId(payload.connectionId)
+    const saved = await databaseLaunchIndex.readRecords()
+    if (!saved.some(connection => connection.id === id) || !getConnection(id)) {
+      void databaseLaunchIndex.refresh().catch(() => {})
+      throw new Error('连接已删除或不可用，请重新搜索')
+    }
+    await onConnectionAction(id, 'connect')
+  })
   api?.onBeforeClose?.(async () => {
-    await Promise.allSettled([flushPendingPersist(), side?.dispose?.(), disposeCompletionRuntime()])
+    const [persisted] = await Promise.allSettled([flushPendingPersist(), side?.dispose?.(), disposeCompletionRuntime()])
+    if (persisted.status === 'rejected') throw persisted.reason
   })
   window.addEventListener('pagehide', () => {
     try {
@@ -595,6 +608,8 @@ async function boot() {
     state.runtime.hostLagNotified = true
     showLocalToast('功能未就绪', 'warn')
   }
+  databaseIndexedView.ready()
+  void databaseLaunchIndex.refresh().catch(() => {})
 }
 
 /* ───────────── sidebar collapse ───────────── */
@@ -1224,7 +1239,7 @@ async function onConnectionAction(id, act) {
       invalidateConnectionCompletion(id, '连接已删除', false)
       connectionConfigRevisions.delete(id)
       for (const tab of [...getWorkspace().tabs]) if (tab.connectionId === id) { if (tab.editorId) { editor.releaseDocument(tab.editorId); state.results.delete(tab.editorId) }; removeWorkspaceTab(tab.id) }
-      removeConnection(id)
+      try { await removeConnection(id) } catch { renderAll(); return }
       if (conn?.secretRef) {
         try {
           await Vault.remove(conn.secretRef)
@@ -1921,4 +1936,4 @@ function showLocalToast(message, type = 'info') {
   }, 3200)
 }
 
-void boot()
+void boot().catch(error => { databaseIndexedView.fail(error); showLocalToast('加载失败：' + error.message, 'error') })

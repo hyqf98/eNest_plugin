@@ -13,7 +13,7 @@ export function createNativeSurfaces(host) {
   if (clients.has(host)) return clients.get(host)
   const facade = Object.create(host), handlers = new Map(), early = new Map(), recordings = new Map(), finished = new Map()
   let opening = 0, selection = null
-  const check = () => { if (!host.auxiliary?.open) throw new Error('此功能需要 eNest 0.2.3 的辅助窗口能力') }
+  const check = () => { if (!host.auxiliary?.open) throw new Error('此功能需要 eNest 0.0.1 或更新版本的辅助窗口能力') }
   const receive = event => {
     const handler = handlers.get(event?.windowId)
     if (handler) handler(event)

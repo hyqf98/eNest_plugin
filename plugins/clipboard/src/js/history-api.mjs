@@ -1,5 +1,5 @@
 /** A plugin-private facade; the frozen host API contains no clipboard history business methods. */
-export const HISTORY_UNAVAILABLE_MESSAGE = '当前 eNest 版本不提供剪贴板历史后台（需要 0.2.3 或更高版本）。请在插件市场同时更新 eNest 与本插件；若仍失败，请检查是否还安装了旧版「剪贴板」插件，卸载旧版后重试。'
+export const HISTORY_UNAVAILABLE_MESSAGE = '当前 eNest 版本不提供剪贴板历史后台（需要 0.0.1 或更高版本）。请在插件市场同时更新 eNest 与本插件；若仍失败，请检查是否还安装了旧版「剪贴板」插件，卸载旧版后重试。'
 
 /**
  * Build the history facade over the plugin's own background service.

@@ -1,6 +1,6 @@
 {
   "name": "@enest/plugin-sdk",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "eNest 插件开发者 SDK — window.enest 运行时 API 类型 + plugin.json manifest 校验",
   "type": "module",
   "license": "MIT",

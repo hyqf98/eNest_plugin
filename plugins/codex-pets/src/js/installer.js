@@ -12,7 +12,7 @@ export const CODEX_APP = 'codex'
 
 async function backendCall(method, input) {
   const api = (window.enest || window.zapi)?.backend
-  if (typeof api?.call !== 'function') throw new Error('请升级 eNest 至 0.2.2 并授权本机 Node 后端')
+  if (typeof api?.call !== 'function') throw new Error('请使用 eNest 0.0.1 或更新版本并授权本机 Node 后端')
   return api.call(method, input === undefined ? [] : [input])
 }
 

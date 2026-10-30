@@ -352,7 +352,7 @@ export function App() {
       runRef.current()
     })
     let routed = false
-    api?.onEnter?.(({ code, payload }) => {
+    const handleEnter = ({ code, payload }) => {
       if (code && MODES[code]) {
         routed = true
         setMode(code)
@@ -368,7 +368,10 @@ export function App() {
         runRef.current(text)
       }
       inputRef.current?.focus()
-    })
+    }
+    const offEnter = api?.onEnter?.(handleEnter)
+    const initialCode = api?.getEnterCode?.()
+    if (initialCode) handleEnter({ code: initialCode })
     let alive = true
     void (async () => {
       await kit.ready
@@ -388,6 +391,7 @@ export function App() {
     })()
     return () => {
       alive = false
+      offEnter?.()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

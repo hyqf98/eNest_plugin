@@ -8,14 +8,18 @@ export async function afterBuild({ directory, repositoryRoot = defaultRepository
   if (runtime !== true) return
   if (project) throw new Error('DSH runtime cannot be installed into a projected distribution')
   assertRuntimeTarget(target)
+  const plugin = JSON.parse(await readFile(join(directory, 'plugin.json'), 'utf8'))
   const cache = join(repositoryRoot, 'dist/runtime-cache', `dsh-${DSH_VERSION}-${process.platform}-${process.arch}`)
   if (!existsSync(join(cache, 'node_modules/@deepseek-ai/dsh/package.json'))) {
     await mkdir(cache, { recursive: true })
-    await writeFile(join(cache, 'package.json'), JSON.stringify({ name: 'enest-dsh-runtime', version: '1.0.0', private: true, platform: process.platform, arch: process.arch }))
+    await writeFile(join(cache, 'package.json'), JSON.stringify({ name: 'enest-dsh-runtime', version: plugin.version, private: true, platform: process.platform, arch: process.arch }))
     const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', `@deepseek-ai/dsh@${DSH_VERSION}`, '--omit=dev', '--no-audit', '--no-fund'], { cwd: cache, stdio: 'inherit' })
     if (result.status !== 0) { await rm(cache, { recursive: true, force: true }); throw new Error('DSH runtime install failed') }
   }
   await cp(cache, join(directory, 'runtime'), { recursive: true, dereference: true })
+  const packageFile = join(directory, 'runtime/package.json')
+  const runtimePackage = JSON.parse(await readFile(packageFile, 'utf8'))
+  await writeFile(packageFile, JSON.stringify({ ...runtimePackage, version: plugin.version }, null, 2) + '\n')
 }
 
 export async function validateDistribution({ directory, requireRuntime = false, target = 'universal' }) {

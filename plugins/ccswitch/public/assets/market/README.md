@@ -15,7 +15,7 @@ AI CLI 供应商切换台：10 应用配置管理、50+ 预设、MCP 同步、�
 
 ## 1.3.0 升级与数据兼容
 
-本版要求 eNest >=0.2.2，需重新明确授权 `backend.node`；旧 `config.agent.*` 授权不会转换为 Node 权限。10 应用适配、JSON/TOML/YAML 合并、会话读取及备份恢复迁入插件仓共享后端，壳不再提供 `enest.agent` 业务 API。Node 后端是完整本机信任，不是系统沙箱。
+本版要求 eNest >=0.0.1，需重新明确授权 `backend.node`；旧 `config.agent.*` 授权不会转换为 Node 权限。10 应用适配、JSON/TOML/YAML 合并、会话读取及备份恢复迁入插件仓共享后端，壳不再提供 `enest.agent` 业务 API。Node 后端是完整本机信任，不是系统沙箱。
 
 配置/会话路径保持不变；旧 `<数据根>/agent-config-backups` 与历史快照 ID 继续可读。写入和恢复前经宿主原生确认，插件后端保存快照、校验白名单及符号链接。已保存供应商的 vault 引用在原生确认后才由插件后端解引用，仅注入现有 Claude、Codex、Gemini 密钥字段；密钥不回传页面或写入错误信息，重新打开插件后仍可切换。
 

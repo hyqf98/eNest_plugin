@@ -16,7 +16,7 @@ export function createDatabaseApi(host) {
     return method === 'db.workbench' ? 60_000 : 30_000
   }
   const call = async (method, args = []) => {
-    if (!host.backend?.call) throw new Error('eNest 0.2.2 native backend API is required')
+    if (!host.backend?.call) throw new Error('eNest 0.0.1 or later with the native backend API is required')
     // User-paced native consent must not spend a query/cancellation deadline.
     const action = method === 'db.workbench' ? args[0]?.action : undefined
     const stopping = method === 'db.cancel' || method === 'db.close' || action === 'cancel'

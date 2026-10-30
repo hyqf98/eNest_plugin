@@ -5,7 +5,7 @@
 ## 源码工程
 
 ```text
-plugins/calculator/       # 名称必须等于 manifest.id
+plugins/calculator/       # 目录短名等于 manifest.id 的末段
 ├── plugin.json                 # main 固定 index.html
 ├── package.json                # name/version 对齐 manifest；type=module
 ├── index.html                  # 仅引用外部脚本，不写 inline JS
@@ -44,16 +44,23 @@ plugins/calculator/       # 名称必须等于 manifest.id
 npm run dev --workspace calculator
 node scripts/build-plugin.mjs calculator
 node scripts/pack-plugin.mjs calculator
+# 完整 ID 与目录短名解析到同一源码及产物
+node scripts/build-plugin.mjs com.github.eNest.calculator
+node scripts/pack-plugin.mjs com.github.eNest.calculator --no-build
 ```
 
+构建与打包共用标识解析器：只接受已存在的目录短名或大小写完全一致的 manifest.id，不按官方前缀剥离或仅按末段猜测；未知、重复或与其它目录冲突的标识均拒绝。完整 ID 始终保留为安装、权限和数据归属身份，产物目录与归档文件名仍用源码短名；`--target`、`--no-build` 和 `--platform-variants` 也遵守相同规则。
+
 统一构建脚本读取插件自己的 Vite 配置，从根 `index.html` 构建。Vue 项目安装 `vue` 和 `@vitejs/plugin-vue`，React 项目安装 `react`、`react-dom` 及对应 Vite 插件，再在本项目 `vite.config.ts` 注册；HTML、manifest、public 和 dist 契约不变。构建使用相对 base，脚本固定产物目录、文件命名、禁用 Source Map，并拒绝 library/SSR 入口。
+
+后端依赖由插件自己的 `enestBackend` 声明。`packageFilesExcluded` 将已声明的外部根依赖映射到包内精确相对路径数组，例如 `"packageFilesExcluded": { "ssh2": ["lib/protocol/crypto/build"] }`。只在复制时过滤，不删除依赖源文件；拒绝越界、隐藏段、通配符、中间路径软链接，以及包入口、元数据和许可证/版权告知文件的排除。完整跳过的子树内，非受保护名称的软链接作为不复制的叶子处理，绝不跟随目标。它不能代替运行依赖审查，插件必须确认被省略的可选编译产物有可用回退；通用脚本不按包名或插件 ID 增加特判。完整契约见[本机后端](developer/backend.md)。
 
 生产 CSP 不允许内联脚本、`eval` 或 CDN 脚本。业务使用 `addEventListener`，依赖打包进本地。Web Worker 和 Monaco 等编辑器也必须离线打包；WASM 可使用宿主允许的编译能力，但网络和操作系统功能仍走 `window.enest`。
 
 ## 发行结构
 
 ```text
-{id}@{version}.enestplugin       # ZIP，以下就是归档根
+{短名}@{version}.enestplugin     # ZIP，以下就是归档根
   plugin.json                   # 无 development
   index.html
   assets/

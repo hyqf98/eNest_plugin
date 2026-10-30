@@ -5,6 +5,7 @@
   "description": "SSH 工作台：快速连接、终端提示、远程文件、三平台资源与进程端口、服务容器、传输和隧道",
   "author": "eNest Labs",
   "main": "index.html",
+  "activation": { "indexSync": true },
   "views": {
     "default": "shell",
     "layouts": ["quick", "shell", "panel"],
@@ -13,7 +14,7 @@
   "category": "开发",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.2.3"
+    "enest": ">=0.0.1"
   },
   "permissions": [
     "notify",
@@ -64,6 +65,12 @@
         "SSH管理",
         "ssh manager"
       ]
+    },
+    {
+      "code": "connect-profile",
+      "explain": "打开已保存的 SSH 连接",
+      "cmds": [],
+      "activation": { "type": "view", "target": "shell" }
     }
   ],
   "ui": {

@@ -62,6 +62,11 @@ const mcpValidatorText='/** Generated from the host shared MCP declaration valid
 const mcpValidatorPath=join(repository,'packages/plugin-sdk/src/mcp-tools.mjs')
 if(check){if(!fs.existsSync(mcpValidatorPath)||fs.readFileSync(mcpValidatorPath,'utf8')!==mcpValidatorText){console.error(`Out of date: ${mcpValidatorPath}`);stale=true}}
 else fs.writeFileSync(mcpValidatorPath,mcpValidatorText)
+const commandValidatorSource=fs.readFileSync(join(host,'src/shared/pluginCommands.ts'),'utf8')
+const commandValidatorText='/** Generated from the host shared launch declaration validator. Do not edit. */\n'+ts.transpileModule(commandValidatorSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText
+const commandValidatorPath=join(repository,'packages/plugin-sdk/src/plugin-commands.mjs')
+if(check){if(!fs.existsSync(commandValidatorPath)||fs.readFileSync(commandValidatorPath,'utf8')!==commandValidatorText){console.error(`Out of date: ${commandValidatorPath}`);stale=true}}
+else fs.writeFileSync(commandValidatorPath,commandValidatorText)
 const schemaText=JSON.stringify(schema,null,2)+'\n'
 for(const schemaCopy of [join(host,'src/shared/pluginManifest.schema.json'),sdkSchema]){
  if(check){if(!fs.existsSync(schemaCopy)||fs.readFileSync(schemaCopy,'utf8')!==schemaText){console.error(`Out of date: ${schemaCopy}`);stale=true}}

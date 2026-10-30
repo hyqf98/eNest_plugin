@@ -62,7 +62,7 @@ if (!api) {
 
 主题工作区使用可选的 `window.enestWorkspace`（`enestHome` 是兼容别名），实现 `catalog/detail` 两路由及渲染 ACK；已安装页是提供者自己的目录筛选，不向宿主发送 `installed` 路由。设置通过 `openSettings` 请求切换到独立设置 surface，主题设置页使用 `enestSettings` 安全描述符，不在 Workspace 中实现设置路由，也不注入 `enest` 或 `shellApi`。普通插件通过 `enest.home.register()` 只能确认自己的精确 manifest 声明，不能自动激活或注册未声明入口。完整契约见 [Workspace](../../docs/developer/home.md) 与 [设置边界](../../docs/developer/settings-and-windows.md)。
 
-普通插件的 `enest.mcp.registerHandlers()` 在业务初始化后注册 manifest 声明的工具，不依赖前台 `onEnter`。MCP 默认关闭，当前原生管理 UI 尚未交付，详见 [MCP 工具贡献](../../docs/developer/mcp.md)。
+普通插件的 `enest.mcp.registerHandlers()` 在业务初始化后注册 manifest 声明的工具，不依赖前台 `onEnter`。MCP 默认关闭，管理入口位于可信宿主设置页「开发者 → MCP 服务」；普通插件与隔离主题页不获得管理接口，第三方主题快照不发布 MCP 原生分组。完整协议与目标平台验收边界见 [MCP 工具贡献](../../docs/developer/mcp.md)。
 
 存储类型统一来自宿主 `src/shared/types/storage.ts`，完成文件 DTO 复用 `file-stream.ts`。KV 的 `set/remove` 为有界入队，`storage.flush/commit` 提供显式提交回执；新图片使用 `storage.assets.put/list/get/remove`，有序输出由 `files.stream` 创建、完成后交给 `storage.files.list/get/remove/export` 按 ID 管理。`storage.blobs`、`assets.delete` 和图片/完成输出的 `path` 字段仅保留兼容。KV、session、后台文档、用户授权文件与密钥不共享无差别读写权限，也不提供跨资源事务，详见[数据存储与私有资源](../../docs/developer/storage.md)。
 

@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build, loadConfigFromFile, mergeConfig } from 'vite'
-import { repositoryRoot as root, pluginIds, readManifest, pluginHtmlEntries } from './plugin-contract.mjs'
+import { repositoryRoot as root, pluginIds, resolvePluginSource, pluginHtmlEntries } from './plugin-contract.mjs'
 import { validateSource } from './validate-manifests.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 import { buildBackend } from './build-backend.mjs'
@@ -13,11 +13,10 @@ import { loadPluginBuildHooks } from './plugin-build-hooks.mjs'
 /** Business index plus manifest-declared Home entries use the same portable Vite build. */
 export async function buildPlugin(id, { release = true, runtime = false, repositoryRoot = root, target = 'universal' } = {}) {
   normalizeTarget(target)
-  if (!pluginIds(repositoryRoot).includes(id)) throw new Error(`Unknown plugin: ${id}`)
-  const source = join(repositoryRoot, 'plugins', id), destination = distributionDirectory(source, target, repositoryRoot)
+  const { source, manifest } = resolvePluginSource(id, repositoryRoot)
+  const destination = distributionDirectory(source, target, repositoryRoot)
   const errors = validateSource(source, { release })
   if (errors.length) throw new Error(errors.join('\n'))
-  const manifest = readManifest(source)
   const inputs = pluginHtmlEntries(manifest).map(entry => join(source, entry))
   const loaded = await loadConfigFromFile({ command: 'build', mode: 'production' }, undefined, source)
   const config = mergeConfig(loaded?.config ?? {}, {

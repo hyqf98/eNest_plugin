@@ -19,6 +19,7 @@ import { composeExport } from '../js/render.mjs'
 import { createPersistence, makeDraft, normalizeDraftObjects, putImageBlob, getImageBlob } from '../js/store.mjs'
 import { createAiActions } from '../js/aiActions.mjs'
 import { registerDrawboardMcp } from '../js/mcp.mjs'
+import { createDesktopController, DESKTOP_SETTING } from '../js/desktopController.mjs'
 
 const UNDO_LIMIT = 50
 const TOOLS_FOR_MENU = [
@@ -57,6 +58,12 @@ export function App() {
   const lastPointerRef = useRef({ x: 0, y: 0 })  // 最近指针位置（⌘V 贴图落点）
 
   const [ready, setReady] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [presented, setPresented] = useState(() => !window.enest?.launch || window.enest.launch.getContext() === 'view')
+  const [desktopEnabled, setDesktopEnabled] = useState(false)
+  const [desktopPending, setDesktopPending] = useState(false)
+  const [desktopStatus, setDesktopStatus] = useState({ open: false, drawing: false, error: '' })
+  const desktopModel = useRef(null), desktopController = useRef(null)
   const [drafts, setDrafts] = useState([])
   const [activeId, setActiveId] = useState(null)
   const objectsRef = useRef([])           // 当前草稿对象（可变，渲染直读）
@@ -119,12 +126,12 @@ export function App() {
   }, [snapshot, notifyObjects])
 
   const syncDraftDoc = useCallback(() => {
-    setDrafts((prev) => {
-      const next = prev.map((d) => (d.id === activeId ? { ...d, objects: objectsRef.current, updatedAt: Date.now() } : d))
-      persistNow(next, activeId)
-      return next
-    })
-  }, [activeId, persistNow])
+    const id = activeIdRef.current
+    const next = draftsRef.current.map((d) => (d.id === id ? { ...d, objects: objectsRef.current, updatedAt: Date.now() } : d))
+    draftsRef.current = next
+    setDrafts(next)
+    persistNow(next, id)
+  }, [persistNow])
 
   const addObject = useCallback((obj, { select = false } = {}) => {
     const finalObj = { ...obj, id: obj.id || uid(), _born: performance.now() }
@@ -224,12 +231,15 @@ export function App() {
         : { x: (0 - vpRef.current.x) / vpRef.current.zoom, y: (0 - vpRef.current.y) / vpRef.current.zoom }
       const obj = { id: uid(), kind: 'image', x: center.x - w / 2, y: center.y - h / 2, w, h, blobId }
       if (!blobId) obj.dataUrl = dataUrl
-      if (blobId) setImages((prev) => new Map(prev).set(blobId, img))
-      else setImages((prev) => new Map(prev).set(`inline:${obj.id}`, img))
+      const nextImages = new Map(imagesRef.current).set(blobId || `inline:${obj.id}`, img)
+      imagesRef.current = nextImages
+      setImages(nextImages)
       addObject(obj)
       kitRef.current?.toast('已贴入图片')
+      return true
     } catch (error) {
       kitRef.current?.toast(error.message || '图片导入失败', 'error')
+      return false
     }
   }, [addObject])
 
@@ -595,14 +605,14 @@ export function App() {
       await Promise.all(blobIds.map(async (bid) => {
         const dataUrl = await getImageBlob(kit, bid)
         if (!dataUrl) return
-        const img = await new Promise((resolve) => { const el = new Image(); el.onload = () => resolve(el); el.src = dataUrl })
-        map.set(bid, img)
+        const img = await new Promise((resolve) => { const el = new Image(); el.onload = () => resolve(el); el.onerror = () => resolve(null); el.src = dataUrl })
+        if (img) map.set(bid, img)
       }))
       // 内联 dataUrl 的贴图（无 blobs 退化）
       for (const o of objectsRef.current) {
         if (o.kind === 'image' && o.dataUrl && !map.get(o.blobId)) {
-          const img = await new Promise((resolve) => { const el = new Image(); el.onload = () => resolve(el); el.src = o.dataUrl })
-          map.set(o.blobId || `inline:${o.id}`, img)
+          const img = await new Promise((resolve) => { const el = new Image(); el.onload = () => resolve(el); el.onerror = () => resolve(null); el.src = o.dataUrl })
+          if (img) map.set(o.blobId || `inline:${o.id}`, img)
         }
       }
       if (disposed) return
@@ -610,7 +620,7 @@ export function App() {
       setVp(active?.viewport || makeViewport())
       setReady(true)
       notifyObjects()
-    })()
+    })().catch(error => { if (!disposed) { setLoadError(error.message || '草稿读取失败'); kit.toast('草稿未能读取，已停止写入，请重新打开画板。', 'error') } })
 
     const flushOnHide = () => { void persist.flush().catch(error => kit.toast(`保存失败：${error.message}`, 'error')) }
     const offBeforeClose = kit.api?.onBeforeClose?.(() => persist.flush())
@@ -646,6 +656,84 @@ export function App() {
     void registerDrawboardMcp(aiRef.current).catch(() => { /* 宿主不支持 MCP 或注册握手失败：静默降级为纯手绘 */ })
   }, [ready])
 
+  /* 桌面辅助页只提交已完成操作，文档、撤销和持久化仍由当前实例拥有。 */
+  desktopModel.current = {
+    status: setDesktopStatus,
+    settings: () => settingsRef.current,
+    document: () => {
+      const imageKeys = [...new Set(objectsRef.current.filter(item => item.kind === 'image').map(item => item.blobId || `inline:${item.id}`))]
+      return { draftId: activeIdRef.current, objects: objectsRef.current.map(({ _born, _w, _measured, ...item }) => item), settings: settingsRef.current, imageKeys,
+        images: Object.fromEntries(imageKeys.flatMap(key => imagesRef.current.has(key) ? [[key, imagesRef.current.get(key).src]] : [])) }
+    },
+    settingsChange: patch => { const next = normalizeSettings({ ...settingsRef.current, ...patch }); settingsRef.current = next; setSettings(next) },
+    async apply(next) { commitObjects(() => next); setSelection([]); syncDraftDoc(); await persistRef.current.flush() },
+    flush: () => persistRef.current.flush(),
+    undo, redo, clear: clearDraft,
+    export: () => exportImage('pngT'),
+    async importImage() {
+      const [file] = await window.enest.localFiles.pick({ kind: 'file', access: 'read', multiple: false })
+      if (!file) return false
+      if (file.kind !== 'file' || file.size > 6 * 1024 * 1024) throw new Error('请选择 6 MB 以内的图片')
+      const data = await window.enest.localFiles.read({ handleId: file.id, encoding: 'dataUrl', maxBytes: 6 * 1024 * 1024 })
+      if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(data)) throw new Error('请选择 PNG、JPEG、WebP 或 GIF 图片')
+      // 桌面画布以屏幕中心为原点，不沿用主窗口上次平移的偏移。
+      if (!await importImageDataUrl(data, { x: vpRef.current.x, y: vpRef.current.y })) throw new Error('图片导入失败')
+      return true
+    },
+  }
+
+  useEffect(() => {
+    if (!ready || !window.enest?.launch || !window.enest?.auxiliary) return
+    const api = window.enest
+    let disposed = false
+    const controller = createDesktopController(api, desktopModel)
+    desktopController.current = controller
+    const report = error => { if (!disposed) setDesktopStatus(previous => ({ ...previous, error: error.message })) }
+    void api.settings.get(DESKTOP_SETTING).then(value => { if (!disposed) setDesktopEnabled(value === true) }).catch(report)
+    const offSettings = api.settings.onChange(event => { if (event.key === DESKTOP_SETTING && !disposed) setDesktopEnabled(event.value === true) })
+    const offEnter = api.onEnter(() => setPresented(true))
+    const offOut = api.onOut(() => setPresented(false))
+    const offClose = api.onBeforeClose(() => controller.stop())
+    void api.launch.registerHandlers({
+      prepareView(request) { request.signal.throwIfAborted(); setPresented(true) },
+      async command(request) {
+        if (request.code !== 'desktop-canvas') throw new Error('未知画板功能')
+        request.signal.throwIfAborted()
+        const resident = request.reason === 'resident-restore' || request.reason === 'resident-setting'
+        if (resident && request.enabled === false) { await controller.stop(); return { type: 'done' } }
+        const offCancel = request.onCancel(() => { void controller.stop() })
+        try {
+          await controller.open({ draw: !resident, signal: request.signal })
+          request.signal.throwIfAborted()
+          if (!resident) await api.settings.set(DESKTOP_SETTING, true)
+          return { type: 'done' }
+        } finally { offCancel() }
+      },
+    }).catch(report)
+    return () => {
+      disposed = true; offSettings(); offEnter(); offOut(); offClose()
+      desktopController.current = null; void controller.dispose()
+    }
+  }, [ready])
+
+  useEffect(() => { if (ready) desktopController.current?.sync() }, [ready, objectsTick, settings, activeId, images])
+
+  const toggleDesktop = async enabled => {
+    const controller = desktopController.current
+    if (!controller || desktopPending) return
+    setDesktopPending(true)
+    try {
+      if (enabled) await controller.open()
+      else await controller.stop()
+      await window.enest.settings.set(DESKTOP_SETTING, enabled)
+      setDesktopEnabled(enabled)
+    } catch (error) {
+      if (enabled) await controller.stop()
+      setDesktopStatus(previous => ({ ...previous, error: error.message }))
+      kitRef.current?.toast(error.message, 'error')
+    } finally { setDesktopPending(false) }
+  }
+
   /* ---------- 设置持久化 ---------- */
 
   useEffect(() => {
@@ -659,15 +747,17 @@ export function App() {
     const input = fileInputRef.current
     if (!input || binderRef.current) return
     binderRef.current = bindFileInput(input, { onError: (e) => kitRef.current?.toast(e.message, 'error') })
-    input.addEventListener('change', () => {
+    const change = () => {
       const file = input.files?.[0]
       if (!file || !file.type.startsWith('image/')) return
       const reader = new FileReader()
       reader.onload = () => void importImageDataUrl(String(reader.result))
       reader.readAsDataURL(file)
       input.value = ''
-    })
-  }, [importImageDataUrl])
+    }
+    input.addEventListener('change', change)
+    return () => { binderRef.current?.(); binderRef.current = null; input.removeEventListener('change', change) }
+  }, [importImageDataUrl, presented, ready])
 
   /* ---------- 缩放按钮（状态栏） ---------- */
 
@@ -717,6 +807,8 @@ export function App() {
     return () => { delete window.__drawboardDemo }
   }, [ready, theme, notifyObjects, syncDraftDoc])
 
+  if (!presented) return null
+  if (loadError) return <div className="db-app db-loading" role="alert">草稿读取失败，未改动原数据。请重新打开画板。{loadError}</div>
   if (!ready) {
     return <div className="db-app db-loading">画板准备中…</div>
   }
@@ -795,7 +887,9 @@ export function App() {
         </span>
       </div>
       <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} settings={settings} setSettings={setSettings} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} settings={settings} setSettings={setSettings}
+        desktopEnabled={desktopEnabled} desktopPending={desktopPending} desktopStatus={desktopStatus}
+        desktopAvailable={Boolean(window.enest?.launch && window.enest?.auxiliary)} onDesktopChange={toggleDesktop} />
       <span data-undo-tick={undoTick} hidden />
     </div>
   )

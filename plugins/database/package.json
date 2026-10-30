@@ -17,7 +17,7 @@
   "dependencies": {
     "@clickhouse/client": "^1.24.1",
     "@duckdb/node-api": "^1.5.6-r.1",
-    "@enest/plugin-kit": "1.0.0",
+    "@enest/plugin-kit": "0.0.1",
     "@tdengine/websocket": "^3.5.0",
     "cassandra-driver": "^4.10.0",
     "csv-parse": "^7.0.3",

@@ -237,12 +237,15 @@ export function createClipboardHistory(host, { now = Date.now, uuid = () => cryp
     throw new Error('Unknown clipboard background operation')
   }
 
-  async function search(queryText, limit = 6) {
+  async function search(queryText, limit = 6, context) {
+    context?.signal.throwIfAborted()
     await load()
+    context?.signal.throwIfAborted()
     const q = String(queryText || '').trim().toLowerCase()
     if (!q) return []
     const scores = []
     for (const entry of entries) {
+      context?.signal.throwIfAborted()
       let score = 0
       if (entry.type === 'text') {
         const text = (entry.text || entry.preview).toLowerCase(), preview = entry.preview.toLowerCase()
@@ -260,7 +263,7 @@ export function createClipboardHistory(host, { now = Date.now, uuid = () => cryp
   return {
     onEvent: (event, data) => serial(() => event === 'clipboard.changed' ? capture(data) : undefined),
     call: (method, args) => serial(() => call(method, args)),
-    search: (query, limit) => serial(() => search(query, limit)),
+    search: (query, limit, context) => serial(() => search(query, limit, context)),
     dispose() { disposed = true },
     idle: () => tail
   }

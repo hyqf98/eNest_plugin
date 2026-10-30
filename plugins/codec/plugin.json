@@ -8,7 +8,7 @@
   "category": "开发",
   "icon": "assets/market/icon.svg",
   "engines": {
-    "enest": ">=0.2.3"
+    "enest": ">=0.0.1"
   },
   "permissions": [
     "clipboard.read",
@@ -20,10 +20,44 @@
       "code": "main",
       "explain": "编解码",
       "cmds": [
-        "base64",
         "编解码",
         "codec"
       ]
+    },
+    {
+      "code": "base64",
+      "explain": "Base64 编解码",
+      "cmds": ["base64", "Base64编解码"]
+    },
+    {
+      "code": "base64url",
+      "explain": "Base64URL 编解码",
+      "cmds": ["base64url", "Base64URL编解码"]
+    },
+    {
+      "code": "url",
+      "explain": "URL 百分号编解码",
+      "cmds": ["URL编码", "URL解码", "百分号编码"]
+    },
+    {
+      "code": "hex",
+      "explain": "Hex 十六进制编解码",
+      "cmds": ["hex", "十六进制编解码"]
+    },
+    {
+      "code": "unicode",
+      "explain": "Unicode 转义编解码",
+      "cmds": ["unicode", "Unicode转义"]
+    },
+    {
+      "code": "html",
+      "explain": "HTML 实体编解码",
+      "cmds": ["HTML实体", "HTML转义"]
+    },
+    {
+      "code": "dataurl",
+      "explain": "Data URL 编解码与文件查看",
+      "cmds": ["dataurl", "Data URL"]
     },
     {
       "code": "jwt",

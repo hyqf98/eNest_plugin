@@ -1,8 +1,8 @@
 /**
  * SettingsDialog —— 插件内设置弹框：主题四选一 / 粗糙度 / 纸面纹理
- * 右下角浮动圆钮进入；设置存插件私有存储，不注册壳全局设置。
+ * 纸面设置存插件私有存储；桌面工具开关复用宿主声明式插件设置。
  */
-import { Dialog, DialogContent, DialogTitle, DialogDescription, Segmented, Slider } from '../ui/index.jsx'
+import { Dialog, DialogContent, DialogTitle, DialogDescription, Segmented, Slider, Switch } from '../ui/index.jsx'
 import { THEMES, GRID_MODES, GRID_LABELS } from '../js/theme.mjs'
 
 export function SettingsFab({ onClick }) {
@@ -15,12 +15,23 @@ export function SettingsFab({ onClick }) {
   )
 }
 
-export function SettingsDialog({ open, onOpenChange, settings, setSettings }) {
+export function SettingsDialog({ open, onOpenChange, settings, setSettings, desktopEnabled, desktopPending, desktopStatus, desktopAvailable, onDesktopChange }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="db-settings" aria-label="画板设置">
         <DialogTitle>画板设置</DialogTitle>
         <DialogDescription>草稿纸质感与手绘风格，仅本插件内生效。</DialogDescription>
+
+        <div className="db-settings-row">
+          <span className="db-settings-label">桌面浮动工具</span>
+          <div>
+            <Switch aria-label="桌面浮动工具" checked={desktopEnabled} disabled={!desktopAvailable || desktopPending} onCheckedChange={onDesktopChange} />
+            <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6, margin: '6px 0 0' }}>
+              {desktopPending ? '正在切换…' : '不打开主窗口也能画草稿。选择工具开始绘制，Esc 返回桌面操作；关闭工具栏即停用。'}
+            </p>
+            {desktopStatus?.error && <p role="alert">{desktopStatus.error}</p>}
+          </div>
+        </div>
 
         <div className="db-settings-row">
           <span className="db-settings-label">纸感主题</span>

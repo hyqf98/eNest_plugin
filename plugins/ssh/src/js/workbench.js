@@ -6,6 +6,7 @@ import { renderCompletionSettings } from './completionSettings.js'
 import { isReservedSshShortcut, displaySshShortcut } from './shortcutPolicy.js'
 import { PAPER_OPTIONS, applyPaper, normalizePaper } from './paper-theme.js'
 import { publishResourceState } from './resource-state.js'
+import { sshIndexedView, sshLaunchIndex } from './launch-index.js'
 
 const host = createSshHost(window.enest || window.zapi)
 const mac = /Mac/.test(navigator.platform)
@@ -205,11 +206,13 @@ async function boot() {
     const result = await request('config.import', { localHandleId: handles[0].id })
     if (!result.profiles.length) return toast('未找到明确命名的 Host；通配 Host 仅作为默认配置', 'warn')
     const dialog = createDialog({ title: '导入 OpenSSH 连接', content: `<p>将导入 ${result.profiles.length} 个连接。私钥文件需在连接时重新选择授权，密码在连接时输入。</p><div class="wb-import-hosts">${result.profiles.map((p,i) => `<label><input type="checkbox" value="${i}" checked><strong>${esc(p.name)}</strong><small>${esc(p.username)}@${esc(p.host)}:${p.port} · ${p.authType === 'agent' ? 'SSH Agent' : p.authType === 'key' ? '私钥' : '密码'}${p.jumps?.length ? ` · ${p.jumps.length} 级跳板` : ''}</small></label>`).join('')}</div>${result.warnings.map(w => `<p class="wb-inline-error">${esc(w)}</p>`).join('')}<button class="btn primary" data-import>导入所选</button>` })
-    dialog.body.querySelector('[data-import]').onclick = () => {
+    dialog.body.querySelector('[data-import]').onclick = safe(async () => {
       const selected = [...dialog.body.querySelectorAll('input:checked')].map(el => result.profiles[Number(el.value)])
-      for (const profile of selected) store.upsertProfile({ ...profile, id: store.uid('prof'), tags: ['OpenSSH'], groupId: '', env: 'dev' })
+      for (const profile of selected) {
+        if (!await store.upsertProfile({ ...profile, id: store.uid('prof'), tags: ['OpenSSH'], groupId: '', env: 'dev' })) return
+      }
       dialog.close(); bridge.renderLeft(); toast(`已导入 ${selected.length} 个连接`)
-    }
+    })
   }
 
   function palette(kind = 'all') {
@@ -474,7 +477,10 @@ async function boot() {
     page.querySelector('[data-back]').focus()
   }
   if (host?.getEnterCode?.() === 'settings') void settings()
+  sshIndexedView.ready()
+  void sshLaunchIndex.refresh().catch(() => {})
 }
 
-if (window.SshWorkbenchBridge) void boot()
-else window.addEventListener('ssh-workbench-ready', () => void boot(), { once: true })
+const start = () => { void boot().catch(error => sshIndexedView.fail(error)) }
+if (window.SshWorkbenchBridge) start()
+else window.addEventListener('ssh-workbench-ready', start, { once: true })

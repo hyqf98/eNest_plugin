@@ -11,7 +11,7 @@
     "fs.rename"
   ],
   "engines": {
-    "enest": ">=0.1.0"
+    "enest": ">=0.0.1"
   },
   "features": [
     {

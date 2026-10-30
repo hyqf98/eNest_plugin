@@ -1,0 +1,51 @@
+{
+  "id": "com.github.eNest.dev-env",
+  "name": "开发环境管理",
+  "version": "0.0.1",
+  "description": "统一管理本机构建环境：Node/Python/UV/Conda/Java/Maven/Gradle/Go/Rust 自动探测、依赖管理、缓存清理、磁盘占用分析与路径迁移，并接管 Homebrew 与 winget/scoop/choco 包管理。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "default": "shell",
+    "layouts": ["shell"]
+  },
+  "category": "开发",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.0.1"
+  },
+  "permissions": [
+    "backend.node"
+  ],
+  "window": {
+    "width": 1080,
+    "height": 700,
+    "minWidth": 720,
+    "minHeight": 480
+  },
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "transparent",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "开发环境",
+      "包管理",
+      "Homebrew",
+      "依赖管理",
+      "跨平台"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5214/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
+  }
+}

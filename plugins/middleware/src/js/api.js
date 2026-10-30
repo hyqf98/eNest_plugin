@@ -8,7 +8,7 @@
  */
 
 const MSG = {
-  hostLag: '请升级 eNest 至 0.2.2 并更新中间件插件，启用插件 Node 后端',
+  hostLag: '请使用 eNest 0.0.1 或更新版本并更新中间件插件，启用插件 Node 后端',
   perm: '权限不足：请在插件设置→权限管理授权本机 Node 后端与所需 mw.* 能力'
 }
 

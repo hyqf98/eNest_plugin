@@ -120,6 +120,16 @@ test('projection produces smaller suffixed archive without modifying the portabl
   assert.throws(() => archiveMetadata(zipSync(entries)), /cannot be published as universal/)
 })
 
+test('full manifest IDs preserve canonical archive names and platform projection sources', async t => {
+  const f = await fixture(t)
+  const portable = await packPlugin('com.github.eNest.native', { repositoryRoot: f.root, build: false })
+  const variant = await packPlugin('com.github.eNest.native', { repositoryRoot: f.root, build: false, project: true, target: 'darwin-arm64' })
+  assert.equal(portable.name, 'native@1.0.0.enestplugin')
+  assert.equal(variant.name, 'native@1.0.0-darwin-arm64.enestplugin')
+  assert.equal(archiveMetadata(await readFile(portable.path)).manifest.id, 'com.github.eNest.native')
+  assert.equal(await readDistributionTarget(f.dist), 'universal')
+})
+
 test('registry and release retain universal fallback and select a verified platform archive', async t => {
   const f = await fixture(t)
   for (const id of ['native', 'portable']) await packPlugin(id, { repositoryRoot: f.root, build: false })
