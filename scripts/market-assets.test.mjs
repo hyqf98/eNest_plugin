@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -40,7 +40,7 @@ test('registry metadata is extracted from final archives, independent of source 
   const f = fixture(t)
   writeFileSync(join(f.pluginDir, 'public/assets/market/README.md'), 'Different source text')
   const registry = buildRegistry(f.repositoryRoot), item = registry.plugins[0]
-  assert.equal(item.icon, 'test%401.0.0/assets/market/icon.svg')
+  assert.equal(item.icon, 'https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/test/public/assets/market/icon.svg')
   assert.match(readFileSync(join(f.repositoryRoot, 'dist/test@1.0.0/assets/market/README.md'), 'utf8'), /Package description/)
   assert.ok(item.asset.size > 0); assert.match(item.asset.sha256, /^[0-9a-f]{64}$/)
   assert.equal(Object.hasOwn(item, 'installs'), false, 'archive bytes cannot establish an installation count')
@@ -63,7 +63,7 @@ test('source and archive accept Unicode, spaces and uppercase screenshot extensi
   f.archive()
   const item = prepareRelease({ repositoryRoot: f.repositoryRoot, repository: 'owner/plugins', tag: 'v1' }).plugins[0]
   assert.equal(item.readmeImages['./screenshots/主界面 1.PNG'], item.screenshots[0])
-  assert.match(item.screenshots[0], /screenshot-1.png$/)
+  assert.match(item.screenshots[0], /\/plugins\/test\/public\/assets\/market\/screenshots\/%E4%B8%BB%E7%95%8C%E9%9D%A2%201\.PNG$/)
 })
 test('source images must be regular in-root files without symlinks', t => {
   const f = fixture(t), imagePath = join(f.pluginDir, 'public/assets/market/screenshots/01-main.png')
@@ -87,13 +87,16 @@ test('distribution validation catches missing local scripts and development sour
   writeFileSync(join(directory, 'index.html'), '<script type="module" src="assets/missing.js"></script>')
   await assert.rejects(validateDistribution(directory), /missing local resource/)
 })
-test('Release media attachments come from archives and match versioned URLs', t => {
+test('release registry references repository media and release packages without flat attachments', t => {
   const f = fixture(t), result = prepareRelease({ repositoryRoot: f.repositoryRoot, repository: 'owner/plugins', tag: 'v1.0.0' })
   const item = result.plugins[0]
-  assert.match(item.icon, /test%401.0.0-icon.svg$/)
-  assert.deepEqual(readFileSync(join(f.repositoryRoot, 'dist/test@1.0.0-screenshot-1.png')), image)
-  assert.match(item.readmeUrl, /test%401.0.0-README.md$/)
+  assert.match(item.icon, /\/plugins\/test\/public\/assets\/market\/icon\.svg$/)
+  assert.match(item.readmeUrl, /\/plugins\/test\/public\/assets\/market\/README\.md$/)
+  assert.match(item.asset.url, /\/releases\/download\/v1\.0\.0\/test%401\.0\.0\.enestplugin$/)
   assert.equal(item.readmeImages['./screenshots/01-main.png'], item.screenshots[0])
+  assert.equal(existsSync(join(f.repositoryRoot, 'dist/test@1.0.0-icon.svg')), false)
+  assert.equal(existsSync(join(f.repositoryRoot, 'dist/test@1.0.0-screenshot-1.png')), false)
+  assert.equal(existsSync(join(f.repositoryRoot, 'dist/test@1.0.0-README.md')), false)
 })
 test('missing archive cannot publish a registry', t => {
   const f = fixture(t); rmSync(join(f.repositoryRoot, 'dist/test@1.0.0.enestplugin'))

@@ -2,6 +2,8 @@ name: release-plugins
 
 # 发版模型：推送代码分支不发版；只有推送 v* / plugins-* 标签才触发打包发布。
 # 手动 dispatch 需显式填写发布标签（工作流不创建标签，标签需已存在）。
+# 市场门面（icon/截图/README）由 registry 直接指向仓库 main 的 public 资产；
+# Release 只承载 .enestplugin 包、DSH 运行时与 registry 索引，发布后回写 registry.json 到 main。
 on:
   push:
     tags: ['v*', 'plugins-*']
@@ -150,7 +152,7 @@ jobs:
       - name: Build archive-backed registry
         run: npm run registry
 
-      - name: Prepare registry and media attachments
+      - name: Prepare release registry
         env:
           REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag || github.ref_name }}
@@ -180,6 +182,8 @@ jobs:
           console.log(`Publishing ${ref} from ${head}`)
           NODE
 
+      # 市场门面（媒体）以仓库 main 为单一事实源，Release 只承载包与索引；
+      # 不再平铺上传 icon/截图/README 等附件。
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -193,12 +197,29 @@ jobs:
             dist/*.enestplugin
             dist/*.tgz
             dist/*.sha256
-            dist/*.svg
-            dist/*.png
-            dist/*.jpg
-            dist/*.jpeg
-            dist/*.webp
-            dist/*.md
             dist/registry.json
             dist/registry-*.json
           generate_release_notes: true
+
+      - name: Sync source registry to main
+        # 回写 registry.json（媒体已指向仓库源）到 main，供旧壳 raw 兜底读取；
+        # 冲突仅重试，最终失败告警不阻断——Release 索引才是主数据源。
+        run: |
+          git config user.name 'enest-release-bot'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git checkout -B registry-sync origin/main
+          cp dist/registry.json registry.json
+          if git diff --quiet -- registry.json; then
+            echo '[release] registry.json already matches the release'
+            exit 0
+          fi
+          git add registry.json
+          git commit -m 'chore: sync market registry for ${RELEASE_TAG} [skip ci]'
+          for attempt in 1 2 3; do
+            if git push origin registry-sync:main; then exit 0; fi
+            echo "[release] push attempt ${attempt} failed; rebasing on origin/main"
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo '::warning::registry.json 同步 main 失败（分支持续移动）；raw 兜底停留在上一版，Release 索引不受影响。'

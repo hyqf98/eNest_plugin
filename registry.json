@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-30T10:15:27.278Z",
+  "generatedAt": "2026-11-02T03:04:03.190Z",
   "channel": "stable",
   "categories": [
     "效率",
@@ -17,10 +17,10 @@
       "description": "AI 视觉工作台：手绘风节点画布编排文生图、图生图与提示词工作流，端口点击即建节点，标准输出协议与变量引用，OpenAI Images 协议自定义接入，生成图自动入库画廊。",
       "author": "eNest Labs",
       "category": "设计",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ai-canvas%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ai-canvas%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ai-canvas/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ai-canvas/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ai-canvas%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ai-canvas/public/assets/market/screenshots/01-canvas.png"
       ],
       "tags": [
         "AI 绘画",
@@ -46,7 +46,7 @@
         "name": "ai-canvas@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ai-canvas%400.0.1.enestplugin",
         "size": 4345679,
-        "sha256": "4c77cbd8e1f7d6ebdd35bbf379568414526284c614c9293854d90f2a10624853"
+        "sha256": "dfa125bf6e4798885cb47696826e7d9c244061bd66217eee44037c57afc9fc2b"
       },
       "readmeImages": {}
     },
@@ -57,10 +57,10 @@
       "description": "全盘文件即时搜索：Spotlight / Everything 引擎，关键词高亮、排序分页、文本与图片预览，打开、定位、移入废纸篓。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/anything%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/anything%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/anything/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/anything/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/anything%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/anything/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "文件搜索",
@@ -88,7 +88,7 @@
         "name": "anything@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/anything%400.0.1.enestplugin",
         "size": 177717,
-        "sha256": "56d11b6275e5aa7ca752aca257683ec304c9436729268d017876cff7344d51ba"
+        "sha256": "68bd77480aece1ae741d262509468fb10078de474033f904d4affc7bb9329aba"
       },
       "readmeImages": {}
     },
@@ -99,10 +99,10 @@
       "description": "拖入多文件，查找替换（正则）/ 序号 / 日期 / 大小写 / 插入 / 删除片段 / 扩展名规则链实时预览（diff 高亮 + 冲突检测），确认后批量改名，支持撤销。",
       "author": "eNest Labs",
       "category": "其它",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/batch-rename%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/batch-rename%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/batch-rename/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/batch-rename/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/batch-rename%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/batch-rename/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "重命名",
@@ -126,10 +126,10 @@
         "name": "batch-rename@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/batch-rename%400.0.1.enestplugin",
         "size": 117493,
-        "sha256": "e6bdead39eb24c3cc708206fc10a78ad5aba5e1cce57b6f081f9955723c58f2e"
+        "sha256": "5a22bb3b0057b9855b5b357dd1448ff4830c3051a8f8a3f6fcb0718c098682e1"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/batch-rename%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/batch-rename/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -139,10 +139,10 @@
       "description": "科学计算、变量赋值、Ans 与内存寄存器、百分比双语义、千分位显示、可收藏的本地计算历史。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/calculator%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/calculator%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/calculator/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/calculator/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/calculator%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/calculator/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "计算器",
@@ -166,10 +166,10 @@
         "name": "calculator@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/calculator%400.0.1.enestplugin",
         "size": 152833,
-        "sha256": "749255547c6d95b47adc09af99e56a46028ff3542b2e25a914c49ea53ea27d79"
+        "sha256": "2475b5eff92321c52b3c299c2df24ee2826563e0cad56d43a683c0bd31c10dc0"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/calculator%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/calculator/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -179,10 +179,10 @@
       "description": "AI CLI 供应商切换台：10 应用配置管理、50+ 预设、切换历史与回退、全量备份、MCP 同步、会话浏览与用量统计（复刻 cc-switch）",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ccswitch%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ccswitch%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ccswitch/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ccswitch/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ccswitch%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ccswitch/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "AI",
@@ -215,10 +215,10 @@
         "name": "ccswitch@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ccswitch%400.0.1.enestplugin",
         "size": 195820,
-        "sha256": "80d7728915b8afaafb09f4d214cc0374642b7e31e77e690ea41b765e03b42e67"
+        "sha256": "dc16ccf5991dd94a84c35fd4583268ff46f19bf3f81c4514feba9fd744c76bad"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ccswitch%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ccswitch/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -228,12 +228,12 @@
       "description": "搜索文本、图片与文件历史；快捷回贴，文本变换工具条与暂存片段，批量整理。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/clipboard%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/clipboard%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/clipboard/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/clipboard/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/clipboard%400.0.1-screenshot-1.png",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/clipboard%400.0.1-screenshot-2.webp",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/clipboard%400.0.1-screenshot-3.webp"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/clipboard/public/assets/market/screenshots/01-main.png",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/clipboard/public/assets/market/screenshots/02-images.webp",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/clipboard/public/assets/market/screenshots/03-files.webp"
       ],
       "tags": [
         "剪贴板",
@@ -262,10 +262,10 @@
         "name": "clipboard@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/clipboard%400.0.1.enestplugin",
         "size": 266287,
-        "sha256": "d95f86efba0dda38c8e6b537db7437fb55a480446afdd229069c01c0a80d9c98"
+        "sha256": "2afb69cfb88634f11ac1ae97af9df7e13affba05f1916a275a849b4a9ba4799a"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/clipboard%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/clipboard/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -275,10 +275,10 @@
       "description": "Base64、URL、Hex、Unicode、HTML 编解码与 JWT、URL 参数、Data URL 查看；逐行批量、错误定位、文件转 Data URL、最近转换记录。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codec%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codec%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/codec/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/codec/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codec%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/codec/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "base64",
@@ -305,10 +305,10 @@
         "name": "codec@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codec%400.0.1.enestplugin",
         "size": 147041,
-        "sha256": "96be68a592983331215af8fb4f0a0dc5f6d1c53ee73891959801231a386cd1ae"
+        "sha256": "e42791a752727e5b8b18db3d1ea9a619f5352a62ef1f8290e28fbd69e1c15b79"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codec%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/codec/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -318,10 +318,10 @@
       "description": "浏览 codex-pets.net 社区宠物画廊：搜索、排序、标签筛选与分页；逐帧 sprite 预览与光标跟随动效；一键安装宠物包到本机 Codex（自动检测 ~/.codex），并管理已安装宠物。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codex-pets%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codex-pets%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/codex-pets/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/codex-pets/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codex-pets%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/codex-pets/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "Codex",
@@ -350,7 +350,7 @@
         "name": "codex-pets@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codex-pets%400.0.1.enestplugin",
         "size": 204531,
-        "sha256": "b125dd9e73c5204058bbc0b9a206fea945fcd85a72066cd47d36c5e6da8d8573"
+        "sha256": "044c3911ac0843c7d7b3f9f8e99f79179248eae136bb6ce92d8504f91bab93bf"
       },
       "readmeImages": {}
     },
@@ -361,10 +361,10 @@
       "description": "屏幕与图片精准取色，HEX/RGB/HSL/OKLCH 一键复制、和谐色生成、WCAG 对比度检查、命名色板与 CSS/JSON 导出。",
       "author": "eNest Labs",
       "category": "设计",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/color-picker%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/color-picker%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/color-picker/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/color-picker/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/color-picker%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/color-picker/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "取色",
@@ -390,10 +390,10 @@
         "name": "color-picker@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/color-picker%400.0.1.enestplugin",
         "size": 164450,
-        "sha256": "c4b5ac0309c9b3c78aa0f0ab11c14ae4af97fc2806be8ecb6b026b91740b3d00"
+        "sha256": "c497cd422a9d629c9142b525b392d7d26787bcc404d12a11df4ae5c8eec77290"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/color-picker%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/color-picker/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -403,10 +403,10 @@
       "description": "五/六域可视化构建、中文人性化描述、未来执行预览、预设库与 crontab 导出。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/cron%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/cron%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/cron/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/cron/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/cron%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/cron/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "cron",
@@ -430,10 +430,10 @@
         "name": "cron@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/cron%400.0.1.enestplugin",
         "size": 215302,
-        "sha256": "58967bd6c9193ce09ad45eb4aad05118de879040e4aafa872be0f64778d23a47"
+        "sha256": "8cfdec3e4e1085f7f3117e589801761b1d9b1609ce95ea0086b400fd3ca2fc43"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/cron%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/cron/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -443,12 +443,12 @@
       "description": "多数据库工作台：离线编辑器、查询与结果编辑、结构关系、资源中心和只读数据比较",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/database%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/database%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/database/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/database/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/database%400.0.1-screenshot-1.png",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/database%400.0.1-screenshot-2.webp",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/database%400.0.1-screenshot-3.webp"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/database/public/assets/market/screenshots/01-main.png",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/database/public/assets/market/screenshots/02-table-data.webp",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/database/public/assets/market/screenshots/03-table-structure.webp"
       ],
       "tags": [
         "数据库",
@@ -480,11 +480,11 @@
       "asset": {
         "name": "database@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/database%400.0.1.enestplugin",
-        "size": 158675286,
-        "sha256": "ee91996513afb41a9bd28b1e85c3e3ec1a1fb5f256214562c04c36b8144da95b"
+        "size": 134448951,
+        "sha256": "572697f016d89b88dab6cdb4fbd785897242be42787e16269cff117495bd529a"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/database%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/database/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -494,10 +494,10 @@
       "description": "统一管理本机构建环境：Node/Python/UV/Conda/Java/Maven/Gradle/Go/Rust 自动探测、依赖管理、缓存清理、磁盘占用分析与路径迁移，并接管 Homebrew 与 winget/scoop/choco 包管理。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dev-env%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dev-env%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/dev-env/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/dev-env/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dev-env%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/dev-env/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "开发环境",
@@ -523,7 +523,7 @@
         "name": "dev-env@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dev-env%400.0.1.enestplugin",
         "size": 226756,
-        "sha256": "f8630cd7e4a4101b610b2303b3bebb65e055f1269fdded6d313b21decbc49781"
+        "sha256": "062ae40458b3077d6d962fff9bb02ffb55f2c722885dce83d6b959fc8936eaef"
       },
       "readmeImages": {}
     },
@@ -534,10 +534,10 @@
       "description": "双栏 LCS 行级对比、行内字符细化、差异导航计数、hex 字节对比与 unified diff 导出。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/diff%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/diff%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/diff/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/diff/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/diff%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/diff/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "diff",
@@ -562,10 +562,10 @@
         "name": "diff@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/diff%400.0.1.enestplugin",
         "size": 154727,
-        "sha256": "923f997ddb9f19388f2377e71512a89c27a04c32a7165d61342e71b1f51d664d"
+        "sha256": "177fcc86eff9e649d7f0a7655e89b7f86e8a8b5c109fa73e1e239946ef117e38"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/diff%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/diff/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -575,10 +575,10 @@
       "description": "手绘画板与桌面标注：压感钢笔、荧光笔、图形、文字和贴图，多页草稿自动保存。开启桌面浮动工具后，无需打开主窗口也能画草稿；支持 PNG/JPG 导出与 MCP 绘图。",
       "author": "eNest Labs",
       "category": "设计",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/drawboard%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/drawboard%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/drawboard/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/drawboard/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/drawboard%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/drawboard/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "画板",
@@ -604,10 +604,10 @@
         "name": "drawboard@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/drawboard%400.0.1.enestplugin",
         "size": 4367057,
-        "sha256": "68c68e5305f7bd14cae2057afe2e879ae1199802fc1ac9e0e6833a653f97c4af"
+        "sha256": "3b6e23ebf631cb2555aac4c4f67fa809e5283308fc718a00510db83e6c3107ab"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/drawboard%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/drawboard/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -617,10 +617,10 @@
       "description": "DeepSeek Harness 会话驾驶舱与管理中心：完整 Web UI、快速对话、内核按需在线安装与多版本切换、Profile 环境配置与同步、进程启停和安全备份清理",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dsh%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dsh%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/dsh/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/dsh/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dsh%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/dsh/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "DeepSeek",
@@ -647,10 +647,10 @@
         "name": "dsh@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dsh%400.0.1.enestplugin",
         "size": 1045241,
-        "sha256": "06ab0d51d7761120e72d2ef8ca2c529ee0bfffa780092f2050b762c065f1318e"
+        "sha256": "69eaac8c5d4e7b7885f7d15050e0261e9521e8793141f9bb43930330abcf47a2"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dsh%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/dsh/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -660,10 +660,10 @@
       "description": "跨平台环境变量管理：macOS 与 Windows 用户/系统变量分区查看、编辑、写入与删除，PATH 专用编辑器，写入前自动备份。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/env-vars%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/env-vars%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/env-vars/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/env-vars/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/env-vars%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/env-vars/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "环境变量",
@@ -688,7 +688,7 @@
         "name": "env-vars@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/env-vars%400.0.1.enestplugin",
         "size": 157957,
-        "sha256": "3b3839ca7ce1c304ce60396ec7e03d43ba570c9258f50515f424c16eff7a3724"
+        "sha256": "410346aaf6105243b43e3528cbcb9453e1dfab2baf10c84ba5fbce77788df623"
       },
       "readmeImages": {}
     },
@@ -699,10 +699,10 @@
       "description": "多算法同屏哈希（SHA 家族/MD5）、文件哈希进度反馈、校验对比 diff、HMAC、AES-GCM 与 RSA 加解密签名、JWT 解码、hex/base64 输出。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/hash%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/hash%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/hash/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/hash/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/hash%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/hash/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "哈希",
@@ -727,10 +727,10 @@
         "name": "hash@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/hash%400.0.1.enestplugin",
         "size": 172516,
-        "sha256": "2dd8799d2d8c5f61be42944dea7d259570cdcb91bc8754a74521cf27fac47673"
+        "sha256": "f4b5b27f06289c54bab67a3ea290077fb879ede97822b34c4550da54f6fa1c23"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/hash%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/hash/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -740,10 +740,10 @@
       "description": "图片压缩、格式转换、批量缩放、裁剪旋转、文字水印、EXIF 查看、色板提取与贴图预览。",
       "author": "eNest Labs",
       "category": "媒体",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/image-tools%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/image-tools%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/image-tools%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "图片",
@@ -771,10 +771,10 @@
         "name": "image-tools@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/image-tools%400.0.1.enestplugin",
         "size": 195981,
-        "sha256": "7d372742c9ff392f8a416131bed73bd4232caf1b513537a58ef726ac2bd2f2da"
+        "sha256": "c8470f493e7255fa7e7a3dd62b772a9a1e6929d4ee5727538adac90ce2e734f2"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/image-tools%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -784,10 +784,10 @@
       "description": "无损数字 JSON 格式化、路径查询、TypeScript 类型生成、统计、树浏览与差异比较。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/json-tools%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/json-tools%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/json-tools/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/json-tools/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/json-tools%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/json-tools/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "json",
@@ -812,10 +812,10 @@
         "name": "json-tools@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/json-tools%400.0.1.enestplugin",
         "size": 166842,
-        "sha256": "90349e2b69cdb46683fa9d8b31c326685f6ab313e90c63bfdfd887aaedf76aa3"
+        "sha256": "4a0cacddd4294faadf1d6bcc168c0a45654afba08a7ef7a1a80e7271d1e58f6f"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/json-tools%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/json-tools/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -825,10 +825,10 @@
       "description": "同一 Wi-Fi 下把文件发给手机：取件码 + 二维码即扫即下，限时自动关闭，下载实时日志。",
       "author": "eNest Labs",
       "category": "其它",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/lan-share%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/lan-share%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/lan-share/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/lan-share/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/lan-share%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/lan-share/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "局域网",
@@ -854,10 +854,10 @@
         "name": "lan-share@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/lan-share%400.0.1.enestplugin",
         "size": 163339,
-        "sha256": "e61157e0c11ce24a13cbf71ecf31d1b4f75ce76a190913e9317a691970ab725a"
+        "sha256": "82f6b9dae2b5b8e9a2e06a43d5efa3294ba728f37cbccac0f2daf8c34d59d269"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/lan-share%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/lan-share/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -867,10 +867,10 @@
       "description": "Typora 式所见即所得 Markdown 编辑器：即时渲染、Typora 主题、手绘风 Mermaid、图床上传（PicList/GitHub/自定义脚本）与本地文件工作台。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/markdown%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/markdown%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/markdown/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/markdown/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/markdown%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/markdown/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "Markdown",
@@ -898,10 +898,10 @@
         "name": "markdown@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/markdown%400.0.1.enestplugin",
         "size": 2702316,
-        "sha256": "4e49e2a85154d2dc8284f4ea2e377a2ba60323ff0c8c57f18dcdf77fdee5e818"
+        "sha256": "4c92f6044826207b936e3533d34fba5d099d91aba938ef663b37b47d9c248003"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/markdown%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/markdown/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -911,10 +911,10 @@
       "description": "Kafka / RabbitMQ / MQTT / RocketMQ 统一控制台：连接管理、Topic 与队列、消息查询溯源与实时监听、消费组与监控",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/middleware%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/middleware%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/middleware/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/middleware/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/middleware%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/middleware/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "中间件",
@@ -947,10 +947,10 @@
         "name": "middleware@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/middleware%400.0.1.enestplugin",
         "size": 6416635,
-        "sha256": "1af595c117c33dd6a0e22b5a14c42f912906d9a867c9fc7bf0d07e89f66ee25f"
+        "sha256": "3cd74aecf2b0e867772696294bf781f8c2d3429f5361c87c35e6302cfa1ed964"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/middleware%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/middleware/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -960,10 +960,10 @@
       "description": "HTTP / TCP / WebSocket 调试工作台：流式响应与 SSE、十六进制字节流、编解码策略、断言、curl 导入导出、集合与历史",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/net-kit%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/net-kit%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/net-kit/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/net-kit/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/net-kit%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/net-kit/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "HTTP",
@@ -993,10 +993,10 @@
         "name": "net-kit@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/net-kit%400.0.1.enestplugin",
         "size": 167267,
-        "sha256": "42fd8c65e2af9a369237ba041238a9b1e7425c5c0a49a2e05a844cc45870c91e"
+        "sha256": "dd324c326b69d6bc5f0f262c1bc7fd60f197be52a67e153c8734eb9b191d6b12"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/net-kit%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/net-kit/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1006,10 +1006,10 @@
       "description": "本地密码本：网站账号密码加密存储，支持分类、搜索、密码强度提示与自动过期提醒，并可通过 MCP 工具让 AI 助手安全读取与写入。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-book%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-book%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/password-book/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/password-book/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-book%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/password-book/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "密码管理",
@@ -1036,7 +1036,7 @@
         "name": "password-book@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-book%400.0.1.enestplugin",
         "size": 227512,
-        "sha256": "337410b2e8ba580b419230a4433e8d34aecd92e5c23e8b4ca36b372219264a37"
+        "sha256": "82afa41ae6838ed0be92f233acbe6d3240d48feefc1b13bb563b9494489b97e5"
       },
       "readmeImages": {}
     },
@@ -1047,10 +1047,10 @@
       "description": "随机密码、密码短语与 PIN 生成，强度检查（熵 + 破解时间估算），UUID v4 批量与本地生成历史。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-kit%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-kit%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/password-kit/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/password-kit/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-kit%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/password-kit/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "密码",
@@ -1074,10 +1074,10 @@
         "name": "password-kit@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-kit%400.0.1.enestplugin",
         "size": 142927,
-        "sha256": "b157a833ee245229a8c4e305e769581bb30b15d088ccaef6d26a0e19b09786c6"
+        "sha256": "452a2672bd8efa8ab6e4e57505029a0b82d0b52eb38cd622cbf2cd957a364f20"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-kit%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/password-kit/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1087,10 +1087,10 @@
       "description": "主进程后台专注计时，长短休息、时长预设、完成提示音与本地统计。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/pomodoro%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/pomodoro%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/pomodoro/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/pomodoro/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/pomodoro%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/pomodoro/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "番茄钟",
@@ -1114,10 +1114,10 @@
         "name": "pomodoro@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/pomodoro%400.0.1.enestplugin",
         "size": 139846,
-        "sha256": "033aebc205c1a4ab0f48964f5d72cb180d9d85a8a59396ab86ba05da10393384"
+        "sha256": "aa41f9173f68a7f23d4390809fc65a36b72fc261b2a4b72e8ca77d44efe75480"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/pomodoro%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/pomodoro/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1127,10 +1127,10 @@
       "description": "正则实时匹配高亮、捕获分组、替换预览、常用片段库与元字符速查。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/regex%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/regex%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/regex/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/regex/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/regex%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/regex/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "正则",
@@ -1154,10 +1154,10 @@
         "name": "regex@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/regex%400.0.1.enestplugin",
         "size": 154015,
-        "sha256": "5a3557ba52f30558fa2233b208b2e5c28ff5932a9e1d75d534f67437967a59d6"
+        "sha256": "a4e528c0c898a0622e767f5acaf3581f698c34b39ae4b29127845cd7d42948e5"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/regex%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/regex/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1167,10 +1167,10 @@
       "description": "VNC / RDP 远程桌面：资产管理、SSH 隧道、多会话画布、剪贴板互通与连接诊断",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/remote-desktop%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/remote-desktop%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/remote-desktop/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/remote-desktop/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/remote-desktop%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/remote-desktop/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "远程桌面",
@@ -1203,11 +1203,11 @@
       "asset": {
         "name": "remote-desktop@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/remote-desktop%400.0.1.enestplugin",
-        "size": 2605329,
-        "sha256": "0937fb198e5000eaeb0b6ca46c88a388d2b97af1e8945a66a8e3b9394ee6d604"
+        "size": 2605509,
+        "sha256": "fae333cc9f3253aa02731226f05e291907ca12f94cc3e92dba4143f5a8c61a5a"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/remote-desktop%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/remote-desktop/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1217,11 +1217,11 @@
       "description": "截图与原图历史、裁剪箭头文字马赛克标注（含工具快捷键）、区域录屏和贴图管理；粘性半透明工具头，小窗快速操作，桌面展开完整编辑。",
       "author": "eNest Labs",
       "category": "媒体",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/screen-assistant%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/screen-assistant%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/screen-assistant/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/screen-assistant/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/screen-assistant%400.0.1-screenshot-1.png",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/screen-assistant%400.0.1-screenshot-2.webp"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/screen-assistant/public/assets/market/screenshots/01-main.png",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/screen-assistant/public/assets/market/screenshots/02-annotation.webp"
       ],
       "tags": [
         "截图",
@@ -1251,10 +1251,10 @@
         "name": "screen-assistant@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/screen-assistant%400.0.1.enestplugin",
         "size": 242764,
-        "sha256": "112b5b41b016812533584ef2aec0d4bf5f87ee1e3c666b339ff991fb44be810d"
+        "sha256": "09ab943aa10a6c965737f1fc7f695f9ac09ef5f240d152af74be4be22dbd2ca0"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/screen-assistant%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/screen-assistant/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1264,13 +1264,13 @@
       "description": "手绘纸面主题：纸灰、灰蓝、鼠尾草三套浅深色板，保留手写字、抖动描边与胶带装订；整页低负载漂移，开屏由宿主统一呈现。",
       "author": "eNest Labs",
       "category": "设计",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-screenshot-1.jpg",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-screenshot-2.jpg",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-screenshot-3.jpg",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-screenshot-4.jpg"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/01-market.jpg",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/02-detail.jpg",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/03-workbench.jpg",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/04-dark.jpg"
       ],
       "tags": [
         "主题",
@@ -1292,14 +1292,14 @@
       "asset": {
         "name": "sketchbook@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1.enestplugin",
-        "size": 733235,
-        "sha256": "2516f09c4ab671ba26307054ab3294ffb3ac263e023d8510b114389c185bcfaf"
+        "size": 733058,
+        "sha256": "b50e6af10fc1eac292efe76f769cdc46025492ae1f8c49e79116014bc8d87e11"
       },
       "readmeImages": {
-        "./screenshots/01-market.jpg": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-screenshot-1.jpg",
-        "./screenshots/02-detail.jpg": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-screenshot-2.jpg",
-        "./screenshots/03-workbench.jpg": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-screenshot-3.jpg",
-        "./screenshots/04-dark.jpg": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1-screenshot-4.jpg"
+        "./screenshots/01-market.jpg": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/01-market.jpg",
+        "./screenshots/02-detail.jpg": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/02-detail.jpg",
+        "./screenshots/03-workbench.jpg": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/03-workbench.jpg",
+        "./screenshots/04-dark.jpg": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/04-dark.jpg"
       }
     },
     {
@@ -1309,11 +1309,11 @@
       "description": "SSH 工作台：快速连接、终端提示、远程文件、三平台资源与进程端口、服务容器、传输和隧道",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ssh%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ssh%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ssh/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ssh/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ssh%400.0.1-screenshot-1.png",
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ssh%400.0.1-screenshot-2.webp"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ssh/public/assets/market/screenshots/01-main.png",
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ssh/public/assets/market/screenshots/02-remote-files.webp"
       ],
       "tags": [
         "SSH",
@@ -1343,10 +1343,10 @@
         "name": "ssh@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ssh%400.0.1.enestplugin",
         "size": 6073893,
-        "sha256": "dd399697751547657ac842cc2a6661b551c3efa8a41cbf764cb986d116b948f0"
+        "sha256": "69344f0a3b59e4c5fee46b383eb238d3c96d85a21e29c7f54224db2183b3aa9f"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ssh%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ssh/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1356,10 +1356,10 @@
       "description": "快速记录、Markdown 预览、颜色筛选、标签整理、归档回收与本地备份。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sticky-notes%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sticky-notes%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sticky-notes/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sticky-notes/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sticky-notes%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sticky-notes/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "备忘录",
@@ -1383,10 +1383,10 @@
         "name": "sticky-notes@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sticky-notes%400.0.1.enestplugin",
         "size": 200640,
-        "sha256": "d092f754d848f8cce17f963d70add321eaf1f9c0512b522551e861847b8987eb"
+        "sha256": "af007b49815aac76c9ce7bb9e8abfd08ba4c434aa8ec0a2a5e861c85984bb1fc"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sticky-notes%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sticky-notes/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1396,10 +1396,10 @@
       "description": "本机进程与端口巡检：概览仪表盘（CPU·内存数据卡 + 迷你趋势 + 阈值告警 + Top 进程）、双表联动、搜索、收藏置顶、结束进程危险确认、滚动曲线、刷新频率可调",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sysguard%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sysguard%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sysguard/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sysguard/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sysguard%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sysguard/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "进程",
@@ -1426,10 +1426,10 @@
         "name": "sysguard@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sysguard%400.0.1.enestplugin",
         "size": 146779,
-        "sha256": "8e03929d77f620b75838b5fba242d33247e708a974eae7cdf184242bae80194d"
+        "sha256": "d000c95df6053708f0fa79dad974eafb791be8b38f2ee71fb69c8305d3d3aa2d"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sysguard%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sysguard/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1439,10 +1439,10 @@
       "description": "时间戳与时区转换、多时区时钟、格式模板、批量转换、日期加减与时间差。",
       "author": "eNest Labs",
       "category": "开发",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/timestamp%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/timestamp%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/timestamp/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/timestamp/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/timestamp%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/timestamp/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "时间戳",
@@ -1467,10 +1467,10 @@
         "name": "timestamp@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/timestamp%400.0.1.enestplugin",
         "size": 161099,
-        "sha256": "bd8a064fe861086f661faa7af889bb02c4aafafbd7a72e8725cff16e8bd7e3d5"
+        "sha256": "0642bc9e5129c38257ca26642050e3b669b317520de19fc2b1c3bfc20056e974"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/timestamp%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/timestamp/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1480,10 +1480,10 @@
       "description": "任务清单、拖拽排序、截止日期、优先级、子任务进度与标签；快捷记录，桌面完整整理。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/todos%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/todos%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/todos/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/todos/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/todos%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/todos/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "待办",
@@ -1505,10 +1505,10 @@
         "name": "todos@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/todos%400.0.1.enestplugin",
         "size": 193158,
-        "sha256": "3ddb8e97be9cb7b29492208feff61401485a7d4e58878af134b6bb3b892bfc68"
+        "sha256": "4fe3f71b40a61dbf49ec0c262a31ed1905799d9d1c5bdaf7f6391e1a3c004259"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/todos%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/todos/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1518,10 +1518,10 @@
       "description": "多引擎翻译、原文译文对照即时翻译（防抖）、语言快捷切换、历史与收藏、双语复制导出。",
       "author": "Lingua",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/translate%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/translate%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/translate/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/translate/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/translate%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/translate/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "翻译",
@@ -1547,10 +1547,10 @@
         "name": "translate@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/translate%400.0.1.enestplugin",
         "size": 149718,
-        "sha256": "342bb1b3c5ef7479505c4f01591eb3570a9aa5800dbf1ce07aa06c3f301e2d5d"
+        "sha256": "aa58f55ac17ae6b07176d64c83c90a50834ae179cf3d4fe52e714475bb8fa32a"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/translate%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/translate/public/assets/market/screenshots/01-main.png"
       }
     },
     {
@@ -1560,10 +1560,10 @@
       "description": "长度/面积/体积/质量/温度/速度/数据量/时间/压力/能量/进制/汇率同屏联动换算，公式展示与常用单位置顶，人民币大写。",
       "author": "eNest Labs",
       "category": "效率",
-      "icon": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/unit-convert%400.0.1-icon.svg",
-      "readmeUrl": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/unit-convert%400.0.1-README.md",
+      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/unit-convert/public/assets/market/icon.svg",
+      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/unit-convert/public/assets/market/README.md",
       "screenshots": [
-        "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/unit-convert%400.0.1-screenshot-1.png"
+        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/unit-convert/public/assets/market/screenshots/01-main.png"
       ],
       "tags": [
         "单位",
@@ -1588,10 +1588,10 @@
         "name": "unit-convert@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/unit-convert%400.0.1.enestplugin",
         "size": 123802,
-        "sha256": "7dba2ad46fedcf1e2a61f1da2bc3abb0892ba55f79991cf0a15264b2f90d749c"
+        "sha256": "f0a993da963a5cc1da011237193f32a4911a654eb6a756dd5abd084cd395c254"
       },
       "readmeImages": {
-        "./screenshots/01-main.png": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/unit-convert%400.0.1-screenshot-1.png"
+        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/unit-convert/public/assets/market/screenshots/01-main.png"
       }
     }
   ]

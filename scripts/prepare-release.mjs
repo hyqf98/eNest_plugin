@@ -1,36 +1,37 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, extname, posix } from 'node:path'
+import { join, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { repositoryRoot as root } from './plugin-contract.mjs'
-import { buildRegistry, archiveMetadata } from './build-registry.mjs'
+import { buildRegistry, archiveMetadata, SOURCE_BASE } from './build-registry.mjs'
 import { markdownImagePaths } from './market-assets.mjs'
 import { PLATFORM_TARGETS } from './distribution-target.mjs'
 
-/** GitHub attachments are flat; extract the same version's resources from its archive. */
+/**
+ * 市场门面（icon/截图/README 及其内嵌图）以仓库 main 分支的 public 资产为
+ * 单一事实源；Release 只承载不可变的 .enestplugin 包、DSH 运行时与索引。
+ * 仅包下载地址（asset.url）指向 Release，媒体一律引用仓库源码。
+ */
 export function prepareRelease({ repositoryRoot = root, repository, tag, outDir = join(repositoryRoot, 'dist') }) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repository ?? '') || !tag) throw new Error('REPO and TAG are required')
   const registry = buildRegistry(repositoryRoot, { outDir })
   const base = `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/`
-  for (const plugin of registry.plugins) {
-    const { manifest, entries } = archiveMetadata(readFileSync(join(outDir, plugin.asset.name)), plugin)
-    const publish = (path, suffix) => {
-      const filename = `${plugin.id.split('.').pop()}@${plugin.version}-${suffix}${extname(path).toLowerCase()}`
-      writeFileSync(join(outDir, filename), entries[path]); return base + encodeURIComponent(filename)
-    }
-    plugin.icon = publish(manifest.icon, 'icon')
-    plugin.screenshots = manifest.market.screenshots.map((path, index) => publish(path, `screenshot-${index + 1}`))
-    plugin.readmeUrl = publish(manifest.market.readme, 'README')
-    plugin.readmeImages = {}
+  const readmeImages = (plugin, target = 'universal') => {
+    const { manifest, entries } = archiveMetadata(readFileSync(join(outDir, plugin.asset.name)), plugin, { target })
+    const sourceUrl = path => `${SOURCE_BASE}plugins/${plugin.id.split('.').pop()}/public/${path.split('/').map(encodeURIComponent).join('/')}`
+    const images = {}
     const markdown = new TextDecoder().decode(entries[manifest.market.readme])
-    let imageIndex = 0
     for (const relative of markdownImagePaths(markdown)) {
       const path = posix.normalize(posix.join(posix.dirname(manifest.market.readme), relative))
       if (!path.startsWith('assets/market/') || !entries[path] || !/\.(png|webp|jpe?g)$/i.test(path)) throw new Error(`Invalid README image: ${relative}`)
       const screenshotIndex = manifest.market.screenshots.indexOf(path)
-      plugin.readmeImages[relative] = screenshotIndex >= 0 ? plugin.screenshots[screenshotIndex] : publish(path, `readme-image-${++imageIndex}`)
+      images[relative] = screenshotIndex >= 0 ? plugin.screenshots[screenshotIndex] : sourceUrl(path)
     }
+    return images
+  }
+  for (const plugin of registry.plugins) {
     plugin.asset.url = base + encodeURIComponent(plugin.asset.name)
+    plugin.readmeImages = readmeImages(plugin)
   }
   mkdirSync(outDir, { recursive: true }); writeFileSync(join(outDir, 'registry.json'), JSON.stringify(registry, null, 2) + '\n')
   for (const target of PLATFORM_TARGETS) {
@@ -38,9 +39,9 @@ export function prepareRelease({ repositoryRoot = root, repository, tag, outDir 
     if (!registry.plugins.some(plugin => existsSync(join(outDir, `${plugin.id.split('.').pop()}@${plugin.version}-${target}.enestplugin`)))) continue
     const variant = buildRegistry(repositoryRoot, { outDir, target })
     for (const plugin of variant.plugins) {
-      const portable = registry.plugins.find(candidate => candidate.id === plugin.id)
-      Object.assign(plugin, { icon: portable.icon, screenshots: portable.screenshots, readmeUrl: portable.readmeUrl, readmeImages: portable.readmeImages })
       plugin.asset.url = base + encodeURIComponent(plugin.asset.name)
+      // 与 buildRegistry 的选择一致：只有存在平台变体归档的插件才按 target 解析。
+      plugin.readmeImages = readmeImages(plugin, plugin.asset.name.endsWith(`-${target}.enestplugin`) ? target : 'universal')
     }
     writeFileSync(join(outDir, `registry-${target}.json`), JSON.stringify(variant, null, 2) + '\n')
   }

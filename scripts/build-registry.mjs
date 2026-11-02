@@ -8,7 +8,8 @@ import { repositoryRoot as root, pluginIds, readManifest, assertMediaPaths, vali
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
 import { BACKEND_INVENTORY_FILE, DISTRIBUTION_TARGET_FILE, normalizeTarget, platformPackagePlan, resolveDistributionTarget } from './distribution-target.mjs'
 
-const DEFAULT_SOURCE_BASE = 'https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/'
+/** 市场门面的单一事实源：插件仓库 main 分支下的 public 媒体。 */
+export const SOURCE_BASE = 'https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/'
 
 /** Only final ZIP bytes supply registry metadata and media. Source identifies the version to publish. */
 export function archiveMetadata(archive, expected, { target = 'universal' } = {}) {
@@ -68,7 +69,7 @@ export function archiveMetadata(archive, expected, { target = 'universal' } = {}
   return { manifest, entries, target: archiveTarget }
 }
 
-export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryRoot, 'dist'), baseUrl = DEFAULT_SOURCE_BASE, target = 'universal' } = {}) {
+export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryRoot, 'dist'), baseUrl = SOURCE_BASE, target = 'universal' } = {}) {
   normalizeTarget(target)
   mkdirSync(outDir, { recursive: true })
   const plugins = pluginIds(repositoryRoot).map(id => {
