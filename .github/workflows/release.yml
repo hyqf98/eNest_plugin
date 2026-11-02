@@ -215,7 +215,7 @@ jobs:
             exit 0
           fi
           git add registry.json
-          git commit -m 'chore: sync market registry for ${RELEASE_TAG} [skip ci]'
+          git commit -m "chore: sync market registry for ${RELEASE_TAG} [skip ci]"
           for attempt in 1 2 3; do
             if git push origin registry-sync:main; then exit 0; fi
             echo "[release] push attempt ${attempt} failed; rebasing on origin/main"
