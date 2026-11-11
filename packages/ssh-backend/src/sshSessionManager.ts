@@ -186,7 +186,7 @@ async function buildConnectConfig(input: SshConnectInput & { password?: string }
     return cfg
   }
   if (authType === 'agent') {
-    await authorizePluginPermission(pluginId, 'ssh.agent', `使用本机 SSH Agent 连接 ${input.username}@${input.host}`)
+    await authorizePluginPermission(pluginId, 'sys.sshAgent', `使用本机 SSH Agent 连接 ${input.username}@${input.host}`)
     cfg.agent = process.env.SSH_AUTH_SOCK || (process.platform === 'win32' ? 'pageant' : undefined)
     if (!cfg.agent) throw new Error('SSH_AUTH_SOCK not set; ssh-agent unavailable')
     return cfg

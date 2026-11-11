@@ -53,12 +53,14 @@ button.ghost {
   align-items: center;
   justify-content: center;
   min-height: 28px;
-  padding: 5px 10px;
+  /* min-height 28 只是下限，5px 上下内距 + 12px 字会撑到 29px；统一到 kit 的 4px 内距与 12.5px 字。 */
+  padding: 4px 12px;
   border: 1px solid transparent;
   border-radius: calc(var(--rn-radius) - 2px);
   background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
   color: var(--text-2, #747c88);
-  font-size: 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
   transition: background-color var(--rn-speed), border-color var(--rn-speed), color var(--rn-speed);
 }
 button.ghost:hover:not(:disabled) {
@@ -72,12 +74,13 @@ button.danger {
   align-items: center;
   justify-content: center;
   min-height: 28px;
-  padding: 6px 14px;
+  padding: 4px 12px;
   border: 1px solid var(--danger, #b44c50);
   border-radius: calc(var(--rn-radius) - 2px);
   background: transparent;
   color: var(--danger, #b44c50);
-  font-size: 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
   transition: background-color var(--rn-speed);
 }
 button.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger, #b44c50) 10%, transparent); }

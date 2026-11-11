@@ -95,18 +95,12 @@ export function renderTree() {
   if (store.connections.length && !scroll.childElementCount) scroll.textContent = '没有匹配的连接'
   root.appendChild(scroll)
 
+  // 新建入口只在树头留一个“＋”：底部再放一条同名按钮会让同一动作出现两处。
   const foot = document.createElement('div')
   foot.className = 'tree-foot'
-  const newBtn = document.createElement('button')
-  newBtn.type = 'button'
-  newBtn.className = 'new-btn'
-  newBtn.textContent = '＋ 新建连接'
-  newBtn.addEventListener('click', () => {
-    import('./connections.js').then(({ openConnectionDrawer }) => openConnectionDrawer())
-  })
-  foot.appendChild(newBtn)
   const settings = document.createElement('button')
-  settings.className = 'new-btn'; settings.textContent = '⚙ 设置'; settings.dataset.openSettings = ''
+  settings.className = 'tree-foot-btn'; settings.textContent = '设置'; settings.dataset.openSettings = ''
+  settings.title = '界面主题、快捷键与输入提示'
   settings.onclick = () => { closeNavigation(); openSettings() }
   foot.append(settings)
   root.appendChild(foot)

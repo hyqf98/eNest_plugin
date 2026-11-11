@@ -1,5 +1,6 @@
 // 业务 CSS 先于 plugin-kit 注入（复刻原 <link> 在 head、kit CSS 后置的级联顺序，
 // kit 的 `button{font:inherit}` 等规则需能覆盖业务基础样式——顺序不可调换）。
+import '@enest/lxgw-font/lxgw.css'
 import './css/main.css'
 import './css/workbench.css'
 import './css/workspace.css'

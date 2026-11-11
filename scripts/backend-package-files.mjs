@@ -5,14 +5,17 @@ const packageName = /^(?:@[a-z0-9][a-z0-9_.-]*\/)?[a-z0-9][a-z0-9_.-]*$/i
 const legalName = /^\.?(?:licen[cs]es?|copying|copyright|notices?)(?:[._-]|$)/i
 const protectedName = name => name === 'package.json' || legalName.test(name)
 
-/** Exact package-relative exclusions, scoped to the plugin's declared external roots. */
+/**
+ * Exact package-relative exclusions for any package in the plugin's locked backend graph.
+ * 形态在这里校验；该包是否真的在锁定依赖图中，由构建期按解析结果复核（见 build-backend）。
+ */
 export function backendPackageFileExclusions(spec) {
   const result = new Map()
   if (spec.packageFilesExcluded === undefined) return result
   const config = spec.packageFilesExcluded
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('enestBackend.packageFilesExcluded must be an object')
   for (const [name, paths] of Object.entries(config)) {
-    if (!packageName.test(name) || !spec.dependencies?.includes(name)) throw new Error(`packageFilesExcluded package must be a declared backend root dependency: ${name}`)
+    if (!packageName.test(name)) throw new Error(`Invalid backend package exclusion package name: ${name}`)
     if (!Array.isArray(paths) || paths.length === 0) throw new Error(`packageFilesExcluded.${name} must be a non-empty path array`)
     const unique = new Set()
     for (const path of paths) {
@@ -23,6 +26,28 @@ export function backendPackageFileExclusions(spec) {
       unique.add(path)
     }
     result.set(name, unique)
+  }
+  return result
+}
+
+/**
+ * Declared runtime-unused dependencies, scoped to the plugin's locked dependency graph.
+ * 语义：作者声明该依赖在运行时不会被 require，构建时不复制它的文件及其子树。
+ * 只做形态校验；可达性与真实引用检查在构建时对锁文件依赖图执行。
+ */
+export function backendRuntimeExclusions(spec) {
+  const result = new Set()
+  if (spec.runtimeExcluded === undefined) return result
+  const config = spec.runtimeExcluded
+  if (!Array.isArray(config)) throw new Error('enestBackend.runtimeExcluded must be an array')
+  const optional = new Set(Array.isArray(spec.optionalExcluded) ? spec.optionalExcluded : [])
+  const platform = new Set(Array.isArray(spec.platformPackages) ? spec.platformPackages : [])
+  for (const name of config) {
+    if (typeof name !== 'string' || !packageName.test(name)) throw new Error(`Invalid backend runtime exclusion: ${name}`)
+    if (result.has(name)) throw new Error(`Duplicate backend runtime exclusion: ${name}`)
+    if (optional.has(name)) throw new Error(`Backend runtime exclusion conflicts with optionalExcluded: ${name}`)
+    if (platform.has(name)) throw new Error(`Backend runtime exclusion conflicts with platformPackages: ${name}`)
+    result.add(name)
   }
   return result
 }

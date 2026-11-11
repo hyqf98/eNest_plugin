@@ -25,28 +25,28 @@
    必须挂在 :root 上：设置弹框是 Radix Portal 挂到 body 下的，只有根级变量才能继承到，
    否则弹框里的下拉/按钮拿不到 --ac-*，会退回宿主蓝色系。 */
 :root[data-paper='paper'], .ac-app[data-paper='paper'] {
-  --ac-paper: #f7f3e8; --ac-card: #fffdf6; --ac-ink: #3a2f1e; --ac-ink-soft: #7a6c52;
-  --ac-edge: #8a5a2b; --ac-accent: #a61e1e; --ac-blue: #1d5c8a;
-  --ac-grid: #c9bfa8; --ac-soft: #efe8d6; --ac-shadow: rgba(74, 60, 34, 0.14);
-  --ac-minimap-node: #b9a87f; --ac-minimap-mask: rgba(247, 243, 232, 0.7);
+  --ac-paper: #fbfbf8; --ac-card: #ffffff; --ac-ink: #33302b; --ac-ink-soft: #6f6a61;
+  --ac-edge: #a89680; --ac-accent: #a63a34; --ac-blue: #2f5f82;
+  --ac-grid: #c4bdad; --ac-soft: #f1f1ec; --ac-shadow: rgba(60, 56, 48, 0.10);
+  --ac-minimap-node: #aea38a; --ac-minimap-mask: rgba(247, 243, 232, 0.7);
 }
 :root[data-paper='cream'], .ac-app[data-paper='cream'] {
-  --ac-paper: #f3e9d2; --ac-card: #faf3e0; --ac-ink: #43331d; --ac-ink-soft: #8a7752;
-  --ac-edge: #96662f; --ac-accent: #b0431f; --ac-blue: #27607f;
-  --ac-grid: #d3c39c; --ac-soft: #eadfc2; --ac-shadow: rgba(94, 72, 34, 0.16);
-  --ac-minimap-node: #bfa876; --ac-minimap-mask: rgba(243, 233, 210, 0.72);
+  --ac-paper: #f9f7f1; --ac-card: #fdfcf8; --ac-ink: #3a362e; --ac-ink-soft: #767065;
+  --ac-edge: #9c8a6f; --ac-accent: #a8452f; --ac-blue: #33607f;
+  --ac-grid: #c4bdab; --ac-soft: #efebe1; --ac-shadow: rgba(64, 60, 50, 0.11);
+  --ac-minimap-node: #afa286; --ac-minimap-mask: rgba(243, 233, 210, 0.72);
 }
 :root[data-paper='dark'], .ac-app[data-paper='dark'] {
-  --ac-paper: #26231e; --ac-card: #302c25; --ac-ink: #ece5d3; --ac-ink-soft: #a89c83;
-  --ac-edge: #cfa96a; --ac-accent: #e0705c; --ac-blue: #7fb2d4;
-  --ac-grid: #4a4438; --ac-soft: #3a352c; --ac-shadow: rgba(0, 0, 0, 0.4);
-  --ac-minimap-node: #8d8064; --ac-minimap-mask: rgba(38, 35, 30, 0.7);
+  --ac-paper: #222220; --ac-card: #2a2a27; --ac-ink: #e8e5dd; --ac-ink-soft: #a5a094;
+  --ac-edge: #b8a888; --ac-accent: #d98070; --ac-blue: #88b0cc;
+  --ac-grid: #4a4438; --ac-soft: #32322e; --ac-shadow: rgba(0, 0, 0, 0.4);
+  --ac-minimap-node: #8d8064; --ac-minimap-mask: rgba(34, 34, 32, 0.7);
 }
 :root[data-paper='board'], .ac-app[data-paper='board'] {
-  --ac-paper: #2c3a2f; --ac-card: #344537; --ac-ink: #e9e8d6; --ac-ink-soft: #a9b39a;
-  --ac-edge: #d8d2ae; --ac-accent: #e8937a; --ac-blue: #9fc3d8;
-  --ac-grid: #4a5a4c; --ac-soft: #3c4c3e; --ac-shadow: rgba(0, 0, 0, 0.38);
-  --ac-minimap-node: #8b9a84; --ac-minimap-mask: rgba(44, 58, 47, 0.7);
+  --ac-paper: #293029; --ac-card: #30372f; --ac-ink: #e6e5da; --ac-ink-soft: #a6ab9c;
+  --ac-edge: #c2bfa8; --ac-accent: #d79180; --ac-blue: #a0c2d4;
+  --ac-grid: #4a5a4c; --ac-soft: #383f37; --ac-shadow: rgba(0, 0, 0, 0.38);
+  --ac-minimap-node: #8b9a84; --ac-minimap-mask: rgba(41, 48, 41, 0.7);
 }
 
 /* 把宿主/pk-ui 读的 token 映射到当前纸面（--ac-* 已随 :root[data-paper] 定义）。

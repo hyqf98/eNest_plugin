@@ -44,25 +44,6 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "contributes": {
-    "settings": [
-      {
-        "id": "ai-canvas.prefs",
-        "title": "AI 画布",
-        "items": [
-          {
-            "key": "openPrefs",
-            "type": "page",
-            "label": "打开 AI 画布设置",
-            "entry": {
-              "code": "settings",
-              "payload": {}
-            }
-          }
-        ]
-      }
-    ]
-  },
   "market": {
     "tags": [
       "AI 绘画",

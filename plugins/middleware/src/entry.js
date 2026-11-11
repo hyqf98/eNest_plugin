@@ -1,4 +1,5 @@
 /* React 迁移：业务 CSS 必须先于 @enest/plugin-kit/* 加载（复刻原 <link> 级联顺序，像素级一致的命门） */
+import '@enest/lxgw-font/lxgw.css'
 import './css/main.css'
 import './css/workbench.css'
 import './css/settings.css'

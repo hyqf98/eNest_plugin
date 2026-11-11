@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { DbConnectionConfig, DbSessionInfo } from '@backend/contracts/ssh-db'
 import type { HostDbConnectionConfig } from '@backend/hostDbConfig'
 
-type Permission = 'db.connect' | 'db.query' | 'db.schema'
+type Permission = 'net.database' | 'net.database.query' | 'net.database.schema'
 type NativeService = Record<string, (pluginId: string, ...args: never[]) => unknown>
 interface Host {
   pluginId: string
@@ -12,30 +12,30 @@ interface Host {
 interface ConnectionLease { token: string; ready: Promise<unknown>; release?: Promise<void> }
 
 const routes: Record<string, { service: string; permission: Permission | null; args: number }> = {
-  'db.test': { service: 'dbTest', permission: 'db.connect', args: 1 },
-  'db.open': { service: 'dbOpen', permission: 'db.connect', args: 1 },
-  'db.close': { service: 'dbClose', permission: 'db.connect', args: 1 },
-  'db.listSessions': { service: 'dbListSessions', permission: 'db.connect', args: 0 },
-  'db.execute': { service: 'dbExecute', permission: 'db.query', args: 1 },
-  'db.explain': { service: 'dbExplain', permission: 'db.query', args: 1 },
-  'db.cancel': { service: 'dbCancel', permission: 'db.query', args: 1 },
-  'db.applyChanges': { service: 'dbApplyChanges', permission: 'db.query', args: 1 },
-  'db.importPreview': { service: 'dbImportPreview', permission: 'db.query', args: 1 },
-  'db.importRun': { service: 'dbImportRun', permission: 'db.query', args: 1 },
-  'db.schema.tree': { service: 'dbSchemaTree', permission: 'db.schema', args: 1 },
-  'db.schema.describe': { service: 'dbSchemaDescribe', permission: 'db.schema', args: 1 },
-  'db.schema.ddl': { service: 'dbSchemaDdl', permission: 'db.schema', args: 1 },
-  'db.completion.suggest': { service: 'dbCompletion', permission: 'db.schema', args: 1 },
+  'db.test': { service: 'dbTest', permission: 'net.database', args: 1 },
+  'db.open': { service: 'dbOpen', permission: 'net.database', args: 1 },
+  'db.close': { service: 'dbClose', permission: 'net.database', args: 1 },
+  'db.listSessions': { service: 'dbListSessions', permission: 'net.database', args: 0 },
+  'db.execute': { service: 'dbExecute', permission: 'net.database.query', args: 1 },
+  'db.explain': { service: 'dbExplain', permission: 'net.database.query', args: 1 },
+  'db.cancel': { service: 'dbCancel', permission: 'net.database.query', args: 1 },
+  'db.applyChanges': { service: 'dbApplyChanges', permission: 'net.database.query', args: 1 },
+  'db.importPreview': { service: 'dbImportPreview', permission: 'net.database.query', args: 1 },
+  'db.importRun': { service: 'dbImportRun', permission: 'net.database.query', args: 1 },
+  'db.schema.tree': { service: 'dbSchemaTree', permission: 'net.database.schema', args: 1 },
+  'db.schema.describe': { service: 'dbSchemaDescribe', permission: 'net.database.schema', args: 1 },
+  'db.schema.ddl': { service: 'dbSchemaDdl', permission: 'net.database.schema', args: 1 },
+  'db.completion.suggest': { service: 'dbCompletion', permission: 'net.database.schema', args: 1 },
   'db.dialects.list': { service: 'dbDialectsList', permission: null, args: 0 }
 }
 
 export function workbenchPermission(action: string): Permission | null {
   switch (action) {
     case 'drivers.list': return null
-    case 'test': return 'db.connect'
-    case 'redis.scan': case 'inspect': case 'table.design.preview': return 'db.schema'
+    case 'test': return 'net.database'
+    case 'redis.scan': case 'inspect': case 'table.design.preview': return 'net.database.schema'
     case 'table.page': case 'table.design.apply': case 'execute': case 'browse':
-    case 'cancel': case 'transaction': case 'compare': return 'db.query'
+    case 'cancel': case 'transaction': case 'compare': return 'net.database.query'
     default: throw new Error(`Unknown database workbench action: ${String(action)}`)
   }
 }

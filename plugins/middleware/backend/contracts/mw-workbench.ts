@@ -230,13 +230,13 @@ export interface MwBindingCreateInput {
 // —— workbench action 契约（权限映射见插件 backend/workbench.ts）——
 
 export type MwWorkbenchRequest =
-  // mw.connect
+  // net.messaging
   | { action: 'kinds.list'; input?: Record<string, never> }
   | { action: 'test'; input: { config: MwConnectionConfig } }
   | { action: 'session.open'; input: { sessionKey: string; config: MwConnectionConfig } }
   | { action: 'session.close'; input: { sessionKey: string } }
   | { action: 'session.list'; input?: Record<string, never> }
-  // mw.query
+  // net.messaging.read
   | { action: 'overview'; input: { sessionKey: string } }
   | { action: 'topics.list'; input: { sessionKey: string; search?: string; includeInternal?: boolean } }
   | { action: 'topic.describe'; input: { sessionKey: string; topic: string } }
@@ -252,7 +252,7 @@ export type MwWorkbenchRequest =
   | { action: 'configs.describe'; input: { sessionKey: string; topic: string } }
   | { action: 'trace.message'; input: { sessionKey: string; key: string } }
   | { action: 'retained.list'; input: { sessionKey: string; search?: string } }
-  // mw.admin（连接级 readOnly 时插件后端直接拒绝）
+  // net.messaging.admin（连接级 readOnly 时插件后端直接拒绝）
   | { action: 'topic.create'; input: { sessionKey: string; topic: MwTopicCreateInput } }
   | { action: 'topic.update'; input: { sessionKey: string; name: string; attrs: Partial<MwTopicCreateInput> } }
   | { action: 'topic.delete'; input: { sessionKey: string; name: string } }

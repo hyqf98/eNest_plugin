@@ -136,7 +136,6 @@ export function App() {
         <div className="brand">
           <span className="brand-icon">{Icon.lock(18)}</span>
           <div>
-            <h1>密码本</h1>
             <span className="muted">{entries.length} 个账号 · 本地加密</span>
           </div>
         </div>

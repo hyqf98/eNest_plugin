@@ -302,7 +302,6 @@ export function App() {
   return (
     <main className="pkgen">
       <header className="app-bar">
-        <h1 className="shell-only">密码工具箱</h1>
         <nav className="segmented" role="tablist" aria-label="工具模式">
           {['password', 'passphrase', 'pin', 'uuid', 'inspect'].map((k) => (
             <button key={k} role="tab" data-kind={k} aria-selected={kind === k}
@@ -428,7 +427,7 @@ export function App() {
             <button id="copy-all" className="pk-btn" disabled={!values.length} data-gen-only hidden={!genOnly}
               onClick={() => values.length && copy(formatted())}>全部复制</button>
             <button id="clear-results" className="pk-btn ghost" data-gen-only hidden={!genOnly}
-              onClick={() => setValues([])}>清空</button>
+              onClick={() => setValues([])}>清空结果</button>
           </div>
           <div className="board-scroll">
             <div id="inspect-report" className="report" hidden={!report}>
@@ -458,7 +457,7 @@ export function App() {
             <details id="history-details" className="recent" hidden={kind === 'inspect' || !historyEnabledRef.current}>
               <summary>
                 <span>生成历史</span><span id="history-count" className="muted">{history.length ? history.length + ' 条' : ''}</span>
-                <button id="clear-history" className="pk-btn ghost" onClick={(e) => { e.preventDefault(); clearHistory() }}>清空</button>
+                <button id="clear-history" className="pk-btn ghost" onClick={(e) => { e.preventDefault(); clearHistory() }}>清空历史</button>
               </summary>
               <div id="history">
                 {history.map((v, i) => <SecretRow key={`${i}-${v}`} value={v} index={i} isHistory masked={masked} reveal={display(v, true)} onCopy={() => copy(v)} />)}

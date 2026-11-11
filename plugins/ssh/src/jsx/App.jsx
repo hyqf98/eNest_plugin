@@ -55,10 +55,6 @@ function AppSkeleton() {
           </div>
 
           <div className="side-body" id="side-body">
-            <div className="side-head">
-              <h1>SSH</h1>
-              <div className="spacer"></div>
-            </div>
             <div className="side-tools">
               <input id="search-input" type="search" placeholder="搜索" aria-label="搜索连接" />
               <div className="filter-row" id="filter-row"></div>

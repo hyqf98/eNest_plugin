@@ -1,14 +1,31 @@
 /* paper-theme — 纸感手绘主题层（移植自 ai-canvas 已验证的视觉语言）。
  *
- * 手法：在 :root[data-paper] 上重定义宿主语义 token（bg/surface/border/text/accent/
- * font/radius/shadow 系列）。database 现有规则几乎全部经 var()/color-mix() 消费这些
- * token，故换纸即全局换肤，不逐组件重写。
+ * 三层手法：
+ * 1) 令牌桥：在 :root[data-paper] 上重定义宿主语义 token（bg/surface/border/text/
+ *    accent/font/radius/shadow 系列）。database 现有规则几乎全部经 var()/color-mix()
+ *    消费这些 token，故换纸即全局换肤，不逐组件重写。
+ * 2) 造型层：token 只换得了色，换不了"形状"。卡片/浮层/输入这类需要手绘轮廓的元素，
+ *    在这里追加不对称圆角 + 硬偏移投影（2px 3px 0，不用模糊）+ 墨色描边。
+ *    描边有两种落法，按元素是否裁切/滚动来选（见下节纪律）。
+ * 3) 纸底点阵：.app 铺 radial-gradient 点阵，面板用 card/paper 混色让纸纹隐约透出。
  *
- * 宿主 token 由 api.js 以 element.style.setProperty 内联注入（特异性 ∞），故纸面
- * 取值一律加 !important —— 重要作者声明胜过非重要的内联样式。
- * 桥接值必须写具体量（hex / color-mix 字面）：JS（Monaco 同步、tooltip）经
- * getComputedStyle().getPropertyValue 读自定义属性，var() 链不会被解析。
- * 偏好 auto 由 applyPaper 解析成具体纸面（浅色=paper / 深色=dark），故桥始终生效。
+ * 为什么一律 !important：宿主 token 由 api.js 以 element.style.setProperty 内联注入
+ * （特异性 ∞），普通样式表规则压不过内联；重要作者声明才能接管。桥接值必须写具体量
+ * （hex / color-mix 字面），因为 JS（Monaco 同步、tooltip）经 getComputedStyle 读
+ * 自定义属性，var() 链不会被解析。偏好 auto 由 applyPaper 解析成具体纸面，故桥始终生效。
+ *
+ * 描边纪律（改这里之前先读）—— SVG 位移滤镜不是万能胶，用错位置会"线消失"：
+ *   · 位移滤镜的作用区域按元素边框盒的百分比算。给一条 1.5px 高的分隔线加
+ *     filter:url(#ink-rough)（±1.6px 位移），区域本身只有 ~1.7px，线会被整条推出去裁掉。
+ *     → 细线一律用 border/dashed，不用滤镜。
+ *   · 元素自身 overflow:hidden 会连自己的 ::before/::after 一起裁掉。
+ *     → .wb-dialog 这种"自身不滚、只在 body 里滚"的，描边退到 inset:3px 的内框；
+ *     → .ctx-menu / .cs-dropdown 是 overflow:auto 的滚动容器，absolute 伪元素会随
+ *       内容滚走，改用真 border（border 属于元素盒子，不参与滚动）。
+ *   · 外扩 inset:-3px 只给确定不裁切的卡片（.wb-theme-option / .wb-observe-kpi），
+ *     且祖先不得 overflow:hidden。
+ *   · 大尺寸长滚动容器（.side / .right-panel / .grid-body）不用滤镜：每帧重栅格化贵，
+ *     且边缘必被裁。用 1.4px 墨色虚线替代，观感同样是铅笔。
  *
  * 强调色取「蓝墨」（执行/链接/活动/排序/焦点），朱红留给 danger/删除/脏行。
  * 数据网格/单元格编辑/Monaco/xterm 走 --mono，不做手绘化。
@@ -18,181 +35,204 @@
   /* 手写字体：霞鹜文楷 Lite（OFL），unicode-range 子集懒加载；缺失回落系统楷体。 */
   --ink-hand: 'LXGW WenKai Lite', 'Kaiti SC', 'STKaiti', serif;
   /* 材质变体删除后，设置页选择卡 background 仍引用 --workspace；给纸面回退防 color-mix 失效。 */
-  --workspace: var(--bg, #f7f3e8);
+  --workspace: var(--bg, #fbfbf8);
   /* 墨迹圆角：像素值不对称四值（百分比在大尺寸会摊成椭圆）。 */
   --ink-radius-card: 14px 18px 15px 19px / 17px 14px 19px 15px;
   --ink-radius-pop: 13px 17px 14px 18px / 16px 13px 18px 14px;
   --ink-radius-input: 8px 11px 9px 12px / 11px 8px 12px 9px;
+  /* 小圆钮/圆点：百分比在这里是对的——元素本身就是小方块，椭圆半径才是"笔尖画圆"。 */
   --ink-radius-ctl: 48% 52% 46% 54% / 54% 46% 55% 45%;
   --ink-speed: 0.16s;
+  /* 墨色发丝线：值里引用 --text，在消费处才解析，四套纸各自成立。 */
+  --ink-line: color-mix(in srgb, var(--text) 34%, transparent);
+  --ink-line-soft: color-mix(in srgb, var(--text) 20%, transparent);
+  --ink-line-strong: color-mix(in srgb, var(--text) 58%, transparent);
+  /* 面板底：card 与 paper 的混色，比纯 surface 更像"纸"，也给点阵留出隐约透出的余量。 */
+  --ink-card-bg: color-mix(in srgb, var(--surface) 82%, var(--bg));
+  /* 输入/凹槽底：比卡片更靠近纸色，读起来像纸上的一个凹痕。 */
+  --ink-well-bg: color-mix(in srgb, var(--bg) 58%, var(--surface));
 }
 
 /* ══ 白纸 paper ══ */
 :root[data-paper='paper'] {
   color-scheme: light !important;
-  --ac-edge: #8a5a2b; --ac-shadow: rgba(74, 60, 34, 0.14);
-  --db-scrim: #3a2f1e !important;
-  --bg: #f7f3e8 !important;
-  --surface: #fffdf6 !important;
-  --surface-2: #efe8d6 !important;
-  --surface-3: #e7e5e5 !important;
-  --border: rgba(58, 47, 30, 0.20) !important;
-  --border-strong: rgba(58, 47, 30, 0.34) !important;
-  --text: #3a2f1e !important;
-  --text-2: #7a6c52 !important;
-  --text-3: #918469 !important;
-  --accent: #1d5c8a !important;
-  --accent-soft: rgba(29, 92, 138, 0.12) !important;
-  --accent-contrast: #fffdf6 !important;
-  --brand: #1d5c8a !important;
-  --brand-strong: #1d5c8a !important;
-  --brand-soft: rgba(29, 92, 138, 0.12) !important;
+  --ac-edge: #a89680; --ac-shadow: rgba(60, 56, 48, 0.10);
+  --bg-dot: rgba(120, 112, 100, 0.22);
+  --db-scrim: #33302b !important;
+  --bg: #fbfbf8 !important;
+  --surface: #ffffff !important;
+  --surface-2: #f1f1ec !important;
+  --surface-3: #e6e6e0 !important;
+  --border: rgba(51, 48, 43, 0.14) !important;
+  --border-strong: rgba(51, 48, 43, 0.24) !important;
+  --text: #33302b !important;
+  --text-2: #6f6a61 !important;
+  --text-3: #8a8579 !important;
+  --accent: #2f5f82 !important;
+  --accent-soft: rgba(47, 95, 130, 0.12) !important;
+  --accent-contrast: #ffffff !important;
+  --brand: #2f5f82 !important;
+  --brand-strong: #2f5f82 !important;
+  --brand-soft: rgba(47, 95, 130, 0.12) !important;
   --ok: #3f9b57 !important;
   --ok-soft: rgba(63, 155, 87, 0.12) !important;
-  --danger: #a61e1e !important;
-  --danger-soft: rgba(166, 30, 30, 0.12) !important;
-  --warn: #b07c2a !important;
+  --danger: #a63a34 !important;
+  --danger-soft: rgba(166, 58, 52, 0.12) !important;
+  --warn: #8e744c !important;
   --warn-soft: rgba(176, 124, 42, 0.14) !important;
   /* pk-ui 的 --line/--wash 从未定义（深色泄漏 #dfe3e8/#f4f6f8 的根因），此处补真实语义。 */
-  --line: rgba(58, 47, 30, 0.34) !important;
-  --wash: #fffdf6 !important;
+  --line: rgba(51, 48, 43, 0.24) !important;
+  --wash: #ffffff !important;
   --font: var(--ink-hand) !important;
   --radius-xs: 6px !important; --radius-sm: 8px !important;
   --radius-md: 10px !important; --radius-lg: 12px !important;
   --radius-xl: 14px !important; --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
-  --row-hover: rgba(29, 92, 138, 0.08) !important;
-  --row-sel: rgba(29, 92, 138, 0.14) !important;
-  --tok-kw: #a61e1e; --tok-fn: #b45309; --tok-str: #2f7a3a; --tok-cmt: #7a6c52;
-  --tok-num: #c2410c; --tok-op: #1d5c8a; --tok-identq: #0e7490; --tok-table: #1d5c8a; --tok-alias: #a61e1e;
+  /* 行悬停用纸墨洗，选中才用蓝墨（悬停是"纸被摸过"，选中是"被标记"）。 */
+  --row-hover: rgba(58, 47, 30, 0.055) !important;
+  --row-sel: rgba(29, 92, 138, 0.13) !important;
+  --tok-kw: #a63a34; --tok-fn: #b45309; --tok-str: #2f7a3a; --tok-cmt: #6f6a61;
+  --tok-num: #c2410c; --tok-op: #2f5f82; --tok-identq: #0e7490; --tok-table: #2f5f82; --tok-alias: #a63a34;
 }
 
 /* ══ 米黄 cream ══ */
 :root[data-paper='cream'] {
   color-scheme: light !important;
-  --ac-edge: #96662f; --ac-shadow: rgba(94, 72, 34, 0.16);
-  --db-scrim: #43331d !important;
-  --bg: #f3e9d2 !important;
-  --surface: #faf3e0 !important;
-  --surface-2: #eadfc2 !important;
-  --surface-3: #e4dcc9 !important;
-  --border: rgba(67, 51, 29, 0.20) !important;
-  --border-strong: rgba(67, 51, 29, 0.34) !important;
-  --text: #43331d !important;
-  --text-2: #8a7752 !important;
-  --text-3: #9d8c69 !important;
-  --accent: #27607f !important;
+  --ac-edge: #9c8a6f; --ac-shadow: rgba(64, 60, 50, 0.11);
+  --bg-dot: rgba(124, 116, 100, 0.22);
+  --db-scrim: #3a362e !important;
+  --bg: #f9f7f1 !important;
+  --surface: #fdfcf8 !important;
+  --surface-2: #efebe1 !important;
+  --surface-3: #e4dfd3 !important;
+  --border: rgba(58, 54, 46, 0.14) !important;
+  --border-strong: rgba(58, 54, 46, 0.24) !important;
+  --text: #3a362e !important;
+  --text-2: #767065 !important;
+  --text-3: #918a7d !important;
+  --accent: #33607f !important;
   --accent-soft: rgba(39, 96, 127, 0.12) !important;
-  --accent-contrast: #faf3e0 !important;
-  --brand: #27607f !important;
-  --brand-strong: #27607f !important;
+  --accent-contrast: #fdfcf8 !important;
+  --brand: #33607f !important;
+  --brand-strong: #33607f !important;
   --brand-soft: rgba(39, 96, 127, 0.12) !important;
   --ok: #4f8b3f !important;
   --ok-soft: rgba(79, 139, 63, 0.12) !important;
-  --danger: #b0431f !important;
+  --danger: #a8452f !important;
   --danger-soft: rgba(176, 67, 31, 0.12) !important;
-  --warn: #b3822c !important;
+  --warn: #91794e !important;
   --warn-soft: rgba(179, 130, 44, 0.14) !important;
-  --line: rgba(67, 51, 29, 0.34) !important;
-  --wash: #faf3e0 !important;
+  --line: rgba(58, 54, 46, 0.24) !important;
+  --wash: #fdfcf8 !important;
   --font: var(--ink-hand) !important;
   --radius-xs: 6px !important; --radius-sm: 8px !important;
   --radius-md: 10px !important; --radius-lg: 12px !important;
   --radius-xl: 14px !important; --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
-  --row-hover: rgba(39, 96, 127, 0.08) !important;
+  --row-hover: rgba(67, 51, 29, 0.06) !important;
   --row-sel: rgba(39, 96, 127, 0.14) !important;
-  --tok-kw: #b0431f; --tok-fn: #96662f; --tok-str: #2f7a3a; --tok-cmt: #8a7752;
-  --tok-num: #c2410c; --tok-op: #27607f; --tok-identq: #0e7490; --tok-table: #27607f; --tok-alias: #b0431f;
+  --tok-kw: #a8452f; --tok-fn: #9c8a6f; --tok-str: #2f7a3a; --tok-cmt: #767065;
+  --tok-num: #c2410c; --tok-op: #33607f; --tok-identq: #0e7490; --tok-table: #33607f; --tok-alias: #a8452f;
 }
 
 /* ══ 深色 dark ══ */
 :root[data-paper='dark'] {
   color-scheme: dark !important;
-  --ac-edge: #cfa96a; --ac-shadow: rgba(0, 0, 0, 0.4);
-  --db-scrim: #26231e !important;
-  --bg: #26231e !important;
-  --surface: #302c25 !important;
-  --surface-2: #3a352c !important;
-  --surface-3: #47423a !important;
-  --border: rgba(236, 229, 211, 0.22) !important;
-  --border-strong: rgba(236, 229, 211, 0.38) !important;
-  --text: #ece5d3 !important;
-  --text-2: #a89c83 !important;
-  --text-3: #8b8169 !important;
-  --accent: #7fb2d4 !important;
+  --ac-edge: #b8a888; --ac-shadow: rgba(0, 0, 0, 0.4);
+  --bg-dot: rgba(160, 150, 132, 0.22);
+  --db-scrim: #222220 !important;
+  --bg: #222220 !important;
+  --surface: #2a2a27 !important;
+  --surface-2: #32322e !important;
+  --surface-3: #3a3a35 !important;
+  --border: rgba(232, 229, 221, 0.16) !important;
+  --border-strong: rgba(232, 229, 221, 0.28) !important;
+  --text: #e8e5dd !important;
+  --text-2: #a5a094 !important;
+  --text-3: #8b877c !important;
+  --accent: #88b0cc !important;
   --accent-soft: rgba(127, 178, 212, 0.16) !important;
-  --accent-contrast: color-mix(in srgb, #ece5d3 88%, #26231e) !important;
-  --brand: #7fb2d4 !important;
-  --brand-strong: #7fb2d4 !important;
+  --accent-contrast: #222220 !important;
+  --brand: #88b0cc !important;
+  --brand-strong: #88b0cc !important;
   --brand-soft: rgba(127, 178, 212, 0.16) !important;
   --ok: #83bd8a !important;
   --ok-soft: rgba(131, 189, 138, 0.16) !important;
-  --danger: #e0705c !important;
+  --danger: #d98070 !important;
   --danger-soft: rgba(224, 112, 92, 0.16) !important;
-  --warn: #d8b25e !important;
+  --warn: #b9a67d !important;
   --warn-soft: rgba(216, 178, 94, 0.16) !important;
-  --line: rgba(236, 229, 211, 0.38) !important;
-  --wash: #302c25 !important;
+  --line: rgba(232, 229, 221, 0.28) !important;
+  --wash: #2a2a27 !important;
   --font: var(--ink-hand) !important;
   --radius-xs: 6px !important; --radius-sm: 8px !important;
   --radius-md: 10px !important; --radius-lg: 12px !important;
   --radius-xl: 14px !important; --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
-  --row-hover: rgba(127, 178, 212, 0.12) !important;
+  --row-hover: rgba(236, 229, 211, 0.07) !important;
   --row-sel: rgba(127, 178, 212, 0.18) !important;
-  --tok-kw: #d9a3e6; --tok-fn: #cfa96a; --tok-str: #83bd8a; --tok-cmt: #a89c83;
-  --tok-num: #e8a07a; --tok-op: #7fb2d4; --tok-identq: #7fb2d4; --tok-table: #7fb2d4; --tok-alias: #e0705c;
+  --tok-kw: #d9a3e6; --tok-fn: #b8a888; --tok-str: #83bd8a; --tok-cmt: #a5a094;
+  --tok-num: #e8a07a; --tok-op: #88b0cc; --tok-identq: #88b0cc; --tok-table: #88b0cc; --tok-alias: #d98070;
 }
 
 /* ══ 黑板 board ══ */
 :root[data-paper='board'] {
   color-scheme: dark !important;
-  --ac-edge: #d8d2ae; --ac-shadow: rgba(0, 0, 0, 0.38);
-  --db-scrim: #2c3a2f !important;
-  --bg: #2c3a2f !important;
-  --surface: #344537 !important;
-  --surface-2: #3c4c3e !important;
-  --surface-3: #4a584a !important;
-  --border: rgba(233, 232, 214, 0.22) !important;
-  --border-strong: rgba(233, 232, 214, 0.38) !important;
-  --text: #e9e8d6 !important;
-  --text-2: #a9b39a !important;
-  --text-3: #8d9882 !important;
-  --accent: #9fc3d8 !important;
-  --accent-soft: rgba(159, 195, 216, 0.16) !important;
-  --accent-contrast: color-mix(in srgb, #e9e8d6 88%, #2c3a2f) !important;
-  --brand: #9fc3d8 !important;
-  --brand-strong: #9fc3d8 !important;
-  --brand-soft: rgba(159, 195, 216, 0.16) !important;
+  --ac-edge: #c2bfa8; --ac-shadow: rgba(0, 0, 0, 0.38);
+  --bg-dot: rgba(170, 168, 152, 0.22);
+  --db-scrim: #293029 !important;
+  --bg: #293029 !important;
+  --surface: #30372f !important;
+  --surface-2: #383f37 !important;
+  --surface-3: #404740 !important;
+  --border: rgba(230, 229, 218, 0.16) !important;
+  --border-strong: rgba(230, 229, 218, 0.28) !important;
+  --text: #e6e5da !important;
+  --text-2: #a6ab9c !important;
+  --text-3: #8b9082 !important;
+  --accent: #a0c2d4 !important;
+  --accent-soft: rgba(160, 194, 212, 0.16) !important;
+  --accent-contrast: #293029 !important;
+  --brand: #a0c2d4 !important;
+  --brand-strong: #a0c2d4 !important;
+  --brand-soft: rgba(160, 194, 212, 0.16) !important;
   --ok: #a8d0a0 !important;
   --ok-soft: rgba(168, 208, 160, 0.16) !important;
-  --danger: #e8937a !important;
-  --danger-soft: rgba(232, 147, 122, 0.16) !important;
-  --warn: #d6c07a !important;
+  --danger: #d79180 !important;
+  --danger-soft: rgba(215, 145, 128, 0.16) !important;
+  --warn: #c2b68e !important;
   --warn-soft: rgba(214, 192, 122, 0.16) !important;
-  --line: rgba(233, 232, 214, 0.38) !important;
-  --wash: #344537 !important;
+  --line: rgba(230, 229, 218, 0.28) !important;
+  --wash: #30372f !important;
   --font: var(--ink-hand) !important;
   --radius-xs: 6px !important; --radius-sm: 8px !important;
   --radius-md: 10px !important; --radius-lg: 12px !important;
   --radius-xl: 14px !important; --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
-  --row-hover: rgba(159, 195, 216, 0.12) !important;
-  --row-sel: rgba(159, 195, 216, 0.18) !important;
-  --tok-kw: #d9a3e6; --tok-fn: #d8d2ae; --tok-str: #a8d0a0; --tok-cmt: #a9b39a;
-  --tok-num: #e8a07a; --tok-op: #9fc3d8; --tok-identq: #9fc3d8; --tok-table: #9fc3d8; --tok-alias: #e8937a;
+  --row-hover: rgba(233, 232, 214, 0.07) !important;
+  --row-sel: rgba(160, 194, 212, 0.18) !important;
+  --tok-kw: #d9a3e6; --tok-fn: #c2bfa8; --tok-str: #a8d0a0; --tok-cmt: #a6ab9c;
+  --tok-num: #e8a07a; --tok-op: #a0c2d4; --tok-identq: #a0c2d4; --tok-table: #a0c2d4; --tok-alias: #d79180;
 }
 
-/* ── 纸面下接管 --font 后，数据区/代码区显式保持等宽，读数不被手写体干扰 ── */
+/* ══════════════════════════════════════════════════════════════
+   一、字体归属：chrome 吃手写体，数据吃等宽
+   ══════════════════════════════════════════════════════════════ */
+
+/* 纸面下接管 --font 后，数据区/代码区显式保持等宽，读数不被手写体干扰。 */
 :root[data-paper] .tr, :root[data-paper] .td, :root[data-paper] .th .col-type,
 :root[data-paper] .cell-editor, :root[data-paper] .sql-preview, :root[data-paper] .wb-table td,
 :root[data-paper] .ci-body code, :root[data-paper] .preview, :root[data-paper] .wb-json-node,
-:root[data-paper] .completion-popup, :root[data-paper] .comp-label {
+:root[data-paper] .completion-popup, :root[data-paper] .comp-label,
+:root[data-paper] .wb-document-tree, :root[data-paper] .wb-document-source,
+:root[data-paper] .wb-object-definition, :root[data-paper] .ddl,
+:root[data-paper] .wb-sql-preview, :root[data-paper] .sql-edit-preview, :root[data-paper] .sql-example,
+:root[data-paper] .db-shortcut-row input, :root[data-paper] .wb-shortcuts input,
+:root[data-paper] .cs-opt-hint, :root[data-paper] .comp-detail, :root[data-paper] .badge.driver {
   font-family: var(--mono) !important;
 }
 /* kit/Radix 控件（portal 到 body 时钉死手写体保持 chrome 一致）。 */
@@ -201,71 +241,774 @@
 :root[data-paper] .pk-input, :root[data-paper] .pk-btn {
   font-family: var(--ink-hand) !important;
 }
+/* 状态栏/树/表头/设置页这类 chrome 文案若被基础层写成 mono，统一拉回手写体。 */
+:root[data-paper] .wb-status, :root[data-paper] .nav-group-label, :root[data-paper] .nav-empty,
+:root[data-paper] .empty, :root[data-paper] .wb-empty, :root[data-paper] .wb-object-state,
+:root[data-paper] .head-row, :root[data-paper] .wb-table th, :root[data-paper] .wb-settings,
+:root[data-paper] .wb-diff-scroll td:first-child {
+  font-family: var(--ink-hand) !important;
+}
 
-/* ── 手绘签名层：浮层/对话框/卡片用「伪元素 + 位移滤镜」描真墨边，硬偏移投影浮起 ──
- * --ink-radius-card/--ac-shadow/--ac-ink 在纸面块已给具体值（--ink-* 定义于 :root 字面）。 */
-:root[data-paper] .ctx-menu, :root[data-paper] .cs-dropdown {
-  position: relative;
-  border: 0 !important;
+/* ══════════════════════════════════════════════════════════════
+   二、纸底与点阵
+   ai-canvas 的等价物是 react-flow <Background variant=Dots gap=26>；
+   这里用 .app 的 radial-gradient 铺点，面板半透让纸纹隐约透出。
+   ══════════════════════════════════════════════════════════════ */
+:root[data-paper] .app {
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, var(--bg-dot) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  background-position: 6px 8px;
+  color: var(--text);
+  font-family: var(--ink-hand);
+}
+/* 中栏透出纸底：编辑器/结果各自有底色，缝隙里能看见点阵。 */
+:root[data-paper] .app .mid-col { background: transparent; }
+/* 面板浮起：保留 plugin-kit 的 --workbench-gap，让侧栏/中栏/右栏成为三张独立纸片。
+   （此前为防止缝隙里的点阵被读成"错位的虚线"而把 gap 归零，结果圆角紧贴窗口边缘，
+   看起来像窗口缺了两角。）间距本身是浮起的前提：有缝才有"纸片压在纸底上"的层次，
+   缝隙里透出的点阵此时被上下两条墨虚线夹住，读起来是桌面而不是错位。
+   圆角、边框、投影统一交给 .pk-appearance 的 --appearance-panel-radius 与墨边。 */
+:root[data-paper] .app .workspace {
+  gap: var(--workbench-gap, 12px);
+  /* padding 由 kit 的 var(--appearance-inset) 提供；这里只保证它不从内容盒外扩——
+     默认 content-box 下 12px 内边距会把 .workspace 顶高 24px，状态栏被挤出视口。 */
+  box-sizing: border-box;
+}
+/* 三面圆角必须有外边距才成立：贴着窗口边缘的圆角只会让窗口"缺角"，不会让面板"浮起"。
+   padding 本身是 plugin-kit 的职责（它已为 database .workspace 写了
+   padding: var(--appearance-inset)），所以这里只把那个变量抬到与间隙同量级，
+   不去覆盖它的 padding 声明——那会与 :root:not(...) 的复合选择器抢特异性。 */
+:root[data-paper] { --appearance-inset: 12px; }
+/* 三块面板各自的纸片外观：圆角 + 墨色虚线边 + 硬偏移投影。
+   .side / .right-panel 有 kit 注入的 --appearance-panel-radius，中栏没有，这里补齐。
+   边框必须是整圈（不能只留 border-right/left）：有了间隙和三面圆角之后，只画内侧
+   那条线会让纸片缺两条边，读起来像被切掉一半。 */
+:root[data-paper] .app .mid-col {
+  border: 1.5px dashed var(--ink-line);
+  border-radius: var(--appearance-panel-radius, 10px);
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+  overflow: hidden;
+}
+:root[data-paper] .app .side,
+:root[data-paper] .app .right-panel {
+  border: 1.5px dashed var(--ink-line);
+  border-radius: var(--appearance-panel-radius, 10px);
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+}
+/* 内容面板用 card 与 paper 的混色而不是纯 surface：
+   纯 surface 在四套纸上都是"贴上去的白纸"，混色后才像同一张纸上压出来的区域。 */
+:root[data-paper] .app .editor-pane,
+:root[data-paper] .app .editor-host,
+:root[data-paper] .app .results,
+:root[data-paper] .app .grid-body,
+:root[data-paper] .app .grid-viewport,
+:root[data-paper] .app .sql-editor { background: var(--ink-card-bg); }
+/* 内容页（设置/结构/资源中心）压一层极薄纸色纱：点阵还在，但正文不再骑在点子上。 */
+:root[data-paper] .app .wb-page {
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   三、面板骨架：纸片分区 + 墨色发丝线
+   发丝线一律用真 border，不用 SVG 滤镜：位移滤镜的作用区域按元素边框盒的百分比算，
+   1.5px 高的 ::after 拿到的是 ~1.7px 的滤镜区域，±1.6px 的位移会把线整条推出区域裁掉，
+   结果不是"手绘感"而是"线消失了"。滤镜只留给尺寸足够大的卡片/浮层（见第四节）。
+   ══════════════════════════════════════════════════════════════ */
+:root[data-paper] .app .side,
+:root[data-paper] .app .right-panel,
+:root[data-paper] .app .mid-chrome,
+:root[data-paper] .app .wb-querybar,
+:root[data-paper] .app .wb-status {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* 侧栏/右栏：半透纸片 + 与 .app 同参数的点阵（22px / 1px / 同一起点）。
+   面板不再是紧贴窗口边缘的整条，而是浮在纸底上的圆角纸片（见上节 gap），
+   底色留一点透明让纸底透上来，圆角内侧与缝隙里的纹理才算同一张纸。 */
+:root[data-paper] .app .side,
+:root[data-paper] .app .right-panel {
+  background-color: color-mix(in srgb, var(--surface) 84%, transparent);
+  background-image: radial-gradient(circle, var(--bg-dot) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  background-position: 6px 8px;
+}
+/* 单条 chrome / 查询条：纸片底 + 虚线分隔（虚线比实线更像铅笔，且不需要滤镜）。 */
+:root[data-paper] .app .mid-chrome {
+  background: color-mix(in srgb, var(--surface) 82%, var(--bg));
+  border-bottom: 1.5px dashed var(--ink-line);
+}
+:root[data-paper] .app .wb-querybar {
+  background: color-mix(in srgb, var(--surface) 80%, var(--bg));
+  border-bottom: 1.5px dashed var(--ink-line);
+}
+/* 左工具轨 + 右功能轨（.wb-func-rail 原本没有任何样式，只有按钮自带参数，
+   所以它是一列无间距的块级按钮；这里补成与左轨对称的竖排轨道）。
+   不必写 :not([hidden])：基础层 [hidden]{display:none!important} 带 !important，
+   优先级压过这里未加 !important 的 display:flex。 */
+:root[data-paper] .app .nav-toolrail {
+  background: color-mix(in srgb, var(--surface) 68%, var(--bg));
+  border-right: 1.4px dashed var(--ink-line);
+}
+:root[data-paper] .app .wb-func-rail {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  width: 38px; flex: none; padding: 7px 3px;
+  border-left: 1.4px dashed var(--ink-line);
+  background: color-mix(in srgb, var(--surface) 68%, var(--bg));
+}
+:root[data-paper] .app .wb-func-rail .nav-toolrail-button { width: 30px; }
+
+/* 窄屏抽屉（data-nav-compact）：基础层用 28px 高斯模糊投影，纸面上换硬偏移。 */
+:root[data-paper] .app[data-nav-compact='true'] .side {
+  box-shadow: 5px 0 0 var(--ac-shadow);
+}
+
+/* 编辑器外框：不给 .editor-pane 画边框。
+   试过 border-left/right，但它的左右两侧永远紧邻别的东西（左是 .side 的虚线，右是
+   .resizer + 右栏），实测截图里读成"两条平行虚线"，像渲染错位而不是手绘。
+   编辑器与纸底的区分交给背景差（--ink-card-bg 比 paper 更白）+ 上方查询条的虚线与
+   下方结果区的上缘线；Monaco 内部一律不动。
+   仍保留的两条纪律：
+   · 不给 .editor-pane 加 overflow:hidden —— 会裁掉 Monaco 的溢出建议浮层
+     （overflowingContentWidgets 靠父级不裁切才能越界显示）。
+   · 不给它加圆角 —— Monaco 自己铺满一块方底，容器一圆角方底就从四角探出来。 */
+
+/* 结果区：上缘手绘分隔，表头下缘虚线；行与单元格保持干净（数据优先）。
+   结果停靠在右侧时（.app[data-result-dock=right]），结果区紧贴在查询条下方的右半列，
+   查询条的虚线已经在它上方，再画一条上缘会变成 3px 双线，故只在底部停靠时加。 */
+:root[data-paper] .app:not([data-result-dock='right']) .results:not([hidden]) {
+  border-top: 1.5px solid var(--ink-line);
+}
+:root[data-paper] .app .results .grid-head {
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+  border-bottom: 1.4px dashed var(--ink-line);
+}
+:root[data-paper] .app .result-tabs { border-bottom: 0; }
+:root[data-paper] .app .grid-bar { border-top: 0; border-bottom: 1.3px dashed var(--ink-line-soft); }
+:root[data-paper] .app .rg-pager { border-top: 1.3px dashed var(--ink-line-soft); }
+:root[data-paper] .app .wb-server-pager { border-top: 1.3px dashed var(--ink-line-soft); }
+:root[data-paper] .app .right-tabs { border-bottom: 1.3px dashed var(--ink-line); }
+/* 结果停靠右侧时它自带 border-left（workspace.css），一并换成墨线。 */
+:root[data-paper] .app[data-result-dock='right'] .results { border-left: 1.4px dashed var(--ink-line); }
+
+/* 状态栏：纸片条 + 虚线手绘上缘 + 空心墨点。 */
+:root[data-paper] .app .wb-status {
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+  border-top: 1.5px dashed var(--ink-line);
+  color: var(--text-2);
+}
+:root[data-paper] .app .wb-status-dot {
+  width: 8px; height: 8px; border-radius: var(--ink-radius-ctl);
+  background: transparent; border: 1.3px solid var(--ink-line-strong);
+}
+:root[data-paper] .app .wb-status-dot.on { background: var(--ok); border-color: var(--ok); }
+:root[data-paper] .app .ctx-chip .dot,
+:root[data-paper] .app .nav-status-dot {
+  border-radius: var(--ink-radius-ctl);
+  border: 1.2px solid var(--ink-line-strong);
+  background: transparent; opacity: 1;
+}
+:root[data-paper] .app .ctx-chip .dot.on { background: var(--ok); border-color: var(--ok); box-shadow: none; }
+:root[data-paper] .app .ctx-chip .dot.busy { background: var(--warn); border-color: var(--warn); box-shadow: none; }
+:root[data-paper] .app .nav-status-dot.online { background: var(--ok); border-color: var(--ok); }
+:root[data-paper] .app .nav-status-dot.browsing { background: var(--accent); border-color: var(--accent); }
+
+/* ══════════════════════════════════════════════════════════════
+   四、浮层真墨边
+   三个必须注意的点（改之前先读）：
+   · 不要给这里加 position:relative —— .ctx-menu/.cs-dropdown 是 fixed 且靠 left/top
+     定位，改成 relative 会让它们掉到文档流原点；<dialog> 更是靠 UA 的
+     position:fixed + inset:0 + margin:auto 在 top layer 居中，改成 relative 会直接
+     贴到文档顶部。fixed/absolute 本身已是伪元素的包含块，无需声明。
+   · .ctx-menu / .cs-dropdown 是 overflow:auto 的滚动容器。滚动容器里的 absolute
+     伪元素会随内容一起滚走（菜单项一多，墨边就滚出视口），所以这两个用真 border
+     —— border 属于元素盒子，不参与滚动，永远贴着浮层轮廓。
+   · .wb-dialog 是 overflow:hidden 且自身不滚（滚动发生在 .wb-dialog-body），
+     所以它可以用外扩伪元素 + 位移滤镜（这是手绘签名最强的一处）。
+   ══════════════════════════════════════════════════════════════ */
+:root[data-paper] .ctx-menu,
+:root[data-paper] .cs-dropdown {
+  border: 1.4px solid var(--text) !important;
   border-radius: var(--ink-radius-pop) !important;
+  background: var(--surface) !important;
   box-shadow: 3px 4px 0 var(--ac-shadow) !important;
   animation: ink-pop var(--ink-speed) ease-out;
 }
-:root[data-paper] .ctx-menu::before, :root[data-paper] .cs-dropdown::before {
-  content: ''; position: absolute; inset: -2px; pointer-events: none; z-index: 1;
-  border: 1.4px solid var(--text); border-radius: var(--ink-radius-pop);
-  filter: url(#ink-rough-fine); opacity: .72;
+/* 对话框：kit 的 .wb-dialog 带 overflow:hidden（为裁圆角）—— 这会把 inset:-3px 的
+   外扩伪元素整条裁掉，墨边直接消失。所以这里改「描两遍」的写法：
+   一条真 border 贴住圆角轮廓（border 不参与 overflow 裁切），
+   一条 3px 内缩的细墨线做手绘抖动，观感像铅笔勾了两道，两条都不会被裁。 */
+:root[data-paper] :is(.wb-dialog, .modal) {
+  border: 1.6px solid var(--text) !important;
+  border-radius: var(--ink-radius-card) !important;
+  background: var(--surface) !important;
+  color: var(--text);
+  box-shadow: 3px 5px 0 var(--ac-shadow) !important;
 }
-body:has(.app[data-paper]) :is(.wb-dialog, .modal) {
+:root[data-paper] :is(.wb-dialog, .modal)::before {
+  content: ''; position: absolute; inset: 3px; pointer-events: none; z-index: 3;
+  border: 1.2px solid var(--text); border-radius: var(--ink-radius-card);
+  filter: url(#ink-rough-fine); opacity: .42;
+}
+:root[data-paper] :is(.wb-dialog-head, .modal-head) {
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--surface)) !important;
+  border-bottom: 1.4px dashed var(--ink-line) !important;
+}
+:root[data-paper] :is(.wb-dialog-head h2, .wb-dialog-head strong, .modal-head h2) { font-family: var(--ink-hand); }
+:root[data-paper] .wb-dialog-head [data-dialog-close] {
+  border-radius: var(--ink-radius-input);
+  color: var(--text-2);
+  transition: color var(--ink-speed) ease, transform 0.09s ease;
+}
+:root[data-paper] .wb-dialog-head [data-dialog-close]:hover { color: var(--text); transform: rotate(-4deg); }
+/* toast：底部纸条。它是 fixed 且无 overflow，可以用外扩墨边（最接近 ai-canvas 的签名）。
+   墨线用中性 --text 而不是 currentColor —— 提示类型已经由文字色表达，
+   再让描边跟着变色会同时出现三种彩色描边，纸面观感立刻散掉。 */
+:root[data-paper] #local-toast {
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--ink-radius-pop);
+  box-shadow: 3px 4px 0 var(--ac-shadow);
+  font-family: var(--ink-hand);
+  padding: 8px 16px;
+}
+:root[data-paper] #local-toast::before {
+  content: ''; position: absolute; inset: -2px; pointer-events: none;
+  border: 1.4px solid var(--text); border-radius: var(--ink-radius-pop);
+  filter: url(#ink-rough-fine); opacity: .68;
+}
+/* 浮动提示：tips.js 用内联样式写死了底色/边框/投影，必须 !important 才能改回纸卡片。 */
+:root[data-paper] .enest-float-tip {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1.4px solid var(--text) !important;
+  border-radius: var(--ink-radius-input) !important;
+  box-shadow: 2px 3px 0 var(--ac-shadow) !important;
+  font-family: var(--ink-hand) !important;
+  padding: 4px 9px !important;
+}
+:root[data-paper] .nav-rail-tooltip {
+  background: var(--surface);
+  color: var(--text);
+  border: 1.4px solid var(--text);
+  border-radius: var(--ink-radius-input);
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+  font-family: var(--ink-hand);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   五、卡片真墨边（不裁切祖先 → 用外扩 ::before）
+   .wb-theme-option / .wb-observe-kpi 都不设 overflow，外扩 -3px 安全。
+   ══════════════════════════════════════════════════════════════ */
+:root[data-paper] .app .wb-theme-option,
+:root[data-paper] .app .wb-observe-kpi {
   position: relative;
   border: 0 !important;
+  /* 必须 !important：plugin-kit 的 `.pk-appearance :is(button, input:not(...), …)`
+     里 :is() 取参数中最高特异性（input + 三个 :not 属性选择器），算下来是 (0,4,1)，
+     压过本条的 (0,4,0)。不加就只能拿到 --appearance-control-radius（8px 直角卡）。 */
   border-radius: var(--ink-radius-card) !important;
-  box-shadow: 3px 4px 0 var(--ac-shadow) !important;
+  background: var(--ink-card-bg);
+  color: var(--text-2);
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+  transition: background var(--ink-speed) ease, color var(--ink-speed) ease,
+    transform 0.09s ease, box-shadow var(--ink-speed) ease;
 }
-body:has(.app[data-paper]) :is(.wb-dialog, .modal)::before {
-  content: ''; position: absolute; inset: -3px; pointer-events: none; z-index: 3;
+:root[data-paper] .app .wb-theme-option::before,
+:root[data-paper] .app .wb-observe-kpi::before {
+  content: ''; position: absolute; inset: -3px; pointer-events: none; z-index: 1;
   border: 1.6px solid var(--text); border-radius: var(--ink-radius-card);
   filter: url(#ink-rough); opacity: .8;
 }
-/* 小控件墨迹圆角（按钮/徽章用不对称百分比；输入框用像素四值）。 */
-body:has(.app[data-paper]) .btn:not(.icon):not(.xs), body:has(.app[data-paper]) .pk-btn {
-  border-radius: calc(var(--pk-radius, 8px) - 2px);
+:root[data-paper] .app .wb-theme-option:hover {
+  background: color-mix(in srgb, var(--text) 5%, var(--ink-card-bg));
+  color: var(--text);
+  transform: rotate(-0.8deg);
 }
-body:has(.app[data-paper]) :is(input:not([type=checkbox]):not([type=radio]), select, textarea):not(.rg-filter-input) {
+/* 选中态：墨线加粗，底色只给极淡纸墨洗。
+   不转朱红也不转蓝墨 —— 截图实测：蓝色描边在纸面上和浏览器默认 focus 环同色，
+   读起来像"控件被选中"而不是"这页被圈了"；朱红又与 danger（删除/脏行）撞语义。
+   选中是"用更重的笔再描一遍"，所以只加粗 + 加深，语义靠粗细而不是色相。 */
+:root[data-paper] .app .wb-theme-option[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--text) 7%, var(--ink-card-bg));
+  color: var(--text);
+  box-shadow: 3px 4px 0 var(--ac-shadow);
+  transform: rotate(-0.4deg);
+}
+:root[data-paper] .app .wb-theme-option[aria-pressed='true']::before {
+  border-width: 2.6px; border-color: var(--text); opacity: 1;
+}
+:root[data-paper] .app .wb-theme-swatch {
+  border: 1.3px solid var(--ink-line);
+  border-radius: 7px 10px 8px 11px / 9px 7px 11px 8px;
+  background: var(--surface);
+  transform: rotate(-1.2deg);
+}
+:root[data-paper] .app .wb-theme-swatch i { border-radius: 3px 5px 4px 6px; }
+/* 纸面选择卡这一行必须让出整行宽度。
+   .wb-setting-row 的第二列是 minmax(0,340px)，而 .wb-theme-options 要
+   repeat(2, minmax(210px,1fr))（最少 429px）——塞进 340px 后每张卡只剩 ~165px，
+   低于 210px 下限，两张卡被压成窄条并各自换行。这里把该行改成单列，控制区独占一行。 */
+:root[data-paper] .app .wb-setting-row:has(.wb-theme-options) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+:root[data-paper] .app .wb-setting-row:has(.wb-theme-options) .wb-setting-control { display: block; }
+:root[data-paper] .app .wb-theme-options { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+:root[data-paper] .app .wb-theme-copy strong { font-family: var(--ink-hand); letter-spacing: .2px; }
+
+/* 空态：虚线墨圈 + 中心墨点，替代"圆角方块 + 一个点"。 */
+:root[data-paper] .empty::before {
+  width: 46px; height: 46px;
+  border-radius: var(--ink-radius-ctl);
+  border: 1.5px dashed var(--ink-line);
+  background: radial-gradient(circle at 50% 50%, var(--ink-line) 3px, transparent 3.6px);
+  background-color: transparent;
+  transform: rotate(-5deg);
+  filter: url(#ink-rough-fine);
+  margin-bottom: 6px;
+}
+:root[data-paper] .empty.sm::before { display: none; }
+:root[data-paper] .wb-empty,
+:root[data-paper] .wb-object-state {
+  border: 1.4px dashed var(--ink-line);
+  border-radius: var(--ink-radius-card);
+  background: color-mix(in srgb, var(--ink-card-bg) 55%, transparent);
+  color: var(--text-3);
+}
+:root[data-paper] .app .wb-observe-card {
+  border: 1.4px dashed var(--ink-line);
+  border-radius: var(--ink-radius-card);
+  background: color-mix(in srgb, var(--ink-card-bg) 55%, transparent);
+}
+
+/* 表格/面板外框：真边框（自身 overflow 不裁 border），圆角不对称即有手绘感。 */
+:root[data-paper] .app :is(.wb-table-wrap, .wb-diff-scroll, .sql-column-picker,
+  .sql-preview-candidates, .wb-observe-table-wrap, .wb-command-list) {
+  border: 1.4px solid var(--ink-line);
+  border-radius: var(--ink-radius-input);
+  background: var(--surface);
+}
+:root[data-paper] .app .wb-table th {
+  background: color-mix(in srgb, var(--surface-2) 74%, var(--bg));
+  border-bottom: 1.3px dashed var(--ink-line);
+}
+:root[data-paper] .app .wb-table th,
+:root[data-paper] .app .wb-table td { border-right-color: var(--ink-line-soft); }
+
+/* ER 图：卡片化 + 墨边（article 自身 overflow:hidden，故用真边框而非伪元素）。 */
+:root[data-paper] .app .wb-er { background: transparent; }
+:root[data-paper] .app .wb-er article {
+  border: 1.5px solid var(--text);
+  border-radius: var(--ink-radius-card);
+  background: var(--surface);
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+}
+:root[data-paper] .app .wb-er strong {
+  background: color-mix(in srgb, var(--surface-2) 78%, var(--bg));
+  border-bottom: 1.3px dashed var(--ink-line);
+  font-family: var(--ink-hand);
+}
+:root[data-paper] .app .wb-er article > div { border-top: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .wb-er-line { border-top: 1.4px dashed var(--ink-line-strong); }
+:root[data-paper] .app .wb-er-line:after { border-left-color: var(--ink-line-strong); }
+
+/* 数据比较：分栏墨框，命中行保留语义色但压成纸面淡彩。 */
+:root[data-paper] .app .wb-diff-scroll tr[data-status='different'] {
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+}
+:root[data-paper] .app .wb-diff-scroll tr[data-status='left-only'],
+:root[data-paper] .app .wb-diff-scroll tr[data-status='right-only'] {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+:root[data-paper] .app .wb-diff-scroll tr[data-status='ambiguous'] {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+:root[data-paper] .app .wb-diff-scroll tr.diff-current {
+  outline: 1.6px solid var(--text);
+  outline-offset: -2px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   六、控件：不对称圆角 + 墨色描边 + 按压物理感
+   ══════════════════════════════════════════════════════════════ */
+/* 文本按钮：像素四值（百分比在大尺寸会摊成椭圆）。 */
+:root[data-paper] .btn:not(.icon):not(.xs),
+:root[data-paper] .pk-btn:not(.pk-btn-sm) {
+  border-radius: 9px 12px 10px 13px / 11px 9px 13px 10px !important;
+}
+/* 图标钮：正方体，用 --ink-radius-ctl 才是"笔尖画圆"。 */
+:root[data-paper] :is(.btn.icon, .nav-icon-button, .wb-tab-close, .tab-x) {
+  border-radius: var(--ink-radius-ctl) !important;
+}
+/* 带文字的窄按钮（打开/连接/数据/结构）：一律用像素四值。
+   百分比半径是相对元素自身尺寸算的 —— 这些按钮宽度随文案变化（40~60px），
+   40% 的水平半径会吃掉近一半宽度，描边直接切进字身。ai-canvas 的 .ac-tag 能用
+   百分比是因为那里的标签只有 2~3 个字符且宽度稳定；宽度不定的一律不用百分比。 */
+:root[data-paper] :is(.nav-small-button, .nav-scan-more) {
+  border-radius: 8px 11px 9px 12px / 10px 8px 12px 9px !important;
+}
+:root[data-paper] .btn { font-family: var(--ink-hand); }
+:root[data-paper] .btn:hover:not(:disabled) { border-color: var(--ink-line-strong); }
+:root[data-paper] .btn.primary {
+  background: var(--text); border-color: var(--text); color: var(--surface);
+  box-shadow: 1.5px 2px 0 var(--ac-shadow);
+}
+:root[data-paper] .btn.primary:hover:not(:disabled) {
+  background: var(--text); border-color: var(--text); color: var(--surface); filter: brightness(1.12);
+}
+
+/* 输入/下拉/文本域：纸面凹槽。:where() 把 :not 链的权重归零，便于后面按区域覆盖。
+   两处必须排除：
+   · .monaco-editor * —— Monaco 的隐藏 textarea(.inputarea)、查找框、建议框都吃全局
+     input 规则，一旦被描边+底色覆盖，光标与输入法定位会整体错位。
+   · .ta / .hl —— 自绘 SQL 编辑器（非 Monaco 回退路径）的透明 textarea 必须与
+     .hl 高亮层逐像素重合，加边框/内边距会让光标偏移一整个字宽。 */
+:root[data-paper] :is(input, select, textarea):where(:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']):not([type='file']):not(.inputarea):not(.ta)):not(.monaco-editor *) {
+  background: var(--ink-well-bg) !important;
+  border: 1.4px solid var(--ink-line) !important;
+  border-radius: var(--ink-radius-input) !important;
+  color: var(--text) !important;
+  font-family: var(--ink-hand);
+}
+:root[data-paper] :is(input, select, textarea):not(.ta):focus,
+:root[data-paper] :is(input, select, textarea):not(.ta):focus-visible {
+  border-color: var(--ink-line-strong) !important;
+}
+/* 数据区输入保持等宽，且不给网格单元格套椭圆角（表格里圆角会切到邻格）。 */
+:root[data-paper] .app .results .rg-filter-input,
+:root[data-paper] .app .results .cell-editor {
+  font-family: var(--mono) !important;
+  border-radius: 3px !important;
+  border-color: var(--ink-line-strong) !important;
+}
+/* gridProductivity 给筛选框写的是 1px 实心蓝环（带 !important），必须同权重压掉。 */
+:root[data-paper] .app .results .rg-filter-input:focus {
+  border-color: var(--text) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 45%, transparent) !important;
+}
+:root[data-paper] .app .results .cell-editor { border-color: var(--text) !important; }
+:root[data-paper] .cs-trigger {
+  background: var(--ink-well-bg);
+  border: 1.4px solid var(--ink-line);
+  border-radius: var(--ink-radius-input);
+  font-family: var(--ink-hand);
+}
+:root[data-paper] .cs-trigger:hover { border-color: var(--ink-line-strong); }
+:root[data-paper] .cs-trigger:focus-visible,
+:root[data-paper] .cs-trigger.open { border-color: var(--ink-line-strong); box-shadow: none; }
+:root[data-paper] .cs-option { border-radius: var(--ink-radius-input); }
+:root[data-paper] .cs-option:hover { background: var(--surface-2); }
+:root[data-paper] .cs-option.selected { background: var(--accent-soft); color: var(--text); }
+:root[data-paper] .ctx-menu button { border-radius: var(--ink-radius-input); font-family: var(--ink-hand); }
+:root[data-paper] .ctx-menu button:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 7%, transparent); }
+:root[data-paper] .ctx-menu button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
+}
+:root[data-paper] .ctx-menu .menu-sep,
+:root[data-paper] .pk-menu-sep { background: var(--ink-line-soft); }
+
+/* 徽章：手绘小胶囊，描边取 currentColor，保住 ok/warn/accent 的语义色。
+   半径用像素四值：徽章文案宽度不定（"只读" 到 "修改 12 行"），百分比会切字。 */
+:root[data-paper] .badge {
+  border: 1.2px solid color-mix(in srgb, currentColor 34%, transparent);
+  border-radius: 8px 11px 9px 12px / 10px 8px 12px 9px;
+  font-family: var(--ink-hand);
+}
+:root[data-paper] .app .comp-kind { border-radius: 4px 6px 5px 7px; }
+
+/* 复选框/单选：手绘小方，选中色仍是蓝墨。 */
+:root[data-paper] :is(input[type='checkbox'], input[type='radio']) { accent-color: var(--accent); }
+
+/* ══════════════════════════════════════════════════════════════
+   七、活动态：墨下划线，不用彩色条/彩色底
+   ══════════════════════════════════════════════════════════════ */
+:root[data-paper] .app .wb-tab.active:after {
+  background: var(--text) !important; opacity: .82 !important; height: 2.4px;
+  border-radius: 2px;
+  /* 基础层是 bottom:-1px（压在容器外沿），但 .mid-col 有 overflow:hidden，
+     负偏移那 1px 会被裁掉、下划线看起来只剩一半高。纸面版改成贴内缘。 */
+  bottom: 0;
+}
+:root[data-paper] .app .tab.active::after {
+  background: none !important;
+  border-top: 2px dashed var(--text);
+  height: 0;
+  /* 基础层是 bottom:-1px，但 .result-tabs 是 overflow-x:auto 的滚动容器
+     （任一轴 auto 会让另一轴的 visible 计算成 auto），负偏移会被裁掉，
+     所以纸面版贴内缘，虚线才完整。 */
+  bottom: 0;
+}
+/* 右栏页签：活动态用 inset 墨线（这条线贴着按钮下缘，不受 .right-body 裁切影响）。
+   不要在这里写 border-radius:0 —— 基础层的按钮本身是圆角，激活时突然变直角会跳一下。 */
+:root[data-paper] .app .right-tabs button { border-radius: var(--ink-radius-input); }
+:root[data-paper] .app .right-tabs button.active {
+  box-shadow: inset 0 -2px 0 var(--text) !important;
+  color: var(--text);
+}
+:root[data-paper] .app .wb-subtabs button.active { border-bottom-color: var(--text) !important; border-bottom-style: dashed; }
+:root[data-paper] .app .nav-toolrail-button.active:before {
+  background: var(--text) !important; width: 2.4px;
+}
+:root[data-paper] .app .nav-toolrail-button.active {
+  color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+:root[data-paper] .app :is(.wb-observe-tabs, .wb-library-tabs) button.active {
+  background: var(--surface);
+  border-radius: var(--ink-radius-input);
+  box-shadow: 1.5px 2px 0 var(--ac-shadow);
+}
+:root[data-paper] .app .wb-segmented [aria-selected='true'] {
+  background: var(--surface);
+  border-radius: var(--ink-radius-input);
+  box-shadow: 1.5px 2px 0 var(--ac-shadow);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   八、区域细化
+   ══════════════════════════════════════════════════════════════ */
+/* 侧栏树：悬停是"纸被摸过"的淡墨洗，选中是虚线墨框。 */
+:root[data-paper] .app :is(.nav-connection-row, .nav-tree-row) {
+  border-radius: var(--ink-radius-input);
+  transition: background var(--ink-speed) ease, transform 0.09s ease;
+}:root[data-paper] .app :is(.nav-connection-row, .nav-tree-row):hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  transform: translateX(1px);
+}
+/* 选中态不用 --accent-soft：那是蓝色洗底，在纸面上会读成"另一个控件"而不是
+   纸上的墨记。左缘 2.5px 墨条 + 内描边与中间件树行一致（内描边不参与布局，
+   28px 定高的连接行不会因加边框抖宽度）。 */
+:root[data-paper] .app :is(.nav-connection-row.active, .nav-connection-row.selected,
+  .nav-connection-row[aria-selected='true'], .nav-tree-row.active, .nav-tree-row.selected,
+  .nav-tree-row[aria-selected='true']) {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  color: var(--text);
+  box-shadow: inset 2.5px 0 0 var(--text), inset 0 0 0 1.2px var(--ink-line);
+}
+/* 搜索框：只补基础层没给的圆角（底色/描边由第六节全局 input 规则统一接管）。 */
+:root[data-paper] .app .nav-search-wrap input { border-radius: var(--ink-radius-input); }
+:root[data-paper] .app .nav-heading strong,
+:root[data-paper] .app .nav-heading > span:first-child { font-family: var(--ink-hand); }
+:root[data-paper] .app .nav-disclosure.open > svg { transform: rotate(90deg) scale(1.05); }
+:root[data-paper] .app .nav-empty {
+  border: 1.3px dashed var(--ink-line); border-radius: var(--ink-radius-card);
+  /* 不改基础层的 padding（20px 12px）：Quick 窄屏下侧栏是抽屉，纵向空间本来紧张，
+     只补边框和圆角，尺寸完全沿用基础层。 */
+  margin: 6px 6px;
+}
+/* 工作标签：分隔线转虚线，活动态靠墨下划线而不是纸片色块。 */
+:root[data-paper] .app .wb-tab { border-right: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .wb-tab:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+:root[data-paper] .app .wb-tab.active { background: var(--surface); }
+/* 顶栏上下文 chip：手绘小标签（原来是无框纯文字，纸面上完全看不出边界）。 */
+:root[data-paper] .app .ctx-chip {
+  border: 1.2px dashed var(--ink-line);
+  border-radius: 40% 60% 55% 45% / 55% 45% 60% 40%;
+  padding: 1px 8px;
+}
+:root[data-paper] .app .ctx-chip strong { color: var(--text); }
+:root[data-paper] .app .driver-chip {
+  border: 1.1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 6px 8px 7px 9px;
+  font-family: var(--mono);
+}
+/* 编辑器/结果之间的分隔条（hidden 时不存在），hover 走墨色见下文。 */
+
+/* 设置页：区块上缘虚线段，行分隔虚线，选择卡已在上文卡片层处理。 */
+:root[data-paper] .app .wb-settings-section {
+  border-top: 1.4px dashed var(--ink-line);
+}
+:root[data-paper] .app .wb-setting-row { border-bottom-color: var(--ink-line-soft); }
+:root[data-paper] .app .wb-setting-label { color: var(--text-2); }
+/* 页面标题：手绘波浪下划线（text-decoration 不参与布局，不会挤动下方段落）。
+   offset 收到 5px：h1 的下外边距只有 8px，7px 的波线会蹭到说明文字。 */
+:root[data-paper] .app .wb-page h1 {
+  text-decoration: underline wavy color-mix(in srgb, var(--ac-edge) 50%, transparent);
+  text-decoration-thickness: 1.4px;
+  text-underline-offset: 5px;
+}
+:root[data-paper] .app .wb-page h2 { font-family: var(--ink-hand); }
+:root[data-paper] .app .wb-shortcuts { border-top: 1.4px dashed var(--ink-line); }
+:root[data-paper] .app .wb-shortcuts > label { border-bottom: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .db-shortcut-row { border-bottom: 1.2px dashed var(--ink-line-soft); }
+/* 录制态：中性墨环，不用品牌蓝。productivity.css 用 #app 前缀（ID 权重）写了蓝环，
+   且上面那条全局 input 规则带 !important，这里必须同样 !important 才压得住。 */
+:root[data-paper] .app .db-shortcut-row.recording input {
+  border-color: var(--text) !important;
+  outline: 2px solid color-mix(in srgb, var(--text) 40%, transparent) !important;
+  outline-offset: 1px;
+}
+/* 说明：.wb-search / .db-shortcut-filters / .wb-shortcuts / .db-shortcut-row 里的
+   input 不必再单独写底色与描边 —— 第六节的全局 input 规则已用 !important 统一接管，
+   这里重复声明只会是永远不生效的死规则。 */
+
+/* SQL 补全设置（设置页第五个区块，自成一套 .sql-* 结构）。 */
+:root[data-paper] .app .sql-completion-settings { border-top-color: var(--ink-line); }
+:root[data-paper] .app .sql-config-section { border-bottom: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .sql-item { border-radius: var(--ink-radius-input); }
+:root[data-paper] .app .sql-item.active {
+  background: var(--accent-soft);
+  border-color: var(--ink-line);
+}
+:root[data-paper] .app :is(.sql-save-state, .sql-column-picker, .sql-preview-candidates) {
+  border: 1.3px solid var(--ink-line-soft);
   border-radius: var(--ink-radius-input);
 }
-/* 活动标签：手绘墨下划线（替换渐变/inset 等四种写法）。 */
-body:has(.app[data-paper]) .wb-tab.active:after { background: var(--text) !important; opacity: .85 !important; }
-body:has(.app[data-paper]) .tab.active::after { background: var(--text) !important; }
-body:has(.app[data-paper]) .right-tabs button.active { box-shadow: inset 0 -2px 0 var(--text) !important; }
-body:has(.app[data-paper]) .wb-subtabs button.active { border-bottom-color: var(--text) !important; }
-body:has(.app[data-paper]) .nav-toolrail-button.active:before { background: var(--text) !important; }
+:root[data-paper] .app .sql-column-order { border-top-color: var(--ink-line-soft); }
+:root[data-paper] .app .sql-column-order li { border-bottom-color: var(--ink-line-soft); }
+:root[data-paper] .app .sql-column-order li.dragging { box-shadow: 2px 3px 0 var(--ac-shadow); }
+:root[data-paper] .app .sql-column-order li.drop-before { box-shadow: inset 0 2px var(--text); }
+:root[data-paper] .app .sql-column-order li.drop-after { box-shadow: inset 0 -2px var(--text); }
+:root[data-paper] .app .sql-preview-candidates button { border-bottom-color: var(--ink-line-soft); background: transparent; }
+:root[data-paper] .app .sql-preview-candidates button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+:root[data-paper] .app :is(.sql-edit-preview, .sql-example) {
+  border: 1.3px solid var(--ink-line-soft);
+  border-radius: var(--ink-radius-input);
+  background: var(--ink-well-bg);
+}
+:root[data-paper] .app .sql-rule-scope,
+:root[data-paper] .app .sql-rule-dialects,
+:root[data-paper] .app .sql-rule-override-row { border-color: var(--ink-line-soft); }
+:root[data-paper] .app .sql-completion-settings :is(button, input, textarea, select, summary):focus-visible {
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 40%, transparent) !important;
+}
+
+/* 结构与对象页。 */
+:root[data-paper] .app .wb-structure-layout { border-top: 1.3px dashed var(--ink-line); }
+:root[data-paper] .app .wb-object-list button { border-radius: var(--ink-radius-input); }
+:root[data-paper] .app .wb-object-list button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+:root[data-paper] .app .wb-object-context { border-bottom: 1.3px dashed var(--ink-line); }
+:root[data-paper] .app .wb-library-row { border-bottom: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .wb-library-row > button { border-radius: var(--ink-radius-input); }
+:root[data-paper] .app .wb-command-list button { border-radius: var(--ink-radius-input); }
+:root[data-paper] .app .wb-command-list button[aria-selected='true'],
+:root[data-paper] .app .wb-command-list button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+
+/* 资源中心：KPI 卡已卡片化，这里只补表头与来源徽章。 */
+:root[data-paper] .app .wb-observe-table th {
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--bg));
+  border-bottom: 1.3px dashed var(--ink-line);
+  font-family: var(--ink-hand);
+}
+:root[data-paper] .app .wb-observe-source {
+  background: var(--accent-soft); color: var(--accent);
+  border: 1.2px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 8px 11px 9px 12px / 10px 8px 12px 9px;
+}
+:root[data-paper] .app .wb-observe-badge { border-radius: 8px 11px 9px 12px / 10px 8px 12px 9px; }
+
+/* 结果网格：行悬停淡墨，选中蓝墨；表头排序/缩放指示改墨色。 */
+:root[data-paper] .app .results .grid-canvas > .tr:hover {
+  --rg-row-bg: color-mix(in srgb, var(--text) 5%, var(--surface));
+}
+:root[data-paper] .app .results .head-row .th[data-c]:hover {
+  background: color-mix(in srgb, var(--text) 5%, var(--surface-2));
+}
+:root[data-paper] .app .results .head-row .th.sorted { color: var(--text); }
+:root[data-paper] .app .results .rg-column-resize:is(:hover, :focus-visible, .resizing)::after {
+  background: var(--ink-line-strong);
+}
+:root[data-paper] .app .results .cell-active { outline-color: var(--text); outline-width: 1.5px; }
+:root[data-paper] .app .results .grid-viewport:focus-visible .cell-active {
+  outline: 2px solid var(--text) !important; outline-offset: -2px;
+}
+/* 表头单元格/列宽把手在 sticky + overflow:hidden 的表头里，外扩 ring 会被裁；
+   改用内缩 outline，且必须 !important —— 下面的全局 :focus-visible 用 !important
+   把 outline 置透明了，不加会被吃掉。 */
+:root[data-paper] .app .results .head-row [role='columnheader']:focus-visible,
+:root[data-paper] .app .results .rg-column-resize:focus-visible {
+  outline: 2px solid var(--text) !important; outline-offset: -2px;
+  box-shadow: none !important;
+}
+/* 变更面板（右栏）：纸条卡 + 状态墨边。 */
+:root[data-paper] .app .change-item {
+  background: var(--ink-card-bg);
+  border-radius: var(--ink-radius-input);
+  border: 1.2px solid var(--ink-line-soft);
+}
+:root[data-paper] .app .preview { border: 1.3px solid var(--ink-line-soft); border-radius: var(--ink-radius-input); }
+
+/* 表单/对话框内部（连接、设计表、批量、导入导出、文档检视）。 */
+:root[data-paper] :is(.wb-dialog, .modal) .form-grid input,
+:root[data-paper] :is(.wb-dialog, .modal) .form-grid select,
+:root[data-paper] :is(.wb-dialog, .modal) .form-grid textarea,
+:root[data-paper] :is(.wb-dialog, .modal) .form-row input,
+:root[data-paper] :is(.wb-dialog, .modal) .form-row select,
+:root[data-paper] :is(.wb-dialog, .modal) .form-row textarea { background: var(--ink-well-bg); }
+:root[data-paper] :is(.wb-dialog, .modal) .wb-sql-preview {
+  border: 1.4px solid var(--ink-line);
+  border-radius: var(--ink-radius-input);
+  background: var(--ink-well-bg);
+  padding: 8px 10px;
+}
+:root[data-paper] .db-batch-note,
+:root[data-paper] .db-export-note {
+  border: 1.2px dashed color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: var(--ink-radius-input);
+}
+:root[data-paper] .db-batch-summary {
+  border-bottom: 1.2px dashed var(--ink-line-soft);
+  color: var(--text-2);
+}
+:root[data-paper] .wb-design-columns { border-top: 1.2px dashed var(--ink-line-soft); padding-top: 12px; }
+:root[data-paper] .wb-design-column input { min-width: 0; }
+:root[data-paper] .db-export-columns,
+:root[data-paper] .wb-compare-advanced,
+:root[data-paper] .wb-document-actions { border-color: var(--ink-line-soft); }
+:root[data-paper] .wb-document-actions { background: var(--surface); }
+:root[data-paper] .wb-json-children { border-left: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .wb-connection-dialog details > summary { color: var(--text-2); }
+:root[data-paper] .wb-design-column { border-radius: var(--ink-radius-input); }
+
+/* 分隔条：hover 走墨色，不再用品牌色。 */
+:root[data-paper] .app .resizer:hover::after,
+:root[data-paper] .app .resizer:active::after {
+  background: color-mix(in srgb, var(--text) 28%, transparent);
+}
+/* workspace.css 用 #id 给左分隔条写了蓝色 outline（特异性 1,2,0，压过通用焦点环），
+   这里按 id 单独收回中性墨。 */
+:root[data-paper] .app #resizer-left:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 55%, transparent);
+}
 
 /* 材质变体装饰渐变（graphite/paper 的 app:before 光晕）在纸面下由纸感本身担背景，统一隐藏。 */
 :root[data-paper] body:has(.app) .app:before { display: none; }
 
-/* 遮罩：纸面下统一「墨色半透」，去掉毛玻璃（手绘是纸，不糊）。 */
-body:has(.app[data-paper]) dialog::backdrop { backdrop-filter: none !important; }
-body:has(.app[data-paper]) .app .side, body:has(.app[data-paper]) .app .wb-querybar { backdrop-filter: none !important; }
+/* ══════════════════════════════════════════════════════════════
+   九、去玻璃 / 遮罩 / 焦点环
+   ══════════════════════════════════════════════════════════════ */
+:root[data-paper] dialog::backdrop { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+/* 浅纸用墨色雾，深纸用纯黑雾（深纸上 --text 是亮色，直接用会变成"起白雾"）。 */
+:root[data-paper='paper'] dialog::backdrop,
+:root[data-paper='cream'] dialog::backdrop {
+  background: color-mix(in srgb, var(--text) 32%, transparent) !important;
+}
+:root[data-paper='dark'] dialog::backdrop,
+:root[data-paper='board'] dialog::backdrop {
+  background: color-mix(in srgb, #000 55%, transparent) !important;
+}
+:root[data-paper] dialog.wb-document-inspector::backdrop {
+  background: color-mix(in srgb, var(--text) 16%, transparent) !important;
+}
 
-/* ── 焦点环：中性墨色收紧，打掉四套彩色柔光环（含 workbench 绿环、brand 蓝环）── */
-:root[data-paper] :focus-visible {
+/* 焦点环：中性墨色收紧，打掉四套彩色柔光环（含 workbench 绿环、brand 蓝环、pk 蓝环）。
+   数据网格排除在外：.grid-viewport 是可聚焦滚动容器，给它套环会在整个结果区外围
+   画一个大方框；单元格自己的焦点态由下面的 .cell-active / columnheader 规则负责。 */
+:root[data-paper] :focus-visible:not(.grid-viewport):not(.tr):not(.td):not(.th) {
   outline: 2px solid transparent !important;
   outline-offset: 0 !important;
   box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 55%, transparent) !important;
 }
-
-/* ── 交互微动效：hover 微旋转 + 按压物理感 ── */
-:root[data-paper] .btn, :root[data-paper] .nav-icon-button, :root[data-paper] .nav-small-button,
-:root[data-paper] .nav-toolrail-button, :root[data-paper] .btn.icon {
-  transition: background var(--ink-speed) ease, color var(--ink-speed) ease,
-    border-color var(--ink-speed) ease, transform 0.09s ease;
+:root[data-paper] :is(input, select, textarea, .cs-trigger, .pk-input, .pk-select-trigger):focus-visible {
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 40%, transparent) !important;
 }
-:root[data-paper] .nav-toolrail-button:hover { transform: rotate(-4deg) scale(1.06); }
-:root[data-paper] .btn.icon:hover:not(:disabled) { transform: rotate(-6deg) scale(1.08); }
-:root[data-paper] .btn:active:not(:disabled) { transform: scale(0.96) !important; }
+:root[data-paper] .pk-select-trigger:focus-visible { border-color: var(--ink-line-strong) !important; }
 
-/* ── 滚动条跟随纸面墨色 ── */
+/* ══════════════════════════════════════════════════════════════
+   十、滚动条跟随纸面墨色
+   ══════════════════════════════════════════════════════════════ */
 :root[data-paper] ::-webkit-scrollbar { width: 9px; height: 9px; }
 :root[data-paper] ::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--ac-edge) 42%, transparent) !important;
@@ -274,18 +1017,43 @@ body:has(.app[data-paper]) .app .side, body:has(.app[data-paper]) .app .wb-query
 :root[data-paper] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--ac-edge) 68%, transparent) !important; }
 :root[data-paper] ::-webkit-scrollbar-track, :root[data-paper] ::-webkit-scrollbar-corner { background: transparent !important; }
 /* 结果网格反置为纸面细轨（覆盖 gridProductivity 粗轨实底）。 */
-body:has(.app[data-paper]) .app .results .grid-viewport { scrollbar-color: color-mix(in srgb, var(--ac-edge) 42%, transparent) transparent; }
-body:has(.app[data-paper]) .app .results .grid-viewport::-webkit-scrollbar-track,
-body:has(.app[data-paper]) .app .results .grid-viewport::-webkit-scrollbar-corner { background: var(--bg); }
-body:has(.app[data-paper]) .app .results .grid-viewport::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ac-edge) 42%, var(--bg)); border-color: var(--bg); }
+:root[data-paper] .app .results .grid-viewport { scrollbar-color: color-mix(in srgb, var(--ac-edge) 42%, transparent) transparent; }
+:root[data-paper] .app .results .grid-viewport::-webkit-scrollbar-track,
+:root[data-paper] .app .results .grid-viewport::-webkit-scrollbar-corner { background: var(--bg); }
+:root[data-paper] .app .results .grid-viewport::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ac-edge) 42%, var(--bg));
+  border-color: var(--bg);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   十一、微动效
+   hover 微旋转 + 按压物理感；只作用于 chrome 控件，数据行不做位移。
+   ══════════════════════════════════════════════════════════════ */
+:root[data-paper] .btn, :root[data-paper] .nav-icon-button, :root[data-paper] .nav-small-button,
+:root[data-paper] .nav-toolrail-button, :root[data-paper] .btn.icon, :root[data-paper] .pk-btn,
+:root[data-paper] .tab-x, :root[data-paper] .wb-tab-close {
+  transition: background var(--ink-speed) ease, color var(--ink-speed) ease,
+    border-color var(--ink-speed) ease, transform 0.09s ease;
+}
+:root[data-paper] .nav-toolrail-button:hover { transform: rotate(-4deg) scale(1.06); }
+:root[data-paper] .btn.icon:hover:not(:disabled),
+:root[data-paper] .nav-icon-button:hover:not(:disabled),
+:root[data-paper] .wb-tab-close:hover,
+:root[data-paper] .tab-x:hover { transform: rotate(-6deg) scale(1.08); }
+:root[data-paper] .btn:active:not(:disabled),
+:root[data-paper] .btn.icon:active,
+:root[data-paper] .nav-toolrail-button:active { transform: scale(0.96) !important; }
+:root[data-paper] .wb-theme-option:active { transform: translateY(1px) rotate(0deg) scale(0.99); }
 
 @keyframes ink-pop {
   from { opacity: 0; transform: translateY(-4px) rotate(-0.6deg); }
   to { opacity: 1; transform: none; }
 }
 
-/* ── 动画档位降级 ── */
+/* ── 动画档位降级（必须在文件末尾：低档位一律关掉位移与滤镜动画） ── */
 :root[data-paper][data-anim='low'] * { animation: none !important; transition-duration: 0.001ms !important; }
+:root[data-paper][data-anim='low'] :is(.btn, .nav-toolrail-button, .wb-theme-option):hover { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   :root[data-paper] * { animation: none !important; transition-duration: 0.001ms !important; }
+  :root[data-paper] :is(.btn, .nav-toolrail-button, .wb-theme-option):hover { transform: none; }
 }

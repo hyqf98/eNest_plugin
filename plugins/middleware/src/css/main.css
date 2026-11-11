@@ -4,29 +4,35 @@
  * 颜色一律读壳子主题 token（themeAware 注入），仅类型识别色为常量
  * ============================================================ */
 
-/* —— 主题 token 兜底（注入前防白屏；注入后同名覆盖）—— */
+/* —— 主题 token 兜底（注入前防白屏；注入后同名覆盖）——
+ * 取值与 paper-theme.css 的白纸面一致：插件只提供纸感主题，兜底不该是一套
+ * 深蓝旧色板（宿主注入有网络/权限延迟，首帧就会露出）。 */
 :root {
-  --bg: #0d1017; --surface: #141a26; --surface-2: #1a2130; --surface-3: #222b3e;
-  --border: #232c3f; --border-strong: #33405c;
-  --text: #e9edf5; --text-2: #9aa7bd; --text-3: #64718b;
-  --accent: #ff7a2f; --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent); --accent-contrast: var(--accent-text, #fff);
-  --ok: #3fb972; --ok-soft: color-mix(in srgb, var(--ok) 13%, transparent);
-  --danger: #e5484d; --danger-soft: color-mix(in srgb, var(--danger) 13%, transparent);
-  --warn: #e0a94e; --warn-soft: color-mix(in srgb, var(--warn) 13%, transparent);
+  --bg: #f7f3e8; --surface: #fffdf6; --surface-2: #efe8d6; --surface-3: #dbd8d0;
+  --border: rgba(58, 47, 30, .20); --border-strong: rgba(58, 47, 30, .34);
+  --text: #3a2f1e; --text-2: #7a6c52; --text-3: #918469;
+  --accent: #1d5c8a; --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent); --accent-contrast: #fffdf6;
+  --ok: #3f9b57; --ok-soft: color-mix(in srgb, var(--ok) 12%, transparent);
+  --danger: #a61e1e; --danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
+  --warn: #8e744c; --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
   --link: var(--accent);
-  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-pill: 999px;
-  --shadow-soft: 0 2px 10px rgba(0, 0, 0, .28); --shadow-float: 0 10px 34px rgba(0, 0, 0, .44);
-  --font: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --radius-sm: 8px; --radius-md: 10px; --radius-lg: 12px; --radius-pill: 999px;
+  --shadow-soft: 2px 3px 0 rgba(74, 60, 34, .14); --shadow-float: 3px 5px 0 rgba(74, 60, 34, .14);
+  --font: 'LXGW WenKai Lite', 'Kaiti SC', 'STKaiti', serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-  /* 中间件类型识别色 */
-  --c-kafka: var(--warn); --c-rabbit: var(--accent); --c-mqtt: var(--text-2); --c-rocket: var(--ok);
+  /* 纸面点阵：暖墨低透明（旧的冷灰 rgba(139,148,168,.10) 与暖纸冲突） */
+  --bg-dot: rgba(58, 47, 30, .11);
+  /* 中间件类型识别色（纸面语义色；paper-theme 按纸面再覆盖） */
+  --c-kafka: #6d6049; --c-rabbit: #b0431f; --c-mqtt: #1d5c8a; --c-rocket: #3f7a4a;
+  /* JSON 着色（payloadHighlight 的 j-* 类消费） */
+  --j-k: #6e5a47; --j-s: #2f7a3a; --j-n: #a61e1e; --j-b: #1d5c8a;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #root { height: 100%; }
 body {
   font: calc(var(--font-size-base, 13px) * 1)/1.55 var(--font); color: var(--text); background: var(--bg);
-  background-image: radial-gradient(var(--bg-dot, rgba(139, 148, 168, .10)) 1px, transparent 1px);
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
   background-size: 22px 22px; overflow: hidden; user-select: none;
 }
 body.editable, body.editable input, body.editable textarea { user-select: text; }
@@ -92,13 +98,14 @@ input, select, textarea { font: inherit; color: var(--text); }
 .env-test { background: var(--ok-soft); color: var(--ok); }
 .env-dev { background: var(--surface-3); color: var(--text-2); }
 .tree-item .lock { font-size: calc(var(--font-size-base, 13px) * 0.769231); color: var(--text-3); flex: none; }
-.tree-foot { padding: 8px; border-top: 1px solid var(--border); flex: none; }
-.tree-foot .new-btn {
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 7px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm);
-  color: var(--text-3); font-size: calc(var(--font-size-base, 13px) * 0.961538);
+.tree-foot { padding: 6px 8px; flex: none; display: flex; }
+.tree-foot-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 28px; padding: 4px 12px; width: 100%;
+  border: 1px solid transparent; border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent; color: var(--text-2); font-size: calc(var(--font-size-base, 13px) * 0.923077);
 }
-.tree-foot .new-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.tree-foot-btn:hover { color: var(--text); background: var(--surface-2); }
 
 .tree-resizer { width: 4px; cursor: col-resize; flex: none; background: transparent; }
 .tree-resizer:hover, .tree-resizer.active { background: var(--accent-soft); }
@@ -138,7 +145,7 @@ input, select, textarea { font: inherit; color: var(--text); }
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 /* 边框画在容器上，聚焦反馈也交给容器，环才会贴合 radius。 */
-.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.search:focus-within { border-color: var(--text); box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 30%, transparent); }
 .search input { flex: 1; border: none; background: none; outline: none; font-size: calc(var(--font-size-base, 13px) * 0.961538); color: var(--text); min-width: 0; }
 .search input::placeholder { color: var(--text-3); }
 .btn {
@@ -214,7 +221,8 @@ table.grid .empty-row td { text-align: center; color: var(--text-3); padding: 28
 .ctxmenu hr { border: none; border-top: 1px solid var(--border); margin: 5px 8px; }
 
 /* ===== 弹窗 / 抽屉（宽松表单区）===== */
-.mask { position: fixed; inset: 0; background: rgba(4, 6, 12, .55); z-index: 380; }
+/* 遮罩：纸面下是「墨色半透」而不是深蓝玻璃（纸不糊）。 */
+.mask { position: fixed; inset: 0; background: color-mix(in srgb, var(--text) 34%, transparent); z-index: 380; }
 .drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 92vw); z-index: 390;
   background: var(--surface); border-left: 1px solid var(--border-strong);
@@ -247,7 +255,7 @@ table.grid .empty-row td { text-align: center; color: var(--text-3); padding: 28
   width: 100%; padding: 8px 11px; background: var(--bg); border: 1px solid var(--border);
   border-radius: var(--radius-sm); font-size: calc(var(--font-size-base, 13px) * 1); outline: none;
 }
-.form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--text); box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 26%, transparent); }
 .form-row textarea { resize: vertical; min-height: 64px; font-family: var(--mono); font-size: calc(var(--font-size-base, 13px) * 0.961538); }
 .form-row .tip { font-size: calc(var(--font-size-base, 13px) * 0.884615); color: var(--text-3); margin-top: 5px; }
 .form-row .err { font-size: calc(var(--font-size-base, 13px) * 0.884615); color: var(--danger); margin-top: 5px; }
@@ -313,7 +321,7 @@ table.grid .empty-row td { text-align: center; color: var(--text-3); padding: 28
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 5px 9px; font-size: calc(var(--font-size-base, 13px) * 0.961538); color: var(--text); outline: none;
 }
-.fld select:focus, .fld input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.fld select:focus, .fld input:focus { border-color: var(--text); box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 26%, transparent); }
 .seg { display: flex; background: var(--surface-2); border-radius: var(--radius-sm); padding: 2px; }
 .seg button { padding: 4px 11px; font-size: calc(var(--font-size-base, 13px) * 0.923077); color: var(--text-3); border-radius: 5px; }
 .seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-soft); }
@@ -330,7 +338,8 @@ table.grid .empty-row td { text-align: center; color: var(--text-3); padding: 28
 .msg-viewer .meta .k { color: var(--text-3); white-space: nowrap; }
 .msg-viewer .meta .v { font-family: var(--mono); color: var(--text-2); word-break: break-all; min-width: 0; display: flex; gap: 5px; flex-wrap: wrap; }
 .payload-pane { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; font-family: var(--mono); font-size: calc(var(--font-size-base, 13px) * 0.923077); line-height: 1.6; white-space: pre; user-select: text; }
-.j-k { color: var(--link); } .j-s { color: var(--ok); } .j-n { color: var(--accent); } .j-b { color: var(--c-mqtt); }
+/* JSON 着色走 --j-*（纸面层按纸重定义，避免深色纸上朱红/苔绿失去对比） */
+.j-k { color: var(--j-k, var(--link)); } .j-s { color: var(--j-s, var(--ok)); } .j-n { color: var(--j-n, var(--accent)); } .j-b { color: var(--j-b, var(--c-mqtt)); }
 
 /* ===== 监控页 ===== */
 .metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; padding: 18px 16px; overflow-y: auto; }

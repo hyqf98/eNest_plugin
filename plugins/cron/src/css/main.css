@@ -314,12 +314,16 @@ button.ghost:hover:not(:disabled) {
   gap: 10px;
 }
 .field-box {
-  border: 1px solid var(--line);
-  border-radius: var(--pk-radius);
-  background: var(--raise);
-  padding: 10px 12px;
+  /* 域构建器是同一张表单的五/六段，不给每段再加一层描边卡片：
+     用一条细分隔线分栏，视觉噪音低，且与表格/表单保持同一层级。 */
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 0 12px;
   min-width: 0;
 }
+.fields > .field-box:first-child { border-left: 0; padding-left: 0; }
 .field-box h3 {
   margin: 0 0 8px;
   font-size: 12px;

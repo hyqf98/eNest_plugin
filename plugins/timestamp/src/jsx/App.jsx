@@ -330,7 +330,6 @@ export function App() {
   return (
     <main className="time-studio">
       <header>
-        <h1>时间戳</h1>
         <span className="live-dot" id="live-dot" aria-hidden="true" data-state={paused ? 'paused' : 'running'}></span>
         <span id="live-state" className="live-label">{paused ? '时钟已暂停' : '时钟运行中'}</span>
         <nav role="tablist" aria-label="功能区">

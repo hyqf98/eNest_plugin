@@ -66,14 +66,6 @@
             "type": "text",
             "label": "备份保留策略",
             "default": "插件后端自动快照，每应用保留最近 20 份"
-          },
-          {
-            "key": "openPrefs",
-            "type": "page",
-            "label": "打开切换台设置",
-            "entry": {
-              "code": "settings"
-            }
           }
         ]
       }

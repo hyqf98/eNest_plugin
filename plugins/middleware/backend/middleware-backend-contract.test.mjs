@@ -73,9 +73,9 @@ const open = (f, input = {}) => f.port.call('session.open', { sessionKey: 'mw:fi
 const controls = (f, method) => f.port.messages.filter(message => message.method === method)
 
 test('connection/query/admin permission mapping is private and rejects unknown actions', () => {
-  for (const action of ['kinds.list', 'test', 'session.open', 'session.close', 'session.list']) assert.equal(mwWorkbenchPermission(action), 'mw.connect')
-  for (const action of ['overview', 'messages.query', 'tail.start', 'tail.stop', 'configs.describe']) assert.equal(mwWorkbenchPermission(action), 'mw.query')
-  for (const action of ['topic.delete', 'topic.purge', 'messages.send', 'configs.alter']) assert.equal(mwWorkbenchPermission(action), 'mw.admin')
+  for (const action of ['kinds.list', 'test', 'session.open', 'session.close', 'session.list']) assert.equal(mwWorkbenchPermission(action), 'net.messaging')
+  for (const action of ['overview', 'messages.query', 'tail.start', 'tail.stop', 'configs.describe']) assert.equal(mwWorkbenchPermission(action), 'net.messaging.read')
+  for (const action of ['topic.delete', 'topic.purge', 'messages.send', 'configs.alter']) assert.equal(mwWorkbenchPermission(action), 'net.messaging.admin')
   assert.throws(() => mwWorkbenchPermission('arbitrary'), /Unknown/)
 })
 
@@ -136,7 +136,7 @@ test('missing secret fails closed, while read-only policy rejects writes after a
   await f.port.call('overview', { sessionKey: 'mw:fixture' })
   await assert.rejects(f.port.call('topic.delete', { sessionKey: 'mw:fixture', name: 'fixture' }), /Read-only/)
   assert.equal(f.operations.some(item => item.op === 'delete'), false)
-  assert.ok(controls(f, 'permission.authorize').some(item => item.params.permission === 'mw.admin'))
+  assert.ok(controls(f, 'permission.authorize').some(item => item.params.permission === 'net.messaging.admin'))
 })
 
 test('tails use generic event envelopes and close waits for real driver cleanup before release', async t => {

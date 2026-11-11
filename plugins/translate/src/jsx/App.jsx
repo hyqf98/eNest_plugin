@@ -495,8 +495,6 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <h1>翻译</h1>
-        <p>读懂另一种表达</p>
         <button id="history-toggle" onClick={() => setHistoryOpen((o) => !o)}>历史与收藏</button>
         <button data-open-settings>设置</button>
       </header>

@@ -355,8 +355,6 @@ export function App() {
     return (
       <div className="app">
         <header>
-          <h1>番茄钟</h1>
-          <span className="shell-only">一次只做一件事</span>
           <button onClick={openSettings}>偏好设置</button>
         </header>
         <main className="workspace">
@@ -435,8 +433,6 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <h1>番茄钟</h1>
-        <span className="shell-only">一次只做一件事</span>
         <button onClick={openSettings}>偏好设置</button>
       </header>
       <main className="workspace">

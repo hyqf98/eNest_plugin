@@ -301,10 +301,6 @@ export function App() {
   return (
     <main className="regex-app">
       <header className="topbar">
-        <div className="brand">
-          <h1>正则工作台</h1>
-          <span className="sub">输入即时匹配 · 分组 · 替换</span>
-        </div>
         <div className="toolbar">
           <button id="toggle-snippets" type="button" className="shell-only" aria-expanded={snippetsOpen} onClick={() => setSnippetsOpen((v) => !v)}>
             模板库

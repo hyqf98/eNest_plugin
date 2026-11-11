@@ -766,7 +766,6 @@ export function App() {
     <main className={'image-app' + (dragging ? ' dragging' : '')} ref={appRef}
       onDragOver={onAppDragOver} onDragLeave={onAppDragLeave} onDrop={onAppDrop}>
       <header className="app-head">
-        <div><span className="eyebrow">图片处理</span><h1>图片工具箱</h1></div>
         <span id="status" role="status">{statusText}</span>
         <button id="add-files" type="button" className="pk-btn pk-btn-primary" onClick={pickFiles}>添加图片</button>
         <button id="from-clipboard" type="button" className="pk-btn" onClick={pickClipboard}>从剪贴板</button>

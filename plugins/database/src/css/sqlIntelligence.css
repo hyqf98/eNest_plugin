@@ -3,6 +3,11 @@
 .app .sql-completion-settings h2 { font-size: 1.2em; font-weight: 650; }
 .app .sql-completion-settings h3 { font-size: 1em; font-weight: 600; }
 .app .sql-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* 内层不再写 h2（外层设置区已有「SQL 补全」标题），此时说明与保存按钮同一行。
+   说明用 flex:1 吃掉剩余宽度，而不是写死 max-width：后者在窄容器里会把这段
+   说明挤成多行窄条，按钮反而独占一行。 */
+.app .sql-section-heading-inline { align-items: center; }
+.app .sql-section-heading-inline .muted { margin: 0; flex: 1 1 auto; min-width: 0; }
 .app .sql-section-heading .muted { margin-top: 4px; }
 .app .sql-completion-settings .muted { color: var(--text-2); font-size: .92em; line-height: 1.6; }
 .app .sql-save-state { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }

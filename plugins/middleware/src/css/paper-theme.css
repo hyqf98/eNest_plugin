@@ -1,178 +1,730 @@
-/* paper-theme — 纸感手绘主题层（移植自 ai-canvas，与 database/ssh 插件同构）。
+/* paper-theme — 纸感手绘主题层（与 ai-canvas 同构的完整视觉语言）。
  *
- * 手法：在 :root[data-paper] 重定义宿主语义 token（bg/surface/border/text/accent/
- * radius/shadow/font 系列）。middleware 现有规则全部经 var()/color-mix() 消费这些
- * token，换纸即全局换肤，不逐组件重写。
+ * 手法（三层，从便宜到昂贵）：
+ *  1) 令牌桥：在 :root[data-paper] 重定义宿主语义 token（bg/surface/border/text/
+ *     accent/radius/shadow/font 系列）+ 本插件识别色（--c-kafka 等）与 JSON 着色。
+ *     middleware 现有规则全部经 var()/color-mix() 消费这些 token，换纸即全局换肤。
+ *  2) 材质：body 纸面点阵（--bg-dot）、手写体 chrome、等宽数据区、虚线分隔、
+ *     遮罩去毛玻璃。全部是普通声明，成本可忽略。
+ *  3) 真墨边：卡片/浮层用 ::before 画 1.6px 墨线并挂 SVG 位移滤镜（#ink-rough /
+ *     #ink-rough-fine，定义在 jsx/App.jsx），配像素四值不对称圆角 + 硬偏移投影。
+ *     滤镜是逐元素 GPU 通道，故只给「数量可控」的卡片与浮层用；表格行、chip、
+ *     列表项一律用 CSS 边框/虚线与色块，避免长列表掉帧。
  *
- * 宿主 token 由 api.js applyTheme 以 element.style.setProperty 内联注入，故桥接值
- * 一律 !important（重要作者声明胜过非重要内联），且全部写具体量（hex/rgba 字面）。
+ * 为什么 !important：宿主 token 由 api.js applyTheme 以 element.style.setProperty
+ * 内联注入（重要作者声明才压得过内联），故桥接值一律 !important，且写具体量
+ * （hex/rgba 字面）——某些消费方经 getComputedStyle 读变量，var() 链不会被解析。
  * 偏好 auto 由 applyPaper 解析成具体纸面（浅色=paper / 深色=dark），桥始终生效。
  *
- * 数据区（表格数字列、payload、meta、预览）走 --mono 不受手写体影响。
+ * 裁切注意：::before 的 inset:-3px 会被父级 overflow:hidden/auto 剪掉。
+ * 因此只有不滚动的卡片才用外扩墨边；滚动容器（表格、菜单、建议列表）改用实线
+ * 边框 + 硬偏移投影；需要圆角裁切又要有墨边的浮层（wb-dialog）改为 overflow:visible。
  */
 
 :root {
   /* 手写字体：霞鹜文楷 Lite（OFL），unicode-range 子集懒加载；缺失回落系统楷体。 */
   --ink-hand: 'LXGW WenKai Lite', 'Kaiti SC', 'STKaiti', serif;
-  /* 墨迹圆角：像素值不对称四值（百分比在大尺寸会摊成椭圆）。 */
+  /* 墨迹圆角：像素值不对称四值（百分比在大尺寸会摊成椭圆，卡片里套圆圈）。 */
   --ink-radius-card: 14px 18px 15px 19px / 17px 14px 19px 15px;
   --ink-radius-pop: 13px 17px 14px 18px / 16px 13px 18px 14px;
   --ink-radius-input: 8px 11px 9px 12px / 11px 8px 12px 9px;
+  --ink-radius-ctl: 48% 52% 46% 54% / 54% 46% 55% 45%;
+  --ink-radius-tag: 40% 60% 55% 45% / 55% 45% 60% 40%;
   --ink-speed: 0.16s;
+  /* 墨色投影与描边色：四套纸面各自覆盖；这里给首帧兜底（applyPaper 之前
+     data-paper 尚未落属性，避免 box-shadow 整条失效）。 */
+  --ac-edge: #a89680;
+  --ac-shadow: rgba(60, 56, 48, 0.10);
+  /* 未解析纸面前的点阵兜底（暖墨，不用冷灰）。 */
+  --bg-dot: rgba(51, 48, 43, 0.10);
 }
 
 /* ══ 白纸 paper ══ */
 :root[data-paper='paper'] {
   color-scheme: light !important;
-  --ac-edge: #8a5a2b; --ac-shadow: rgba(74, 60, 34, 0.14);
-  --bg-dot: rgba(58, 47, 30, 0.10) !important;
-  --bg: #f7f3e8 !important;
-  --surface: #fffdf6 !important;
-  --surface-2: #efe8d6 !important;
-  --surface-3: #e7e5e5 !important;
-  --border: rgba(58, 47, 30, 0.20) !important;
-  --border-strong: rgba(58, 47, 30, 0.34) !important;
-  --text: #3a2f1e !important;
-  --text-2: #7a6c52 !important;
-  --text-3: #918469 !important;
-  --accent: #1d5c8a !important;
-  --accent-soft: rgba(29, 92, 138, 0.12) !important;
-  --accent-contrast: #fffdf6 !important;
+  --ac-edge: #a89680; --ac-shadow: rgba(60, 56, 48, 0.10);
+  --bg-dot: rgba(51, 48, 43, 0.10) !important;
+  --bg: #fbfbf8 !important;
+  --surface: #ffffff !important;
+  --surface-2: #f1f1ec !important;
+  --surface-3: #dbd8d0 !important;
+  --border: rgba(51, 48, 43, 0.14) !important;
+  --border-strong: rgba(51, 48, 43, 0.24) !important;
+  --text: #33302b !important;
+  --text-2: #6f6a61 !important;
+  --text-3: #8a8579 !important;
+  --accent: #2f5f82 !important;
+  --accent-soft: rgba(47, 95, 130, 0.12) !important;
+  --accent-contrast: #ffffff !important;
   --ok: #3f9b57 !important;
   --ok-soft: rgba(63, 155, 87, 0.12) !important;
-  --danger: #a61e1e !important;
-  --danger-soft: rgba(166, 30, 30, 0.12) !important;
-  --warn: #b07c2a !important;
+  --danger: #a63a34 !important;
+  --danger-soft: rgba(166, 58, 52, 0.12) !important;
+  --warn: #8e744c !important;
   --warn-soft: rgba(176, 124, 42, 0.14) !important;
-  --link: #1d5c8a !important;
-  --line: rgba(58, 47, 30, 0.34) !important;
-  --wash: #fffdf6 !important;
+  --link: #2f5f82 !important;
+  --line: rgba(51, 48, 43, 0.24) !important;
+  --wash: #ffffff !important;
   --font: var(--ink-hand) !important;
   --radius-sm: 8px !important; --radius-md: 10px !important; --radius-lg: 12px !important;
   --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
+  /* 四类中间件识别色：全部落在纸面语义色里（赭/赤褐/蓝墨/苔绿），不留冷灰。 */
+  --c-kafka: #6d6049 !important; --c-rabbit: #a8452f !important;
+  --c-mqtt: #2f5f82 !important; --c-rocket: #3f7a4a !important;
+  /* JSON 着色：键=墨棕、串=苔绿、数=朱、字面量=蓝墨。 */
+  --j-k: #a89680; --j-s: #2f7a3a; --j-n: #a63a34; --j-b: #2f5f82;
+  /* pk-ui 自己的柔光环也换成中性墨，避免控件聚焦时冒出蓝色光圈。 */
+  --pk-focus-ring-color: rgba(58, 47, 30, 0.28) !important;
 }
 
 /* ══ 米黄 cream ══ */
 :root[data-paper='cream'] {
   color-scheme: light !important;
-  --ac-edge: #96662f; --ac-shadow: rgba(94, 72, 34, 0.16);
-  --bg-dot: rgba(67, 51, 29, 0.10) !important;
-  --bg: #f3e9d2 !important;
-  --surface: #faf3e0 !important;
-  --surface-2: #eadfc2 !important;
-  --surface-3: #e4dcc9 !important;
-  --border: rgba(67, 51, 29, 0.20) !important;
-  --border-strong: rgba(67, 51, 29, 0.34) !important;
-  --text: #43331d !important;
-  --text-2: #8a7752 !important;
-  --text-3: #9d8c69 !important;
-  --accent: #27607f !important;
+  --ac-edge: #9c8a6f; --ac-shadow: rgba(64, 60, 50, 0.11);
+  --bg-dot: rgba(67, 51, 29, 0.11) !important;
+  --bg: #f9f7f1 !important;
+  --surface: #fdfcf8 !important;
+  --surface-2: #efebe1 !important;
+  --surface-3: #d6d2c8 !important;
+  --border: rgba(58, 54, 46, 0.14) !important;
+  --border-strong: rgba(58, 54, 46, 0.24) !important;
+  --text: #3a362e !important;
+  --text-2: #767065 !important;
+  --text-3: #918a7d !important;
+  --accent: #33607f !important;
   --accent-soft: rgba(39, 96, 127, 0.12) !important;
-  --accent-contrast: #faf3e0 !important;
+  --accent-contrast: #fdfcf8 !important;
   --ok: #4f8b3f !important;
   --ok-soft: rgba(79, 139, 63, 0.12) !important;
-  --danger: #b0431f !important;
+  --danger: #a8452f !important;
   --danger-soft: rgba(176, 67, 31, 0.12) !important;
-  --warn: #b3822c !important;
+  --warn: #91794e !important;
   --warn-soft: rgba(179, 130, 44, 0.14) !important;
-  --link: #27607f !important;
-  --line: rgba(67, 51, 29, 0.34) !important;
-  --wash: #faf3e0 !important;
+  --link: #33607f !important;
+  --line: rgba(58, 54, 46, 0.24) !important;
+  --wash: #fdfcf8 !important;
   --font: var(--ink-hand) !important;
   --radius-sm: 8px !important; --radius-md: 10px !important; --radius-lg: 12px !important;
   --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
+  --c-kafka: #72634c !important; --c-rabbit: #a8452f !important;
+  --c-mqtt: #33607f !important; --c-rocket: #4f8b3f !important;
+  --j-k: #9c8a6f; --j-s: #2f7a3a; --j-n: #a8452f; --j-b: #33607f;
+  --pk-focus-ring-color: rgba(67, 51, 29, 0.28) !important;
 }
 
 /* ══ 深色 dark ══ */
 :root[data-paper='dark'] {
   color-scheme: dark !important;
-  --ac-edge: #cfa96a; --ac-shadow: rgba(0, 0, 0, 0.4);
-  --bg-dot: rgba(236, 229, 211, 0.08) !important;
-  --bg: #26231e !important;
-  --surface: #302c25 !important;
-  --surface-2: #3a352c !important;
+  --ac-edge: #b8a888; --ac-shadow: rgba(0, 0, 0, 0.4);
+  --bg-dot: rgba(236, 229, 211, 0.10) !important;
+  --bg: #222220 !important;
+  --surface: #2a2a27 !important;
+  --surface-2: #32322e !important;
   --surface-3: #47423a !important;
-  --border: rgba(236, 229, 211, 0.22) !important;
-  --border-strong: rgba(236, 229, 211, 0.38) !important;
-  --text: #ece5d3 !important;
-  --text-2: #a89c83 !important;
-  --text-3: #8b8169 !important;
-  --accent: #7fb2d4 !important;
+  --border: rgba(232, 229, 221, 0.16) !important;
+  --border-strong: rgba(232, 229, 221, 0.28) !important;
+  --text: #e8e5dd !important;
+  --text-2: #a5a094 !important;
+  --text-3: #8b877c !important;
+  --accent: #88b0cc !important;
   --accent-soft: rgba(127, 178, 212, 0.16) !important;
-  --accent-contrast: #241f18 !important;
+  --accent-contrast: #222220 !important;
   --ok: #83bd8a !important;
   --ok-soft: rgba(131, 189, 138, 0.16) !important;
-  --danger: #e0705c !important;
+  --danger: #d98070 !important;
   --danger-soft: rgba(224, 112, 92, 0.16) !important;
-  --warn: #d8b25e !important;
+  --warn: #b9a67d !important;
   --warn-soft: rgba(216, 178, 94, 0.16) !important;
-  --link: #7fb2d4 !important;
-  --line: rgba(236, 229, 211, 0.38) !important;
-  --wash: #302c25 !important;
+  --link: #88b0cc !important;
+  --line: rgba(232, 229, 221, 0.28) !important;
+  --wash: #2a2a27 !important;
   --font: var(--ink-hand) !important;
   --radius-sm: 8px !important; --radius-md: 10px !important; --radius-lg: 12px !important;
   --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
+  --c-kafka: #b9a67d !important; --c-rabbit: #d98070 !important;
+  --c-mqtt: #88b0cc !important; --c-rocket: #83bd8a !important;
+  --j-k: #b8a888; --j-s: #83bd8a; --j-n: #d98070; --j-b: #88b0cc;
+  --pk-focus-ring-color: rgba(236, 229, 211, 0.30) !important;
 }
 
 /* ══ 黑板 board ══ */
 :root[data-paper='board'] {
   color-scheme: dark !important;
-  --ac-edge: #d8d2ae; --ac-shadow: rgba(0, 0, 0, 0.38);
-  --bg-dot: rgba(233, 232, 214, 0.08) !important;
-  --bg: #2c3a2f !important;
-  --surface: #344537 !important;
-  --surface-2: #3c4c3e !important;
+  --ac-edge: #c2bfa8; --ac-shadow: rgba(0, 0, 0, 0.38);
+  --bg-dot: rgba(233, 232, 214, 0.10) !important;
+  --bg: #293029 !important;
+  --surface: #30372f !important;
+  --surface-2: #383f37 !important;
   --surface-3: #4a584a !important;
-  --border: rgba(233, 232, 214, 0.22) !important;
-  --border-strong: rgba(233, 232, 214, 0.38) !important;
-  --text: #e9e8d6 !important;
-  --text-2: #a9b39a !important;
-  --text-3: #8d9882 !important;
-  --accent: #9fc3d8 !important;
-  --accent-soft: rgba(159, 195, 216, 0.16) !important;
-  --accent-contrast: #232f25 !important;
+  --border: rgba(230, 229, 218, 0.16) !important;
+  --border-strong: rgba(230, 229, 218, 0.28) !important;
+  --text: #e6e5da !important;
+  --text-2: #a6ab9c !important;
+  --text-3: #8b9082 !important;
+  --accent: #a0c2d4 !important;
+  --accent-soft: rgba(160, 194, 212, 0.16) !important;
+  --accent-contrast: #293029 !important;
   --ok: #a8d0a0 !important;
   --ok-soft: rgba(168, 208, 160, 0.16) !important;
-  --danger: #e8937a !important;
-  --danger-soft: rgba(232, 147, 122, 0.16) !important;
-  --warn: #d6c07a !important;
+  --danger: #d79180 !important;
+  --danger-soft: rgba(215, 145, 128, 0.16) !important;
+  --warn: #c2b68e !important;
   --warn-soft: rgba(214, 192, 122, 0.16) !important;
-  --link: #9fc3d8 !important;
-  --line: rgba(233, 232, 214, 0.38) !important;
-  --wash: #344537 !important;
+  --link: #a0c2d4 !important;
+  --line: rgba(230, 229, 218, 0.28) !important;
+  --wash: #30372f !important;
   --font: var(--ink-hand) !important;
   --radius-sm: 8px !important; --radius-md: 10px !important; --radius-lg: 12px !important;
   --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
+  --c-kafka: #c2b68e !important; --c-rabbit: #d79180 !important;
+  --c-mqtt: #a0c2d4 !important; --c-rocket: #a8d0a0 !important;
+  --j-k: #c2bfa8; --j-s: #a8d0a0; --j-n: #d79180; --j-b: #a0c2d4;
+  --pk-focus-ring-color: rgba(233, 232, 214, 0.30) !important;
 }
 
-/* ── 数据/代码区显式等宽（接管 --font 后防手写体干扰读数）── */
+/* ── 数据/代码区显式等宽（接管 --font 后防手写体干扰读数）──
+ * 表格单元格、JSON 体、消息 meta 键值与值、状态栏延迟、卡片指标、表单文本域、
+ * 规则预览、轨迹时间戳、树计数/环境标记、Tab 上的连接名。 */
 :root[data-paper] table.grid td, :root[data-paper] .payload-pane,
-:root[data-paper] .msg-viewer .meta .v, :root[data-paper] .status-bar .lat,
+:root[data-paper] .payload-editor, :root[data-paper] .msg-viewer .meta .v,
+:root[data-paper] .msg-viewer .meta .k, :root[data-paper] .status-bar .lat,
 :root[data-paper] .conn-card .m .v, :root[data-paper] .metric-card .v,
 :root[data-paper] .form-row textarea, :root[data-paper] .mw-rule-preview,
-:root[data-paper] .trace-step .card .when, :root[data-paper] .monaco-editor {
-  font-family: var(--mono) !important;
+:root[data-paper] .trace-step .card .when, :root[data-paper] .monaco-editor,
+:root[data-paper] .tree-group > .g-label .cnt,
+:root[data-paper] .conn-tab .tab-connection, :root[data-paper] .suggestion-name,
+:root[data-paper] .mw-shortcut-row input {
+  /* --mono 可能被 kit 改写成 var(--font-mono)（宿主未注入时解析为空），
+     故显式给字面兜底链，避免数据区静默退回手写体。 */
+  font-family: var(--mono, ui-monospace, "SF Mono", Menlo, monospace) !important;
 }
 /* kit/Radix 控件（portal 到 body 时钉死手写体保持 chrome 一致）。 */
 :root[data-paper] .pk-select-trigger, :root[data-paper] .pk-select-value,
 :root[data-paper] .pk-dialog-content, :root[data-paper] .pk-menu, :root[data-paper] .pk-menu-item,
-:root[data-paper] .pk-input, :root[data-paper] .pk-btn {
+:root[data-paper] .pk-flyout, :root[data-paper] .pk-input, :root[data-paper] .pk-btn,
+:root[data-paper] .wb-dialog, :root[data-paper] .wb-dialog button {
   font-family: var(--ink-hand) !important;
 }
 
-/* ── 手绘签名：右键菜单/抽屉/卡片/弹层墨边 + 硬偏移投影 + 入场动画 ── */
-:root[data-paper] .ctxmenu {
+/* ── 纸面点阵 ──
+ * plugin-kit.css 的 `body { background: var(--bg, …) }` 是简写，会把 main.css 画的
+ * 点阵一并重置掉；本文件最后加载，故在这里重新挂回。颜色来自上面四套纸面各自的
+ * --bg-dot（暖纸用暖墨、深色纸用亮墨），不会退回 main.css 旧回退里的冷灰。
+ * 正文容器让空，点阵只在留白处透出；表格/卡片各自铺实底，读数不隔一层点。 */
+:root[data-paper] body {
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px) !important;
+  background-size: 22px 22px !important;
+  background-position: 0 0 !important;
+  background-color: var(--bg) !important;
+}
+:root[data-paper] .content { background: transparent !important; }
+:root[data-paper] .page-host, :root[data-paper] .page { background: transparent; }
+/* 宿主「外观」家族会在 .pk-appearance 上叠两层装饰（暖色渐变 + 斜向细纹），
+ * 纸面已有自己的点阵，两套纹理叠在一起会发脏；纸面下只留点阵。 */
+:root[data-paper] .pk-appearance[data-layout-family]::before,
+:root[data-paper] .pk-appearance[data-layout-family]::after { opacity: 0 !important; animation: none !important; }
+
+/* ═══════════ 顶栏 / 连接树 / Tab / 子导航 / 状态栏 ═══════════ */
+
+/* 顶栏：纸面薄片（两色混合保持不透明，点阵只在正文透出）+ 手绘虚线分界。 */
+:root[data-paper] .workbench-head {
+  background: color-mix(in srgb, var(--surface) 80%, var(--bg)) !important;
+  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 26%, transparent) !important;
+}
+:root[data-paper] .workbench-head > span { letter-spacing: 0.02em; }
+:root[data-paper] .workbench-head-hint { font-style: italic; color: var(--text-3); }
+:root[data-paper] #nav-toggle {
+  border-radius: var(--ink-radius-ctl);
+  border: 1.3px solid transparent;
+  transition: transform var(--ink-speed) ease, border-color var(--ink-speed) ease, background var(--ink-speed) ease;
+}
+:root[data-paper] #nav-toggle:hover { transform: rotate(-6deg) scale(1.08); border-color: var(--text); background: transparent !important; }
+:root[data-paper] #nav-toggle[aria-expanded='true'] { border-color: color-mix(in srgb, var(--text) 55%, transparent); }
+
+/* 连接树：纸面薄片浮在点阵上（96% 实底，点阵只透出一点颗粒，不干扰文字），
+ * 右侧分隔交给 resizer 的墨线。 */
+:root[data-paper] .tree {
+  background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+  border-right: 0 !important;
+}
+:root[data-paper] .tree-resizer {
+  background: transparent !important;
+  border-right: 1.5px solid color-mix(in srgb, var(--text) 24%, transparent) !important;
+}
+:root[data-paper] .tree-resizer:hover, :root[data-paper] .tree-resizer.active {
+  background: color-mix(in srgb, var(--text) 10%, transparent) !important;
+}
+:root[data-paper] .tree-head { color: var(--text-2); font-weight: 600; }
+:root[data-paper] .tree-head button { border-radius: var(--ink-radius-ctl); transition: transform var(--ink-speed) ease, color var(--ink-speed) ease; }
+:root[data-paper] .tree-head button:hover { color: var(--text) !important; background: color-mix(in srgb, var(--text) 8%, transparent) !important; transform: rotate(-8deg) scale(1.1); }
+:root[data-paper] .connection-search {
+  border: 1.4px solid color-mix(in srgb, var(--text) 22%, transparent) !important;
+  border-radius: var(--ink-radius-input) !important;
+  background: color-mix(in srgb, var(--bg) 60%, var(--surface)) !important;
+}
+:root[data-paper] .connection-search:focus {
+  border-color: var(--text) !important;
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 30%, transparent) !important;
+}
+/* 分组标题：小字距 + 虚线尾线，像笔记本分区。 */
+:root[data-paper] .tree-group > .g-label {
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  border-radius: var(--ink-radius-input);
+}
+:root[data-paper] .tree-group > .g-label:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text-2); }
+:root[data-paper] .tree-group > .g-label .cnt {
+  color: var(--text-3); border: 1.1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 6px 8px 7px 9px; padding: 0 4px; line-height: 1.4;
+}
+:root[data-paper] .tree-item {
+  border-radius: 9px 12px 10px 13px;
+  /* 用内描边而不是 border：树行是 30px 定高的密集列表，加边框会让每行内容
+     宽度抖动 2.6px（Quick 窄树尤其明显），内阴影不参与布局。 */
+  transition: background var(--ink-speed) ease, color var(--ink-speed) ease, box-shadow var(--ink-speed) ease, transform 0.09s ease;
+}
+:root[data-paper] .tree-item:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent) !important;
+  box-shadow: inset 0 0 0 1.3px color-mix(in srgb, var(--text) 20%, transparent);
+  transform: translateX(2px);
+}
+:root[data-paper] .tree-item.on {
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+  color: var(--text) !important;
+  box-shadow: inset 2.5px 0 0 var(--text), inset 0 0 0 1.3px color-mix(in srgb, var(--text) 30%, transparent);
+  font-weight: 600;
+}
+:root[data-paper] .tree-item:active { transform: scale(0.985); }
+/* 树内环境徽标（envChip 输出 .chip.env-*）：收紧到不撑破 240px 树宽。 */
+:root[data-paper] .tree-item .chip {
+  border-radius: var(--ink-radius-tag);
+  padding: 0 5px;
+  font-size: 0.8em;
+  line-height: 1.6;
+}
+:root[data-paper] .tree-item .lock { opacity: 0.7; }
+:root[data-paper] .tree-foot-btn {
+  border-radius: var(--ink-radius-input);
+  color: var(--text-2);
+  transition: color var(--ink-speed) ease, background var(--ink-speed) ease;
+}
+:root[data-paper] .tree-foot-btn:hover {
+  color: var(--text) !important;
+  background: color-mix(in srgb, var(--text) 7%, transparent) !important;
+}
+
+/* 连接 Tab：纸片页签，活动态用墨下划线而不是蓝条。 */
+:root[data-paper] .conn-tabs {
+  background: color-mix(in srgb, var(--surface) 70%, var(--bg)) !important;
+  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 24%, transparent) !important;
+}
+:root[data-paper] .conn-tab { border-radius: 9px 12px 0 0; color: var(--text-2); }
+:root[data-paper] .conn-tab:hover { background: color-mix(in srgb, var(--text) 6%, transparent) !important; color: var(--text); }
+:root[data-paper] .conn-tab.on {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  border: 0 !important;
+  border-radius: 9px 12px 0 0;
+  box-shadow: inset 0 -2.4px 0 var(--text) !important;
+}
+:root[data-paper] .conn-tab .x { border-radius: var(--ink-radius-ctl); }
+:root[data-paper] .conn-tab .x:hover { color: var(--danger); background: var(--danger-soft); transform: rotate(8deg); }
+:root[data-paper] .tabs-placeholder { font-style: italic; }
+
+/* 子导航：活动项给墨下划线（workbench.css 把原 ::after 关掉了，这里恢复）。 */
+:root[data-paper] .subnav {
+  background: transparent !important;
+  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 22%, transparent) !important;
+}
+:root[data-paper] .subnav button {
+  border-radius: 8px 11px 9px 12px;
+  transition: color var(--ink-speed) ease, background var(--ink-speed) ease;
+}
+:root[data-paper] .subnav button:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
+:root[data-paper] .subnav button.on {
+  color: var(--text) !important;
+  background: color-mix(in srgb, var(--text) 7%, transparent) !important;
+  font-weight: 600;
+}
+:root[data-paper] .subnav button.on::after {
+  display: block !important;
+  content: "" !important;
+  left: 6px; right: 6px; bottom: 0; height: 2.2px;
+  background: var(--text) !important;
+  border-radius: 40% 60% 55% 45% / 55% 45% 60% 40%;
+  opacity: 0.9;
+}
+:root[data-paper] .context-connection { font-style: italic; color: var(--text-3); }
+:root[data-paper] .subnav-right { color: var(--text-3); }
+
+/* 状态栏：虚线顶界 + 等宽延迟读数。 */
+:root[data-paper] .status-bar {
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg)) !important;
+  border-top: 1.4px dashed color-mix(in srgb, var(--text) 24%, transparent) !important;
+  color: var(--text-3);
+}
+:root[data-paper] .status-bar .lat { color: var(--text-2); }
+:root[data-paper] .status-bar .dot { border: 1.2px solid var(--bg); }
+
+/* ═══════════ 通用控件：工具条 / 搜索 / 按钮 / 分段 / chip ═══════════ */
+
+:root[data-paper] .search {
+  background: color-mix(in srgb, var(--bg) 55%, var(--surface)) !important;
+  border: 1.4px solid color-mix(in srgb, var(--text) 22%, transparent) !important;
+  border-radius: var(--ink-radius-input) !important;
+  color: var(--text-3);
+}
+:root[data-paper] .search input { color: var(--text); }
+:root[data-paper] .toolbar .count b { color: var(--text); }
+
+:root[data-paper] .btn {
+  border-radius: 9px 12px 10px 13px !important;
+  border: 1.3px solid color-mix(in srgb, var(--text) 30%, transparent);
+  background: color-mix(in srgb, var(--surface) 86%, var(--bg));
+  color: var(--text-2);
+  transition: background var(--ink-speed) ease, color var(--ink-speed) ease,
+    border-color var(--ink-speed) ease, transform 0.09s ease;
+}
+:root[data-paper] .btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 60%, transparent);
+  background: color-mix(in srgb, var(--text) 6%, var(--surface));
+  transform: translateY(-1px);
+}
+:root[data-paper] .btn.primary {
+  background: var(--text) !important;
+  border-color: var(--text) !important;
+  color: var(--surface) !important;
+  font-weight: 600;
+  box-shadow: 2px 2.5px 0 var(--ac-shadow);
+}
+:root[data-paper] .btn.primary:hover:not(:disabled) { filter: none; opacity: 0.9; transform: translateY(-1px); }
+:root[data-paper] .btn.primary:active:not(:disabled) { transform: scale(0.96); box-shadow: none; }
+:root[data-paper] .btn.ghost { border-color: transparent; background: transparent; }
+:root[data-paper] .btn.ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 7%, transparent) !important; border-color: transparent; }
+:root[data-paper] .btn.accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent-soft); }
+:root[data-paper] .btn.danger { color: var(--danger); border-color: transparent; }
+:root[data-paper] .btn.danger:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-soft) !important; }
+:root[data-paper] .btn:active:not(:disabled) { transform: scale(0.96) !important; }
+
+/* kit 的 .pk-btn（表格行 ⋯ / 树行操作）走同一套纸面语义，避免行内出现冷色幽灵按钮。 */
+:root[data-paper] .pk-btn {
+  border-radius: 9px 12px 10px 13px !important;
+  border: 1.3px solid color-mix(in srgb, var(--text) 30%, transparent);
+  background: color-mix(in srgb, var(--surface) 86%, var(--bg));
+  color: var(--text-2);
+}
+:root[data-paper] .pk-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 60%, transparent);
+  background: color-mix(in srgb, var(--text) 6%, var(--surface));
+}
+:root[data-paper] .pk-btn-ghost, :root[data-paper] .pk-btn.ghost {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text-2);
+}
+:root[data-paper] .pk-btn-ghost:hover:not(:disabled), :root[data-paper] .pk-btn.ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 11%, transparent);
+  color: var(--text);
+}
+/* 主/危险变体：上面的 .pk-btn 基础规则特异性更高，必须显式接回来。 */
+:root[data-paper] .pk-btn.primary, :root[data-paper] .pk-btn-primary {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
+  font-weight: 600;
+}
+:root[data-paper] .pk-btn.danger, :root[data-paper] .pk-btn-danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--danger);
+}
+:root[data-paper] .pk-btn.danger:hover:not(:disabled), :root[data-paper] .pk-btn-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+:root[data-paper] .pk-btn-sm { border-radius: 8px 11px 9px 12px !important; }
+
+/* 分段控件：纸槽 + 活动纸片（墨角）。 */
+:root[data-paper] .seg {
+  background: color-mix(in srgb, var(--text) 7%, transparent) !important;
+  border-radius: 10px 13px 11px 14px;
+  padding: 2px;
+}
+:root[data-paper] .seg button { border-radius: 8px 11px 9px 12px; color: var(--text-3); }
+:root[data-paper] .seg button.on {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  box-shadow: 1.5px 2px 0 var(--ac-shadow) !important;
+  font-weight: 600;
+}
+
+/* chip / 徽标：不对称小圆角墨框（描边跟随 currentColor，语义色只管 color）。 */
+:root[data-paper] .chip {
+  border-radius: var(--ink-radius-tag) !important;
+  border: 1.1px solid color-mix(in srgb, currentColor 34%, transparent);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--text-2);
+}
+:root[data-paper] .chip.ok { color: var(--ok); background: var(--ok-soft); }
+:root[data-paper] .chip.warn { color: var(--warn); background: var(--warn-soft); }
+:root[data-paper] .chip.bad { color: var(--danger); background: var(--danger-soft); }
+:root[data-paper] .chip.accent { color: var(--accent); background: var(--accent-soft); }
+/* 环境徽标（tree 的 envChip）保留语义色：main.css 的 .env-* 特异性低于上面的
+ * .chip 基础规则，纸面层必须显式接回来，否则四类环境会被抹成同一种灰。 */
+:root[data-paper] .chip.env-prod { color: var(--danger); background: var(--danger-soft); }
+:root[data-paper] .chip.env-staging { color: var(--warn); background: var(--warn-soft); }
+:root[data-paper] .chip.env-test { color: var(--ok); background: var(--ok-soft); }
+:root[data-paper] .chip.env-dev { color: var(--text-2); background: color-mix(in srgb, var(--text) 8%, transparent); }
+:root[data-paper] .kind-dot { box-shadow: 0 0 0 1.1px color-mix(in srgb, var(--bg) 70%, transparent); }
+
+/* 堆积条：细墨槽 + 语义填充。 */
+:root[data-paper] .lag-bar .track { background: color-mix(in srgb, var(--text) 12%, transparent); }
+
+/* ═══════════ 表格（数据区，保持方正、只换纸面材质） ═══════════ */
+
+:root[data-paper] table.grid th {
+  background: var(--surface) !important;
+  color: var(--text-3);
+  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 30%, transparent) !important;
+  letter-spacing: 0.04em;
+}
+:root[data-paper] table.grid td { background: var(--bg); }
+:root[data-paper] table.grid th + th, :root[data-paper] table.grid td + td {
+  border-left: 1px solid color-mix(in srgb, var(--text) 12%, transparent) !important;
+}
+:root[data-paper] table.grid tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--text) 3%, var(--bg)) !important; }
+:root[data-paper] table.grid tbody tr:hover td { background: color-mix(in srgb, var(--text) 8%, var(--bg)) !important; }
+:root[data-paper] table.grid tbody tr.sel td { background: color-mix(in srgb, var(--text) 12%, var(--bg)) !important; }
+:root[data-paper] table.grid tbody tr.sel td:first-child { box-shadow: inset 2.5px 0 0 var(--text) !important; }
+:root[data-paper] table.grid td.name, :root[data-paper] table.grid td.num { color: var(--text); }
+/* 空态行保持实底：正文留白处的点阵不穿过表格文字。 */
+:root[data-paper] table.grid .empty-row td { background: var(--bg) !important; color: var(--text-3); font-style: italic; }
+
+/* ═══════════ 页面卡片：指标 / 连接卡 / 轨迹 / 实时条 / 表单说明 ═══════════ */
+
+/* 真墨边卡片（数量可控，滤镜成本可接受）。
+ * 注意：实时监听条不在其中——它的文案每条消息都重写，挂着 SVG 滤镜会把
+ * 滤镜卷积拖进每条消息的重绘路径（尾随模式下等于每帧一次），改用实线边框。 */
+:root[data-paper] .metric-card,
+:root[data-paper] .trace-step .card,
+:root[data-paper] .conn-card:not(.new) {
   position: relative;
   border: 0 !important;
+  border-radius: var(--ink-radius-card) !important;
+  box-shadow: 2px 3px 0 var(--ac-shadow) !important;
+  background: var(--surface) !important;
+}
+:root[data-paper] .metric-card::before,
+:root[data-paper] .trace-step .card::before,
+:root[data-paper] .conn-card:not(.new)::before {
+  content: ''; position: absolute; inset: -3px; pointer-events: none; z-index: 1;
+  border: 1.6px solid var(--text); border-radius: var(--ink-radius-card);
+  filter: url(#ink-rough); opacity: .8;
+}
+:root[data-paper] .metric-card .k { color: var(--text-3); letter-spacing: 0.03em; }
+:root[data-paper] .metric-card .v { color: var(--text); }
+:root[data-paper] .metric-card .spark { opacity: 0.9; }
+
+:root[data-paper] .conn-card { transition: transform var(--ink-speed) ease, box-shadow var(--ink-speed) ease; }
+:root[data-paper] .conn-card:hover:not(.new) { transform: translateY(-2px) rotate(-0.6deg); box-shadow: 3px 4px 0 var(--ac-shadow) !important; }
+:root[data-paper] .conn-card .m { background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 8px 11px 9px 12px; }
+:root[data-paper] .conn-card .m .v { color: var(--text); }
+:root[data-paper] .conn-card .foot { color: var(--text-3); }
+:root[data-paper] .conn-card.new {
+  border: 1.8px dashed color-mix(in srgb, var(--text) 34%, transparent) !important;
+  border-radius: var(--ink-radius-card) !important;
+  background: transparent !important;
+  color: var(--text-3);
+}
+:root[data-paper] .conn-card.new:hover { border-color: var(--text) !important; color: var(--text); transform: rotate(-0.8deg); }
+:root[data-paper] .home h1 { letter-spacing: 0.01em; }
+:root[data-paper] .home .sub { font-style: italic; color: var(--text-2); }
+
+/* 说明块：虚线便签，不用墨边（数量可能多）。 */
+:root[data-paper] .form-note {
+  background: color-mix(in srgb, var(--text) 5%, transparent) !important;
+  border: 1.3px dashed color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 10px 13px 11px 14px;
+  color: var(--text-3);
+}
+:root[data-paper] .form-note b { color: var(--text-2); }
+
+/* 轨迹时间线：墨点 + 虚线连接 + 相位小标签。 */
+:root[data-paper] .trace-step .pt {
+  border-color: color-mix(in srgb, var(--text) 55%, transparent) !important;
+  background: var(--bg) !important;
+}
+:root[data-paper] .trace-step.ok .pt { border-color: var(--ok) !important; background: var(--ok-soft) !important; }
+:root[data-paper] .trace-step.failed .pt { border-color: var(--danger) !important; background: var(--danger-soft) !important; }
+:root[data-paper] .trace-step .ln {
+  width: 2px; background: none !important;
+  background-image: repeating-linear-gradient(to bottom,
+    color-mix(in srgb, var(--text) 32%, transparent) 0 4px, transparent 4px 9px) !important;
+}
+:root[data-paper] .trace-phase { color: var(--text-3); }
+:root[data-paper] .trace-step .card .when { color: var(--text-3); }
+
+/* 实时监听条：实线墨框（不用滤镜，理由见上）+ 朱红脉冲点（动画沿用 mw-pulse）。 */
+:root[data-paper] .live-bar {
+  border: 1.5px solid var(--text) !important;
+  border-radius: var(--ink-radius-card) !important;
+  background: var(--surface) !important;
+  box-shadow: 2px 3px 0 var(--ac-shadow) !important;
+}
+:root[data-paper] .live-bar .live-dot { background: var(--danger); border: 1.2px solid var(--bg); }
+:root[data-paper] .live-bar .live-tag { color: var(--danger); }
+:root[data-paper] .live-bar .info b { color: var(--text); }
+
+/* ═══════════ 消息浏览器：左表 + 右详情 ═══════════ */
+
+/* .msg-viewer 在 main.css 里是 overflow:hidden（底部 payload 面板有底色，靠父级
+ * 圆角裁切）。外扩墨边会被剪掉，故这里改用真实边框：真实边框沿不对称圆角走，
+ * 永远不被裁；抖动质感由硬偏移投影和虚线分隔承担。
+ * 注意不要在这里写 position —— quick 模式把 .msg-viewer 改成 position:absolute
+ * 铺满表格区，纸面层的特异性更高，一旦写死 relative 就会破掉那个覆盖布局。 */
+:root[data-paper] .msg-viewer {
+  border: 1.6px solid var(--text) !important;
+  border-radius: var(--ink-radius-card) !important;
+  background: var(--surface) !important;
+  box-shadow: 2px 3px 0 var(--ac-shadow) !important;
+}
+:root[data-paper] .msg-viewer .vh {
+  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 24%, transparent) !important;
+  letter-spacing: 0.02em;
+}
+:root[data-paper] .msg-viewer .meta {
+  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 20%, transparent) !important;
+}
+:root[data-paper] .msg-viewer .meta .k { color: var(--text-3); font-size: 0.92em; }
+:root[data-paper] .msg-viewer .meta .v { color: var(--text-2); }
+:root[data-paper] .payload-pane {
+  background: color-mix(in srgb, var(--bg) 62%, var(--surface));
+  border-top: 1.4px dashed color-mix(in srgb, var(--text) 20%, transparent);
+  color: var(--text);
+}
+:root[data-paper] .payload-pane .j-k { color: var(--j-k) !important; }
+:root[data-paper] .payload-pane .j-s { color: var(--j-s) !important; }
+:root[data-paper] .payload-pane .j-n { color: var(--j-n) !important; }
+:root[data-paper] .payload-pane .j-b { color: var(--j-b) !important; }
+:root[data-paper] .payload-editor {
+  background: color-mix(in srgb, var(--bg) 62%, var(--surface)) !important;
+  border: 1.4px solid color-mix(in srgb, var(--text) 22%, transparent) !important;
+  border-radius: var(--ink-radius-input) !important;
+}
+:root[data-paper] .editor-status, :root[data-paper] .publish-status, :root[data-paper] .request-status { color: var(--text-3); }
+:root[data-paper] .request-status[data-state='error'] { color: var(--danger); }
+
+/* 空态 / 工作区占位：手写标题 + 轻墨符形。 */
+:root[data-paper] .workspace-empty { padding: 26px 28px; }
+:root[data-paper] .workspace-empty h1 { letter-spacing: 0.01em; }
+:root[data-paper] .workspace-empty p { color: var(--text-2); }
+:root[data-paper] .empty-cap { color: var(--text-3); font-style: italic; }
+:root[data-paper] .empty-cap .big { opacity: 0.45; transform: rotate(-4deg); display: inline-block; }
+
+/* 载入条：墨色铅笔线。 */
+:root[data-paper] .loading-bar { background: color-mix(in srgb, var(--text) 10%, transparent); }
+:root[data-paper] .loading-bar::after { background: var(--ac-edge); }
+
+/* 发送页：底部操作条改虚线分界，与表头/抽屉同一套笔触。 */
+:root[data-paper] .publish-footer { border-top: 1.4px dashed color-mix(in srgb, var(--text) 22%, transparent) !important; }
+
+/* ═══════════ 抽屉 / 遮罩 / 表单 ═══════════ */
+
+/* 抽屉：左缘手绘竖线。伪元素只占 3px 宽的一条（而不是整块 inset:0），
+ * 这样 SVG 位移滤镜的离屏画布只有几像素宽，不会为一次开合做整屏卷积。 */
+:root[data-paper] .drawer {
+  position: fixed;
+  border-left: 0 !important;
+  background: var(--surface) !important;
+  box-shadow: -3px 0 0 var(--ac-shadow) !important;
+  animation: ink-slide var(--ink-speed) ease-out;
+}
+:root[data-paper] .drawer::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; pointer-events: none; z-index: 2;
+  border-left: 1.8px solid var(--text);
+  filter: url(#ink-rough-fine); opacity: .72;
+}
+:root[data-paper] .drawer .dh { border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 20%, transparent); padding-bottom: 12px; }
+:root[data-paper] .drawer .dh h2 { letter-spacing: 0.01em; }
+:root[data-paper] .drawer .dh .x { border-radius: var(--ink-radius-ctl); }
+:root[data-paper] .drawer .dh .x:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); transform: rotate(8deg); }
+:root[data-paper] .drawer .dfoot { border-top: 1.4px dashed color-mix(in srgb, var(--text) 22%, transparent) !important; }
+/* 遮罩（.mask / #nav-scrim）已在 main.css、workbench.css 改为按 --text 混合的墨色，
+ * 纸面下天然跟随，无需再覆盖；这里只补去毛玻璃（手绘是纸，不糊）。 */
+:root[data-paper] .mask, :root[data-paper] .pk-dialog-overlay { backdrop-filter: none !important; }
+
+/* 类型四宫格：纸面卡 + 选中墨边。 */
+:root[data-paper] .type-seg button {
+  border: 1.4px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 11px 14px 12px 15px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text-2);
+  transition: border-color var(--ink-speed) ease, background var(--ink-speed) ease, transform 0.09s ease;
+}
+:root[data-paper] .type-seg button:hover { border-color: color-mix(in srgb, var(--text) 50%, transparent); transform: translateY(-1px); }
+:root[data-paper] .type-seg button.on {
+  border-color: var(--text) !important;
+  border-width: 1.7px;
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+  color: var(--text) !important;
+  box-shadow: 1.5px 2px 0 var(--ac-shadow);
+  transform: rotate(-0.8deg);
+}
+
+/* 表单输入：墨角 + 纸槽底。 */
+:root[data-paper] .form-row input[type="text"], :root[data-paper] .form-row input[type="password"],
+:root[data-paper] .form-row input[type="number"], :root[data-paper] .form-row select,
+:root[data-paper] .form-row textarea, :root[data-paper] .fld select, :root[data-paper] .fld input,
+:root[data-paper] .mw-settings-page input:not([type=checkbox]), :root[data-paper] .mw-settings-page select,
+:root[data-paper] .mw-settings-page textarea {
+  background: color-mix(in srgb, var(--bg) 58%, var(--surface)) !important;
+  border: 1.4px solid color-mix(in srgb, var(--text) 24%, transparent) !important;
+  border-radius: var(--ink-radius-input) !important;
+  color: var(--text);
+}
+:root[data-paper] .form-row > label, :root[data-paper] .fld { color: var(--text-2); }
+:root[data-paper] .form-row > label .req { color: var(--danger); }
+:root[data-paper] .form-row .tip { color: var(--text-3); font-style: italic; }
+:root[data-paper] .form-row .err { color: var(--danger); }
+/* kit 的 upgradeSelects 把原生 select 换成 .pk-select 包裹层（inline-flex），
+ * main.css 的 `.form-row select { width:100% }` 打在已被隐藏的 <select> 上，
+ * 换纸后表单里就会出现「输入框整行、下拉缩成内容宽」的错位。这里把包裹层与
+ * 触发器都撑满；筛选条里的 .fld 保持随内容宽并压到 26px，避免 Quick 矮窗被
+ * 32px 的默认触发器顶高。 */
+:root[data-paper] .form-row > .pk-select,
+:root[data-paper] .mw-settings-page .pk-select { width: 100%; }
+:root[data-paper] .form-row > .pk-select > .pk-select-trigger,
+:root[data-paper] .mw-settings-page .pk-select > .pk-select-trigger { width: 100%; }
+:root[data-paper] .fld .pk-select-trigger {
+  min-height: 26px;
+  padding: 2px 8px;
+  font-size: 0.9615em;
+}
+:root[data-paper] .switch { border: 1.3px solid color-mix(in srgb, var(--text) 26%, transparent); background: color-mix(in srgb, var(--text) 10%, transparent); }
+:root[data-paper] .switch::after { background: var(--text-3); }
+:root[data-paper] .switch.on { background: var(--accent); border-color: var(--accent); }
+:root[data-paper] .switch.on::after { background: var(--accent-contrast); }
+:root[data-paper] .switch-row .sl { color: var(--text-2); }
+:root[data-paper] .switch-row .sl b { color: var(--text); font-weight: 600; }
+
+/* ═══════════ 浮层：右键菜单 / toast / 建议列表 / 对话框 ═══════════ */
+
+/* 右键菜单：外扩墨边（自身不滚动，安全）。 */
+:root[data-paper] .ctxmenu {
+  position: fixed;
+  border: 0 !important;
   border-radius: var(--ink-radius-pop) !important;
+  background: var(--surface) !important;
   box-shadow: 3px 4px 0 var(--ac-shadow) !important;
   animation: ink-pop var(--ink-speed) ease-out;
 }
@@ -181,75 +733,260 @@
   border: 1.4px solid var(--text); border-radius: var(--ink-radius-pop);
   filter: url(#ink-rough-fine); opacity: .72;
 }
-:root[data-paper] .drawer {
-  border-left: 1px solid var(--border-strong) !important;
-  box-shadow: -3px 0 0 var(--ac-shadow) !important;
-  animation: ink-slide var(--ink-speed) ease-out;
-}
-/* 遮罩去毛玻璃语义：硬编码深蓝遮罩改中性墨半透。 */
-:root[data-paper] .mask { background: color-mix(in srgb, var(--text) 34%, transparent) !important; }
+:root[data-paper] .ctxmenu .mi { border-radius: 8px 11px 9px 12px; color: var(--text-2); }
+:root[data-paper] .ctxmenu .mi:hover { background: color-mix(in srgb, var(--text) 9%, transparent) !important; color: var(--text); }
+:root[data-paper] .ctxmenu .mi.danger:hover { background: var(--danger-soft) !important; }
+:root[data-paper] .ctxmenu hr { border-top: 1.3px dashed color-mix(in srgb, var(--text) 22%, transparent) !important; }
 
-/* 卡片浮起：连接卡/消息查看器/指标卡/轨迹卡/trace 卡用墨边不对称圆角。 */
-:root[data-paper] .conn-card:not(.new), :root[data-paper] .msg-viewer,
-:root[data-paper] .metric-card, :root[data-paper] .trace-step .card,
-:root[data-paper] .live-bar {
-  border: 1px solid var(--border) !important;
-  border-radius: var(--ink-radius-card) !important;
-  box-shadow: 2px 3px 0 var(--ac-shadow) !important;
-}
-:root[data-paper] .conn-card:hover:not(.new) { transform: translateY(-1px) rotate(-0.4deg); }
-:root[data-paper] .conn-card.new { border-radius: var(--ink-radius-pop) !important; }
-
-/* toast 手绘胶囊 + 入场 */
+/* 本地 toast：手绘胶囊 + 状态内描边。 */
 :root[data-paper] #local-toast .toast-item {
+  position: relative;
   border: 0 !important;
   border-radius: var(--ink-radius-pop) !important;
+  background: var(--surface) !important;
+  color: var(--text);
   box-shadow: 2px 3px 0 var(--ac-shadow) !important;
   animation: ink-pop var(--ink-speed) ease-out;
+}
+:root[data-paper] #local-toast .toast-item::before {
+  content: ''; position: absolute; inset: -2px; pointer-events: none;
+  border: 1.4px solid var(--text); border-radius: var(--ink-radius-pop);
+  filter: url(#ink-rough-fine); opacity: .7;
 }
 :root[data-paper] #local-toast .toast-item.ok { box-shadow: 2px 3px 0 var(--ac-shadow), inset 0 0 0 1.2px var(--ok) !important; }
 :root[data-paper] #local-toast .toast-item.err { box-shadow: 2px 3px 0 var(--ac-shadow), inset 0 0 0 1.2px var(--danger) !important; }
 
-/* 输入控件墨角圆角 */
-:root[data-paper] .search, :root[data-paper] .connection-search,
-:root[data-paper] .form-row input:not([type=checkbox]), :root[data-paper] .form-row select,
-:root[data-paper] .form-row textarea, :root[data-paper] .fld select, :root[data-paper] .fld input,
-:root[data-paper] .mw-settings-page input:not([type=checkbox]), :root[data-paper] .mw-settings-page select,
-:root[data-paper] .mw-settings-page textarea { border-radius: var(--ink-radius-input) !important; }
-
-/* 活动态统一墨下划线（subnav/连接 Tab）。 */
-:root[data-paper] .subnav button.on::after { background: var(--text) !important; }
-:root[data-paper] .conn-tab.on { border-color: var(--border-strong) var(--border-strong) transparent !important; }
-
-/* ── 焦点环：中性墨色收紧（打掉 accent 蓝柔光环）── */
-:root[data-paper] .search:focus-within,
-:root[data-paper] .form-row input:focus, :root[data-paper] .form-row select:focus,
-:root[data-paper] .form-row textarea:focus, :root[data-paper] .fld select:focus, :root[data-paper] .fld input:focus {
-  border-color: var(--text) !important;
-  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 55%, transparent) !important;
+/* 输入建议列表：滚动容器，用实线墨框 + 硬投影（::before 会被自身 overflow 剪掉）。 */
+:root[data-paper] .mw-suggestions {
+  border: 1.5px solid var(--text) !important;
+  border-radius: var(--ink-radius-pop) !important;
+  background: var(--surface) !important;
+  box-shadow: 3px 4px 0 var(--ac-shadow) !important;
+  color: var(--text);
 }
+:root[data-paper] .mw-suggestion { border-radius: 8px 11px 9px 12px; }
+:root[data-paper] .mw-suggestion[aria-selected=true], :root[data-paper] .mw-suggestion:hover {
+  background: color-mix(in srgb, var(--text) 9%, transparent) !important;
+}
+:root[data-paper] .suggestion-detail { color: var(--text-3); }
+
+/* kit 对话框（infoDialog / confirmDanger 经 createDialog 渲染到 body 的 <dialog>）：
+ * 放开 overflow（头部/主体都是透明底，不会露直角）以保住外扩墨边。 */
+:root[data-paper] .wb-dialog {
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: var(--ink-radius-card) !important;
+  background: var(--surface) !important;
+  color: var(--text);
+  box-shadow: 3px 4px 0 var(--ac-shadow) !important;
+  animation: ink-pop var(--ink-speed) ease-out;
+}
+:root[data-paper] .wb-dialog::before {
+  content: ''; position: absolute; inset: -3px; pointer-events: none; z-index: 3;
+  border: 1.6px solid var(--text); border-radius: var(--ink-radius-card);
+  filter: url(#ink-rough); opacity: .8;
+}
+:root[data-paper] .wb-dialog::backdrop {
+  background: color-mix(in srgb, var(--text) 34%, transparent) !important;
+  backdrop-filter: none !important;
+}
+:root[data-paper] .wb-dialog-head {
+  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 24%, transparent) !important;
+}
+:root[data-paper] .wb-dialog-head strong { letter-spacing: 0.01em; }
+:root[data-paper] .wb-dialog-head button { border-radius: var(--ink-radius-ctl); color: var(--text-2); }
+:root[data-paper] .wb-dialog-head button:hover { color: var(--text); }
+/* 弹框底部操作条：dialog 放开 overflow 后，它的实底不再被圆角裁切，
+ * 必须自己补齐底部两个墨角（BR 15px 19px / BL 19px 15px）。 */
+:root[data-paper] .mw-dialog-footer {
+  border-top: 1.4px dashed color-mix(in srgb, var(--text) 22%, transparent) !important;
+  background: color-mix(in srgb, var(--surface) 80%, var(--bg)) !important;
+  border-radius: 0 0 15px 19px / 0 0 19px 15px;
+}
+
+/* Radix 下拉/弹层（portal 到 body，靠 :root[data-paper] 继承纸面）。
+ * kit 的 upgradeSelects 是另一条通道：.pk-select-menu 绝对定位在包装器内，
+ * 用 .active/.selected 类而非 data-*，故两条通道都覆盖。 */
+:root[data-paper] .pk-select-pop, :root[data-paper] .pk-menu, :root[data-paper] .pk-flyout,
+:root[data-paper] .pk-select-menu {
+  border: 1.5px solid var(--text) !important;
+  border-radius: var(--ink-radius-pop) !important;
+  background: var(--surface) !important;
+  box-shadow: 3px 4px 0 var(--ac-shadow) !important;
+  color: var(--text);
+}
+:root[data-paper] .pk-select-option, :root[data-paper] .pk-menu-item { border-radius: 8px 11px 9px 12px; }
+:root[data-paper] .pk-select-option[data-highlighted], :root[data-paper] .pk-select-option.active,
+:root[data-paper] .pk-menu-item:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 9%, transparent) !important; }
+:root[data-paper] .pk-select-option.selected { color: var(--text); font-weight: 600; }
+:root[data-paper] .pk-select-group { color: var(--text-3); letter-spacing: 0.08em; }
+:root[data-paper] .pk-menu-item.danger { color: var(--danger); }
+:root[data-paper] .pk-tooltip {
+  border: 1.3px solid var(--text) !important;
+  border-radius: 8px 11px 9px 12px !important;
+  background: var(--surface) !important;
+  color: var(--text);
+  box-shadow: 2px 3px 0 var(--ac-shadow) !important;
+}
+:root[data-paper] .pk-dialog-overlay { background: color-mix(in srgb, var(--text) 34%, transparent) !important; backdrop-filter: none !important; }
+:root[data-paper] .pk-dialog-content {
+  border: 1.6px solid var(--text) !important;
+  border-radius: var(--ink-radius-card) !important;
+  background: var(--surface) !important;
+  color: var(--text);
+  box-shadow: 3px 4px 0 var(--ac-shadow) !important;
+}
+:root[data-paper] .pk-select-trigger {
+  border: 1.4px solid color-mix(in srgb, var(--text) 24%, transparent) !important;
+  border-radius: var(--ink-radius-input) !important;
+  background: color-mix(in srgb, var(--bg) 55%, var(--surface)) !important;
+  color: var(--text);
+}
+:root[data-paper] .pk-input {
+  border-radius: var(--ink-radius-input) !important;
+  background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+  color: var(--text);
+}
+:root[data-paper] .pk-checkbox { border-radius: 4px 6px 5px 7px; border-color: color-mix(in srgb, var(--text) 45%, transparent); background: var(--surface); }
+
+/* ═══════════ 设置页 ═══════════ */
+
+:root[data-paper] .mw-settings-header {
+  border-bottom: 1px solid var(--border) !important;
+  background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+}
+:root[data-paper] .mw-settings-header h1 { letter-spacing: 0.01em; }
+:root[data-paper] .mw-settings-header p, :root[data-paper] .mw-settings-help { color: var(--text-2); }
+:root[data-paper] .mw-settings-status { color: var(--text-3); font-style: italic; }
+:root[data-paper] .mw-settings-nav {
+  border-right: 1px solid var(--border) !important;
+  background: color-mix(in srgb, var(--surface) 55%, var(--bg)) !important;
+}
+:root[data-paper] .mw-settings-nav button {
+  border-radius: 8px;
+  border: 1.3px solid transparent;
+  color: var(--text-2);
+  transition: background var(--ink-speed) ease, border-color var(--ink-speed) ease;
+}
+:root[data-paper] .mw-settings-nav button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
+/* 选中态与壳设置页同语言：浅底 + 左侧 2px accent，不做旋转和整块描边（旋转会让文字基线歪）。 */
+:root[data-paper] .mw-settings-nav button[aria-current=page] {
+  background: var(--accent-soft) !important;
+  border-color: transparent;
+  color: var(--text) !important;
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+:root[data-paper] .mw-settings-content h2 { letter-spacing: 0.01em; }
+/* 设置页是密集数据区：行间用实线分隔（虚线逐行重复会变成一片噪点）。 */
+:root[data-paper] .mw-shortcut-list { border-top: 1px solid var(--border); }
+:root[data-paper] .mw-shortcut-row { border-bottom: 1px solid var(--border); }
+:root[data-paper] .mw-shortcut-row input { text-align: center; letter-spacing: 0.04em; border-radius: 6px !important; }
+/* 规则列表与设置页其它分区同级：单层细边 + 8px 圆角，条目间用实线。 */
+:root[data-paper] .mw-rule-list {
+  border: 1px solid var(--border) !important;
+  border-radius: 8px;
+  background: var(--surface);
+}
+:root[data-paper] .mw-rule-item { border-bottom: 1px solid var(--border) !important; }
+:root[data-paper] .mw-rule-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+:root[data-paper] .mw-rule-item[aria-pressed=true] {
+  background: var(--accent-soft) !important;
+  box-shadow: inset 2px 0 0 var(--accent) !important;
+}
+:root[data-paper] .mw-rule-preview {
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  background: var(--bg) !important;
+  color: var(--text);
+}
+:root[data-paper] .mw-rule-validation[data-state=valid] { color: var(--ok); }
+
+/* 纸面选择卡：浅底块 + 单层细边，选中态用 accent 描边（不再叠第二圈手绘滤镜边）。 */
+:root[data-paper] .mw-theme-option {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--text) 20%, transparent) !important;
+  border-radius: 10px !important;
+  background: var(--surface) !important;
+  color: var(--text-2);
+  transition: transform var(--ink-speed) ease, border-color var(--ink-speed) ease, background var(--ink-speed) ease;
+}
+:root[data-paper] .mw-theme-option:hover {
+  border-color: color-mix(in srgb, var(--text) 45%, transparent) !important;
+  background: color-mix(in srgb, var(--text) 4%, var(--surface)) !important;
+  color: var(--text);
+}
+:root[data-paper] .mw-theme-option:active { transform: scale(0.99) !important; }
+:root[data-paper] .mw-theme-option[aria-pressed="true"] {
+  border-color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+:root[data-paper] .mw-theme-option[aria-pressed="true"]::before { content: none; }
+:root[data-paper] .mw-theme-swatch {
+  border: 1.3px solid color-mix(in srgb, var(--text) 30%, transparent);
+  border-radius: 9px 12px 10px 13px;
+  background: var(--bg);
+  padding: 5px;
+}
+:root[data-paper] .mw-theme-swatch i { border-radius: 4px 6px 5px 7px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent); }
+:root[data-paper] .mw-theme-copy small { color: var(--text-3); }
+
+/* ═══════════ 焦点环 / 动效 / 滚动条 ═══════════ */
+
+/* 焦点环：中性墨色收紧，打掉 accent 蓝环与 pk-ui 柔光（--pk-focus-ring-color 已改墨）。 */
 :root[data-paper] :focus-visible {
   outline: 2px solid transparent !important;
   outline-offset: 0 !important;
   box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 55%, transparent) !important;
 }
+/* 自身带「选中阴影」的元素（活动 Tab / 活动子导航 / 选中树行 / 分段项）不能只靠
+ * box-shadow 表达焦点，否则选中阴影会把焦点环整条盖掉。这里把两者叠加。 */
+:root[data-paper] .conn-tab.on:focus-visible {
+  box-shadow: inset 0 -2.4px 0 var(--text), 0 0 0 2.5px color-mix(in srgb, var(--text) 45%, transparent) !important;
+}
+:root[data-paper] .tree-item.on:focus-visible {
+  box-shadow: inset 2.5px 0 0 var(--text), inset 0 0 0 1.3px color-mix(in srgb, var(--text) 30%, transparent),
+    0 0 0 2.5px color-mix(in srgb, var(--text) 45%, transparent) !important;
+}
+:root[data-paper] .seg button.on:focus-visible,
+:root[data-paper] .subnav button.on:focus-visible {
+  box-shadow: 1.5px 2px 0 var(--ac-shadow), 0 0 0 2.5px color-mix(in srgb, var(--text) 45%, transparent) !important;
+}
+:root[data-paper] .search:focus-within,
+:root[data-paper] .form-row input:focus, :root[data-paper] .form-row select:focus,
+:root[data-paper] .form-row textarea:focus, :root[data-paper] .fld select:focus, :root[data-paper] .fld input:focus,
+:root[data-paper] .mw-settings-page input:focus, :root[data-paper] .mw-settings-page select:focus,
+:root[data-paper] .mw-settings-page textarea:focus {
+  border-color: var(--text) !important;
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 30%, transparent) !important;
+}
+/* pk 控件聚焦不再套蓝描边（只留墨框收紧）。 */
+:root[data-paper] .pk-input:focus, :root[data-paper] .pk-input:focus-visible,
+:root[data-paper] .pk-select-trigger:focus, :root[data-paper] .pk-select-trigger:focus-visible {
+  border-color: color-mix(in srgb, var(--text) 60%, transparent) !important;
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 26%, transparent) !important;
+}
 
-/* ── hover 微旋转 + 按压物理感 ── */
-:root[data-paper] .btn, :root[data-paper] .icon-button, :root[data-paper] .tree-head button {
+/* hover 微旋转 + 按压物理感：只给图标类小钮，文字按钮用位移避免行内抖动。 */
+:root[data-paper] .btn, :root[data-paper] .icon-button, :root[data-paper] .tree-head button,
+:root[data-paper] .conn-tab .x, :root[data-paper] .drawer .dh .x, :root[data-paper] .grid-actions .pk-btn {
   transition: background var(--ink-speed) ease, color var(--ink-speed) ease,
     border-color var(--ink-speed) ease, transform 0.09s ease;
 }
 :root[data-paper] .icon-button:hover { transform: rotate(-5deg) scale(1.08); }
+:root[data-paper] .grid-actions .pk-btn:hover { transform: rotate(-6deg) scale(1.06); }
 :root[data-paper] .btn:active:not(:disabled) { transform: scale(0.96) !important; }
 
-/* ── 滚动条跟随纸面 ── */
+/* 滚动条跟随纸面墨色（覆盖 kit 的 CanvasText 通用配色）。 */
 :root[data-paper] ::-webkit-scrollbar { width: 9px; height: 9px; }
 :root[data-paper] ::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--ac-edge) 42%, transparent) !important;
   border-radius: 6px 8px 7px 9px !important; border: 2px solid transparent; background-clip: padding-box;
 }
 :root[data-paper] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--ac-edge) 68%, transparent) !important; }
-:root[data-paper] ::-webkit-scrollbar-track { background: transparent !important; }
+:root[data-paper] ::-webkit-scrollbar-track, :root[data-paper] ::-webkit-scrollbar-corner { background: transparent !important; }
 
 @keyframes ink-pop {
   from { opacity: 0; transform: translateY(-4px) rotate(-0.6deg); }

@@ -136,7 +136,6 @@ header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; bord
 .row-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0 0 10px; }
 .row-detail dt { font-size: 11px; color: var(--faint); letter-spacing: .4px; }
 .row-detail dd { margin: 0; font-size: 12px; color: var(--ink); overflow-wrap: anywhere; }
-.detail-actions { display: flex; gap: 8px; }
 
 .empty { padding: 44px 20px; text-align: center; color: var(--faint); line-height: 1.9; font-size: 12.5px; }
 

@@ -447,10 +447,6 @@ export function App() {
   return (
     <main className="app">
       <header className="shell-only">
-        <div>
-          <h1>Anything 文件搜索</h1>
-          <span className="muted">Spotlight / Everything 全盘即时搜索</span>
-        </div>
         {engineActive ? (
           <span id="engine-badge" className="engine-badge" title={engineActive.detail}>{engineActive.label}</span>
         ) : (

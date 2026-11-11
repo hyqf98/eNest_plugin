@@ -1,0 +1,17 @@
+{
+  "name": "@enest/lxgw-font",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./lxgw.css",
+    "./lxgw.css": "./assets/lxgw.css",
+    "./vite": "./vite.js"
+  },
+  "files": [
+    "assets/lxgw.css",
+    "assets/*.woff2",
+    "assets/OFL.txt",
+    "assets/LICENSE"
+  ]
+}

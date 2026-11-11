@@ -1,3 +1,4 @@
+import '@enest/lxgw-font/lxgw.css'
 import './css/main.css'
 import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/style.css'

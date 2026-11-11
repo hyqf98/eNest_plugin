@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5190 --strictPort",
-    "build": "node ../../scripts/build-plugin.mjs markdown",
-    "pack": "node ../../scripts/pack-plugin.mjs markdown",
-    "prod": "node ../../scripts/build-plugin.mjs markdown"
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.markdown",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.markdown",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.markdown"
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.0",

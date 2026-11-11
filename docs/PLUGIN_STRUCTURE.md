@@ -53,7 +53,7 @@ node scripts/pack-plugin.mjs com.github.eNest.calculator --no-build
 
 统一构建脚本读取插件自己的 Vite 配置，从根 `index.html` 构建。Vue 项目安装 `vue` 和 `@vitejs/plugin-vue`，React 项目安装 `react`、`react-dom` 及对应 Vite 插件，再在本项目 `vite.config.ts` 注册；HTML、manifest、public 和 dist 契约不变。构建使用相对 base，脚本固定产物目录、文件命名、禁用 Source Map，并拒绝 library/SSR 入口。
 
-后端依赖由插件自己的 `enestBackend` 声明。`packageFilesExcluded` 将已声明的外部根依赖映射到包内精确相对路径数组，例如 `"packageFilesExcluded": { "ssh2": ["lib/protocol/crypto/build"] }`。只在复制时过滤，不删除依赖源文件；拒绝越界、隐藏段、通配符、中间路径软链接，以及包入口、元数据和许可证/版权告知文件的排除。完整跳过的子树内，非受保护名称的软链接作为不复制的叶子处理，绝不跟随目标。它不能代替运行依赖审查，插件必须确认被省略的可选编译产物有可用回退；通用脚本不按包名或插件 ID 增加特判。完整契约见[本机后端](developer/backend.md)。
+后端依赖由插件自己的 `enestBackend` 声明。`packageFilesExcluded` 把后端依赖图中的一个 npm 包（根依赖或传递依赖）映射到包内精确相对路径数组，例如 `"packageFilesExcluded": { "ssh2": ["lib/protocol/crypto/build"] }`；`runtimeExcluded` 声明运行时不会被 `require` 的依赖，构建时连同其子树一起不复制，并记入 `dependency-inventory.json` 的 `runtimeExcluded` 供审计。两者都只在复制时过滤，不删除依赖源文件；拒绝越界、隐藏段、通配符、中间路径软链接，以及包入口、元数据和许可证/版权告知文件的排除；`runtimeExcluded` 还不能点名根依赖、与 `optionalExcluded`/`platformPackages` 冲突，或引用锁定依赖图之外的包。完整跳过的子树内，非受保护名称的软链接作为不复制的叶子处理，绝不跟随目标。它们不能代替运行依赖审查，插件必须确认被省略的内容在运行时确实不需要；通用脚本不按包名或插件 ID 增加特判。完整契约见[本机后端](developer/backend.md)。
 
 生产 CSP 不允许内联脚本、`eval` 或 CDN 脚本。业务使用 `addEventListener`，依赖打包进本地。Web Worker 和 Monaco 等编辑器也必须离线打包；WASM 可使用宿主允许的编译能力，但网络和操作系统功能仍走 `window.enest`。
 

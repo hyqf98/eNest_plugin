@@ -34,11 +34,20 @@ textarea {
 }
 button {
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* 与 kit 的 .pk-btn 同档（28px）。font-family 单独继承：正文 13px 会把行高按
+   * 13×1.55 撑到 30px，同排按钮就比 28px 的同伴高 2px。 */
+  min-height: 28px;
   border: 1px solid var(--line);
   background: transparent;
   border-radius: 6px;
-  padding: 4px 9px;
-  font-size: 12px;
+  padding: 4px 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.4;
   transition:
     background-color var(--pk-speed, 120ms),
     color var(--pk-speed, 120ms),

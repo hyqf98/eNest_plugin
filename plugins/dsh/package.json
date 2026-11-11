@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5185 --strictPort",
-    "build": "node ../../scripts/build-plugin.mjs dsh",
-    "pack": "node ../../scripts/pack-plugin.mjs dsh",
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.dsh",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.dsh",
     "pack:runtime": "node scripts/pack-runtime.mjs",
-    "prod": "node ../../scripts/build-plugin.mjs dsh",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.dsh",
     "typecheck:backend": "tsc -p backend/tsconfig.json",
     "test:backend:migration": "node --test backend/tests/backend-migration.test.mjs"
   },

@@ -1484,7 +1484,6 @@ export function App() {
     <main className="nk" id="app" data-tick={tick}>
       {/* 顶栏：模式切换 + 环境 + 会话 Tab */}
       <header className="nk-top">
-        <h1 className="nk-logo">网络调试台</h1>
         <nav className="nk-modes" id="modes" aria-label="模式">
           {MODES.map(([kind, label]) => (
             <button key={kind} type="button" data-kind={kind} className={active?.kind === kind ? 'active' : ''}

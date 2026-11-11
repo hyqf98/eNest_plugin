@@ -195,7 +195,6 @@ export function App() {
     <main className="app">
       <header>
         <div className="head-title">
-          <h1>开发环境</h1>
           <span className="muted">{snapshot ? `${platformLabel(snapshot.platform)} · ${snapshot.families.filter(f => f.installed).length} 个家族` : '探测中…'}</span>
         </div>
         {snapshot && <span className="platform-badge">{platformLabel(snapshot.platform)}</span>}

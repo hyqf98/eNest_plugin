@@ -276,11 +276,17 @@ export const session = {
 function localToast(message, type = 'info') {
   const root = document.getElementById('local-toast')
   if (!root) return
+  // index.html 的挂载点默认带 hidden（占位不占屏）。这条回落只在宿主 ui.toast
+  // 不可用时才会走到，若不在这里揭开，纸面样式的本地提示永远看不见。
+  root.hidden = false
   const item = document.createElement('div')
   item.className = 'toast-item ' + (type === 'success' ? 'ok' : type === 'error' || type === 'warn' ? 'err' : '')
   item.textContent = String(message ?? '').slice(0, 200)
   root.appendChild(item)
-  setTimeout(() => item.remove(), 3200)
+  setTimeout(() => {
+    item.remove()
+    if (!root.childElementCount) root.hidden = true
+  }, 3200)
 }
 
 /** 'info'|'success'|'warn'|'error'；宿主 toast 不可用时回落本地 #local-toast */

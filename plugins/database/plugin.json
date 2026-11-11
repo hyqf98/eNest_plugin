@@ -12,9 +12,9 @@
     "enest": ">=0.0.1"
   },
   "permissions": [
-    "db.connect",
-    "db.query",
-    "db.schema",
+    "net.database",
+    "net.database.query",
+    "net.database.schema",
     "notify",
     "clipboard.write",
     "shell.openExternal",
@@ -42,14 +42,6 @@
         "id": "database.prefs",
         "title": "数据库",
         "items": [
-          {
-            "key": "workbench",
-            "type": "page",
-            "label": "打开数据库设置与快捷键",
-            "entry": {
-              "code": "settings"
-            }
-          },
           {
             "key": "followShellTheme",
             "type": "switch",

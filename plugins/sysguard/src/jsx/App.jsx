@@ -777,7 +777,6 @@ export function App() {
       {/* 桌面：概览 | 进程 | 端口 | 曲线 */}
       <section className="sg-desktop" id="desktop-view" hidden={mode !== 'shell'}>
         <header className="sg-top">
-          <h1 className="sg-logo">进程与端口</h1>
           <nav className="sg-tabs" id="tabs" role="tablist">
             {[['dash', '概览'], ['proc', '进程'], ['port', '端口'], ['chart', '曲线']].map(([key, label]) => (
               <button key={key} type="button" data-tab={key}

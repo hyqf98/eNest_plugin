@@ -1,27 +1,52 @@
 import { DEFAULT_CONFIG } from '@db/sql-intelligence/configuration/index.js'
 import { esc, field, select } from './formMarkup.js'
 
-/** Presentation only: state changes and persistence belong to completionSettings. */
+/**
+ * 分层呈现：默认只展开「日常会用」的三块（补全行为、SQL 提醒、查询模板），
+ * 其余配置收进 <details>。基础层的 .sql-config-section 是空 section 的挂载点，
+ * 对应 5 个可视化编辑器（字段组/模板/函数/枚举/局部规则）——它们默认没有数据，
+ * 平铺出来对多数用户是 5 个空框。折叠后标题按需展开即可。
+ */
 export function settingsMarkup(draft, { initialIssue, canClearUsage }) {
+  /* 不重复写 h2：外层宿主设置区已经有「SQL 补全」标题，内层再来一个「SQL 智能提示」
+     就是同名两级标题。这里只保留说明与保存按钮。 */
   return `
-    <div class="sql-section-heading">
-      <div>
-        <h2>SQL 智能提示</h2>
-        <p class="muted">按查询上下文提示字段、关系和模板。设置保存在本机，连接和方言可单独覆盖。</p>
-      </div>
+    <div class="sql-section-heading sql-section-heading-inline">
+      <p class="muted">按查询上下文提示字段、关系和模板。设置保存在本机，连接和方言可单独覆盖；修改后保存生效。</p>
       <button class="btn primary" data-save-completion>保存智能提示设置</button>
     </div>
-    <p class="sql-save-state" data-save-state role="status" aria-live="polite">${esc(initialIssue || '修改后保存生效。试验区即时使用当前草稿。')}</p>
+    <p class="sql-save-state" data-save-state role="status" aria-live="polite">${esc(initialIssue || '试验区即时使用当前草稿。')}</p>
     ${behaviorSection(draft, canClearUsage)}
     ${diagnosticsSection(draft)}
-    <section class="sql-config-section" data-column-sets></section>
-    <section class="sql-config-section" data-query-templates></section>
-    <section class="sql-config-section" data-custom-functions></section>
-    <section class="sql-config-section" data-static-enums></section>
-    <section class="sql-config-section" data-scoped-profiles></section>
-    <section class="sql-config-section" data-completion-playground></section>
+    ${extrasSection()}
+    ${playgroundSection()}
     ${metadataSection(draft)}
     ${advancedSection(draft)}
+  `
+}
+
+/** 四个可视化编辑器（字段组 / 模板 / 函数 / 枚举）与局部规则共用一个折叠区。 */
+function extrasSection() {
+  return `
+    <details class="sql-config-section">
+      <summary>字段组、查询模板、函数、枚举与局部规则</summary>
+      <p class="muted">这些是可选的增强项，默认留空。字段组用于「常用字段」模板；局部规则按连接、库或表覆盖上面的默认值。</p>
+      <section class="sql-config-section" data-column-sets></section>
+      <section class="sql-config-section" data-query-templates></section>
+      <section class="sql-config-section" data-custom-functions></section>
+      <section class="sql-config-section" data-static-enums></section>
+      <section class="sql-config-section" data-scoped-profiles></section>
+    </details>
+  `
+}
+
+/** 试验区是调试工具，默认收起，避免挡在日常设置之前。 */
+function playgroundSection() {
+  return `
+    <details class="sql-config-section">
+      <summary>补全试验区</summary>
+      <section class="sql-config-section" data-completion-playground></section>
+    </details>
   `
 }
 

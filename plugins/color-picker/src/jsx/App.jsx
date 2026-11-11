@@ -555,7 +555,6 @@ export function App() {
   return (
     <main className="color-app">
       <header className="app-head">
-        <div><span className="eyebrow">颜色工作台</span><h1>取色器</h1></div>
         <span id="status" role="status">{statusText}</span>
         <button id="capture" className="pk-btn primary" disabled={captureDisabled} onClick={capture}>屏幕取色</button>
         <button id="open-image" className="pk-btn desktop" onClick={openImage}>从图片取色</button>

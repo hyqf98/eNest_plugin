@@ -147,14 +147,6 @@
             "type": "text",
             "label": "排除应用（逗号分隔）",
             "default": ""
-          },
-          {
-            "key": "management",
-            "type": "page",
-            "label": "分类、排除应用与历史清理",
-            "entry": {
-              "code": "manage"
-            }
           }
         ]
       }
