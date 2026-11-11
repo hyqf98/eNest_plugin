@@ -195,9 +195,8 @@ export interface DshRemoteVersion {
   version: string
   distTag?: string
   date?: string
-  /** 下载资产（eNest_plugin Release）地址与校验 */
-  assetUrl?: string
-  sha256?: string
+  /** 标记该版本可通过本机 npm 在线安装（npm registry 元数据解析成功） */
+  npmInstallable?: boolean
 }
 
 // —— 事件（dsh:event 推送）——

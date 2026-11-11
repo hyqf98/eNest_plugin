@@ -3,8 +3,8 @@ import { Button, Dialog, DialogOverlay, DialogContent, DialogTitle, DialogDescri
 import { EmptyState, InlineMessage, InstallProgress, LoadingBlock } from './SettingsPrimitives.jsx'
 import { errorText, formatTime } from './SettingsController.jsx'
 
-const RELEASES_URL = 'https://github.com/hyqf98/eNest_plugin/releases'
-const isVerified = (version) => Boolean(version.assetUrl && /^[a-f\d]{64}$/i.test(version.sha256 || ''))
+const NPM_URL = 'https://www.npmjs.com/package/@deepseek-ai/dsh'
+const isVerified = (version) => Boolean(version.npmInstallable)
 
 /** First-run guidance when no DSH runtime is available: install a published release online. */
 export function KernelSetupDialog({ state, onClose }) {
@@ -75,8 +75,8 @@ export function KernelSetupDialog({ state, onClose }) {
         >
           <DialogTitle>安装 DSH 内核</DialogTitle>
           <DialogDescription>
-            插件发行包不再内置 DSH 内核。选择一个已发布的版本在线安装：宿主会下载并做 SHA-256 校验、
-            健康检查后激活；失败自动回滚，Profile 与会话不受影响。
+            插件发行包不内置 DSH 内核。选择一个版本，宿主会调用本机 npm 在插件数据目录内完成安装
+            （自动处理平台原生依赖与 npm 镜像），健康检查后激活；失败自动回滚，Profile 与会话不受影响。
           </DialogDescription>
           <InstallProgress progress={state.upgrading} pending={pending} title="安装进度" />
           {remote.error ? <InlineMessage>获取版本列表失败：{remote.error}{remote.data?.length ? '。下方保留上次成功的列表。' : ''}</InlineMessage> : null}
@@ -87,7 +87,7 @@ export function KernelSetupDialog({ state, onClose }) {
                 <article className="dsh-settings-remote-version" key={version.version}>
                   <div className="dsh-settings-heading-copy">
                     <div className="dsh-settings-version-name"><strong>v{version.version}</strong>{version.distTag && <span>{version.distTag}</span>}</div>
-                    <p>{version.date ? formatTime(version.date) : '发布时间未提供'} · 提供 SHA-256 校验</p>
+                    <p>{version.date ? formatTime(version.date) : '发布时间未提供'} · npm 在线安装</p>
                   </div>
                   <div className="dsh-settings-actions">
                     <Button variant="primary" disabled={blocked} onClick={() => install(version)}>安装并使用</Button>
@@ -96,9 +96,9 @@ export function KernelSetupDialog({ state, onClose }) {
               ))}
             </div>
           ) : (
-            <EmptyState title="暂无当前平台可安装的内核资产">
-              插件发布仓库尚未提供与本机平台匹配、且带校验信息的内核资产。可以稍后重新获取列表，
-              或在「管理中心 → 内核版本」中随时重试；系统已安装的 dsh 也会被自动识别。
+            <EmptyState title="暂无可安装的内核版本">
+              获取 npm 版本列表失败或为空。请检查网络（npm registry）后重试；
+              系统已安装的 dsh 也会被自动识别。
             </EmptyState>
           )}
           <div className="dsh-settings-dialog-actions">

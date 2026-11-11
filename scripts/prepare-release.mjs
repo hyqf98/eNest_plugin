@@ -33,18 +33,9 @@ export function prepareRelease({ repositoryRoot = root, repository, tag, outDir 
     plugin.asset.url = base + encodeURIComponent(plugin.asset.name)
     plugin.readmeImages = readmeImages(plugin)
   }
+  // 每插件单一 universal 包：不再生成平台变体 registry-<target>.json。
+  for (const target of PLATFORM_TARGETS) rmSync(join(outDir, `registry-${target}.json`), { force: true })
   mkdirSync(outDir, { recursive: true }); writeFileSync(join(outDir, 'registry.json'), JSON.stringify(registry, null, 2) + '\n')
-  for (const target of PLATFORM_TARGETS) {
-    rmSync(join(outDir, `registry-${target}.json`), { force: true })
-    if (!registry.plugins.some(plugin => existsSync(join(outDir, `${plugin.id.split('.').pop()}@${plugin.version}-${target}.enestplugin`)))) continue
-    const variant = buildRegistry(repositoryRoot, { outDir, target })
-    for (const plugin of variant.plugins) {
-      plugin.asset.url = base + encodeURIComponent(plugin.asset.name)
-      // 与 buildRegistry 的选择一致：只有存在平台变体归档的插件才按 target 解析。
-      plugin.readmeImages = readmeImages(plugin, plugin.asset.name.endsWith(`-${target}.enestplugin`) ? target : 'universal')
-    }
-    writeFileSync(join(outDir, `registry-${target}.json`), JSON.stringify(variant, null, 2) + '\n')
-  }
   return registry
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) console.log(`[release] prepared ${prepareRelease({ repository: process.env.REPO, tag: process.env.TAG }).plugins.length} plugins`)

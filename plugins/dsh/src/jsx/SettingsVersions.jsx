@@ -99,14 +99,14 @@ export function SettingsVersions({ state, controller }) {
             {resources.remote.loading ? <LoadingBlock label="正在获取远程版本与资产信息…" /> : remote.length ? (
               <div className="dsh-settings-remote-list">
                 {remote.map((version) => {
-                  const verified = Boolean(version.assetUrl && /^[a-f\d]{64}$/i.test(version.sha256 || ''))
+                  const verified = Boolean(version.npmInstallable)
                   const local = installed.some((item) => item.version === version.version && (item.channel || item.source) === 'data')
                   return (
                     <article className="dsh-settings-remote-version" key={version.version}>
                       <div className="dsh-settings-heading-copy">
                         <div className="dsh-settings-version-name"><strong>v{version.version}</strong>{version.distTag && <span>{version.distTag}</span>}</div>
                         <p>{version.date ? formatTime(version.date) : '发布时间未提供'}</p>
-                        <span className="dsh-settings-help">{local ? '已安装到本地' : verified ? '提供 SHA-256 校验信息' : '缺少下载资产或校验信息，不可安装'}</span>
+                        <span className="dsh-settings-help">{local ? '已安装到本地' : verified ? 'npm 在线安装' : '版本信息不完整，不可安装'}</span>
                       </div>
                       <div className="dsh-settings-actions">
                         {!local && verified && <Button disabled={blocked} onClick={() => void download(version)}>仅下载</Button>}
