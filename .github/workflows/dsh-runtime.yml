@@ -138,13 +138,15 @@ jobs:
           NODE
 
       # 运行时 Release 只承载 tgz 与 sha256 边车；不携带插件包、registry 或媒体资产。
+      # prerelease 使其不进入 /releases/latest，避免顶替插件市场索引（registry*.json）；
+      # dsh 升级服务按资产名扫描所有非 draft Release，prerelease 不影响内核发现。
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: DSH Runtime ${{ inputs.tag || github.ref_name }}
           draft: false
-          prerelease: false
+          prerelease: true
           files: |
             dist/*.tgz
             dist/*.sha256
