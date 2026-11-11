@@ -244,10 +244,6 @@ export function App() {
   return (
     <main className="app">
       <header>
-        <div className="brand">
-          <h1>环境变量</h1>
-          <span className="muted">跨平台查看 · 编辑 · 备份</span>
-        </div>
         {platformBadge && <span className="pill pill-platform" data-platform={snapshot.platform}>{platformBadge}</span>}
         <div className="header-search">
           <input
@@ -347,12 +343,6 @@ export function App() {
                           {item.line !== undefined && <><dt>行号</dt><dd className="mono">{item.line}</dd></>}
                           {item.exported === false && <><dt>export</dt><dd>无 export 前缀</dd></>}
                         </dl>
-                        <div className="detail-actions">
-                          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'edit', item })}>编辑</Button>
-                          {item.name !== 'PATH' && (
-                            <Button variant="danger" size="sm" onClick={() => askDelete(item)}>删除</Button>
-                          )}
-                        </div>
                       </div>
                     )}
                   </div>

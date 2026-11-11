@@ -59,6 +59,22 @@
 .nav-search-wrap { padding: 3px 10px 10px; }
 .nav-search-wrap input { display: block; width: 100%; height: 29px; min-width: 0; border: 1px solid var(--border); border-radius: 7px; padding: 4px 8px; color: var(--text); background: color-mix(in srgb,var(--surface) 70%,transparent); font-size: 11px; }
 .nav-connections { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 8px; scrollbar-width: thin; }
+/* 设置页的侧栏目录：与 .nav-browser 互斥（schemaTree.setPage 切换 [hidden]）。
+   两者都是 .nav-shell（row flex）的子节点，紧邻左侧 .nav-toolrail，所以必须 flex:1
+   才能占满工具栏右侧的剩余宽度。
+   这两条样式此前从未定义，设置页侧栏是一列裸 <button>，标题与描述挤在同一行。 */
+.nav-settings { display: flex; flex-direction: column; flex: 1; min-width: 0; height: 100%; }
+.nav-settings-list { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 10px; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; }
+.nav-settings-list button {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 0;
+  padding: 8px 9px; text-align: left; color: var(--text-2); background: transparent;
+  border: 1px solid transparent; border-radius: 8px; cursor: pointer; font: inherit;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.nav-settings-list button strong { font-size: 12px; font-weight: 550; color: var(--text); }
+.nav-settings-list button span { font-size: 10px; line-height: 1.45; color: var(--text-3); }
+.nav-settings-list button:hover { background: var(--row-hover); border-color: var(--border); color: var(--text); }
+.nav-settings-list button:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--text) 45%, transparent); }
 .nav-group-label, .nav-group-heading, .nav-section-title { display: flex; align-items: center; min-height: 27px; padding: 5px 8px 3px; color: var(--text-3); font-size: 10px; font-weight: 600; letter-spacing: .04em; }
 .nav-group { margin-bottom: 8px; }
 .nav-connection-row, .nav-tree-row { display: flex; min-height: 28px; align-items: center; min-width: 0; gap: 2px; border-radius: 6px; color: var(--text-2); }

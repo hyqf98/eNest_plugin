@@ -298,10 +298,10 @@ label {
   flex-direction: column;
   gap: 6px;
   padding: 9px 11px;
-  border: 1px solid var(--line);
+  /* 结果是同组并列数据：底色块区分即可，不再给六张卡各加一圈描边。 */
+  border: 0;
   border-radius: 8px;
   background: var(--raise);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
   min-width: 0;
 }
 .card-head {
@@ -338,7 +338,8 @@ label {
 
 /* ── 校验对比 ── */
 .verify {
-  border: 1px solid var(--line);
+  /* 与结果卡同为底色块，避免整页每一段都描边。 */
+  border: 0;
   border-radius: 8px;
   background: var(--raise);
   padding: 10px 12px;

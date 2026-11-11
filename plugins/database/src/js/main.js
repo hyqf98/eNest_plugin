@@ -88,6 +88,7 @@ import { openCtxMenu, closeCtxMenu } from './ctxMenu.js'
 import { bindIconTips } from './tips.js'
 
 const $ = (sel) => document.querySelector(sel)
+/** 本模块由 view.js 动态 import，模块顶层的 DOM 查询可能早于 React 提交外壳。 */
 const dom = {
   app: $('#app'),
   side: $('#side'),
@@ -101,6 +102,20 @@ const dom = {
   rightPanel: $('#right-panel'),
   modalRoot: $('#modal-root'),
   toastLocal: $('#local-toast')
+}
+/**
+ * 上面这份快照只是首帧便利值：模块被动态 import 时 React 可能还没把外壳提交到 DOM，
+ * 此时全部为 null，而 `dom.app?.classList.toggle(...)` 这类可选链调用会静默不做任何事
+ * （侧栏收起点了没反应就是这个原因）。boot() 在 React 提交之后才执行，用它重新绑定一次。
+ */
+function refreshDom() {
+  for (const [key, selector] of Object.entries({
+    app: '#app', side: '#side', sideToggle: '#side-toggle', topMore: '#top-more',
+    editorTabs: '#editor-tabs', toolbar: '#toolbar', editorHost: '#editor-host',
+    results: '#results', resizerBottom: '#resizer-bottom', rightPanel: '#right-panel',
+    modalRoot: '#modal-root', toastLocal: '#local-toast'
+  })) dom[key] = $(selector)
+  return dom
 }
 
 let editor = null
@@ -387,6 +402,7 @@ function menuItems(pairs) {
 /* ───────────── boot ───────────── */
 
 async function boot() {
+  refreshDom()
   bindIconTips()
   let schemaTaskConnectionId = null
   document.addEventListener('database-task-changed', () => {

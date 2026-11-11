@@ -421,7 +421,6 @@ export function App() {
     <main className="codec">
       <div className="chrome">
         <header className="topbar">
-          <h1>编解码</h1>
           <Select
             className="modes"
             minWidth={150}

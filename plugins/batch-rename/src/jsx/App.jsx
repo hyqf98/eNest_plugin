@@ -475,8 +475,6 @@ export function App() {
   return (
     <main className="rn-app" ref={appRef}>
       <header className="rn-head">
-        <h1>批量重命名</h1>
-        <p className="rn-sub">规则链实时预览 · 确认后执行 · 可撤销</p>
         <span className="rn-spacer"></span>
         <button id="undo-btn" className="ghost" hidden={undoHidden} onClick={() => void undo()}>撤销上次</button>
         <button id="run-btn" className="danger" disabled={runDisabled} onClick={() => void run()}>执行改名</button>

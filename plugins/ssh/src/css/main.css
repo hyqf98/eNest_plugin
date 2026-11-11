@@ -1289,6 +1289,8 @@ dialog .pk-select.wb-split-target {
 }
 /* 补全浮层打开期间隐藏 FAB，避免压住浮层末条目/滚动条 */
 .fab.completion-over { opacity: 0; pointer-events: none; }
+/* .fab 用 display:grid，需显式让 hidden 生效（空闲态交给 rail 的常驻「＋」）。 */
+.fab[hidden] { display: none !important; }
 
 /* ========== Context menu ========== */
 .ctx-menu {

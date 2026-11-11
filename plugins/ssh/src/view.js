@@ -1,5 +1,6 @@
 /* CSS 级联顺序是像素级一致的命门：原版 index.html 中 main.css / workbench.css
    以 <link> 先于 plugin-kit CSS 加载，React 化后必须在 entry.js 最先 import 复刻该顺序 */
+import '@enest/lxgw-font/lxgw.css'
 import '@ssh/css/main.css'
 import '@ssh/css/workbench.css'
 import '@ssh/css/completion.css'

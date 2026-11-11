@@ -20,7 +20,7 @@
     "notify",
     "clipboard.write",
     "shell.openExternal",
-    "ssh.agent",
+    "sys.sshAgent",
     "backend.node"
   ],
   "contributes": {
@@ -35,14 +35,6 @@
             "label": "跟随壳子主题",
             "default": true,
             "shareWithThemes": true
-          },
-          {
-            "key": "workbenchSettings",
-            "type": "page",
-            "label": "SSH 详细设置与快捷键",
-            "entry": {
-              "code": "settings"
-            }
           }
         ]
       }

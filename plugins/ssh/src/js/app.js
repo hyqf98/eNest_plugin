@@ -278,6 +278,8 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
       fab.textContent = '+'
       fab.dataset.mode = 'new'
     }
+    // 左侧 rail 已有常驻「＋ 新建连接」：空闲态不重复呈现同一个入口，主操作位只在可进终端时出现。
+    fab.hidden = !canTerm
   }
 
   async function fabAction() {
@@ -3462,7 +3464,8 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
         escapeHtml(s.tabId) +
         '" title="关闭">×</button>') + '</div>'
     }
-    html += '<div class="wb-session-actions"><button data-terminal-command="split-horizontal" title="左右分屏">左右分屏</button><button data-terminal-command="split-vertical" title="上下分屏">上下</button><button data-terminal-command="unsplit" title="合并分屏">合并</button></div>'
+    // 分屏命令作用于活动会话：没有会话时不渲染，避免空态留下一条只有分屏按钮的空白条。
+    if (sessions.size) html += '<div class="wb-session-actions"><button data-terminal-command="split-horizontal" title="左右分屏">左右分屏</button><button data-terminal-command="split-vertical" title="上下分屏">上下</button><button data-terminal-command="unsplit" title="合并分屏">合并</button></div>'
     el.innerHTML = html
     el.querySelectorAll('[data-tab]').forEach(tab => {
       tab.onkeydown = event => {

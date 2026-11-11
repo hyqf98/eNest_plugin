@@ -298,14 +298,6 @@
             "type": "number",
             "label": "HTML 块最大高度（px，0 = 不限）",
             "default": 0
-          },
-          {
-            "key": "settingsPage",
-            "type": "page",
-            "label": "图床、主题与高级设置",
-            "entry": {
-              "code": "settings"
-            }
           }
         ]
       }

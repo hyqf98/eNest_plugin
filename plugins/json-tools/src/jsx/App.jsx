@@ -787,10 +787,6 @@ export function App() {
   return (
     <main className="json-workspace">
       <header className="app-head">
-        <div className="head-brand">
-          <h1>JSON 工具</h1>
-          <span id="stats" className="stat-line">{statsLine}</span>
-        </div>
         <div className="quick-switch">
           <button id="show-source" aria-pressed={editor === 'source'} onClick={() => setEditor('source')}>原文</button>
           <button id="show-result" aria-pressed={editor === 'result'} onClick={() => setEditor('result')}>结果</button>

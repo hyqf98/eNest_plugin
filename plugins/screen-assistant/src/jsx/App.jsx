@@ -873,7 +873,6 @@ export function App() {
   return (
     <main className="screen-app">
       <header className="app-head">
-        <div><h1>屏幕助手</h1></div>
         <span id="status" role="status">{statusText}</span>
         <button id="capture" className="pk-btn pk-btn-primary" disabled={busy} onClick={() => void run(() => capture('region'))}>矩形截图</button>
         <MoreMenu

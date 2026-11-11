@@ -351,10 +351,6 @@ export function App() {
   return (
     <main className="lan-app">
       <header className="app-head">
-        <div className="brand">
-          <h1>局域网传件</h1>
-          <span className="tagline">同一网络 · 到期自动关闭</span>
-        </div>
         <div className="mode-seg" role="tablist" aria-label="发送或接收">
           <button id="mode-send" type="button" className="mode-btn" role="tab" aria-selected={send}
             onClick={() => setModeState('send')}>发送</button>

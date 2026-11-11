@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5189 --strictPort",
-    "build": "node ../../scripts/build-plugin.mjs lan-share",
-    "pack": "node ../../scripts/pack-plugin.mjs lan-share",
-    "prod": "node ../../scripts/build-plugin.mjs lan-share"
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.lan-share",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.lan-share",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.lan-share"
   },
   "dependencies": {
     "@enest/plugin-kit": "0.0.1",

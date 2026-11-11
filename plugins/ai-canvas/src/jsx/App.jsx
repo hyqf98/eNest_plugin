@@ -118,7 +118,7 @@ function Workbench() {
     })()
     const enest = window.enest || window.zapi
     const offEnter = enest?.onEnter?.(event => {
-      if (event?.code === 'settings' || event?.code === 'openPrefs') setSettingsOpen(true)
+      if (event?.code === 'settings') setSettingsOpen(true)
     })
     const offClose = enest?.onBeforeSuspend?.(() => { saveDrafts(draftsRef.current, { immediate: true }) })
     return () => { alive = false; offEnter?.(); offClose?.() }

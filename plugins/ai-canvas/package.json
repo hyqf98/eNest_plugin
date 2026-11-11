@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5212 --strictPort",
-    "build": "node ../../scripts/build-plugin.mjs ai-canvas",
-    "pack": "node ../../scripts/pack-plugin.mjs ai-canvas",
-    "prod": "node ../../scripts/build-plugin.mjs ai-canvas"
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.ai-canvas",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.ai-canvas",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.ai-canvas"
   },
   "dependencies": {
+    "@enest/lxgw-font": "0.0.1",
+    "@enest/lxgw-font": "0.0.1",
     "@enest/plugin-kit": "0.0.1",
     "@xyflow/react": "^12.3.5",
     "react": "^18.3.1",

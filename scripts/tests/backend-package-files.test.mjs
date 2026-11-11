@@ -45,7 +45,9 @@ test('backend package filters accept exact local paths and reject unsafe or unde
   }
   for (const paths of [null, [], 'native/build']) assert.throws(() => backendPackageFileExclusions(spec(paths)), /non-empty path array/)
   assert.throws(() => backendPackageFileExclusions(spec(['native/build', 'native/build'])), /Duplicate/)
-  assert.throws(() => backendPackageFileExclusions({ dependencies: [], packageFilesExcluded: { 'fixture-driver': ['native/build'] } }), /declared backend root/)
+  // 键是否真的在锁定依赖图内由构建期复核；形态校验只要求是合法包名。
+  assert.deepEqual([...backendPackageFileExclusions({ dependencies: [], packageFilesExcluded: { 'fixture-driver': ['native/build'] } }).keys()], ['fixture-driver'])
+  assert.throws(() => backendPackageFileExclusions({ dependencies: [], packageFilesExcluded: { 'fixture driver': ['native/build'] } }), /Invalid backend package exclusion package name/)
 })
 
 test('entry points, export patterns and nested legal files cannot be filtered', async t => {

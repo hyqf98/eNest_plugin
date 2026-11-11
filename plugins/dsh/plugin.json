@@ -18,22 +18,6 @@
   "backend": {
     "entry": "backend/index.cjs"
   },
-  "contributes": {
-    "settings": [
-      {
-        "id": "dsh.manage",
-        "title": "DSH 管理中心",
-        "items": [
-          {
-            "key": "manage",
-            "type": "page",
-            "label": "内核、Profiles、备份与运行诊断",
-            "entry": { "code": "manage" }
-          }
-        ]
-      }
-    ]
-  },
   "window": {
     "width": 720,
     "height": 560,

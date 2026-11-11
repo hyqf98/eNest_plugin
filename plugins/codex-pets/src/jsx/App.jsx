@@ -379,37 +379,34 @@ export function App() {
   return (
     <>
       <main className="cp" id="app">
-        <header className="cp-top">
-          <h1 className="cp-logo" title="codex-pets.net">🐾 Codex 宠物市场</h1>
-          <nav className="cp-nav" id="nav" aria-label="页面">
-            <button
-              type="button"
-              className={`cp-nav-btn${navActive === '#/' ? ' is-active' : ''}`}
-              data-route="#/"
-              title="画廊"
-              onClick={() => onNavigate('#/')}
-            >
-              画廊
-            </button>
-            <button
-              type="button"
-              className={`cp-nav-btn${navActive === '#/installed' ? ' is-active' : ''}`}
-              data-route="#/installed"
-              title="已安装到本机 Codex"
-              onClick={() => onNavigate('#/installed')}
-            >
-              已安装
-            </button>
-          </nav>
-          <div className="cp-spacer"></div>
-          <a className="cp-origin" id="origin-link" href="https://codex-pets.net/" title="在浏览器打开原站" onClick={openOrigin}>codex-pets.net ↗</a>
-        </header>
+        {/* 页面切换跟随内容滚动区，不占壳标题栏：画廊 / 已安装两张视图共用。 */}
+        <nav className="cp-nav" id="nav" aria-label="页面">
+          <button
+            type="button"
+            className={`cp-nav-btn${navActive === '#/' ? ' is-active' : ''}`}
+            data-route="#/"
+            title="画廊"
+            onClick={() => onNavigate('#/')}
+          >
+            画廊
+          </button>
+          <button
+            type="button"
+            className={`cp-nav-btn${navActive === '#/installed' ? ' is-active' : ''}`}
+            data-route="#/installed"
+            title="已安装到本机 Codex"
+            onClick={() => onNavigate('#/installed')}
+          >
+            已安装
+          </button>
+        </nav>
 
         <section className="cp-body" id="body" ref={bodyRef}>{/* 路由视图渲染 */}</section>
 
         <footer className="cp-foot">
           <span id="foot-status">就绪</span>
           <span className="cp-foot-hint">数据来自 codex-pets.net 社区 · 安装目录 ~/.codex/pets</span>
+          <a className="cp-origin" id="origin-link" href="https://codex-pets.net/" title="在浏览器打开原站" onClick={openOrigin}>codex-pets.net ↗</a>
         </footer>
       </main>
 

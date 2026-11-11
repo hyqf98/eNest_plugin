@@ -248,8 +248,6 @@ export function App() {
   return (
     <main className="cron-app">
       <header className="topbar">
-        <h1>Cron 工具</h1>
-        <span className="sub">五域构建 · 自然语言 · 执行预览</span>
         <div className="toolbar">
           <div className="segmented" id="seconds-switch" role="group" aria-label="域模式">
             <button id="mode-5" type="button" className={withSeconds ? '' : 'active'} aria-pressed={!withSeconds}

@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import Ajv2020 from 'ajv/dist/2020.js'
 import { repositoryRoot as root, pluginIds, assertMediaPaths, localFile, readManifest, pluginHtmlEntries } from './plugin-contract.mjs'
 import { resolveMarketAssets } from './market-assets.mjs'
-import { backendPackageFileExclusions } from './backend-package-files.mjs'
+import { backendPackageFileExclusions, backendRuntimeExclusions } from './backend-package-files.mjs'
 import { homeContributionErrors, mcpContributionErrors, launchContributionErrors } from '../packages/plugin-sdk/src/validate.mjs'
 
 export function loadManifestValidator() {
@@ -53,6 +53,7 @@ export function validateSource(directory, { release = true } = {}) {
       if (!pkg.enestBackend?.entry || !Array.isArray(pkg.enestBackend.dependencies)) throw new Error('Declared backend requires package.enestBackend build config')
       localFile(directory, pkg.enestBackend.entry)
       backendPackageFileExclusions(pkg.enestBackend)
+      backendRuntimeExclusions(pkg.enestBackend)
     }
     if (pkg.enestBuild !== undefined) {
       if (!pkg.enestBuild || typeof pkg.enestBuild !== 'object' || Array.isArray(pkg.enestBuild) || typeof pkg.enestBuild.entry !== 'string') throw new Error('enestBuild requires a plugin-local entry')

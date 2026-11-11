@@ -602,10 +602,6 @@ export function App() {
         onClick={toggleLibrary}>☰</button>
       <section className="library" id="note-library" ref={libraryRef} aria-label="笔记导航">
         <header>
-          <div>
-            <h1>备忘录</h1>
-            <div className="small shell-only">留住想法，再慢慢整理</div>
-          </div>
           <span></span><button className="pk-btn new" id="new" onClick={() => create()}>＋ 新建</button>
         </header>
         <div className="search-wrap shell-only">

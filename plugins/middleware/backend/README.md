@@ -8,7 +8,7 @@
 
 要求 eNest >=0.0.1。前端仅调用通用 `backend.call('workbench', [{ action, input }], { timeoutMs })` 并订阅 `backend.event` 的 `mw.data` / `mw.error` 子事件，不覆盖冻结的 `window.enest`，不再依赖 `enest.mw` 或专属宿主进程管理器。默认查询 30 秒、连接测试/关闭 15 秒；显式超时范围为 250ms 至 24 小时。
 
-后端以协议 v1 单次 `init` 绑定 pluginId/generation/wcId，并校验每条请求的插件归属、4 MiB 请求 / 8 MiB 返回与事件、32 个并发请求预算。插件 `workbench.ts` 解释 `mw.connect` / `mw.query` / `mw.admin`，每次调用通用 `permission.authorize`；只读连接在本后端拒绝所有变更。域权限不是 Node 沙箱，`backend.node` 仍是必须明确授权的完整本机 Node 信任。
+后端以协议 v1 单次 `init` 绑定 pluginId/generation/wcId，并校验每条请求的插件归属、4 MiB 请求 / 8 MiB 返回与事件、32 个并发请求预算。插件 `workbench.ts` 解释 `net.messaging` / `net.messaging.read` / `net.messaging.admin`，每次调用通用 `permission.authorize`；只读连接在本后端拒绝所有变更。域权限不是 Node 沙箱，`backend.node` 仍是必须明确授权的完整本机 Node 信任。
 
 主连接与 EMQX 管理面的 vault 引用分别经通用 `secret.resolve` 解引用。已有临时测试密码仍只用于本次请求。密钥不返回页面，不进入会话信息与事件；持久化连接只保存引用。EMQX 不再把引用字符串当作实际密码。
 

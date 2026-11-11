@@ -215,7 +215,7 @@ async function mwWorkbenchService(pluginId: string, request: MwWorkbenchRequest)
   assertNotReadOnly(s, action)
   const h = s.handle
   switch (action) {
-    // mw.query
+    // net.messaging.read
     case 'overview': return s.driver.overview(h)
     case 'topics.list': return s.driver.topicsList(h, { search: request.input.search, includeInternal: request.input.includeInternal })
     case 'topic.describe': return s.driver.topicDescribe(h, request.input.topic)
@@ -238,7 +238,7 @@ async function mwWorkbenchService(pluginId: string, request: MwWorkbenchRequest)
     case 'configs.describe': return s.driver.configsDescribe(h, { topic: request.input.topic })
     case 'trace.message': return s.driver.traceMessage(h, { key: request.input.key })
     case 'retained.list': return s.driver.retainedList(h, { search: request.input.search })
-    // mw.admin
+    // net.messaging.admin
     case 'topic.create': return s.driver.topicCreate(h, request.input.topic)
     case 'topic.update': return s.driver.topicUpdate(h, request.input.name, request.input.attrs)
     case 'topic.delete': return s.driver.topicDelete(h, request.input.name)

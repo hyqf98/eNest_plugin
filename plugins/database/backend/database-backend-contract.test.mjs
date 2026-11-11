@@ -102,13 +102,13 @@ test('raw database/import paths and unknown actions are rejected by plugin polic
 })
 
 test('permission denial does not invoke drivers or resolve secrets', async () => {
-  const f = fixture({ denied: 'db.connect' })
+  const f = fixture({ denied: 'net.database' })
   await assert.rejects(f.facade.call('db.open', [{ driver: 'mysql', secretRef: 'denied' }]), /permission denied/)
   assert.equal(f.calls.length, 0)
   assert.equal(f.controls.some(control => control.method === 'secret.resolve'), false)
   assert.equal(workbenchPermission('drivers.list'), null)
-  assert.equal(workbenchPermission('table.design.preview'), 'db.schema')
-  assert.equal(workbenchPermission('table.design.apply'), 'db.query')
+  assert.equal(workbenchPermission('table.design.preview'), 'net.database.schema')
+  assert.equal(workbenchPermission('table.design.apply'), 'net.database.query')
 })
 
 test('workbench test uses the same private secret and local-file resolution as ordinary test', async () => {

@@ -151,8 +151,9 @@
       }
       .segmented button {
         font-size: 12px;
-        min-height: 26px;
-        padding: 3px 14px;
+        /* 与 pk-segmented-item / pk-btn-sm 一致的 24px 次要档（原 26px 是自定中间值）。 */
+        min-height: 24px;
+        padding: 2px 14px;
         border: 0;
         border-radius: 6px;
         background: transparent;
@@ -237,9 +238,9 @@
         margin: 20px 0 12px;
       }
       .presets button {
-        min-height: 26px;
+        min-height: 24px;
         font-size: 12px;
-        padding: 3px 12px;
+        padding: 2px 12px;
       }
       .presets button.chosen {
         border-color: var(--focus);

@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process'
 import { build } from 'esbuild'
 import { repositoryRoot, localFile } from './plugin-contract.mjs'
 import { normalizeTarget, packageMatchesTarget, platformPackagePlan } from './distribution-target.mjs'
-import { backendPackageFileExclusions, assertPackageFilesCanBeExcluded } from './backend-package-files.mjs'
+import { backendPackageFileExclusions, backendRuntimeExclusions, assertPackageFilesCanBeExcluded } from './backend-package-files.mjs'
 
 const packageName = /^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i
 
@@ -72,31 +72,62 @@ export async function buildBackend(source, destination, { root = repositoryRoot,
     plugins: [{ name: 'forbid-host-imports', setup(builder) { builder.onResolve({ filter: /^(?:electron|@main\/|@preload\/|@renderer\/|@shared\/)/ }, args => ({ errors: [{ text: `Plugin backend cannot import host code: ${args.path}` }] })) } }]
   })
   const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'))
-  const copied = new Map(), excluded = new Set(spec.optionalExcluded || [])
-  async function dependency(name, from, optional = false) {
-    if (optional && excluded.has(name)) return
+  const runtimeExcluded = backendRuntimeExclusions(spec)
+  const excluded = new Set(spec.optionalExcluded || [])
+  const resolved = new Map(), edges = new Map()
+
+  // Pass 1: resolve the locked dependency graph without copying. Exclusions apply to the copy pass,
+  // so a declared runtime-unused dependency can still be proven reachable before it is omitted.
+  async function resolve(name, from, optional = false) {
+    if (optional && excluded.has(name)) return undefined
     let directory
-    try { directory = packageAt(name, from) } catch (error) { if (optional) return; throw error }
-    if (copied.has(directory)) {
-      if (!optional) delete copied.get(directory).optional
-      return
+    try { directory = packageAt(name, from) } catch (error) { if (optional) return undefined; throw error }
+    if (resolved.has(directory)) {
+      if (!optional) delete resolved.get(directory).optional
+      return directory
     }
     const data = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
     if (!packageMatchesTarget(data, distributionTarget)) {
-      if (optional) return
+      if (optional) return undefined
       throw new Error(`Required backend dependency ${name} is incompatible with ${distributionTarget}`)
     }
     // Preserve the lockfile's physical node_modules layout so duplicate versions resolve identically.
     const marker = lockedPackagePath(root, directory)
     if (data.name !== name || lock.packages?.[marker]?.version !== data.version) throw new Error(`Backend dependency does not match lockfile: ${name}`)
-    copied.set(directory, { name, version: data.version, path: marker, ...(optional ? { optional: true } : {}) })
-    await copyPackage(directory, join(target, marker), name, excludedFiles.get(name))
-    const optionalDeps = data.optionalDependencies || {}
-    for (const child of Object.keys(data.dependencies || {})) if (!(child in optionalDeps)) await dependency(child, directory)
-    for (const child of Object.keys(optionalDeps)) await dependency(child, directory, true)
-    for (const child of Object.keys(data.peerDependencies || {})) await dependency(child, directory, data.peerDependenciesMeta?.[child]?.optional === true)
+    resolved.set(directory, { name, version: data.version, path: marker, ...(optional ? { optional: true } : {}) })
+    const children = [], optionalDeps = data.optionalDependencies || {}
+    for (const child of Object.keys(data.dependencies || {})) if (!(child in optionalDeps)) { const found = await resolve(child, directory); if (found) children.push(found) }
+    for (const child of Object.keys(optionalDeps)) { const found = await resolve(child, directory, true); if (found) children.push(found) }
+    for (const child of Object.keys(data.peerDependencies || {})) { const found = await resolve(child, directory, data.peerDependenciesMeta?.[child]?.optional === true); if (found) children.push(found) }
+    edges.set(directory, children)
+    return directory
   }
-  for (const name of spec.dependencies) await dependency(name, source)
+  const roots = []
+  for (const name of spec.dependencies) { const directory = await resolve(name, source); if (directory) roots.push(directory) }
+  // Exact file exclusions may target any package the backend graph actually contains, but nothing else.
+  for (const name of excludedFiles.keys()) {
+    if (![...resolved.values()].some(pkg => pkg.name === name)) throw new Error(`${pkg.name}: packageFilesExcluded target is not in the locked backend dependency graph: ${name}`)
+  }
+  // A root dependency is an esbuild external the backend imports directly, so it can never be declared unused.
+  const skipped = []
+  for (const name of runtimeExcluded) {
+    if (spec.dependencies.includes(name)) throw new Error(`Backend runtime exclusion must not name a declared root dependency: ${name}`)
+    const matches = [...resolved.values()].filter(pkg => pkg.name === name)
+    if (!matches.length) throw new Error(`Backend runtime exclusion is not in the locked dependency graph: ${name}`)
+    skipped.push(...matches)
+  }
+
+  // Pass 2: copy only packages reachable without passing through a declared runtime-unused dependency.
+  const copied = new Map()
+  async function copy(directory) {
+    if (copied.has(directory)) return
+    const record = resolved.get(directory)
+    if (runtimeExcluded.has(record.name)) return
+    copied.set(directory, { name: record.name, version: record.version, path: record.path, ...(record.optional ? { optional: true } : {}) })
+    await copyPackage(directory, join(target, record.path), record.name, excludedFiles.get(record.name))
+    for (const child of edges.get(directory) || []) await copy(child)
+  }
+  for (const directory of roots) await copy(directory)
 
   // Universal remains the default; explicit targets contain only their locked native variant.
   const platformPlan = platformPackagePlan(source, { root, target: distributionTarget })
@@ -132,5 +163,5 @@ export async function buildBackend(source, destination, { root = repositoryRoot,
     if (unpackedPackage.name !== name || unpackedPackage.version !== data.version) throw new Error('Native package identity mismatch')
     await copyPackage(join(unpack, 'package'), join(target, location), name, excludedFiles.get(name))
   }
-  await writeFile(join(target, 'dependency-inventory.json'), JSON.stringify({ node: '>=24', target: distributionTarget, supportedTargets: platformPlan.supportedTargets, dependencies: [...copied.values()], platformPackages: platformPlan.packages.map(pkg => pkg.name), nativePackages: platformInventory }, null, 2) + '\n')
+  await writeFile(join(target, 'dependency-inventory.json'), JSON.stringify({ node: '>=24', target: distributionTarget, supportedTargets: platformPlan.supportedTargets, dependencies: [...copied.values()], runtimeExcluded: skipped.map(pkg => ({ name: pkg.name, version: pkg.version, path: pkg.path })), platformPackages: platformPlan.packages.map(pkg => pkg.name), nativePackages: platformInventory }, null, 2) + '\n')
 }

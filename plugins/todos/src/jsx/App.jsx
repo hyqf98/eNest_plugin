@@ -685,10 +685,6 @@ export function App() {
   return (
     <>
       <header className="shell-only">
-        <div>
-          <div className="eyebrow">把下一步写下来</div>
-          <h1>待办清单</h1>
-        </div>
         <div className="progress-wrap" title="今日完成度">
           <div className="progress-track">
             <div className="progress-fill" id="day-fill" style={{ width: pct + '%' }}></div>

@@ -270,8 +270,6 @@ export function App() {
     <TooltipProvider>
       <main className="calculator">
         <header>
-          <h1>计算器</h1>
-          <span className="sub">表达式工作台</span>
           <div className="toolbar">
             <button id="angle" type="button" aria-pressed={degrees}
               onClick={() => setDegrees((d) => !d)}>{degrees ? 'DEG' : 'RAD'}</button>

@@ -44,27 +44,23 @@ html, body {
   min-width: 0;
 }
 
-/* ---------- 顶栏 ---------- */
-.cp-top {
+/* ---------- 页面切换（画廊 / 已安装） ---------- */
+/* 标题与图标由壳标题栏统一显示；这里只保留视图切换，作为内容区顶部的细条。 */
+.cp-nav {
   display: flex;
-  flex-wrap: wrap;
-  min-width: 0;
+  gap: 4px;
+  flex: none;
   align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
+  padding: 6px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
-  flex: none;
 }
-.cp-logo { font-size: 14px; margin: 0; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }
-.cp-nav { display: flex; gap: 4px; }
 .cp-nav-btn {
   border: 0; background: transparent; color: var(--text-2);
-  padding: 5px 12px; border-radius: 999px; cursor: pointer; font-size: 13px;
+  padding: 4px 11px; border-radius: 999px; cursor: pointer; font-size: 13px;
 }
 .cp-nav-btn:hover { color: var(--text); background: var(--surface-2); }
 .cp-nav-btn.is-active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
-.cp-spacer { flex: 1; }
 .cp-origin { color: var(--text-3); text-decoration: none; font-size: 12px; }
 .cp-origin:hover { color: var(--accent); }
 
@@ -366,7 +362,7 @@ html, body {
   .cp-stage-frame { width: 100%; max-width: 288px; }
   .cp-detail { padding: 0; }
 }
-:root[data-mode="quick"] .cp-logo { font-size: 13px; }
+:root[data-mode="quick"] .cp-nav { padding: 5px 12px; }
 :root[data-mode="quick"] .cp-origin { display: none; }
 :root[data-mode="quick"] .cp-foot-hint { display: none; }
 

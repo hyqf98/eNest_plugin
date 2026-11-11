@@ -5,18 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5183 --strictPort",
-    "build": "node ../../scripts/build-plugin.mjs database",
-    "pack": "node ../../scripts/pack-plugin.mjs database",
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.database",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.database",
     "parser:generate": "node scripts/generate-execution-parser.mjs",
     "parser:check": "node scripts/generate-execution-parser.mjs --check",
     "typecheck:backend": "tsc -p backend/tsconfig.json",
     "test:backend": "node --test backend/*.test.mjs",
     "test:backend:integration": "tsx --tsconfig backend/tsconfig.json --test backend/*.test.ts",
-    "prod": "node ../../scripts/build-plugin.mjs database"
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.database"
   },
   "dependencies": {
     "@clickhouse/client": "^1.24.1",
     "@duckdb/node-api": "^1.5.6-r.1",
+    "@enest/lxgw-font": "0.0.1",
     "@enest/plugin-kit": "0.0.1",
     "@tdengine/websocket": "^3.5.0",
     "cassandra-driver": "^4.10.0",
@@ -70,6 +71,56 @@
       "@duckdb/node-bindings-darwin-x64",
       "@duckdb/node-bindings-win32-x64",
       "@duckdb/node-bindings-linux-x64"
+    ],
+    "packageFilesExcluded": {
+      "neo4j-driver": [
+        "lib/browser"
+      ],
+      "csv-parse": [
+        "dist/iife",
+        "dist/umd"
+      ],
+      "undici": [
+        "docs"
+      ],
+      "@clickhouse/client": [
+        "skills"
+      ],
+      "moment": [
+        "min",
+        "src",
+        "dist"
+      ],
+      "js-md4": [
+        "doc"
+      ],
+      "rxjs": [
+        "src",
+        "dist/bundles"
+      ],
+      "@redis/client": [
+        "dist/esm"
+      ],
+      "@azure/msal-node": [
+        "src"
+      ],
+      "oracledb": [
+        "build/Release/oracledb-26.0.0-linux-arm64.node",
+        "build/Release/oracledb-26.0.0-linux-arm64.node-buildinfo.txt"
+      ],
+      "@js-joda/core": [
+        "src",
+        "typings"
+      ],
+      "cassandra-driver": [
+        "proposals",
+        "Jenkinsfile"
+      ]
+    },
+    "runtimeExcluded": [
+      "typescript",
+      "moment-timezone",
+      "@azure/msal-browser"
     ]
   }
 }

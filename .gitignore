@@ -7,4 +7,7 @@ playwright-report/
 test-results-*/
 logs/
 *.log
+# 共享包物化产物：由 @enest/native-surfaces 与 @enest/lxgw-font 的 vite 插件在
+# configResolved 阶段写入各插件 public/；唯一副本保存在 packages/*/assets/。
 /plugins/*/public/assets/vendor/native-surfaces/
+/plugins/*/public/assets/vendor/fonts/

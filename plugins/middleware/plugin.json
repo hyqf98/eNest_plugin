@@ -11,9 +11,9 @@
     "enest": ">=0.0.1"
   },
   "permissions": [
-    "mw.connect",
-    "mw.query",
-    "mw.admin",
+    "net.messaging",
+    "net.messaging.read",
+    "net.messaging.admin",
     "notify",
     "clipboard.write",
     "shell.openExternal",
@@ -25,14 +25,6 @@
         "id": "middleware.prefs",
         "title": "中间件",
         "items": [
-          {
-            "key": "workbench",
-            "type": "page",
-            "label": "打开中间件设置与快捷键",
-            "entry": {
-              "code": "settings"
-            }
-          },
           {
             "key": "followShellTheme",
             "type": "switch",

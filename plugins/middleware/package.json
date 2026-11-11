@@ -12,6 +12,7 @@
     "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.middleware"
   },
   "dependencies": {
+    "@enest/lxgw-font": "0.0.1",
     "@enest/plugin-kit": "0.0.1",
     "amqplib": "^2.2.0",
     "kafkajs": "^2.2.4",
@@ -40,6 +41,18 @@
       "amqplib",
       "kafkajs",
       "mqtt"
-    ]
+    ],
+    "optionalExcluded": [
+      "bufferutil",
+      "utf-8-validate"
+    ],
+    "packageFilesExcluded": {
+      "kafkajs": [
+        "types"
+      ],
+      "mqtt": [
+        "help"
+      ]
+    }
   }
 }

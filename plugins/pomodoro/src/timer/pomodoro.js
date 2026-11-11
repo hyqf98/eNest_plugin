@@ -123,7 +123,9 @@ export function createPomodoroController(api) {
   }
   async function refresh() {
     await load()
-    generic = await api.deadlineTasks.get(TASK)
+    // 宿主或旧版本可能返回不含 receipts 的对象；缺失时按“无回执”处理，不让整页崩成一条报错。
+    generic = (await api.deadlineTasks.get(TASK)) ?? { task: null, receipts: [] }
+    if (!Array.isArray(generic.receipts)) generic = { ...generic, receipts: [] }
     await migrate()
     const existing = new Map(journal.records.map(record => [record.id, record])), deleted = new Set(journal.deleted)
     let changed = false

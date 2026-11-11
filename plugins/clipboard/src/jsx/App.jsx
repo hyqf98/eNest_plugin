@@ -637,10 +637,6 @@ export function App() {
   return (
     <main className="app" data-density={density}>
       <header className="shell-only">
-        <div>
-          <h1>剪贴板</h1>
-          <span className="muted">留住刚刚复制的内容</span>
-        </div>
         <input
           id="search"
           ref={searchRef}

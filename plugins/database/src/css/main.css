@@ -320,7 +320,8 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  backdrop-filter: blur(8px);
+  /* 毛玻璃已移除：纸面主题下是"纸"不是"玻璃"，且 backdrop-filter 会强制建立
+     合成层，长列表滚动时明显掉帧。paper-theme 层也覆盖了同一条，这里直接改源头。 */
   box-shadow: none;
 }
 .right-panel[hidden] { display: none !important; }

@@ -10,6 +10,8 @@
     "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.ssh"
   },
   "dependencies": {
+    "@enest/lxgw-font": "0.0.1",
+    "@enest/lxgw-font": "0.0.1",
     "@enest/plugin-kit": "0.0.1",
     "@enest/ssh-backend": "0.0.1",
     "react": "^18.3.1",

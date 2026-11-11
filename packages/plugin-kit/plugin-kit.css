@@ -53,7 +53,11 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 100%; height: 100%; }
 body { font-family: var(--font, var(--font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif)); font-size: var(--font-size-base, 13px); background: var(--bg, #f6f7f9); color: var(--text, #252a32); }
-button, input, textarea, select { font: inherit; }
+/* 表单控件继承字体是基线，但按钮的字号/行高必须可由按钮自身规则决定：
+ * `font: inherit` 会把 body 的 13px/1.55 带进按钮，即使业务 CSS 设了 12.5px/1.4
+ * 也会被这条后加载的规则盖掉，28px 的按钮于是撑到 30px（同排按钮对不齐）。 */
+input, textarea, select { font: inherit; }
+button { font-family: inherit; font-weight: inherit; }
 button, a, input, textarea, select, [tabindex] { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .45; }
@@ -447,6 +451,12 @@ select:not(.pk-select-native) {
   font-size: 12.5px; line-height: 1.4;
   transition: border-color var(--pk-speed, 0.15s) ease, background-color var(--pk-speed, 0.15s) ease, color var(--pk-speed, 0.15s) ease, transform 0.1s ease;
 }
+/* 次要小按钮：全插件统一到 24px 档。此前只有 pk-ui.css 定义，未引入该文件的插件
+ * 会各自写高度（20~31px 混杂），同一排按钮对不齐。 */
+.pk-btn-sm, .btn.sm { min-height: 24px; padding: 2px 9px; font-size: 12px; border-radius: calc(var(--pk-radius, 8px) - 3px); }
+/* `.btn` 是 pk-ui / 各插件业务 CSS 共用的旧类名；这里只补尺寸档位，视觉参数仍由
+ * 各插件或 pk-ui 的 `.btn` 基础规则提供（无法层叠时业务 CSS 优先级更高，不会被压掉）。 */
+.btn { min-height: 28px; }
 .pk-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--border, #d9dfe6)); }
 .pk-btn:active:not(:disabled) { transform: scale(0.97); }
 .pk-btn.primary {

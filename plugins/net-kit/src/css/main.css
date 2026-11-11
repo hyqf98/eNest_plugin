@@ -122,7 +122,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   padding: 14px;
-  overflow: auto;
+  /* 三栏工作区按容器高度分配；留 auto 滚动会让卡片按内容收缩，底部露出大片空底。 */
+  overflow: hidden;
 }
 .nk-single { height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); padding: 12px; gap: 12px; }
 .nk-session { grid-column: 2 / 4; }
@@ -134,13 +135,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   overflow: hidden;
 }
 .nk-card {
-  border: 1px solid var(--border, rgba(41, 44, 46, .08)); border-radius: var(--radius);
+  /* 工作区三栏是同层级的面板：用底色块 + 分隔线区分，不再每块各围一圈描边。 */
+  border: 0; border-radius: var(--radius);
   background: var(--surface, #ffffff); display: flex; flex-direction: column; min-height: 0;
+  /* 列内卡片按剩余高度伸展：否则请求/响应区只按内容撑到一两百像素，下面整片空底。 */
+  flex: 1 1 auto;
 }
 .nk-card-head {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  padding: 6px 8px; border-bottom: 1px solid var(--border, rgba(41, 44, 46, .08));
-  color: var(--text-2, #666c70); font-size: 12px; background: var(--surface-2, #eeefed);
+  padding: 6px 12px; border-bottom: 1px solid var(--border, rgba(41, 44, 46, .08));
+  color: var(--text-2, #666c70); font-size: 12px; background: transparent;
   border-radius: var(--radius) var(--radius) 0 0;
 }
 .nk-card-head .nk-spacer { flex: 1; }

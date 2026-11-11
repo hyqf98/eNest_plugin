@@ -581,7 +581,6 @@ export function App() {
   return (
     <main className="diff-app">
       <header className="topbar">
-        <h1>文本对比</h1>
         <span id="stats" className="stats mono" role="status" aria-live="polite" dangerouslySetInnerHTML={{ __html: statsHtml }}></span>
         <span id="nav-pos" className="nav-pos mono" hidden={!navPos.visible}>{navPos.text}</span>
         <div className="toolbar">
