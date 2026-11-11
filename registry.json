@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-11T06:23:07.219Z",
+  "generatedAt": "2026-11-11T07:11:06.245Z",
   "channel": "stable",
   "categories": [
     "效率",
@@ -46,7 +46,7 @@
         "name": "ai-canvas@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ai-canvas%400.0.1.enestplugin",
         "size": 4345679,
-        "sha256": "e299adc41ef525c9cb5800411343af691ed17990e6dc2679efc19c89a29fcb45"
+        "sha256": "65b1e380304204e894269ca4d46454f7acb35880538113ea9a1c7467fe61070b"
       },
       "readmeImages": {}
     },
@@ -88,7 +88,7 @@
         "name": "anything@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/anything%400.0.1.enestplugin",
         "size": 177717,
-        "sha256": "6ea11ad2a6e43824f71dc7b603ffbf0a044a566fa43ff0ffac385947e7862375"
+        "sha256": "dc27bb5c6bcacaf0a534012ccd02c09c8939e6a2cd7b3cf0473c83383306c842"
       },
       "readmeImages": {}
     },
@@ -126,7 +126,7 @@
         "name": "batch-rename@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/batch-rename%400.0.1.enestplugin",
         "size": 117493,
-        "sha256": "6815f004760ca3b4371eb53572a2857ee0e48bd001d93686f26ba76480a396c1"
+        "sha256": "f3f42df49c2c8d2ca30c48ad9fde6073fd0ca9d1b462936b0205ba26e273f326"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/batch-rename/public/assets/market/screenshots/01-main.png"
@@ -166,7 +166,7 @@
         "name": "calculator@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/calculator%400.0.1.enestplugin",
         "size": 152833,
-        "sha256": "9b1cdee6804236c892b116abe7d3a5b03ecbca94b0ec4b59fa5a8da7e2596fd3"
+        "sha256": "5662351ba8558f41508e8fcb4988cc5f3d4eaf10c0aeb98a60a1ddd498633ae8"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/calculator/public/assets/market/screenshots/01-main.png"
@@ -215,7 +215,7 @@
         "name": "ccswitch@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ccswitch%400.0.1.enestplugin",
         "size": 195820,
-        "sha256": "e0f5dc712056e622c67e8b54e955fb6e27548dab4a0518adea5c9da3e7d13e0a"
+        "sha256": "2c231bf25209f01277ad9a5ae7f09a7cd51bbd2d53d30ddff23a50b4d42a12f1"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ccswitch/public/assets/market/screenshots/01-main.png"
@@ -262,7 +262,7 @@
         "name": "clipboard@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/clipboard%400.0.1.enestplugin",
         "size": 266287,
-        "sha256": "81ba08943975abbd71ea6c8b8d3347cd68e44dc6d70f35800d13482023ad99eb"
+        "sha256": "c74ccc12ed619c694ec8f4c6ba0d29fbd516087bda020019b730aab834a82b3f"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/clipboard/public/assets/market/screenshots/01-main.png"
@@ -305,7 +305,7 @@
         "name": "codec@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codec%400.0.1.enestplugin",
         "size": 147041,
-        "sha256": "038365494c03d04d0f41a55eb473b5c832c953d938bf7df94cbe4f5a240d5886"
+        "sha256": "55c8c1616913ea26a0a7777c78c4feaf2c17d8242e717d025eb5ead7f18aa349"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/codec/public/assets/market/screenshots/01-main.png"
@@ -350,7 +350,7 @@
         "name": "codex-pets@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/codex-pets%400.0.1.enestplugin",
         "size": 204531,
-        "sha256": "be37b22a1de5b084106ea763178e12a9f70ab77f8a5325660c38a193d92ecacf"
+        "sha256": "20b758231bb23c896af75648d783dff2d26e80adfdd9ceb4a96cfe22bef3db3e"
       },
       "readmeImages": {}
     },
@@ -390,7 +390,7 @@
         "name": "color-picker@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/color-picker%400.0.1.enestplugin",
         "size": 164450,
-        "sha256": "72015f3d128edfe49fdd84c2d733891f76b0cd000d3326c77acde77dd1026c98"
+        "sha256": "6d1bdda298d8bcbc739c9a55c1391bb55c9e034d632518103caf8afe2f188557"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/color-picker/public/assets/market/screenshots/01-main.png"
@@ -430,7 +430,7 @@
         "name": "cron@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/cron%400.0.1.enestplugin",
         "size": 215302,
-        "sha256": "d446db29c436410d873e01586824176055dc5e125df7ca74876f84d02757772e"
+        "sha256": "ac9962aa371835584aa6112dc6462b8cf7306c55645b91434c64cdfb8962ef78"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/cron/public/assets/market/screenshots/01-main.png"
@@ -481,7 +481,7 @@
         "name": "database@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/database%400.0.1.enestplugin",
         "size": 158675286,
-        "sha256": "6c580a81c58407f3ed59d6890423e51a982b4ac13a9ebbcb331c6acfb6594b01"
+        "sha256": "58d2fea12804e0431250bec130d671da65bc7554bb704b92a0a530c49670fa61"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/database/public/assets/market/screenshots/01-main.png"
@@ -523,7 +523,7 @@
         "name": "dev-env@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dev-env%400.0.1.enestplugin",
         "size": 226756,
-        "sha256": "e572bf9db847b0b5af85efbd7fcf69b88476e5891567c8d70130ddf1ff9f9e5e"
+        "sha256": "b2bd95a0fbe6845a4887b4b01346188310d3871c23039724647ea8521690cfaa"
       },
       "readmeImages": {}
     },
@@ -562,7 +562,7 @@
         "name": "diff@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/diff%400.0.1.enestplugin",
         "size": 154727,
-        "sha256": "b9a957a96149be5ee9ee252175f0f7f8796e59b6e0a48b21e6d58784575ce42e"
+        "sha256": "ac084250473164b88290c925f960b8d3bba18a03dacb3d0f5d652b096ae2c9cb"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/diff/public/assets/market/screenshots/01-main.png"
@@ -604,7 +604,7 @@
         "name": "drawboard@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/drawboard%400.0.1.enestplugin",
         "size": 4367057,
-        "sha256": "6e1bdaa3e230c07fafd582819790d68e61fc5a49fd1f32358cb62c6ea88cf0b4"
+        "sha256": "2272bcc813621be16b6ea4c59840ef7621984a96979bc4f6eed6e6bed09054f6"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/drawboard/public/assets/market/screenshots/01-main.png"
@@ -647,7 +647,7 @@
         "name": "dsh@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/dsh%400.0.1.enestplugin",
         "size": 1045241,
-        "sha256": "8f252c8ee9d26a17bf11041704a1163ad6cca53ddf170496b79b84e6360144ff"
+        "sha256": "bf7a21ed3a525bd48f8acd8cb469677bde188fee34c9decd9b3f31ad775ec50b"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/dsh/public/assets/market/screenshots/01-main.png"
@@ -688,7 +688,7 @@
         "name": "env-vars@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/env-vars%400.0.1.enestplugin",
         "size": 157957,
-        "sha256": "0048e34c9901a8e8aa467e59d85514d4ff4443fb86af1af6d7d054342fdb5fb0"
+        "sha256": "640041ca684f674d449a955f59962cd5fc1422a1d256b454c4e9e72c104cced6"
       },
       "readmeImages": {}
     },
@@ -727,7 +727,7 @@
         "name": "hash@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/hash%400.0.1.enestplugin",
         "size": 172516,
-        "sha256": "67ed795da41cbbad46ae639cfd1a481ec562c3800cfa6a3b8396b3e911b4d200"
+        "sha256": "f81757e6da6269db346cff0cd02caacd19f8bf4ab6d8f958d771cac2531bf7d3"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/hash/public/assets/market/screenshots/01-main.png"
@@ -771,7 +771,7 @@
         "name": "image-tools@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/image-tools%400.0.1.enestplugin",
         "size": 195981,
-        "sha256": "6ef19e95c09c2f4f8a4d7b8f03374728dd9e8d8ff76ffe95e992bd2a5d74a99f"
+        "sha256": "0715331564df9631f9ce23ab31b750be7fb284385b39e3c111bfcd0885ea3905"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/screenshots/01-main.png"
@@ -812,7 +812,7 @@
         "name": "json-tools@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/json-tools%400.0.1.enestplugin",
         "size": 166842,
-        "sha256": "9d7a8264103f80c604676a6e8356a21bb91153e713e4c85be39b2992cc2f02a4"
+        "sha256": "7e8a435642c68ab964d42af10fa5a763beeb97e6f728145e50a4c9d4a14808c8"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/json-tools/public/assets/market/screenshots/01-main.png"
@@ -854,7 +854,7 @@
         "name": "lan-share@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/lan-share%400.0.1.enestplugin",
         "size": 163339,
-        "sha256": "2d08a10902843cfbc4bae3aff2f833f7353d210bc6cd08380fa0ee60a5dc1cd4"
+        "sha256": "af5caf9ce25e7d344310322a266af567bc7b7ff04ec9bac4ab4aae1ea592cf52"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/lan-share/public/assets/market/screenshots/01-main.png"
@@ -898,7 +898,7 @@
         "name": "markdown@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/markdown%400.0.1.enestplugin",
         "size": 2702316,
-        "sha256": "d83b6452bcb5f94207fcade5fa6e85c807644fa68d9c4662c048dd045fee3f6b"
+        "sha256": "38946982627a3d98e84031a0d9819db91e67addeba46efc01cb7655a28a0b03b"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/markdown/public/assets/market/screenshots/01-main.png"
@@ -947,7 +947,7 @@
         "name": "middleware@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/middleware%400.0.1.enestplugin",
         "size": 6416635,
-        "sha256": "317086489fb703cce77f1a25dc91cec918e5a6985afae37ff4c7ea20eb53c026"
+        "sha256": "28d78b59ace125004430614a98e9331e30b2da9844c931760d76b52b6c497524"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/middleware/public/assets/market/screenshots/01-main.png"
@@ -993,7 +993,7 @@
         "name": "net-kit@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/net-kit%400.0.1.enestplugin",
         "size": 167267,
-        "sha256": "efa94361212b47013e2f3f41d8f17487a37bb93c37800a5542c96e49d1e25636"
+        "sha256": "03e0fde6b279402b34ced4458af8df676ccae4379b4d7646b21afdc4d010c858"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/net-kit/public/assets/market/screenshots/01-main.png"
@@ -1036,7 +1036,7 @@
         "name": "password-book@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-book%400.0.1.enestplugin",
         "size": 227512,
-        "sha256": "228b8654161b6200a65774dcb1802e7c18302f5252e21f671c7e7b7a20c74c4d"
+        "sha256": "a61edf01c31f8996f07a418cc7250906f4ccd0dd92be53815fdc2e0c39d3fd7b"
       },
       "readmeImages": {}
     },
@@ -1074,7 +1074,7 @@
         "name": "password-kit@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/password-kit%400.0.1.enestplugin",
         "size": 142927,
-        "sha256": "5c83536cb50e52043fbcb2d4b2b597d5fbcccee43947bb64c055e104fc9b0835"
+        "sha256": "a96b39a6ae278a120164ec5d027e8aed88dfaecf042e3c2ae78de20e209891e6"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/password-kit/public/assets/market/screenshots/01-main.png"
@@ -1114,7 +1114,7 @@
         "name": "pomodoro@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/pomodoro%400.0.1.enestplugin",
         "size": 139846,
-        "sha256": "1c0c9272c3231cbcc8d05e2399e51c6b42c0eb2cbec2efe3607e0bc09c916de5"
+        "sha256": "3b839f9d817a4c77e59ac1f52b26058e1f39734a5ae8bee2629d48d255ffe7a2"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/pomodoro/public/assets/market/screenshots/01-main.png"
@@ -1154,7 +1154,7 @@
         "name": "regex@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/regex%400.0.1.enestplugin",
         "size": 154015,
-        "sha256": "fa8c1f251c64a7e25ebe58311e95bd4330ab004ed58b5c41c6dfce7b1e22a815"
+        "sha256": "f2411d1ea0a2eb17d07aabe8e9239c5c6819b57249d7da99ad496c22b04eb0be"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/regex/public/assets/market/screenshots/01-main.png"
@@ -1204,7 +1204,7 @@
         "name": "remote-desktop@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/remote-desktop%400.0.1.enestplugin",
         "size": 2605329,
-        "sha256": "3d4450e50b1d18dbc9f8b48f60aafc15010044105ca841fae23c045991c78efc"
+        "sha256": "af6b230ffceb3af12db72f23c653bbd3f68d46ad70cbab2804c3f06170c3d1fa"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/remote-desktop/public/assets/market/screenshots/01-main.png"
@@ -1251,7 +1251,7 @@
         "name": "screen-assistant@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/screen-assistant%400.0.1.enestplugin",
         "size": 242764,
-        "sha256": "2f4360ce59c89a58fcf09f4fb092a1e1f5cea44fbb75710c338aee1e30d722ea"
+        "sha256": "b7cf745ea8db2257c0046671bcd62478460f0012db0c585fa7276cbca8682219"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/screen-assistant/public/assets/market/screenshots/01-main.png"
@@ -1293,7 +1293,7 @@
         "name": "sketchbook@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sketchbook%400.0.1.enestplugin",
         "size": 733235,
-        "sha256": "c12b6417d0e88a8492d4f5734411edd002d930efbc0cbf13d71eed9f4f91e2df"
+        "sha256": "4d3afc5827771b0961a47bdf96b48b7dd2f85750edcade2d89b0ef234a46af31"
       },
       "readmeImages": {
         "./screenshots/01-market.jpg": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sketchbook/public/assets/market/screenshots/01-market.jpg",
@@ -1343,7 +1343,7 @@
         "name": "ssh@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/ssh%400.0.1.enestplugin",
         "size": 6073893,
-        "sha256": "c1b8d21606b2dd7014677ef63c0cdf9092165d54e562809eba03201d953f783c"
+        "sha256": "9b23225a89ec177585f80b1227e9dc163a9fd2b53ddb9dfd2c494227500f70b9"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/ssh/public/assets/market/screenshots/01-main.png"
@@ -1383,7 +1383,7 @@
         "name": "sticky-notes@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sticky-notes%400.0.1.enestplugin",
         "size": 200640,
-        "sha256": "a50914c0919f71b3ac004b0e58827e94ba677c592be4a37c47b31c72b395321e"
+        "sha256": "5bfbcb3e930d8685a8958c98fd898e9fd387a131bfcae638d25fe84eeae8bc5e"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sticky-notes/public/assets/market/screenshots/01-main.png"
@@ -1426,7 +1426,7 @@
         "name": "sysguard@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/sysguard%400.0.1.enestplugin",
         "size": 146779,
-        "sha256": "be8d22b2f375f37878cfe1fee23b6082a594a9b90a5fadc8745a34aea6e3a035"
+        "sha256": "e48d9ed9e460932d07e1aa18efe6163128a42b1b5b16a48123d919eda36300be"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/sysguard/public/assets/market/screenshots/01-main.png"
@@ -1467,7 +1467,7 @@
         "name": "timestamp@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/timestamp%400.0.1.enestplugin",
         "size": 161099,
-        "sha256": "1f4a88dff966c253daf8c1e3b37c4d2dc638dec9c96b73276eeb5a32ac6971bc"
+        "sha256": "8f504d9a8da92fe2fc7582db720889f25b394279c190d68fba5931d71ae54847"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/timestamp/public/assets/market/screenshots/01-main.png"
@@ -1505,7 +1505,7 @@
         "name": "todos@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/todos%400.0.1.enestplugin",
         "size": 193158,
-        "sha256": "8ef934002e2471eee4bba782a04f4003ee7aff65a88aebe06fe776b48098faa7"
+        "sha256": "ea697da509c8e30e9ed8908f1f49102d386a5b9ea425fa717793ca16dc95f8cf"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/todos/public/assets/market/screenshots/01-main.png"
@@ -1547,7 +1547,7 @@
         "name": "translate@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/translate%400.0.1.enestplugin",
         "size": 149718,
-        "sha256": "185c9ea0a81835d8cb9891221514d562e56f059fbcf63abfc4def5e98bc4193d"
+        "sha256": "4f1d15038840d99b6cf416c069e43743fa9826382ece670261c32fdff5635693"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/translate/public/assets/market/screenshots/01-main.png"
@@ -1588,7 +1588,7 @@
         "name": "unit-convert@0.0.1.enestplugin",
         "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/unit-convert%400.0.1.enestplugin",
         "size": 123802,
-        "sha256": "b5f7a34d7d472b381a60141d12ad48451cef3b4cb790470634bffd5000f34d6e"
+        "sha256": "08d4510a29497ee634b3e552edc60160fbcf1dae12ab67e35ca1f877633ebb1b"
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/unit-convert/public/assets/market/screenshots/01-main.png"
