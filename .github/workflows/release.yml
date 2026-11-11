@@ -3,8 +3,7 @@ name: release-plugins
 # 发版模型：推送代码分支不发版；只有推送 v* / plugins-* 标签才触发打包发布。
 # 手动 dispatch 需显式填写发布标签（工作流不创建标签，标签需已存在）。
 # 市场门面（icon/截图/README）由 registry 直接指向仓库 main 的 public 资产；
-# Release 只承载 .enestplugin 包与 registry 索引，发布后回写 registry.json 到 main。
-# DSH 原生运行时不再随插件发版打包，由 dsh-runtime.yml 以独立 dsh-runtime-* 标签发布。
+# Release 只承载 .enestplugin 包、DSH 运行时与 registry 索引，发布后回写 registry.json 到 main。
 on:
   push:
     tags: ['v*', 'plugins-*']
@@ -65,8 +64,47 @@ jobs:
           console.log(`Resolved ${ref} to ${head}`)
           NODE
 
-  release:
+  dsh-runtime:
     needs: resolve-source
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: darwin-arm64
+          - runner: macos-15-intel
+            platform: darwin-x64
+          - runner: windows-latest
+            platform: win32-x64
+          - runner: ubuntu-22.04
+            platform: linux-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-source.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          architecture: ${{ endsWith(matrix.platform, '-arm64') && 'arm64' || 'x64' }}
+      - name: Verify native runtime architecture
+        env:
+          RUNTIME_TARGET: ${{ matrix.platform }}
+        run: node -e "if (process.platform + '-' + process.arch !== process.env.RUNTIME_TARGET) throw new Error('Runner platform or architecture mismatch')"
+      - name: Install deps
+        run: npm ci
+      - name: Build native DSH runtime asset
+        run: node plugins/dsh/scripts/pack-runtime.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-runtime-${{ matrix.platform }}
+          path: |
+            dist/dsh-runtime-*.tgz
+            dist/dsh-runtime-*.tgz.sha256
+          if-no-files-found: error
+
+  release:
+    needs: [resolve-source, dsh-runtime]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -120,6 +158,13 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: node scripts/prepare-release.mjs
 
+      - name: Collect native DSH runtime assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dsh-runtime-*
+          path: dist
+          merge-multiple: true
+
       - name: Verify release tag still points to this build
         run: |
           node <<'NODE'
@@ -150,6 +195,8 @@ jobs:
           prerelease: false
           files: |
             dist/*.enestplugin
+            dist/*.tgz
+            dist/*.sha256
             dist/registry.json
             dist/registry-*.json
           generate_release_notes: true

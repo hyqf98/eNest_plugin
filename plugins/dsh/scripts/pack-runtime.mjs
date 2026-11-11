@@ -5,14 +5,13 @@ import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { assertRuntimeTarget, DSH_DIR, resolveRuntimeVersion, repositoryRoot } from './runtime-contract.mjs'
+import { assertRuntimeTarget, DSH_DIR, DSH_VERSION, repositoryRoot } from './runtime-contract.mjs'
 
 export async function packDshRuntime(directory, { outDir = join(repositoryRoot, 'dist'), target = 'universal' } = {}) {
   assertRuntimeTarget(target)
-  const version = resolveRuntimeVersion()
   const runtime = join(directory, 'runtime')
   const manifest = JSON.parse(await readFile(join(runtime, 'node_modules/@deepseek-ai/dsh/package.json'), 'utf8'))
-  if (manifest.name !== '@deepseek-ai/dsh' || manifest.version !== version) throw new Error('DSH runtime version does not match the release contract')
+  if (manifest.name !== '@deepseek-ai/dsh' || manifest.version !== DSH_VERSION) throw new Error('DSH runtime version does not match the release contract')
   const runtimeManifestPath = join(runtime, 'package.json')
   const runtimeManifest = JSON.parse(await readFile(runtimeManifestPath, 'utf8'))
   if ((runtimeManifest.platform && runtimeManifest.platform !== process.platform) || (runtimeManifest.arch && runtimeManifest.arch !== process.arch)) {
@@ -20,7 +19,7 @@ export async function packDshRuntime(directory, { outDir = join(repositoryRoot, 
   }
   await writeFile(runtimeManifestPath, `${JSON.stringify({ ...runtimeManifest, platform: process.platform, arch: process.arch }, null, 2)}\n`)
   await mkdir(outDir, { recursive: true })
-  const name = `dsh-runtime-${version}-${process.platform}-${process.arch}.tgz`
+  const name = `dsh-runtime-${DSH_VERSION}-${process.platform}-${process.arch}.tgz`
   const destination = resolve(outDir, name)
   const staging = `${destination}.partial`
   try {
