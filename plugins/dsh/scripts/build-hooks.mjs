@@ -2,17 +2,18 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { assertRuntimeTarget, DSH_VERSION, repositoryRoot as defaultRepositoryRoot } from './runtime-contract.mjs'
+import { assertRuntimeTarget, resolveRuntimeVersion, repositoryRoot as defaultRepositoryRoot } from './runtime-contract.mjs'
 
 export async function afterBuild({ directory, repositoryRoot = defaultRepositoryRoot, target = 'universal', runtime = false, project = false }) {
   if (runtime !== true) return
   if (project) throw new Error('DSH runtime cannot be installed into a projected distribution')
   assertRuntimeTarget(target)
+  const version = resolveRuntimeVersion()
   const plugin = JSON.parse(await readFile(join(directory, 'plugin.json'), 'utf8'))
-  const cache = join(repositoryRoot, 'dist/runtime-cache', `dsh-${DSH_VERSION}-${process.platform}-${process.arch}`)
+  const cache = join(repositoryRoot, 'dist/runtime-cache', `dsh-${version}-${process.platform}-${process.arch}`)
   if (!existsSync(join(cache, 'node_modules/@deepseek-ai/dsh/package.json'))) {
     let executable = 'npm'
-    const args = ['install', `@deepseek-ai/dsh@${DSH_VERSION}`, '--omit=dev', '--no-audit', '--no-fund']
+    const args = ['install', `@deepseek-ai/dsh@${version}`, '--omit=dev', '--no-audit', '--no-fund']
     if (process.platform === 'win32') {
       // Windows .cmd launchers cannot be spawned directly without a shell.
       const cli = [process.env.npm_execpath, join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')]

@@ -1,8 +1,10 @@
 name: release-dsh-runtime
 
-# DSH 原生运行时独立发版：与插件发版解耦，仅推送 dsh-runtime-v<DSH_VERSION> 标签时触发。
-# 运行时归档是 dsh 插件首启自下载的下载源（升级服务按资产名扫描本仓库所有 Release），
-# 只有 DSH 版本变更时才需要发新标签；插件常规发版不再重打、重传约 543MB 的运行时资产。
+# DSH 原生运行时独立发版：与插件发版解耦，仅推送 dsh-runtime-v<版本> 标签时触发。
+# 运行时版本由标签名驱动（git tag dsh-runtime-v0.3.0 即发布 0.3.0），仓库零改动；
+# 各平台 job 从标签解析版本后 npm 安装对应 @deepseek-ai/dsh 再打包上传。
+# 归档是 dsh 插件首启自下载的下载源（升级服务按资产名扫描本仓库所有非 draft Release），
+# 插件常规发版（release.yml）不再重打、重传运行时资产。
 on:
   push:
     tags: ['dsh-runtime-v*']
@@ -27,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.source.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,14 +57,20 @@ jobs:
           appendFileSync(process.env.GITHUB_OUTPUT, `sha=${head}\n`)
           console.log(`Resolved ${ref} to ${head}`)
           NODE
-      - name: Verify tag matches the DSH runtime contract
+      - name: Resolve runtime version from the tag
+        id: version
         run: |
-          node --input-type=module <<'NODE'
-          import { DSH_VERSION } from './plugins/dsh/scripts/runtime-contract.mjs'
-          const expected = `dsh-runtime-v${DSH_VERSION}`
-          if (process.env.RELEASE_TAG !== expected) {
-            throw new Error(`Runtime tag must be ${expected} to match the pinned DSH_VERSION`)
+          node <<'NODE'
+          const { appendFileSync } = require('node:fs')
+          const prefix = 'dsh-runtime-v'
+          const tag = process.env.RELEASE_TAG
+          if (!tag.startsWith(prefix)) throw new Error(`Runtime tag must start with ${prefix}`)
+          const version = tag.slice(prefix.length)
+          if (version.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(version)) {
+            throw new Error(`Illegal DSH runtime version in tag: ${version}`)
           }
+          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`)
+          console.log(`Publishing DSH runtime ${version}`)
           NODE
 
   pack:
@@ -79,6 +88,8 @@ jobs:
           - runner: ubuntu-22.04
             platform: linux-x64
     runs-on: ${{ matrix.runner }}
+    env:
+      DSH_RUNTIME_VERSION: ${{ needs.resolve-source.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
