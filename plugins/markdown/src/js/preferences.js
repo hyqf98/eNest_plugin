@@ -13,8 +13,8 @@
  *   `storage.files.remove` 回收，正是「保存到持久化路径对应的插件位置」的要求；
  *   索引（名称 ↔ 文件 id）存 KV。
  *   当宿主不支持 files.stream 时退化为 KV 存 CSS 文本（单值 512KiB 上限，CSS 足够）。
- *   两种情况都额外尽力镜像到 backend 的 `theme.write`，保证老版本/手工丢进 themes/
- *   的 CSS 仍能被列出并应用。
+ *   两种情况都额外尽力镜像到 backend 的 `theme.write`（KV：themes.index + theme:{name}），
+ *   保证 backend 主题列表与 KV 主题索引都能列出并应用。
  */
 
 import { call } from './rpc.js'

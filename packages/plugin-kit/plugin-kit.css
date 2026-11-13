@@ -130,6 +130,32 @@ dialog { color: var(--text); background: var(--surface); border: 1px solid var(-
 .pk-palette-item.pk-active .pk-palette-label { color: var(--accent, #3579dd); }
 .pk-palette-hint { color: var(--text-2, #747c88); font-size: 12px; }
 .pk-palette-list.pk-empty::after { content: "无匹配命令"; display: block; padding: 14px; text-align: center; color: var(--text-2, #747c88); }
+/* 插件内设置面板（自绘设置弹窗/页面共用行布局：label 左控件右，行间 1px 分隔） */
+.pk-set { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pk-set-group { display: flex; flex-direction: column; gap: 2px; }
+.pk-set-group + .pk-set-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line, var(--border, #d9dfe6)); }
+.pk-set-group-title { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--text-2, #747c88); letter-spacing: .02em; }
+.pk-set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 0; min-height: 32px; }
+.pk-set-row + .pk-set-row { border-top: 1px solid var(--line, var(--border, #d9dfe6)); }
+.pk-set-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pk-set-label { font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--text, #252a32); }
+.pk-set-note { font-size: 11.5px; line-height: 1.45; color: var(--text-3, var(--text-2, #747c88)); }
+.pk-set-control { display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; }
+.pk-set-control .pk-select-trigger { min-width: 140px; }
+.pk-set-control .pk-segmented { min-width: 120px; justify-content: stretch; }
+.pk-set-control .pk-input { width: 120px; text-align: right; font-variant-numeric: tabular-nums; }
+.pk-set-control .pk-input[type="number"] { text-align: right; }
+.pk-set-slider { display: flex; align-items: center; gap: 10px; flex: 1; max-width: 240px; }
+.pk-set-slider .pk-slider { flex: 1; }
+.pk-set-slider .pk-set-value { min-width: 48px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-2, #747c88); }
+.pk-set-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+/* 齿轮设置入口（工具栏 24px 档 ghost 钮；无工具栏插件的右下 34px 圆钮兜底） */
+.pk-set-trigger { padding: 3px 6px; }
+.pk-set-trigger svg { display: block; }
+.pk-set-fab { position: fixed; right: 18px; bottom: 18px; z-index: 20; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--border, #d9dfe6); background: var(--surface, #fff); color: var(--text-2, #747c88); box-shadow: 0 3px 10px color-mix(in srgb, var(--text, #252a32) 12%, transparent); cursor: pointer; }
+.pk-set-fab:hover { color: var(--text, #252a32); border-color: color-mix(in srgb, var(--accent, #3579dd) 40%, var(--border, #d9dfe6)); }
+.pk-set-fab svg { display: block; }
+:root[data-mode="quick"] .pk-set-fab { display: none; }
 
 /* —— 浮层菜单（右键 / ⋯ 溢出共用；与 Radix pk-menu 声明式同视觉）——
    z-index 标尺：select 60 · dialog 70/71 · tooltip 80 · menu 200 · flyout 210 · palette 300 */
@@ -594,11 +620,8 @@ select:not(.pk-select-native) {
       grid-template-columns: minmax(300px, var(--appearance-primary-track)) minmax(360px, var(--appearance-secondary-track));
     }
   }
-  @container work (min-width: 741px) {
-    :root:not([data-mode="quick"]) .pk-appearance[data-plugin="image-tools"] .work-layout {
-      grid-template-columns: minmax(300px, var(--appearance-primary-track)) minmax(360px, var(--appearance-secondary-track));
-    }
-  }
+  /* image-tools 的 .work-layout 已改为三栏（队列/画板/工具），列定义由插件自身
+     CSS 决定；这里不再按插件 ID 覆盖，否则会把三栏压回两栏。 */
   @container colorpick (min-width: 761px) {
     :root:not([data-mode="quick"]) .pk-appearance[data-plugin="color-picker"] .color-layout { grid-template-columns: var(--flow-side) minmax(0, 1fr); }
   }

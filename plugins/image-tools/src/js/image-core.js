@@ -89,6 +89,28 @@
     ctx.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2)
   }
 
+  /**
+   * 把矩形区域挖成空白（画板橡皮语义）：图尺寸不变，只清掉选中范围的像素。
+   *
+   * 用 destination-out 而不是填白：PNG/WebP 得到真实透明，JPEG 编码时会自然落成白色，
+   * 两种格式都符合"删掉这块内容"的预期。
+   * rect 是原图像素坐标；越界部分自动裁到画布内。
+   */
+  function eraseRegion(ctx, rect, width, height) {
+    if (!rect) return false
+    const x = Math.max(0, Math.min(width, Math.round(rect.x)))
+    const y = Math.max(0, Math.min(height, Math.round(rect.y)))
+    const w = Math.max(0, Math.min(width - x, Math.round(rect.width)))
+    const h = Math.max(0, Math.min(height - y, Math.round(rect.height)))
+    if (!w || !h) return false
+    ctx.save()
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.fillStyle = '#000'
+    ctx.fillRect(x, y, w, h)
+    ctx.restore()
+    return true
+  }
+
   /** 水印九宫格位置 → 归一化锚点。 */
   const WATERMARK_SLOTS = ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-center', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
   function watermarkAnchor(slot) {
@@ -338,7 +360,7 @@
   root.ImageCore = {
     SUPPORTED_MIME, FORMAT_LABEL, WATERMARK_SLOTS, EXPORT_PRESETS,
     mimeOf, formatBytes, ratioText, compressToTarget, scaleSize,
-    transformPlan, applyTransform, watermarkAnchor, watermarkStyle,
+    transformPlan, applyTransform, eraseRegion, watermarkAnchor, watermarkStyle,
     parseExif, exifSummary, paletteFromPixels, medianCut, toHex, yieldFrame,
     batchProgress, batchName
   }

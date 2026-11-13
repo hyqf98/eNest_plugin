@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PluginKit from '@enest/plugin-kit'
 import { bindFileInput } from '@enest/plugin-kit/file-inputs'
+import { modLabel } from '@enest/plugin-kit/workbench'
 import { CanvasStage } from './CanvasStage.jsx'
 import { DraftTabs } from './DraftTabs.jsx'
 import { ColorDock } from './ColorDock.jsx'
@@ -358,8 +359,8 @@ export function App() {
     const items = []
     if (hasSelection) {
       items.push(
-        { key: 'copy', label: `复制 ${selection.length} 项`, hint: '⌘C' },
-        { key: 'dup', label: '原位复制', hint: '⌘D' },
+        { key: 'copy', label: `复制 ${selection.length} 项`, hint: `${modLabel()}C` },
+        { key: 'dup', label: '原位复制', hint: `${modLabel()}D` },
       )
       if (selection.length === 1) items.push({ key: 'zorder', label: '层级', children: [{ key: 'top', label: '置于顶层' }, { key: 'bottom', label: '置于底层' }] })
       items.push({ sep: true }, { key: 'del', label: '删除', hint: 'Del', danger: true }, { sep: true })
@@ -380,7 +381,7 @@ export function App() {
     items.push(
       { key: 'text', label: '文字', hint: 'T', icon: icon(MENU_ICONS.text) },
       { key: 'insert', label: '插入', hint: 'I', icon: icon(MENU_ICONS.image), children: [
-        { key: 'pickImage', label: '图片…（⌘V 可直接粘贴到鼠标处）', icon: icon(MENU_ICONS.image) },
+        { key: 'pickImage', label: `图片…（${modLabel()}V 可直接粘贴到鼠标处）`, icon: icon(MENU_ICONS.image) },
       ] },
       { key: 'colorMenu', label: '颜色', icon: `<span class="db-menu-color-dot" style="background:${settingsRef.current.color || theme.ink}"></span>`, children: [
         { key: 'palette', label: '选择墨色', widget: () => <MenuColorPicker palette={theme.palette} current={settingsRef.current.color || theme.ink} onPick={(c) => setSettings((s) => ({ ...s, color: c === theme.ink ? null : c }))} /> },

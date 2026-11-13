@@ -1,4 +1,8 @@
 /** Isolated visual fixtures: no real files, credentials, network, clipboard or OS processes. */
+
+/** Demo-only home path for fixture data. Never copy real absolute paths into production code. */
+const DEMO_HOME = '/Users/demo'
+
 export function installPreviewFixture({ pluginId, mode = 'shell' }) {
   const events = new Map(), values = new Map(), now = 1791856800000
   window.__appearanceSnapshot ||= {
@@ -119,7 +123,7 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
         active: 'spotlight'
       }
       if (method === 'search') {
-        const dir = '/Users/demo/Studio/enest'
+        const dir = `${DEMO_HOME}/Studio/enest`
         const mk = (name, ext, isDirectory, size, minutesAgo) => ({ path: `${dir}/${name}`, name, dir, ext, isDirectory, size, mtimeMs: now - minutesAgo * 60000 })
         const pool = [
           mk('icons', '', true, 0, 51),

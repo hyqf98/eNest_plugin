@@ -353,6 +353,7 @@ export function App() {
       title: '哈希与加密',
       quickPlaceholder: '输入即算：SHA-1/224/256/384/512 · MD5',
       height: 460,
+      prefs: true,
       defaults: { encoding: 'hex', hmacAlg: 'SHA-256' },
       onQuery: (value) => {
         stateRef.current.onQuery?.(value)
@@ -753,7 +754,7 @@ export function App() {
                   options={HMAC_ALGS}
                   onChange={(next) => {
                     setHmacAlg(next)
-                    void api.settings.set('hmacAlg', next).catch?.(() => {})
+                    kitRef.current?.setPref('hmacAlg', next)
                   }}
                 />
               </div>

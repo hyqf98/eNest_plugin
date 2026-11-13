@@ -6,7 +6,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import { bindFileInput, readDroppedFiles } from '@enest/plugin-kit/file-inputs'
+import { modLabel } from '@enest/plugin-kit/workbench'
 import { createNativeSurfaces } from '@enest/native-surfaces'
 
 const api = createNativeSurfaces(window.enest || window.zapi)
@@ -64,6 +66,22 @@ function makeThumb(image) {
   return canvas.toDataURL('image/jpeg', 0.72)
 }
 
+/**
+ * 从已有画布出缩略图。挖空后图像含透明区域，直接编 JPEG 会变成黑块，
+ * 所以先铺一层浅色底再压平，缩略图看起来才是"内容被删掉"而不是"变黑"。
+ */
+function makeThumbFromCanvas(source) {
+  const scale = Math.min(1, 200 / source.width)
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(source.width * scale))
+  canvas.height = Math.max(1, Math.round(source.height * scale))
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#f2f4f2'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
+  return canvas.toDataURL('image/jpeg', 0.72)
+}
+
 export function App() {
   const kitRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -98,6 +116,8 @@ export function App() {
   const [lastResult, setLastResult] = useState(null)
   const [resizePreview, setResizePreview] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ followShellTheme: true, targetKb: 200, quickFormat: 'image/jpeg', autoPin: false })
 
   const itemsRef = useRef(items); itemsRef.current = items
   const activeIdRef = useRef(activeId); activeIdRef.current = activeId
@@ -187,6 +207,32 @@ export function App() {
     setStatusText(done ? `已导入 ${done} 张图片` : '未导入图片')
   }, [importDataUrl])
 
+  /**
+   * 原地替换一张图的像素内容（画板挖空用）：保留 id 与队列位置，只换存储与元信息。
+   * 返回 false 表示存储写入失败——此时只更新内存里的 dataUrl，本次会话仍可见。
+   */
+  const replaceItemImage = useCallback(async (item, dataUrl, mime) => {
+    const image = await loadImage(dataUrl)
+    let blobId = item.blobId, stored = false, bytes = Math.round(dataUrl.length * 0.75)
+    if (api?.storage?.blobs?.put) {
+      try {
+        if (blobId) await api.storage.blobs.remove?.(blobId).catch(() => undefined)
+        const blob = await api.storage.blobs.put({ dataUrl, name: item.name })
+        blobId = blob.id; bytes = blob.bytes || bytes; stored = true
+      } catch { /* 写存储失败：退回内存 dataUrl */ }
+    }
+    const next = {
+      ...item, mime, bytes, width: image.naturalWidth, height: image.naturalHeight,
+      blobId: stored ? blobId : '', dataUrl: stored ? '' : dataUrl, busy: false
+    }
+    setItems((prev) => {
+      const updated = prev.map((row) => (row.id === item.id ? next : row))
+      void persist(updated)
+      return updated
+    })
+    return stored
+  }, [persist])
+
   const importClipboard = useCallback(async () => {
     if (!api?.clipboard?.readImage) throw new Error('剪贴板图片需要在 eNest 中使用')
     const image = await api.clipboard.readImage()
@@ -210,6 +256,22 @@ export function App() {
 
   const activeItem = items.find((item) => item.id === activeId)
   const previewSrc = activeItem ? (thumbs[activeItem.id] || '') : ''
+  /* 画板用原图而不是 200px 缩略图：中间大图要能看清细节、框选坐标也要落在原图尺度上。 */
+  const [boardSrc, setBoardSrc] = useState('')
+  useEffect(() => {
+    let alive = true
+    setBoardSrc(previewSrc)
+    if (!activeItem) return
+    void (async () => {
+      try {
+        const dataUrl = await itemData(activeItem)
+        if (alive && typeof dataUrl === 'string' && dataUrl) setBoardSrc(dataUrl)
+      } catch { /* 原图读取失败时保留缩略图，避免画板空白 */ }
+    })()
+    return () => { alive = false }
+    // activeItem 的身份变化才需要重读原图
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, previewSrc])
   const fileMeta = activeItem
     ? `${activeItem.name} · ${activeItem.width}×${activeItem.height} · ${core.formatBytes(activeItem.bytes)}`
     : ''
@@ -258,17 +320,49 @@ export function App() {
     return value ? `${base}裁剪 ${value.width}×${value.height}` : `${base || '变换：'}未框选`
   })()
 
+  /* 指针在已有选区内部按下 → 整体平移选区（画板语义）；在选区外按下 → 重新框选。 */
+  const cropMoveRef = useRef(null)
+
+  const pointInCrop = (point) => {
+    const rect = cropImageRef.current?.getBoundingClientRect()
+    const value = cropRef2.current
+    const item = currentItem()
+    if (!rect?.width || !value || !item) return false
+    const natural = toNatural(point)
+    return natural.x >= value.x && natural.x <= value.x + value.width
+      && natural.y >= value.y && natural.y <= value.y + value.height
+  }
+
   const onCropPointerDown = (event) => {
     if (event.button !== 0 || !currentItem()) return
+    cropStageRef.current?.setPointerCapture(event.pointerId)
+    if (pointInCrop({ x: event.clientX, y: event.clientY })) {
+      cropMoveRef.current = { origin: { ...cropRef2.current }, start: toNatural({ x: event.clientX, y: event.clientY }) }
+      cropStageRef.current?.classList.add('moving')
+      return
+    }
     const start = toNatural({ x: event.clientX, y: event.clientY })
     cropDragRef.current = start
     const value = { x: start.x, y: start.y, width: 0, height: 0 }
     cropRef2.current = value
     setCrop(value)
     cropStageRef.current?.classList.add('armed')
-    cropStageRef.current?.setPointerCapture(event.pointerId)
   }
   const onCropPointerMove = (event) => {
+    const move = cropMoveRef.current
+    if (move) {
+      const item = currentItem()
+      if (!item) return
+      const point = toNatural({ x: event.clientX, y: event.clientY })
+      // 平移时把选区整体夹在图片内，避免拖出边界后消失
+      const x = Math.max(0, Math.min(item.width - move.origin.width, move.origin.x + point.x - move.start.x))
+      const y = Math.max(0, Math.min(item.height - move.origin.height, move.origin.y + point.y - move.start.y))
+      const value = { ...move.origin, x, y }
+      cropRef2.current = value
+      setCrop(value)
+      syncCropBox()
+      return
+    }
     if (!cropDragRef.current) return
     const point = toNatural({ x: event.clientX, y: event.clientY })
     const start = cropDragRef.current
@@ -280,7 +374,11 @@ export function App() {
     setCrop(value)
     syncCropBox()
   }
-  const endCrop = () => { cropDragRef.current = null; cropStageRef.current?.classList.remove('armed') }
+  const endCrop = () => {
+    cropMoveRef.current = null
+    cropDragRef.current = null
+    cropStageRef.current?.classList.remove('armed', 'moving')
+  }
 
   /* ---------- withItem（等价原 busy 包装） ---------- */
   const withItem = useCallback(async (fn) => {
@@ -294,6 +392,52 @@ export function App() {
       setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, busy: false } : row)))
     }
   }, [currentItem])
+
+  /* ---------- 画板挖空（Windows 画板橡皮语义） ----------
+   * 选中矩形来自 crop（原图像素坐标）。这里把当前图画到新 canvas，抹掉选中范围，
+   * 重新编码后按"输出替换当前图片"的同一条路径写回队列。 */
+  const eraseHistoryRef = useRef({})   // itemId → 上一版 dataUrl（仅保留一步，够撤销一次误删）
+
+  const eraseSelection = useCallback((rect) => void run(() => withItem(async (item) => {
+    if (!rect || rect.width < 1 || rect.height < 1) return
+    const dataUrl = await itemData(item)
+    const image = await loadImage(dataUrl)
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('无法创建绘图上下文')
+    ctx.drawImage(image, 0, 0)
+    if (!core.eraseRegion(ctx, rect, canvas.width, canvas.height)) return
+    await core.yieldFrame()
+    // 挖空必然产生透明区域：统一落成 PNG，否则 JPEG 会把透明处编成黑色块。
+    const next = canvas.toDataURL('image/png')
+    const mime = 'image/png'
+    // 只留一步撤销：覆盖前把当前版本记下来
+    eraseHistoryRef.current[item.id] = dataUrl
+    // 原地替换这张图（而不是像"另存输出"那样新增一条队列项）
+    const patch = await replaceItemImage(item, next, mime)
+    // 缩略图用挖空后的画布；棋盘格底衬已由 CSS 提供，这里直接出 PNG 保留透明
+    setThumbs((prev) => ({ ...prev, [item.id]: makeThumbFromCanvas(canvas) }))
+    setCrop(null); setCropBox(null); cropRef2.current = null
+    setStatusText(`已挖空 ${Math.round(rect.width)}×${Math.round(rect.height)} 区域${patch ? '' : '（未能写回存储，仅本次会话有效）'} · ${modLabel()}+Z 撤销`)
+  })), [run, withItem])
+
+  const undoErase = useCallback(() => {
+    const item = currentItem()
+    const previous = item && eraseHistoryRef.current[item.id]
+    if (!previous) { setStatusText('没有可撤销的挖空'); return }
+    delete eraseHistoryRef.current[item.id]
+    void run(async () => {
+      // 同样原地恢复，保持队列顺序不变
+      await replaceItemImage(item, previous, item.mime)
+      const restored = await loadImage(previous)
+      setThumbs((prev) => ({ ...prev, [item.id]: makeThumb(restored) }))
+      setCrop(null); setCropBox(null)
+      setStatusText('已撤销挖空')
+    })
+  }, [currentItem, replaceItemImage, run])
+
 
   /* ---------- 结果条（等价原 setResult/syncResult） ---------- */
   const setResult = useCallback((result) => setLastResult(result), [])
@@ -349,6 +493,68 @@ export function App() {
 
   /* ---------- 裁剪框坐标随窗口/选中图刷新 ---------- */
   useEffect(() => { syncCropBox() }, [activeId, crop, syncCropBox])
+
+  /* ---------- Ctrl+V 直接粘贴图片 ----------
+   * 不再需要"读剪贴板"按钮：页面任意位置按 Ctrl+V，从 clipboardData 取图，
+   * 有图片就导入并切到它。文本粘贴不拦截（交给宿主输入框）。 */
+  useEffect(() => {
+    const onPaste = (event) => {
+      const data = event.clipboardData
+      if (!data) return
+      const files = Array.from(data.files || []).filter((file) => file.type.startsWith('image/'))
+      const items = Array.from(data.items || []).filter((entry) => entry.kind === 'file' && /^image\//.test(entry.type))
+      const blobs = files.length ? files : items.map((entry) => entry.getAsFile()).filter(Boolean)
+      if (!blobs.length) return
+      event.preventDefault()
+      void run(async () => {
+        let loaded = 0
+        for (const blob of blobs.slice(0, 8)) {
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(String(reader.result || ''))
+            reader.onerror = () => reject(reader.error || new Error('读取粘贴内容失败'))
+            reader.readAsDataURL(blob)
+          })
+          if (!dataUrl) continue
+          const item = await importDataUrl(dataUrl, `粘贴图片 ${new Date().toLocaleTimeString('sv-SE')}`, blob.size)
+          setActiveId(item.id)
+          loaded++
+        }
+        setStatusText(loaded ? `已粘贴 ${loaded} 张图片` : '剪贴板中没有图片')
+      })
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [importDataUrl, run])
+
+  /* ---------- 画板快捷键：Delete 挖空 / Esc 取消 / Ctrl+Z 撤销 ---------- */
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.isComposing) return
+      const target = event.target
+      // 输入类控件里不抢键
+      if (target instanceof HTMLElement && target.closest('input, textarea, [contenteditable="true"]')) return
+      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z') {
+        if (!eraseHistoryRef.current[activeIdRef.current]) return
+        event.preventDefault()
+        undoErase()
+        return
+      }
+      if (event.key === 'Escape' && cropRef2.current) {
+        event.preventDefault()
+        cropRef2.current = null
+        setCrop(null); setCropBox(null)
+        setStatusText('已取消选区')
+        return
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && cropRef2.current) {
+        event.preventDefault()
+        eraseSelection(cropRef2.current)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [eraseSelection, undoErase])
 
   /* ---------- 文件选择（宿主选择器 bindFileInput 原样） ---------- */
   useEffect(() => {
@@ -696,6 +902,7 @@ export function App() {
       title: '图片工具箱',
       height: 520,
       quickPlaceholder: '添加图片压缩、转格式、加水印…',
+      prefs: true,
       defaults: { followShellTheme: true, targetKb: 200, quickFormat: 'image/jpeg', autoPin: false },
       onQuery: (value) => onQueryRef.current?.(value),
       onAction: (action) => onActionRef.current?.(action),
@@ -703,6 +910,7 @@ export function App() {
     kitRef.current = kit
     kit.onMode(() => queueHeight())
     kit.onSettings((settings, key) => {
+      setSettings({ ...kit.settings })
       if (key === 'followShellTheme') {
         document.documentElement.dataset.followTheme = settings.followShellTheme === false ? 'off' : 'on'
       }
@@ -768,7 +976,7 @@ export function App() {
       <header className="app-head">
         <span id="status" role="status">{statusText}</span>
         <button id="add-files" type="button" className="pk-btn pk-btn-primary" onClick={pickFiles}>添加图片</button>
-        <button id="from-clipboard" type="button" className="pk-btn" onClick={pickClipboard}>从剪贴板</button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
         <input id="file-input" ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
       </header>
 
@@ -782,12 +990,10 @@ export function App() {
           }}>
           <div className="drop-mark" aria-hidden="true"></div>
           <h2>把图片拖到这里</h2>
-          <p>支持 PNG、JPEG、WebP，可多选；也可从剪贴板粘贴截图</p>
+          <p>支持 PNG、JPEG、WebP，可多选；也可直接 <kbd>{modLabel()}</kbd> + <kbd>V</kbd> 粘贴</p>
           <div className="empty-actions">
             <button id="empty-add" type="button" className="pk-btn pk-btn-primary"
               onClick={(e) => { e.stopPropagation(); pickFiles() }}>选择文件</button>
-            <button id="empty-clipboard" type="button" className="pk-btn"
-              onClick={(e) => { e.stopPropagation(); pickClipboard() }}>读剪贴板</button>
           </div>
         </div>
       </section>
@@ -857,15 +1063,52 @@ export function App() {
           </div>
         </section>
 
+        {/* 中间主画板：大图常驻，矩形选区可直接拖动、Delete 挖空。 */}
+        <section className="board-panel" aria-label="图片画板">
+          <div className="board-head">
+            <span id="file-meta" className="pk-muted pk-mono">{fileMeta || '未选择图片'}</span>
+            {crop && (
+              <span className="board-selection-hint pk-mono">
+                选区 {Math.round(crop.width)} × {Math.round(crop.height)}
+                <button type="button" className="text-button" onClick={() => { setCrop(null); setCropBox(null) }}>取消</button>
+              </span>
+            )}
+          </div>
+          <div className="board-stage">
+            {activeItem ? (
+              <div className="crop-stage board-crop" id="crop-stage" ref={cropStageRef}
+                onPointerDown={onCropPointerDown} onPointerMove={onCropPointerMove}
+                onPointerUp={endCrop} onPointerCancel={endCrop}>
+                <img id="crop-image" ref={cropImageRef} alt={activeItem.name} src={boardSrc} draggable={false} />
+                <div id="crop-box" className="crop-box" hidden={!cropBox}
+                  style={cropBox ? {
+                    left: `${cropBox.left}px`, top: `${cropBox.top}px`,
+                    width: `${cropBox.width}px`, height: `${cropBox.height}px`,
+                  } : undefined}></div>
+                {!crop && <span className="board-tip">拖选区域后可拖动移动 · Delete 挖空 · Esc 取消</span>}
+              </div>
+            ) : (
+              <div className="board-idle">
+                <p>把图片拖进来，或直接按 <kbd>{modLabel()}</kbd> + <kbd>V</kbd> 粘贴</p>
+                <button type="button" className="pk-btn pk-btn-primary" onClick={pickFiles}>选择图片</button>
+              </div>
+            )}
+          </div>
+          {activeItem && (
+            <div className="board-foot">
+              <button type="button" className="pk-btn pk-btn-danger" disabled={!crop || busy}
+                onClick={() => crop && eraseSelection(crop)}>删除选区内容</button>
+              <button type="button" className="pk-btn" disabled={!crop} onClick={() => { setCrop(null); setCropBox(null) }}>取消选区</button>
+              <span className="pk-muted board-hint">选区可拖动移动；Delete 直接挖空，{modLabel()}+Z 撤销</span>
+            </div>
+          )}
+        </section>
+
         <section className="editor-panel" aria-label="操作面板" id="editor-panel">
           <div className="panel-empty" id="panel-empty" hidden={Boolean(activeItem)}><p>在队列中选择一张图片开始编辑</p></div>
           <div id="panel-body" hidden={!activeItem}>
-            <div className="preview-stage">
-              <img id="preview" alt="当前图片预览" src={wmPreview ? undefined : previewSrc} ref={(el) => { if (el && !wmPreview && el.src !== previewSrc) el.src = previewSrc }} />
-              <div className="compare-row">
-                <span id="file-meta" className="pk-muted pk-mono">{fileMeta}</span>
-                <span id="compare-meta" className="pk-mono" hidden></span>
-              </div>
+            <div className="compare-row">
+              <span id="compare-meta" className="pk-mono" hidden></span>
             </div>
 
             <nav className="tabs" aria-label="工具页">
@@ -954,17 +1197,7 @@ export function App() {
                   items={[{ key: 'reset', label: '复位变换', onSelect: resetTransformState }]}
                 />
               </div>
-              <span className="field-label">裁剪：在预览图上拖出框选区域（松开完成）</span>
-              <div className="crop-stage" id="crop-stage" ref={cropStageRef}
-                onPointerDown={onCropPointerDown} onPointerMove={onCropPointerMove}
-                onPointerUp={endCrop} onPointerCancel={endCrop}>
-                <img id="crop-image" ref={cropImageRef} alt="裁剪预览" src={previewSrc} />
-                <div id="crop-box" className="crop-box" hidden={!cropBox}
-                  style={cropBox ? {
-                    left: `${cropBox.left}px`, top: `${cropBox.top}px`,
-                    width: `${cropBox.width}px`, height: `${cropBox.height}px`,
-                  } : undefined}></div>
-              </div>
+              {/* 框选已在中间画板完成：这里只保留结果与提交 */}
               <div className="action-row">
                 <span id="crop-info" className="pk-muted pk-mono">{cropInfo}</span>
                 <button id="apply-crop" type="button" className="pk-btn" disabled={!(crop && crop.width > 1 && crop.height > 1)} onClick={applyCrop}>应用裁剪</button>
@@ -1053,8 +1286,16 @@ export function App() {
           </div>
         </section>
       </div>
-
-      <footer><span id="footer-hint"></span><button type="button" className="text-button" data-open-settings>图片工具箱设置</button></footer>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          // setPref 同步回调 onSettings：那里负责 followTheme 数据属性即时生效
+          kitRef.current?.setPref(key, value)
+        }}
+      />
     </main>
   )
 }

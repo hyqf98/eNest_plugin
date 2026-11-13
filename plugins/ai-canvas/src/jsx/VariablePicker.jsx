@@ -67,7 +67,7 @@ export function VariablePicker({ anchor, groups, emptyHint = '没有可引用的
   return createPortal(
     <div ref={rootRef} className="ac-varpicker" style={{ position: 'fixed', left, top, zIndex: 500 }}
       role="dialog" aria-label="引用上游变量">
-      <input ref={searchRef} className="ac-picker-search" placeholder="搜索变量…（↑↓ 选择 · Enter 引用）" value={query}
+      <input ref={searchRef} className="ac-picker-search" placeholder="搜索变量…（↑↓ 选择）" value={query}
         onChange={e => setQuery(e.target.value)} onKeyDown={onKeyDown} />
       <div ref={listRef} className="ac-varpicker-list" onKeyDown={onKeyDown}>
         {filtered.length === 0 && <div className="ac-picker-empty">{emptyHint}</div>}

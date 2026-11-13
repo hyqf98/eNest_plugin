@@ -259,7 +259,13 @@ function claudeSessionMatch(relPath: string): boolean {
   return segs.length >= 2 && segs[segs.length - 1].endsWith('.jsonl')
 }
 
-/** 10 应用白名单（路径展开硬编码；新增应用必须改此处） */
+/** zcode 会话白名单：rollout 根下平铺的 model-io-sess_<id>.jsonl（含子代理会话，同前缀） */
+function zcodeSessionMatch(relPath: string): boolean {
+  const segs = relPath.split('/').filter(Boolean)
+  return segs.length === 1 && /^model-io-sess_[A-Za-z0-9_-]+\.jsonl$/.test(segs[0])
+}
+
+/** 11 应用白名单（路径展开硬编码；新增应用必须改此处） */
 const AGENT_ADAPTERS: AgentAdapter[] = [
   {
     app: 'claude-code',
@@ -352,6 +358,17 @@ const AGENT_ADAPTERS: AgentAdapter[] = [
     configPaths: [join(HOME, '.mcode', 'mcode.json')],
     formats: ['json'],
     isActive: () => existsSync(join(HOME, '.mcode', 'mcode.json'))
+  },
+  {
+    app: 'zcode',
+    name: 'ZCode',
+    // magpie 网关的「已应用供应商」清单：只允许写 zcode 段（providers.json 含密钥，绝不开白名单）
+    configPaths: [join(HOME, '.config', 'magpie', 'applied.json')],
+    formats: ['json'],
+    isActive: () => existsSync(join(HOME, '.config', 'magpie', 'applied.json')),
+    // 会话用量：rollout/model-io-sess_*.jsonl（每次模型调用一行，response.usage）
+    sessionDirs: [join(HOME, '.zcode', 'cli', 'rollout')],
+    sessionMatch: zcodeSessionMatch
   }
 ]
 
@@ -607,7 +624,7 @@ function agentSessionsList(_pluginId: string, app: string): AgentSessionsListRes
 
 function agentSessionsRead(
   _pluginId: string,
-  input: { app: string; file: string; maxBytes?: number }
+  input: { app: string; file: string; maxBytes?: number; fromEnd?: boolean }
 ): AgentSessionsReadResult {
   const adapter = findAdapter(String(input?.app ?? ''))
   const rel = safeRelPath(String(input?.file ?? ''))
@@ -633,11 +650,19 @@ function agentSessionsRead(
   const handle = openReadHandle(abs)
   try {
     const buffer = Buffer.alloc(maxBytes)
-    const { bytesRead } = readHandle(handle, buffer)
+    // 用量行集中在会话文件尾部：fromEnd 从文件尾读窗口，长会话头读截断会丢掉全部 usage
+    const offset = input?.fromEnd === true ? Math.max(0, st.size - maxBytes) : 0
+    const { bytesRead } = readHandle(handle, buffer, offset)
     const text = buffer.subarray(0, bytesRead).toString('utf-8')
-    // 截到最后一行完整行（尾段半行丢弃，truncated 标记由字节判断）
-    const lastNewline = text.lastIndexOf('\n')
-    const body = lastNewline >= 0 ? text.slice(0, lastNewline) : text
+    // 截到最后/首个完整行（尾读丢头段半行；fromEnd 首行本身残缺需跳过）
+    let body: string
+    if (input?.fromEnd === true) {
+      const firstNewline = text.indexOf('\n')
+      body = firstNewline >= 0 ? text.slice(firstNewline + 1) : ''
+    } else {
+      const lastNewline = text.lastIndexOf('\n')
+      body = lastNewline >= 0 ? text.slice(0, lastNewline) : text
+    }
     const lines: AgentSessionLine[] = []
     const parts = body.length > 0 ? body.split('\n') : []
     for (let i = 0; i < parts.length; i++) {
@@ -674,8 +699,8 @@ function agentSessionsRead(
 function openReadHandle(path: string): number {
   return openSync(path, 'r')
 }
-function readHandle(fd: number, buffer: Buffer): { bytesRead: number } {
-  const bytesRead = readSync(fd, buffer, 0, buffer.length, 0)
+function readHandle(fd: number, buffer: Buffer, offset = 0): { bytesRead: number } {
+  const bytesRead = readSync(fd, buffer, 0, buffer.length, offset)
   return { bytesRead }
 }
 function closeHandle(fd: number): void {

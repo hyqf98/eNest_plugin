@@ -73,7 +73,7 @@ export function NodePicker({ anchor, groups, title = '添加节点', onPick, onC
           </div>
         })}
       </div>
-      <div className="ac-picker-hint">↑↓ 选择 · Enter 添加 · Esc 关闭</div>
+      <div className="ac-picker-hint">↑↓ 选择 · Esc 关闭</div>
     </div>
   )
 }

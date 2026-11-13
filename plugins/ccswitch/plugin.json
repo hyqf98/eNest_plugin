@@ -29,46 +29,6 @@
         "explain": "Claude Code / Codex / Gemini 等 10 应用供应商、切换历史、MCP、会话与用量",
         "openCode": "main"
       }
-    ],
-    "settings": [
-      {
-        "id": "ccswitch.prefs",
-        "title": "供应商切换",
-        "items": [
-          {
-            "key": "defaultApp",
-            "type": "select",
-            "label": "默认应用",
-            "default": "claude-code",
-            "options": [
-              {
-                "label": "Claude Code",
-                "value": "claude-code"
-              },
-              {
-                "label": "Codex CLI",
-                "value": "codex"
-              },
-              {
-                "label": "Gemini CLI",
-                "value": "gemini-cli"
-              }
-            ]
-          },
-          {
-            "key": "diffConfirm",
-            "type": "switch",
-            "label": "切换前显示 diff 确认",
-            "default": true
-          },
-          {
-            "key": "backupKeep",
-            "type": "text",
-            "label": "备份保留策略",
-            "default": "插件后端自动快照，每应用保留最近 20 份"
-          }
-        ]
-      }
     ]
   },
   "window": {

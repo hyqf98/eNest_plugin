@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { bindFileInput } from '@enest/plugin-kit/file-inputs'
 import { createNativeSurfaces } from '@enest/native-surfaces'
 import { MoreMenu } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const math = globalThis.ColorMath
 const api = createNativeSurfaces(window.enest || window.zapi)
@@ -51,6 +52,8 @@ export function App() {
   const [clearText, setClearText] = useState('清空')
   const [deleteText, setDeleteText] = useState('删除')
   const [alphaPercent, setAlphaPercent] = useState(100)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ copyFormat: 'hex', autoCopy: true, historyLimit: 48 })
 
   const currentRef = useRef(currentColor)
   currentRef.current = currentColor
@@ -458,16 +461,18 @@ export function App() {
       title: '取色器',
       height: 470,
       quickPlaceholder: '输入 HEX、RGB、HSL，或查找颜色…',
+      prefs: true,
       defaults: { copyFormat: 'hex', autoCopy: true, historyLimit: 48 },
       onQuery,
       onAction,
     })
     kitRef.current = kit
     kit.onMode((mode) => {
-      setModeHint(mode === 'quick' ? 'Enter 复制 · ↑ ↓ 选择最近颜色' : '')
+      setModeHint(mode === 'quick' ? '↑ ↓ 选择最近颜色' : '')
       if (mode === 'quick') showView('recent')
     })
     kit.onSettings(() => {
+      setSettings({ ...kit.settings })
       const limit = historyLimit()
       setHistory((prev) => prev.slice(0, limit))
     })
@@ -558,6 +563,7 @@ export function App() {
         <span id="status" role="status">{statusText}</span>
         <button id="capture" className="pk-btn primary" disabled={captureDisabled} onClick={capture}>屏幕取色</button>
         <button id="open-image" className="pk-btn desktop" onClick={openImage}>从图片取色</button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
         <input id="image-file" ref={imageFileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden />
       </header>
 
@@ -721,9 +727,9 @@ export function App() {
 
           <section id="view-pick" className="view" role="tabpanel" aria-label="截图取色" hidden={view !== 'pick'}>
             <div className="view-head"><h2>像素取色</h2><button id="stop-pick" className="pk-btn" onClick={stopPick}>完成取色</button></div>
-            <p className="helper">移动鼠标预览，点击收录。聚焦截图后可用方向键微调，Enter 确认。</p>
+            <p className="helper">移动鼠标预览，点击收录。聚焦截图后可用方向键微调。</p>
             <div className="shot-scroll">
-              <canvas id="shot" ref={shotRef} tabIndex="0" aria-label="截图取色画布，方向键移动取样点，Enter 收录"
+              <canvas id="shot" ref={shotRef} tabIndex="0" aria-label="截图取色画布，方向键移动取样点"
                 onPointerMove={onShotPointerMove} onClick={commitPick} onKeyDown={onShotKeyDown}></canvas>
             </div>
             <div className="sample-row">
@@ -738,7 +744,17 @@ export function App() {
         </section>
       </div>
 
-      <footer><span id="mode-hint">{modeHint || '输入颜色后 Enter 复制'}</span><button className="pk-btn ghost text-button" data-open-settings>取色设置</button></footer>
+      <footer><span id="mode-hint">{modeHint || '输入颜色后复制'}</span></footer>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          // setPref 同步回调 onSettings：那里负责最近颜色列表裁剪
+          kitRef.current?.setPref(key, value)
+        }}
+      />
     </main>
   )
 }

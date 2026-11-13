@@ -1,16 +1,23 @@
 /**
  * markdown v2 后端 —— utilityProcess 入口。
  * 职责：本地 .md 持续读写（原子写 + watch）、目录树、最近文件、速记收件箱、
- * 图床（本地 assets / PicList / GitHub / 自定义 JS 沙箱）、主题 CSS 目录、图片资产索引。
+ * 图床（本地 assets / PicList / GitHub / 自定义 JS 沙箱）、用户主题索引、图片资产索引。
  * 零 npm 依赖：全部 Node 内置 + Node 22 原生 fetch/FormData。
+ *
+ * 存储模型（统一存储，不再自管 ~/.eNest/plugins 目录）：
+ *  - 业务数据（config / recent / inbox / themes）全部走 host.request 的
+ *    storage.get / storage.set，落宿主统一插件 KV；
+ *  - 图片缓存与「存本地」图片是文件型数据，写在宿主授权数据目录
+ *    {appDataPath}/markdown/（cache/ 可重建、assets/ 为业务文件）；
+ *  - token 不进 KV 明文：config 只保存 vault secretRef，上传时经
+ *    secret.resolve 解出使用，明文不落盘、不回渲染层。
  *
  * 安全约定：
  *  - 路径越界一律拒绝：文件只允许打开用户经选择器/拖拽授权过的路径或其所在工作根内；
  *  - 自定义上传脚本在 node:vm 中执行，无 require/process/fs，15s 超时；
- *  - 凭证与脚本明文存插件私有数据目录（用户 profile 内），不进错误消息。
+ *  - 凭证只经宿主密钥库（vault），脚本明文与错误消息不带 token。
  */
 import { createHash, webcrypto } from 'node:crypto'
-import { EventEmitter } from 'node:events'
 import { watch } from 'node:fs'
 import { readFile, writeFile, mkdir, readdir, stat, rename, rm, copyFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, basename, extname, isAbsolute, sep } from 'node:path'
@@ -20,39 +27,75 @@ type Request = {
   type?: string
   id?: number
   pluginId?: string
+  generation?: number
+  wcId?: number
+  context?: unknown
   method?: string
   args?: unknown[]
 }
 interface ParentPort {
-  on(event: 'message', listener: (message: { data: Request }) => void): void
+  on(event: 'message', listener: (message: { data: Request & { ok?: boolean; data?: unknown; error?: string } }) => void): void
   postMessage(message: unknown): void
 }
-const port = (process as NodeJS.Process & { parentPort?: ParentPort }).parentPort
-if (!port) throw new Error('This entry requires the eNest utility process')
+const maybePort = (process as NodeJS.Process & { parentPort?: ParentPort }).parentPort
+if (!maybePort) throw new Error('This entry requires the eNest utility process')
+const port: ParentPort = maybePort
+
+const PLUGIN_ID = 'com.github.eNest.markdown'
+/** init 握手后冻结的宿主上下文（appDataPath 为宿主授权数据目录） */
+let appDataPath = ''
 let owner: string | undefined
 
+/* ---------------- 宿主控制通道（storage / secret / log） ---------------- */
+interface PendingHost {
+  resolve(value: unknown): void
+  reject(error: Error): void
+  timer: ReturnType<typeof setTimeout>
+}
+const HOST_TIMEOUT_MS = 30_000
+let hostSequence = 0
+const hostControls = new Map<number, PendingHost>()
+
+function assertReady(): void {
+  if (!owner || !appDataPath) throw new Error('后端尚未就绪，请稍后重试')
+}
+/** host.request：storage.get/set、secret.resolve 等宿主能力，带超时与在途表 */
+function hostRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
+  assertReady()
+  if (hostControls.size >= 64) return Promise.reject(new Error('后端控制请求过多，请稍后重试'))
+  const id = ++hostSequence
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { hostControls.delete(id); reject(new Error('宿主控制请求超时')) }, HOST_TIMEOUT_MS)
+    timer.unref()
+    hostControls.set(id, { resolve, reject, timer })
+    try {
+      port.postMessage({ type: 'host.request', id, method, params })
+    } catch (error) {
+      hostControls.delete(id)
+      clearTimeout(timer)
+      reject(error instanceof Error ? error : new Error(String(error)))
+    }
+  })
+}
+const storageGet = (key: string): Promise<unknown> => hostRequest('storage.get', { key })
+async function storageSet(key: string, value: unknown): Promise<void> {
+  await hostRequest('storage.set', { key, value })
+}
+/** 解 vault 引用；未配置（空 ref）返回空串 */
+async function resolveSecret(ref: string): Promise<string> {
+  if (!ref) return ''
+  const value = await hostRequest('secret.resolve', { ref })
+  return typeof value === 'string' ? value : ''
+}
+
 /* ---------------- 数据根 ---------------- */
-/** 插件私有数据目录：~/.eNest/plugins/com.github.eNest.markdown/（与宿主数据根同盘） */
-function dataRoot(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || ''
-  if (!home) throw new Error('No user home directory')
-  return join(home, '.eNest', 'plugins', 'com.github.eNest.markdown')
+/** 插件文件数据目录：{appDataPath}/markdown/（宿主授权数据目录，只放 cache 与 assets） */
+function dataLocalRoot(): string {
+  assertReady()
+  return join(appDataPath, 'markdown')
 }
 async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true })
-}
-async function readJson<T>(path: string, fallback: T): Promise<T> {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as T
-  } catch {
-    return fallback
-  }
-}
-async function writeJson(path: string, value: unknown): Promise<void> {
-  await ensureDir(dirname(path))
-  const tmp = `${path}.${Date.now()}.tmp`
-  await writeFile(tmp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 })
-  await rename(tmp, path)
 }
 
 /* ---------------- 路径授权 ---------------- */
@@ -75,10 +118,10 @@ function assertAccess(p: string): string {
   }
   throw new Error('路径未授权：请先通过文件选择器或拖拽打开')
 }
-/** 收件箱/主题等插件自管路径天然放行 */
+/** 图片缓存等插件自管路径天然放行 */
 function isPluginManaged(p: string): boolean {
   const abs = normalize(p)
-  const root = normalize(dataRoot())
+  const root = normalize(dataLocalRoot())
   return abs === root || abs.startsWith(root + sep)
 }
 /**
@@ -103,18 +146,17 @@ function ensureGrantsLoaded(): Promise<void> {
       try {
         const cfg = await loadConfig()
         for (const dir of cfg.imageDirs ?? []) grant(dir)
-        grant(defaultAssetDir())
       } catch { /* 配置不可读时按无授权处理 */ }
     })()
   }
   return grantsLoaded
 }
 
-/* ---------------- 配置 ---------------- */
+/* ---------------- 配置（KV：key 'config'） ---------------- */
 interface UploaderConfig {
   active: string
   piclist: { server: string }
-  github: { repo: string; branch: string; token: string; pathTemplate: string; cdn: string; commitMessage: string }
+  github: { repo: string; branch: string; tokenRef: string; pathTemplate: string; cdn: string; commitMessage: string }
   script: { code: string }
 }
 interface PluginConfig {
@@ -128,11 +170,12 @@ interface PluginConfig {
   /** 持久授权的图片目录（绝对路径）：重启后预览仍可读 */
   imageDirs: string[]
 }
+const CONFIG_KEY = 'config'
 const defaultConfig = (): PluginConfig => ({
   uploaders: {
     active: 'local',
     piclist: { server: 'http://127.0.0.1:36677' },
-    github: { repo: '', branch: 'main', token: '', pathTemplate: 'images/{date}/{name}', cdn: '', commitMessage: 'upload by eNest markdown' },
+    github: { repo: '', branch: 'main', tokenRef: '', pathTemplate: 'images/{date}/{name}', cdn: '', commitMessage: 'upload by eNest markdown' },
     script: { code: SCRIPT_TEMPLATE },
   },
   lightTheme: 'enest-minimal',
@@ -144,7 +187,7 @@ const defaultConfig = (): PluginConfig => ({
 })
 const SCRIPT_TEMPLATE = `// 自定义图床脚本：module.exports = async (ctx) => url 或 { url, markdown }
 // ctx = { fileName, mime, bytes(Uint8Array), config, log }；可用全局：fetch/FormData/Blob/Buffer/crypto/URL/TextEncoder
-// 返回字符串 url，或 { url, markdown }（markdown 缺省为 "![](url)"）
+// 返回字符串 url，或 { url, markdown }（markdown 缺省为 "![](url)")
 module.exports = async (ctx) => {
   const form = new FormData()
   form.append('smfile', new Blob([ctx.bytes], { type: ctx.mime }), ctx.fileName)
@@ -154,11 +197,9 @@ module.exports = async (ctx) => {
   return data.data.url
 }
 `
-async function configPath(): Promise<string> {
-  return join(dataRoot(), 'config.json')
-}
+/** 读取旧字段兼容：token（明文，迁移前遗留）→ 不再使用，仅迁移导出时读取 */
 async function loadConfig(): Promise<PluginConfig> {
-  const stored = await readJson<Partial<PluginConfig>>(await configPath(), {})
+  const stored = (await storageGet(CONFIG_KEY)) as Partial<PluginConfig> | null ?? {}
   const def = defaultConfig()
   return {
     ...def,
@@ -173,7 +214,13 @@ async function loadConfig(): Promise<PluginConfig> {
   }
 }
 async function saveConfig(next: PluginConfig): Promise<void> {
-  await writeJson(await configPath(), next)
+  await storageSet(CONFIG_KEY, next)
+}
+/** 上传用 GitHub 配置：tokenRef → secret.resolve 解出明文 token（只在内存使用） */
+async function githubRuntimeConfig(): Promise<{ repo: string; branch: string; token: string; pathTemplate: string; cdn: string; commitMessage: string }> {
+  const cfg = await loadConfig()
+  const token = await resolveSecret(cfg.uploaders.github.tokenRef)
+  return { ...cfg.uploaders.github, token }
 }
 
 /* ---------------- 文档 watch ---------------- */
@@ -183,7 +230,6 @@ interface WatchEntry {
   lastText: string
 }
 const watches = new Map<string, WatchEntry>()
-const bus = new EventEmitter()
 let currentDocPath = ''
 let lastSavedText = ''
 
@@ -272,9 +318,9 @@ async function atomicWrite(path: string, text: string): Promise<void> {
 
 /* ---------------- 图片资产 ---------------- */
 
-/** 插件私有 assets 目录（默认图片落盘位置）：{dataRoot}/assets */
+/** 插件私有 assets 目录（默认图片落盘位置）：{dataLocalRoot}/assets */
 function defaultAssetDir(): string {
-  return join(dataRoot(), 'assets')
+  return join(dataLocalRoot(), 'assets')
 }
 
 /**
@@ -332,7 +378,7 @@ async function uploadLocal(docPath: string, fileName: string, mime: string, byte
 async function uploadPiclist(server: string, fileName: string, mime: string, bytes: Uint8Array): Promise<{ url: string; markdown: string }> {
   const base = server.replace(/\/+$/, '')
   const form = new FormData()
-  form.append('file', new Blob([bytes as unknown as BlobPart], { type: mime }), fileName)
+  form.append('file', new Blob([bytes as unknown as Blob], { type: mime }), fileName)
   const res = await fetch(`${base}/upload`, { method: 'POST', body: form, headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`PicList HTTP ${res.status}`)
   const data: any = await res.json().catch(() => null)
@@ -341,7 +387,8 @@ async function uploadPiclist(server: string, fileName: string, mime: string, byt
   return { url, markdown: `![](${url})` }
 }
 
-async function uploadGithub(cfg: UploaderConfig['github'], fileName: string, mime: string, bytes: Uint8Array): Promise<{ url: string; markdown: string }> {
+interface GithubRuntime { repo: string; branch: string; token: string; pathTemplate: string; cdn: string; commitMessage: string }
+async function uploadGithub(cfg: GithubRuntime, fileName: string, mime: string, bytes: Uint8Array): Promise<{ url: string; markdown: string }> {
   if (!cfg.repo || !cfg.token) throw new Error('GitHub 图床未配置 repo 或 token')
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -390,8 +437,12 @@ function buildScriptSandbox() {
     clearTimeout: () => {},
   }
 }
-async function runUploadScript(code: string, ctxBase: { fileName: string; mime: string; bytes: Uint8Array }, config: UploaderConfig): Promise<{ url: string; markdown: string; logs: string[] }> {
-  const logs: string[] = []
+/**
+ * 脚本 ctx.config.token 的取值策略：脚本是用户自写的任意上传逻辑（模板即 sm.ms），
+ * 它约定的 token 语义就是「图床凭证」。凭证统一进 vault 后，脚本运行前由后端
+ * 解引用注入（明文只存在于沙箱内存，不落盘不回传）；未配置时为空串。
+ */
+async function runUploadScript(code: string, ctxBase: { fileName: string; mime: string; bytes: Uint8Array }): Promise<{ url: string; markdown: string; logs: string[] }> {
   const sandbox = buildScriptSandbox()
   const context = vm.createContext({ ...sandbox, module: { exports: {} as any }, exports: {} as any })
   // CommonJS 契约：module.exports = async (ctx) => ...
@@ -399,9 +450,17 @@ async function runUploadScript(code: string, ctxBase: { fileName: string; mime: 
   const factory = (context as any).module.exports
   if (typeof factory !== 'function') throw new Error('脚本必须 module.exports = async (ctx) => ...')
   const logs2: string[] = []
+  const cfg = await loadConfig()
+  const token = await resolveSecret(cfg.uploaders.github.tokenRef)
   const ctx = {
     ...ctxBase,
-    config: { piclist: config.uploaders.piclist, github: { ...config.uploaders.github, token: config.uploaders.github.token ? '(已配置)' : '' }, raw: config },
+    config: {
+      token,
+      piclist: cfg.uploaders.piclist,
+      // github 子对象沿用「脱敏」约定，避免脚本把它打进日志
+      github: { ...cfg.uploaders.github, token: token ? '(已配置)' : '' },
+      raw: cfg.uploaders,
+    },
     log: (msg: string) => { logs2.push(String(msg).slice(0, 500)); if (logs2.length > 50) logs2.shift() },
   }
   const result = await Promise.race([
@@ -467,24 +526,115 @@ async function indexAssets(docPath: string, docText: string): Promise<unknown> {
   return { refs }
 }
 
-/* ---------------- 最近文件 ---------------- */
-async function recentPath(): Promise<string> {
-  return join(dataRoot(), 'recent.json')
+/* ---------------- 最近文件（KV：key 'recent'） ---------------- */
+const RECENT_KEY = 'recent'
+type RecentEntry = { path: string; name: string; at: number }
+async function readRecent(): Promise<RecentEntry[]> {
+  const stored = await storageGet(RECENT_KEY)
+  return Array.isArray(stored) ? (stored as RecentEntry[]) : []
 }
 async function pushRecent(path: string): Promise<void> {
   const abs = normalize(path)
-  const list = (await readJson<Array<{ path: string; name: string; at: number }>>(await recentPath(), [])).filter((n) => n.path !== abs)
+  const list = (await readRecent()).filter((n) => n.path !== abs)
   list.unshift({ path: abs, name: basename(abs), at: Date.now() })
-  await writeJson(await recentPath(), list.slice(0, 30))
+  await storageSet(RECENT_KEY, list.slice(0, 30))
 }
 
-/* ---------------- 速记收件箱 ---------------- */
-async function inboxFile(): Promise<string> {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const dir = join(dataRoot(), 'inbox')
-  await ensureDir(dir)
-  return join(dir, `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.md`)
+/* ---------------- 速记收件箱（KV：key 'inbox'） ---------------- */
+const INBOX_KEY = 'inbox'
+async function readInbox(): Promise<string> {
+  const stored = await storageGet(INBOX_KEY)
+  return typeof stored === 'string' ? stored : ''
+}
+async function appendInbox(text: string): Promise<void> {
+  const prev = await readInbox()
+  await storageSet(INBOX_KEY, prev ? `${prev}\n\n---\n\n${text}` : text)
+}
+
+/* ---------------- 用户主题（KV：'themes.index' + 'theme:{name}'） ---------------- */
+const THEME_INDEX_KEY = 'themes.index'
+const themeKey = (name: string) => `theme:${name}`
+/** 主题名清洗：去掉路径分隔符，只留安全文件名语义字符 */
+function cleanThemeName(name: unknown): string {
+  return String(name).replace(/[/\\]/g, '')
+}
+async function themeIndex(): Promise<string[]> {
+  const stored = await storageGet(THEME_INDEX_KEY)
+  const list = Array.isArray(stored) ? stored.map(cleanThemeName).filter(Boolean) : []
+  return [...new Set(list)]
+}
+async function writeThemeCss(name: string, css: string): Promise<void> {
+  // 先写内容再写 index（非原子）：中断最多留下孤儿 key，不影响已列主题
+  await storageSet(themeKey(name), css)
+  const index = await themeIndex()
+  if (!index.includes(name)) await storageSet(THEME_INDEX_KEY, [...index, name])
+}
+async function deleteThemeCss(name: string): Promise<void> {
+  // KV 无删除能力：内容置空 + index 摘除（置空键占位可忽略）
+  await storageSet(themeKey(name), '')
+  await storageSet(THEME_INDEX_KEY, (await themeIndex()).filter((item) => item !== name))
+}
+
+/* ---------------- 旧数据迁移（~/.eNest/plugins/com.github.eNest.markdown） ---------------- */
+/** 旧自管数据目录：仅迁移期读取（读旧数据 + 拷贝 assets），迁移完成后不再 touch */
+function legacyRoot(): string {
+  const home = process.env.HOME || process.env.USERPROFILE || ''
+  if (!home) return ''
+  return join(home, '.eNest', 'plugins', 'com.github.eNest.markdown')
+}
+async function pathExists(p: string): Promise<boolean> {
+  try { await stat(p); return true } catch { return false }
+}
+interface LegacyData {
+  config?: Record<string, unknown> | null
+  recent?: unknown[] | null
+  inbox?: string | null
+  /** token 一次性明文返回（前端 vault.set 后即丢） */
+  token?: string
+  themes: Array<{ name: string; css: string }>
+  assetsDir: string
+}
+/**
+ * 导出旧目录数据（一次性）：config.json / recent.json / inbox 当日文件 / themes/*.css。
+ * token 以明文随响应返回给前端，由前端 vault.set 落密钥库；本方法不再写任何文件。
+ */
+async function legacyExport(): Promise<LegacyData> {
+  const root = legacyRoot()
+  const empty: LegacyData = { config: null, recent: null, inbox: null, themes: [], assetsDir: root ? join(root, 'assets') : '' }
+  if (!root || !(await pathExists(root))) return empty
+  const readJsonFile = async <T>(p: string): Promise<T | null> => {
+    try { return JSON.parse(await readFile(p, 'utf8')) as T } catch { return null }
+  }
+  const config = await readJsonFile<Record<string, unknown>>(join(root, 'config.json'))
+  const recent = await readJsonFile<unknown[]>(join(root, 'recent.json'))
+  // inbox 是按日期命名的多个文件（YYYY-MM-DD.md），全部合并导出（旧→新）
+  const inboxTexts: string[] = []
+  try {
+    const inboxDir = join(root, 'inbox')
+    const files = (await readdir(inboxDir)).filter((f) => /\.md$/i.test(f)).sort()
+    for (const f of files) {
+      try { inboxTexts.push(await readFile(join(inboxDir, f), 'utf8')) } catch { /* 单文件损坏跳过 */ }
+    }
+  } catch { /* 无 inbox 目录 */ }
+  const themes: Array<{ name: string; css: string }> = []
+  try {
+    const themesDir = join(root, 'themes')
+    const files = (await readdir(themesDir)).filter((f) => /\.css$/i.test(f)).sort()
+    for (const f of files) {
+      try {
+        themes.push({ name: cleanThemeName(f.replace(/\.css$/i, '')), css: await readFile(join(themesDir, f), 'utf8') })
+      } catch { /* 单文件损坏跳过 */ }
+    }
+  } catch { /* 无 themes 目录 */ }
+  const token = typeof (config?.uploaders as any)?.github?.token === 'string' ? String((config?.uploaders as any).github.token) : ''
+  return {
+    config,
+    recent: Array.isArray(recent) ? recent : null,
+    inbox: inboxTexts.length ? inboxTexts.join('\n\n---\n\n') : null,
+    token: token && token !== '(已配置)' ? token : '',
+    themes,
+    assetsDir: join(root, 'assets'),
+  }
 }
 
 /* ---------------- 方法表 ---------------- */
@@ -563,36 +713,31 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
 
   /* —— 最近文件 —— */
   'recent.list': async () => {
-    return { list: await readJson(await recentPath(), []) }
+    return { list: await readRecent() }
   },
   'recent.clear': async () => {
-    await writeJson(await recentPath(), [])
+    await storageSet(RECENT_KEY, [])
     return { ok: true }
   },
 
   /* —— 速记 —— */
   'scratch.append': async ([text]) => {
-    const file = await inboxFile()
-    grant(file)
-    let prev = ''
-    try { prev = await readFile(file, 'utf8') } catch { /* 当日首条 */ }
-    const next = prev ? `${prev}\n\n---\n\n${String(text)}` : String(text)
-    await atomicWrite(file, next)
-    return { path: file }
+    await appendInbox(String(text))
+    return { ok: true }
   },
   'scratch.read': async () => {
-    const file = await inboxFile()
-    try { return { path: file, text: await readFile(file, 'utf8') } } catch { return { path: file, text: '' } }
+    return { text: await readInbox() }
   },
 
   /* —— 图床 —— */
   'uploader.config': async () => {
     const cfg = await loadConfig()
-    // token 脱敏返回（前端编辑时显示掩码，保存时留空即保留原值）
+    // token 不回明文：返回已配置/未配置布尔，前端据此时显示占位
+    const configured = Boolean(cfg.uploaders.github.tokenRef)
     return {
       uploaders: {
         ...cfg.uploaders,
-        github: { ...cfg.uploaders.github, token: cfg.uploaders.github.token ? '(已配置)' : '' },
+        github: { ...cfg.uploaders.github, tokenConfigured: configured },
         script: cfg.uploaders.script,
       },
     }
@@ -603,10 +748,9 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
     if (patch.active !== undefined) cfg.uploaders.active = String(patch.active)
     if (patch.piclist?.server !== undefined) cfg.uploaders.piclist.server = String(patch.piclist.server)
     if (patch.github) {
-      for (const key of ['repo', 'branch', 'pathTemplate', 'cdn', 'commitMessage'] as const) {
+      for (const key of ['repo', 'branch', 'tokenRef', 'pathTemplate', 'cdn', 'commitMessage'] as const) {
         if (patch.github[key] !== undefined) (cfg.uploaders.github as any)[key] = String(patch.github[key])
       }
-      if (typeof patch.github.token === 'string' && patch.github.token && patch.github.token !== '(已配置)') cfg.uploaders.github.token = patch.github.token
     }
     if (typeof patch.script?.code === 'string') cfg.uploaders.script.code = patch.script.code
     await saveConfig(cfg)
@@ -618,8 +762,8 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
     const cfg = await loadConfig()
     const name = stampName('', 'image/png', 'connectivity-test')
     if (which === 'piclist') return uploadPiclist(cfg.uploaders.piclist.server, name, 'image/png', png)
-    if (which === 'github') return uploadGithub(cfg.uploaders.github, name, 'image/png', png)
-    if (which === 'script') return runUploadScript(cfg.uploaders.script.code, { fileName: name, mime: 'image/png', bytes: png }, cfg)
+    if (which === 'github') return uploadGithub(await githubRuntimeConfig(), name, 'image/png', png)
+    if (which === 'script') return runUploadScript(cfg.uploaders.script.code, { fileName: name, mime: 'image/png', bytes: png })
     throw new Error('未知图床: ' + which)
   },
   /**
@@ -637,8 +781,8 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
       return uploadLocal(docPath ? String(docPath) : '', name, String(mime), bytes, dir)
     }
     if (which === 'piclist') return uploadPiclist(cfg.uploaders.piclist.server, name, String(mime), bytes)
-    if (which === 'github') return uploadGithub(cfg.uploaders.github, name, String(mime), bytes)
-    if (which === 'script') return runUploadScript(cfg.uploaders.script.code, { fileName: name, mime: String(mime), bytes }, cfg)
+    if (which === 'github') return uploadGithub(await githubRuntimeConfig(), name, String(mime), bytes)
+    if (which === 'script') return runUploadScript(cfg.uploaders.script.code, { fileName: name, mime: String(mime), bytes })
     throw new Error('未知图床: ' + which)
   },
   /** 单独存本地图片（与图床选择无关；前端"存本地"动作直接走这里） */
@@ -668,7 +812,7 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
     const p = String(path)
     if (/^https?:\/\//i.test(p)) {
       // 远程图：下载后转 dataUrl（预览通道；缓存到临时目录避免重复下载）
-      const cacheDir = join(dataRoot(), 'cache')
+      const cacheDir = join(dataLocalRoot(), 'cache')
       await ensureDir(cacheDir)
       const key = createHash('sha1').update(p).digest('hex')
       const cached = join(cacheDir, key)
@@ -718,30 +862,20 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
 
   /* —— 主题 —— */
   'theme.list': async () => {
-    const dir = join(dataRoot(), 'themes')
-    await ensureDir(dir)
-    const entries = await readdir(dir, { withFileTypes: true })
-    return { themes: entries.filter((e) => e.isFile() && /\.css$/i.test(e.name)).map((e) => ({ name: e.name.replace(/\.css$/i, ''), file: join(dir, e.name) })) }
+    const names = await themeIndex()
+    return { themes: names.map((name) => ({ name })) }
   },
   'theme.read': async ([name]) => {
-    const clean = String(name).replace(/[/\\]/g, '')
-    const file = join(dataRoot(), 'themes', `${clean}.css`)
-    if (!isPluginManaged(file)) throw new Error('非法主题名')
-    try { return { css: await readFile(file, 'utf8') } } catch { return { css: '' } }
+    const clean = cleanThemeName(name)
+    const stored = await storageGet(themeKey(clean))
+    return { css: typeof stored === 'string' ? stored : '' }
   },
   'theme.write': async ([name, css]) => {
-    const clean = String(name).replace(/[/\\]/g, '')
-    const file = join(dataRoot(), 'themes', `${clean}.css`)
-    if (!isPluginManaged(file)) throw new Error('非法主题名')
-    await ensureDir(dirname(file))
-    await atomicWrite(file, String(css))
+    await writeThemeCss(cleanThemeName(name), String(css))
     return { ok: true }
   },
   'theme.delete': async ([name]) => {
-    const clean = String(name).replace(/[/\\]/g, '')
-    const file = join(dataRoot(), 'themes', `${clean}.css`)
-    if (!isPluginManaged(file)) throw new Error('非法主题名')
-    await rm(file, { force: true })
+    await deleteThemeCss(cleanThemeName(name))
     return { ok: true }
   },
   'theme.prefs': async () => {
@@ -756,7 +890,82 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
     return { ok: true }
   },
 
-  /* —— 旧版清理 —— */
+  /* —— 旧数据迁移 —— */
+  /** 迁移状态探测：旧目录存在且未 migrated 时返回待迁移清单 */
+  'legacy.inspect': async () => {
+    const root = legacyRoot()
+    const cfg = await loadConfig()
+    if (!root) return { needed: false, done: cfg.migrated, legacyRoot: '' }
+    const exists = await pathExists(root)
+    return { needed: exists && !cfg.migrated, done: cfg.migrated, legacyRoot: root }
+  },
+  /** 一次性导出旧目录数据（含 token 明文）；只在迁移期调用 */
+  'legacy.export': async () => {
+    return legacyExport()
+  },
+  /**
+   * 提交迁移：前端已 vault.set 存好 token，携带脱敏后的 config / recent / themes / inbox
+   * 全量写入 KV，旧 assets 逐文件拷贝到新目录（不删原目录），置 migrated 标记。
+   * KV set 幂等覆盖：中途失败下次启动重试不会损坏已写数据。
+   */
+  'legacy.commit': async ([payload]) => {
+    const input = (payload ?? {}) as {
+      config?: Record<string, unknown>
+      recent?: unknown[]
+      inbox?: string
+      themes?: Array<{ name: string; css: string }>
+    }
+    const cfg = await loadConfig()
+    // config：以旧值覆盖默认值（tokenRef 已由前端换好，旧 token 字段丢弃）
+    if (input.config && typeof input.config === 'object') {
+      const legacy = input.config as Partial<PluginConfig> & { uploaders?: Partial<UploaderConfig> & { github?: Record<string, unknown> } }
+      if (Array.isArray(legacy.recentRoots)) cfg.recentRoots = legacy.recentRoots.slice(0, 8)
+      if (typeof legacy.imageDir === 'string') cfg.imageDir = legacy.imageDir
+      if (Array.isArray(legacy.imageDirs)) cfg.imageDirs = legacy.imageDirs.slice(0, 16)
+      if (typeof legacy.lightTheme === 'string' && legacy.lightTheme) cfg.lightTheme = legacy.lightTheme
+      if (typeof legacy.darkTheme === 'string' && legacy.darkTheme) cfg.darkTheme = legacy.darkTheme
+      if (legacy.uploaders?.piclist && typeof legacy.uploaders.piclist.server === 'string') cfg.uploaders.piclist.server = legacy.uploaders.piclist.server
+      if (legacy.uploaders?.github) {
+        const gh = legacy.uploaders.github
+        if (typeof gh.repo === 'string') cfg.uploaders.github.repo = gh.repo
+        if (typeof gh.branch === 'string' && gh.branch) cfg.uploaders.github.branch = gh.branch
+        if (typeof gh.pathTemplate === 'string' && gh.pathTemplate) cfg.uploaders.github.pathTemplate = gh.pathTemplate
+        if (typeof gh.cdn === 'string') cfg.uploaders.github.cdn = gh.cdn
+        if (typeof gh.commitMessage === 'string' && gh.commitMessage) cfg.uploaders.github.commitMessage = gh.commitMessage
+        if (typeof gh.tokenRef === 'string') cfg.uploaders.github.tokenRef = gh.tokenRef
+      }
+      if (typeof legacy.uploaders?.script?.code === 'string' && legacy.uploaders.script.code) cfg.uploaders.script.code = legacy.uploaders.script.code
+      if (typeof legacy.uploaders?.active === 'string' && legacy.uploaders.active) cfg.uploaders.active = legacy.uploaders.active
+    }
+    // recent / themes：旧值非空才覆盖（迁移重试时不回退已更新的 KV）
+    if (Array.isArray(input.recent) && input.recent.length) await storageSet(RECENT_KEY, input.recent.slice(0, 30))
+    // inbox：只在 KV 仍为空时导入旧文本（重试时已非空，避免重复追加）
+    if (typeof input.inbox === 'string' && input.inbox && !(await readInbox())) {
+      await storageSet(INBOX_KEY, input.inbox)
+    }
+    for (const theme of Array.isArray(input.themes) ? input.themes : []) {
+      if (theme?.name && typeof theme.css === 'string') await writeThemeCss(cleanThemeName(theme.name), theme.css)
+    }
+    // 旧 assets 逐文件拷贝到新授权目录（保留原目录不删；旧 cache 不迁）
+    const root = legacyRoot()
+    if (root && await pathExists(join(root, 'assets'))) {
+      const targetDir = join(dataLocalRoot(), 'assets')
+      await ensureDir(targetDir)
+      grant(targetDir)
+      const files = (await readdir(join(root, 'assets'))).filter((f) => !f.startsWith('.'))
+      for (const f of files) {
+        try {
+          const target = join(targetDir, f)
+          if (!(await pathExists(target))) await copyFile(join(root, 'assets', f), target)
+          grant(target)
+        } catch { /* 单文件失败不阻塞迁移（下次重试跳过已存在文件） */ }
+      }
+    }
+    cfg.migrated = true
+    await saveConfig(cfg)
+    return { ok: true }
+  },
+  /** 旧版清理（历史方法保留：只置标记，不再删除任何文件） */
   'legacy.cleanup': async () => {
     const cfg = await loadConfig()
     if (cfg.migrated) return { ok: true, skipped: true }
@@ -769,9 +978,7 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
   'info.paths': async () => {
     const cfg = await loadConfig()
     return {
-      dataRoot: dataRoot(),
-      themesDir: join(dataRoot(), 'themes'),
-      inboxDir: join(dataRoot(), 'inbox'),
+      dataRoot: dataLocalRoot(),
       assetsDir: defaultAssetDir(),
       imageDir: cfg.imageDir || '',
     }
@@ -787,8 +994,28 @@ const methods: Record<string, (args: unknown[]) => Promise<unknown>> = {
 }
 
 port.on('message', ({ data: request }) => {
+  // host.request 应答：匹配在途控制表
+  if (request.type === 'host.response') {
+    const pending = hostControls.get(Number(request.id))
+    if (!pending) return
+    hostControls.delete(Number(request.id))
+    clearTimeout(pending.timer)
+    if (request.ok === true) pending.resolve(request.data)
+    else pending.reject(new Error(String(request.error || '宿主控制请求失败').slice(0, 4096)))
+    return
+  }
   if (request.type === 'init') {
-    if (!owner && typeof request.pluginId === 'string') owner = request.pluginId
+    if (owner || typeof request.pluginId !== 'string') return
+    // 仿 dsh runtimeContext：校验后冻结宿主上下文（appDataPath 是唯一授权数据目录）
+    const ctx = request.context as { protocolVersion?: unknown; appDataPath?: unknown } | undefined
+    const valid = request.pluginId === PLUGIN_ID
+      && Number.isSafeInteger(request.generation) && Number(request.generation) >= 1
+      && Number.isSafeInteger(request.wcId)
+      && ctx?.protocolVersion === 1
+      && typeof ctx.appDataPath === 'string' && isAbsolute(String(ctx.appDataPath))
+    if (!valid) return
+    owner = request.pluginId
+    appDataPath = String(ctx.appDataPath)
     return
   }
   if (!Number.isSafeInteger(request.id)) return

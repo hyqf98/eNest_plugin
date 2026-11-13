@@ -1,6 +1,5 @@
 import { Readable } from 'node:stream'
-import { fetch as proxyFetch, EnvHttpProxyAgent } from 'undici'
-import { parse as csvParser } from 'csv-parse'
+import type { EnvHttpProxyAgent } from 'undici'
 import { parse as parseLossless } from 'lossless-json'
 import type { DbDriver, DriverExecuteOptions, DriverHandle } from '@backend/drivers'
 import type { DbDriverId } from '@backend/contracts/ssh-db'
@@ -11,16 +10,32 @@ export function preciseJson(text: string): unknown {
   return parseLossless(text, undefined, value => /^-?\d+$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : value)
 }
 let proxyKey = '', proxyAgent: EnvHttpProxyAgent | undefined
-function agent(): EnvHttpProxyAgent {
+let httpModule: Promise<typeof import('undici')> | undefined
+let csvModule: Promise<typeof import('csv-parse')> | undefined
+function loadHttpModule(): Promise<typeof import('undici')> {
+  if (!httpModule) httpModule = import('undici').catch(error => { httpModule = undefined; throw error })
+  return httpModule
+}
+function loadCsvModule(): Promise<typeof import('csv-parse')> {
+  if (!csvModule) csvModule = import('csv-parse').catch(error => { csvModule = undefined; throw error })
+  return csvModule
+}
+function agent(Agent: typeof import('undici').EnvHttpProxyAgent): EnvHttpProxyAgent {
   const key = JSON.stringify([process.env.HTTP_PROXY, process.env.HTTPS_PROXY, process.env.NO_PROXY])
-  if (!proxyAgent || key !== proxyKey) { if (proxyAgent) void proxyAgent.close(); proxyKey = key; proxyAgent = new EnvHttpProxyAgent({ httpProxy: process.env.HTTP_PROXY, httpsProxy: process.env.HTTPS_PROXY, noProxy: process.env.NO_PROXY }) }
+  if (!proxyAgent || key !== proxyKey) { if (proxyAgent) void proxyAgent.close(); proxyKey = key; proxyAgent = new Agent({ httpProxy: process.env.HTTP_PROXY, httpsProxy: process.env.HTTPS_PROXY, noProxy: process.env.NO_PROXY }) }
   return proxyAgent
 }
 async function http(h: DriverHandle, path: string, init: RequestInit, opts?: DriverExecuteOptions, port = 8086): Promise<Response> {
   // The utility inherits the application proxy environment and refreshes its dispatcher on changes.
-  const dispatcher = agent()
   const timeout = AbortSignal.timeout(Math.max(100, opts?.timeoutMs || 30000))
-  const response = await proxyFetch(endpoint(h, port) + path, { ...init as Parameters<typeof proxyFetch>[1], dispatcher, signal: opts?.signal ? AbortSignal.any([opts.signal, timeout]) : timeout })
+  const signal = AbortSignal.any([timeout, ...(opts?.signal ? [opts.signal] : []), ...(h.controller ? [h.controller.signal] : [])])
+  signal.throwIfAborted()
+  if (h.closed) throw new Error('Database connection is closing')
+  const { fetch: proxyFetch, EnvHttpProxyAgent: Agent } = await loadHttpModule()
+  signal.throwIfAborted()
+  if (h.closed) throw new Error('Database connection is closing')
+  const dispatcher = agent(Agent)
+  const response = await proxyFetch(endpoint(h, port) + path, { ...init as Parameters<typeof proxyFetch>[1], dispatcher, signal })
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${(await boundedText(response as unknown as Response)).slice(0, 2000)}`)
   return response as unknown as Response
 }
@@ -60,6 +75,8 @@ export function influxAdapter(id: 'influxdb' | 'influxdb1' | 'influxdb3'): DbDri
         body: JSON.stringify({ db: h.database, q: text, format: 'json' }) }, opts, 8181)
       return objectResult(text, started, preciseJson(await boundedText(response)) as Record<string, unknown>[], max)
     }
+    const { parse: csvParser } = await loadCsvModule()
+    opts?.signal?.throwIfAborted()
     const response = await http(h, `/api/v2/query?org=${encodeURIComponent(h.config.org || String(h.config.options?.org || ''))}`, {
       method: 'POST', headers: { Authorization: `Token ${h.password || ''}`, 'Content-Type': 'application/vnd.flux', Accept: 'application/csv' }, body: text
     }, opts)

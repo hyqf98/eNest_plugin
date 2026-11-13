@@ -60,7 +60,7 @@ input:disabled { opacity: .45; }
 .grow { flex: 1; }
 
 /* 单位与汇率/RMB 共用内容行；矮窗滚动兜底，不为 hidden 节点预留轨道或间距。 */
-.uc { height: 100%; min-width: 0; display: grid; grid-template-rows: auto minmax(100px, 1fr) auto; overflow: auto; }
+.uc { height: 100%; min-width: 0; display: grid; grid-template-rows: auto minmax(100px, 1fr) auto; overflow: auto; position: relative; }
 .uc-content { min-width: 0; min-height: 0; overflow: auto; }
 
 .tabs {

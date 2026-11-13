@@ -3,6 +3,8 @@
  * 运行/停止为主按钮（顶部大钮），下方次要动作：撤销/重做/适配视图/变量检视。
  * 顶栏只保留草稿区，其余工具集中到这里，避免右上角堆叠。
  */
+import { modLabel } from '@enest/plugin-kit/workbench'
+
 export function RightRail({ workflowRunning, onRunAll, onStop, canUndo, canRedo, onUndo, onRedo,
   onFit, logOpen, onToggleLog, inspectorOpen, onToggleInspector }) {
   return (
@@ -25,16 +27,16 @@ export function RightRail({ workflowRunning, onRunAll, onStop, canUndo, canRedo,
         <span aria-hidden>▤</span>
         <span className="ac-rail-tip">变量检视</span>
       </button>
-      <button type="button" className="ac-rrail-btn" title="适配视图 (⌘1)" onClick={onFit}>
+      <button type="button" className="ac-rrail-btn" title={`适配视图 (${modLabel()}1)`} onClick={onFit}>
         <span aria-hidden>⊡</span>
         <span className="ac-rail-tip">适配视图</span>
       </button>
       <div className="ac-rrail-sep" />
-      <button type="button" className="ac-rrail-btn" title="撤销 (⌘Z)" disabled={!canUndo} onClick={onUndo}>
+      <button type="button" className="ac-rrail-btn" title={`撤销 (${modLabel()}Z)`} disabled={!canUndo} onClick={onUndo}>
         <span aria-hidden>↶</span>
         <span className="ac-rail-tip">撤销</span>
       </button>
-      <button type="button" className="ac-rrail-btn" title="重做 (⇧⌘Z)" disabled={!canRedo} onClick={onRedo}>
+      <button type="button" className="ac-rrail-btn" title={`重做 (⇧${modLabel()}Z)`} disabled={!canRedo} onClick={onRedo}>
         <span aria-hidden>↷</span>
         <span className="ac-rail-tip">重做</span>
       </button>

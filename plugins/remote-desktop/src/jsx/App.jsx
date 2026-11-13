@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import { createNativeSurfaces } from '@enest/native-surfaces'
 import '../js/novnc-loader.js'
 import '../js/store.js'
@@ -31,12 +32,15 @@ function formatDuration(ms) {
 }
 
 export function App() {
+  const kitRef = useRef(null)
   const [mode, setMode] = useState(host?.getLaunchMode?.() === 'quick' ? 'quick' : 'shell')
   const [loaded, setLoaded] = useState(false)
   const [tick, setTick] = useState(0)
   const [activeId, setActiveId] = useState(null)
   const [hasSessions, setHasSessions] = useState(false)
   const [notice, setNotice] = useState(null) // { text, type }
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ followShellTheme: true, viewOnly: false, quality: 'auto' })
 
   const sessionsRef = useRef(new Map()) // sessionId → { id, profile, session, input?, wrap, overlay, infoPop, stateEl, zoom, startedAt, connectedAt }
   const collapsedGroupsRef = useRef(new Set())
@@ -199,7 +203,7 @@ export function App() {
       canvas,
       sshSessionId: options.sshSessionId,
       password: options.password,
-      quality: host?.settings?.get ? await host.settings.get('quality').catch?.(() => null) ?? 'auto' : 'auto',
+      quality: kitRef.current?.settings.quality ?? 'auto',
       zoom: 'fit'
     })
     entry.session = session
@@ -457,6 +461,18 @@ export function App() {
 
   /* ── 顶层接线（原底部 onclick 绑定 + 启动装配等价） ── */
   useEffect(() => {
+    // 偏好自存（storage prefs）：撤出壳设置页后仍即改即存
+    const kit = PluginKit.create({
+      title: '远程桌面',
+      prefs: true,
+      defaults: { followShellTheme: true, viewOnly: false, quality: 'auto' },
+    })
+    kitRef.current = kit
+    kit.onSettings((next) => setSettings({ ...next }))
+    return () => { kit.destroy?.() }
+  }, [])
+
+  useEffect(() => {
     let alive = true
     void (async () => {
       await store.loadAll()
@@ -529,6 +545,7 @@ export function App() {
           />
           <span className="spacer"></span>
           <button className="pk-btn pk-btn-ghost" id="btn-shell-expand" title="在桌面展开" hidden={mode !== 'quick'} onClick={() => host?.ui?.openInShell?.()}>↗ 展开</button>
+          <SettingsGear onClick={() => setSettingsOpen(true)} />
         </div>
       </header>
 
@@ -625,6 +642,16 @@ export function App() {
       </div>
 
       <dialog id="profile-dialog" ref={dialogRef}></dialog>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          kitRef.current?.setPref(key, value)
+          if (key === 'quality') for (const entry of sessionsRef.current.values()) entry.session?.setQuality?.(value)
+          if (key === 'viewOnly') for (const entry of sessionsRef.current.values()) entry.session?.setViewOnly?.(value)
+        }}
+      />
       <div className="notice" id="notice" role="status" aria-live="polite" hidden={!notice} data-type={notice?.type}>
         {notice?.text ?? ''}
       </div>

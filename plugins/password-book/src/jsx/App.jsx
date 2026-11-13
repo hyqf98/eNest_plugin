@@ -1,9 +1,9 @@
 /**
- * 密码本主界面：顶栏（标题/计数/搜索/MoreMenu）+ 左栏分类 + 右侧条目卡片与详情。
+ * 密码本主界面：顶栏（居中搜索）+ 左栏分类与工具 + 右侧条目卡片与详情。
  * 数据层复用 js/store.js（storage 元数据 + vault 密码引用）；MCP handler 复用同一 store。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, MoreMenu, Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/index.jsx'
+import { Button, Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/index.jsx'
 import * as store from '../js/store.js'
 import { backend } from '../js/backend.js'
 import { EntryList } from './EntryList.jsx'
@@ -133,13 +133,8 @@ export function App() {
   return (
     <main className="app">
       <header>
-        <div className="brand">
-          <span className="brand-icon">{Icon.lock(18)}</span>
-          <div>
-            <span className="muted">{entries.length} 个账号 · 本地加密</span>
-          </div>
-        </div>
-        <div className="search-wrap">
+        <span className="brand-icon">{Icon.lock(18)}</span>
+        <div className="search-wrap search-center">
           {Icon.search(14)}
           <input
             type="search" value={keyword} onChange={(e) => setKeyword(e.target.value)}
@@ -147,17 +142,6 @@ export function App() {
           />
           {keyword && <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm clear" aria-label="清空搜索" onClick={() => setKeyword('')}>×</button>}
         </div>
-        <Button variant="primary" onClick={() => setEntryDialog({ open: true, entry: null })}>{Icon.plus(13)} 新建</Button>
-        <MoreMenu
-          label="更多" ariaLabel="密码本更多操作"
-          items={[
-            { key: 'new', label: '新建条目', onSelect: () => setEntryDialog({ open: true, entry: null }) },
-            { key: 'categories', label: '分类管理', onSelect: () => setCategoryDialog(true) },
-            { key: 'generator', label: '生成密码工具', onSelect: () => void openGenerator() },
-            'sep',
-            { key: 'mcp', label: 'MCP 工具说明', onSelect: () => setMcpDialog(true) }
-          ]}
-        />
       </header>
 
       <div className="layout">
@@ -175,6 +159,12 @@ export function App() {
             ))}
           </nav>
           <Button variant="primary" className="side-new" onClick={() => setEntryDialog({ open: true, entry: null })}>{Icon.plus(13)} 新建条目</Button>
+          {/* 顶栏「更多」收编：工具入口随新建按钮进侧栏底部 */}
+          <div className="side-tools">
+            <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => setCategoryDialog(true)}>{Icon.folder(13)} 分类管理</button>
+            <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void openGenerator()}>{Icon.key(13)} 生成密码</button>
+            <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => setMcpDialog(true)}>{Icon.shield(13)} MCP 工具说明</button>
+          </div>
         </aside>
 
         <section className="entries" aria-label="条目列表">

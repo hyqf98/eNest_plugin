@@ -22,8 +22,14 @@ export function scopeLabel(id) {
   return SCOPE_LABEL[id] ?? id
 }
 
+/** 绝对路径缩写为 ~：兼容 macOS /Users/* 与 Linux /home/*。 */
+export function tildePath(p) {
+  if (typeof p !== 'string') return p
+  return p.replace(/^\/(?:Users|home)\/[^/]+/, '~')
+}
+
 export function originLabel(item) {
   if (!item?.origin) return ''
   if (item.origin === 'registry') return '注册表'
-  return item.origin.replace(/^\/Users\/[^/]+/, '~')
+  return tildePath(item.origin)
 }

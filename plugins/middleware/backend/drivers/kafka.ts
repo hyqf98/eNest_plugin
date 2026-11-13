@@ -1,6 +1,6 @@
 /** Kafka 驱动（kafkajs 直连）。运行于 mwUtility。
  * 查询/监听共用无 autoCommit 的临时 consumer（随机 groupId，绝不污染业务消费位点）。 */
-import kafkajs, { type Kafka as KafkaClient, type Admin, type Consumer, type Producer, type KafkaMessage, type SASLOptions } from 'kafkajs'
+import type { Kafka as KafkaClient, Admin, Consumer, Producer, KafkaMessage, SASLOptions } from 'kafkajs'
 import type {
   MwClient,
   MwConnectionConfig,
@@ -17,9 +17,10 @@ import type {
 } from '@backend/contracts/mw-workbench'
 import type { MwDriver, MwDriverContext, MwDriverHandle, MwTestResult } from '@backend/types'
 import { unsupported } from '@backend/types'
+import { createLazyResource, type LazyResource } from '@backend/lazyResource'
 
 // KafkaJS is CommonJS; its computed exports are not available as ESM named imports.
-const { Kafka, ConfigResourceTypes } = kafkajs
+const kafkaModule = createLazyResource(() => import('kafkajs').then(module => module.default))
 
 const CAPS: Record<string, { state: 'available' | 'unsupported'; reason?: string }> = {
   topicCrud: { state: 'available' },
@@ -45,8 +46,10 @@ const CAPS: Record<string, { state: 'available' | 'unsupported'; reason?: string
 interface KafkaRuntime {
   kafka: KafkaClient
   admin: Admin
-  producer?: Producer
+  producer: LazyResource<Producer>
   liveConsumers: Set<Consumer>
+  closing?: Promise<void>
+  detachAbort?: () => void
 }
 
 function bufToText(buf?: Buffer | null): { text: string; encoding: 'utf8' | 'base64' } {
@@ -91,11 +94,12 @@ function mapMessage(topic: string, partition: number, message: KafkaMessage): Mw
   }
 }
 
-function buildClient(config: MwConnectionConfig, password?: string, suffix = ''): KafkaClient {
+async function buildClient(config: MwConnectionConfig, password?: string, suffix = ''): Promise<KafkaClient> {
   const mechanism = config.saslMechanism ?? 'none'
   const sasl = (mechanism === 'none' ? undefined : mechanism === 'oauthbearer'
     ? (() => { throw new Error('oauthbearer 暂不支持，请使用 SCRAM/PLAIN 或提交需求') })()
     : { mechanism, username: config.username ?? '', password: password ?? '' }) as SASLOptions | undefined
+  const { Kafka } = await kafkaModule.get()
   return new Kafka({
     clientId: `enest-mw${suffix}-${Math.random().toString(36).slice(2, 8)}`,
     brokers: (config.bootstrapServers ?? '').split(',').map(s => s.trim()).filter(Boolean),
@@ -195,37 +199,48 @@ export const kafkaDriver: MwDriver = {
 
   async test(config, password) {
     const started = Date.now()
-    const kafka = buildClient(config, password, '-test')
-    const admin = kafka.admin()
+    let admin: Admin | undefined
     try {
+      const kafka = await buildClient(config, password, '-test')
+      admin = kafka.admin()
       await admin.connect()
       await admin.describeCluster()
       return { ok: true, message: '已连接', latencyMs: Date.now() - started }
     } catch (error) {
       return { ok: false, message: `Kafka 连接失败：${(error as Error).message}`, latencyMs: Date.now() - started }
     } finally {
-      await admin.disconnect().catch(() => undefined)
+      await admin?.disconnect().catch(() => undefined)
     }
   },
 
   async open(config, password, ctx) {
     if (!config.bootstrapServers) throw new Error('bootstrapServers 必填')
-    const kafka = buildClient(config, password)
+    ctx.signal.throwIfAborted()
+    const kafka = await buildClient(config, password)
+    ctx.signal.throwIfAborted()
     const admin = kafka.admin()
-    await admin.connect()
+    try { await admin.connect(); ctx.signal.throwIfAborted() }
+    catch (error) { await admin.disconnect().catch(() => undefined); throw error }
+    const producer = createLazyResource(async () => {
+      ctx.signal.throwIfAborted()
+      const instance = kafka.producer()
+      try { await instance.connect(); return instance }
+      catch (error) { await instance.disconnect().catch(() => undefined); throw error }
+    }, instance => instance.disconnect())
+    const runtime: KafkaRuntime = { kafka, admin, producer, liveConsumers: new Set() }
     const handle: MwDriverHandle = {
       kind: 'kafka', raw: null, config, readOnly: false, password,
       capabilities: { ...CAPS }, messageQueryModes: ['offset', 'time', 'key'],
-      runtime: { kafka, admin, liveConsumers: new Set() } satisfies KafkaRuntime
+      runtime: runtime as unknown as Record<string, unknown>
     }
     handle.raw = handle.runtime
-    ctx.signal.addEventListener('abort', () => { if (!handle.closed) void closeQuiet(handle) }, { once: true })
+    const aborted = () => { void closeQuiet(handle) }
+    runtime.detachAbort = () => ctx.signal.removeEventListener('abort', aborted)
+    ctx.signal.addEventListener('abort', aborted, { once: true })
     return handle
   },
 
   async close(h) {
-    if (h.closed) return
-    h.closed = true
     await closeQuiet(h)
   },
 
@@ -301,6 +316,8 @@ export const kafkaDriver: MwDriver = {
   async topicUpdate(h, name, attrs) {
     const rt = runtimeOf(h)
     if (attrs.configs && Object.keys(attrs.configs).length) {
+      const { ConfigResourceTypes } = await kafkaModule.get()
+      if (h.closed) throw new Error('Kafka connection is closing')
       await rt.admin.alterConfigs({
         validateOnly: false,
         resources: [{
@@ -428,11 +445,10 @@ export const kafkaDriver: MwDriver = {
 
   async messageSend(h, input: MwMessageSendInput) {
     const rt = runtimeOf(h)
-    rt.producer ??= rt.kafka.producer()
-    if (!rt.producer) throw new Error('producer init failed')
-    await rt.producer.connect()
+    const producer = await rt.producer.get()
+    if (h.closed) throw new Error('Kafka connection is closing')
     const body = input.payloadEncoding === 'base64' ? Buffer.from(input.payload, 'base64') : input.payload
-    await rt.producer.send({
+    await producer.send({
       topic: input.topic,
       messages: [{
         key: input.key ?? input.routingKey,
@@ -457,6 +473,8 @@ export const kafkaDriver: MwDriver = {
 
   async configsDescribe(h, input) {
     const rt = runtimeOf(h)
+    const { ConfigResourceTypes } = await kafkaModule.get()
+    if (h.closed) throw new Error('Kafka connection is closing')
     const result = await rt.admin.describeConfigs({ resources: [{ type: ConfigResourceTypes.TOPIC, name: input.topic }], includeSynonyms: false })
     const entries = result.resources[0]?.configEntries ?? []
     return entries.map(e => ({ name: e.configName, value: e.configValue ?? '' }))
@@ -464,6 +482,8 @@ export const kafkaDriver: MwDriver = {
 
   async configsAlter(h, input) {
     const rt = runtimeOf(h)
+    const { ConfigResourceTypes } = await kafkaModule.get()
+    if (h.closed) throw new Error('Kafka connection is closing')
     await rt.admin.alterConfigs({
       validateOnly: false,
       resources: [{
@@ -502,12 +522,16 @@ export const kafkaDriver: MwDriver = {
   }
 }
 
-async function closeQuiet(h: MwDriverHandle): Promise<void> {
+function closeQuiet(h: MwDriverHandle): Promise<void> {
   const rt = h.runtime as KafkaRuntime | undefined
-  if (!rt) return
-  await Promise.allSettled([
-    rt.producer?.disconnect(),
+  h.closed = true
+  if (!rt) return Promise.resolve()
+  if (rt.closing) return rt.closing
+  rt.detachAbort?.()
+  rt.closing = Promise.allSettled([
+    rt.producer.close(),
     ...[...rt.liveConsumers].map(c => c.disconnect()),
     rt.admin.disconnect()
-  ])
+  ]).then(() => undefined)
+  return rt.closing
 }

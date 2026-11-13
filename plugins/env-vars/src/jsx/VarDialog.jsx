@@ -1,11 +1,11 @@
-/** 变量编辑/新增 Dialog：名称（编辑时只读）+ 值 textarea + mac 受管目标提示。 */
+/** 变量编辑/新增 Dialog：名称（编辑时只读）+ 值 textarea + mac/linux 受管目标提示。 */
 import { useEffect, useState } from 'react'
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input } from '../ui/index.jsx'
 
-const MAC_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
+const POSIX_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 const WIN_NAME_RE = /^[A-Za-z_][A-Za-z0-9_() .-]*$/
 
-export function VarDialog({ dialog, isMac, targetPath, existing, onClose, onSave }) {
+export function VarDialog({ dialog, isMac, isLinux, targetPath, existing, onClose, onSave }) {
   const open = dialog?.kind === 'edit' || dialog?.kind === 'create'
   const editing = dialog?.kind === 'edit'
   const [name, setName] = useState('')
@@ -25,9 +25,10 @@ export function VarDialog({ dialog, isMac, targetPath, existing, onClose, onSave
   const submit = async () => {
     const trimmed = name.trim()
     if (!trimmed) { setError('变量名不能为空'); return }
-    const pattern = isMac ? MAC_NAME_RE : WIN_NAME_RE
+    const posix = isMac || isLinux
+    const pattern = posix ? POSIX_NAME_RE : WIN_NAME_RE
     if (!pattern.test(trimmed)) {
-      setError(isMac ? '变量名仅允许字母、数字、下划线，且以字母或下划线开头' : '变量名仅允许字母、数字、下划线、括号、点、空格、连字符')
+      setError(posix ? '变量名仅允许字母、数字、下划线，且以字母或下划线开头' : '变量名仅允许字母、数字、下划线、括号、点、空格、连字符')
       return
     }
     if (!editing && existing.includes(trimmed)) {
@@ -46,7 +47,7 @@ export function VarDialog({ dialog, isMac, targetPath, existing, onClose, onSave
         <DialogTitle>{editing ? '编辑变量' : '新增变量'}</DialogTitle>
         <DialogDescription id="var-dialog-desc">
           {editing ? `修改 ${dialog.item.name} 的值` : '新建一个环境变量'}
-          {isMac && `，写入 ${targetPath} 的 eNest 受管块`}
+          {(isMac || isLinux) && `，写入 ${targetPath} 的 eNest 受管块`}
         </DialogDescription>
         <div className="form-grid">
           <label className="field">
@@ -68,7 +69,7 @@ export function VarDialog({ dialog, isMac, targetPath, existing, onClose, onSave
             />
           </label>
           {error && <p className="field-error" role="alert">{error}</p>}
-          {isMac && <p className="field-note">写入前自动备份目标文件；块外已有同名定义会与新值叠加，以最终加载顺序为准。</p>}
+          {(isMac || isLinux) && <p className="field-note">写入前自动备份目标文件；块外已有同名定义会与新值叠加，以最终加载顺序为准。</p>}
         </div>
         <div className="dialog-actions">
           <Button onClick={onClose}>取消</Button>

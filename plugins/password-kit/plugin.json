@@ -61,54 +61,6 @@
     "background": "opaque",
     "preferredColorScheme": "auto"
   },
-  "contributes": {
-    "settings": [
-      {
-        "id": "password-kit.preferences",
-        "title": "密码工具箱",
-        "items": [
-          {
-            "key": "defaultLength",
-            "type": "number",
-            "label": "默认密码长度",
-            "default": 16
-          },
-          {
-            "key": "avoidAmbiguous",
-            "type": "switch",
-            "label": "排除易混淆字符",
-            "default": false
-          },
-          {
-            "key": "maskResults",
-            "type": "switch",
-            "label": "默认遮罩密码",
-            "default": true
-          },
-          {
-            "key": "uuidUppercase",
-            "type": "switch",
-            "label": "UUID 大写字母",
-            "default": false,
-            "shareWithThemes": true
-          },
-          {
-            "key": "uuidHyphens",
-            "type": "switch",
-            "label": "UUID 保留连字符",
-            "default": true,
-            "shareWithThemes": true
-          },
-          {
-            "key": "keepHistory",
-            "type": "switch",
-            "label": "保留生成历史（仅本地存储）",
-            "default": true
-          }
-        ]
-      }
-    ]
-  },
   "development": {
     "main": "http://127.0.0.1:5193/"
   }

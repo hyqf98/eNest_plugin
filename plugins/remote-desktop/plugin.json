@@ -21,50 +21,6 @@
     "notify",
     "backend.node"
   ],
-  "contributes": {
-    "settings": [
-      {
-        "id": "rdp.prefs",
-        "title": "远程桌面",
-        "items": [
-          {
-            "key": "followShellTheme",
-            "type": "switch",
-            "label": "跟随壳子主题",
-            "default": true,
-            "shareWithThemes": true
-          },
-          {
-            "key": "viewOnly",
-            "type": "switch",
-            "label": "默认只读（禁止远端键鼠）",
-            "default": false
-          },
-          {
-            "key": "quality",
-            "type": "select",
-            "label": "画质档位",
-            "options": [
-              {
-                "value": "auto",
-                "label": "自动"
-              },
-              {
-                "value": "smooth",
-                "label": "流畅"
-              },
-              {
-                "value": "sharp",
-                "label": "清晰"
-              }
-            ],
-            "default": "auto",
-            "shareWithThemes": true
-          }
-        ]
-      }
-    ]
-  },
   "window": {
     "minWidth": 560,
     "minHeight": 360

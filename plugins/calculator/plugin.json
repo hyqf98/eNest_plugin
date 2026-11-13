@@ -58,46 +58,6 @@
       "assets/market/screenshots/01-main.png"
     ]
   },
-  "contributes": {
-    "settings": [
-      {
-        "id": "calculator.preferences",
-        "title": "计算器",
-        "items": [
-          {
-            "key": "precision",
-            "type": "number",
-            "label": "显示有效数字",
-            "default": 12,
-            "shareWithThemes": true
-          },
-          {
-            "key": "historyLimit",
-            "type": "number",
-            "label": "保留未收藏记录数",
-            "default": 100
-          },
-          {
-            "key": "angleUnit",
-            "type": "select",
-            "label": "默认角度单位",
-            "default": "rad",
-            "options": [
-              {
-                "label": "弧度 RAD",
-                "value": "rad"
-              },
-              {
-                "label": "角度 DEG",
-                "value": "deg"
-              }
-            ],
-            "shareWithThemes": true
-          }
-        ]
-      }
-    ]
-  },
   "development": {
     "main": "http://127.0.0.1:5175/"
   }

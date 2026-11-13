@@ -43,42 +43,6 @@
         "explain": "添加、勾选、置顶待办，自动保存",
         "openCode": "main"
       }
-    ],
-    "settings": [
-      {
-        "id": "todos.preferences",
-        "title": "待办清单",
-        "items": [
-          {
-            "key": "defaultView",
-            "type": "select",
-            "label": "默认视图",
-            "default": "all",
-            "options": [
-              {
-                "label": "全部待办",
-                "value": "all"
-              },
-              {
-                "label": "今天",
-                "value": "today"
-              },
-              {
-                "label": "重要",
-                "value": "important"
-              }
-            ],
-            "shareWithThemes": true
-          },
-          {
-            "key": "showCompleted",
-            "type": "switch",
-            "label": "全部视图显示已完成任务",
-            "default": false,
-            "shareWithThemes": true
-          }
-        ]
-      }
     ]
   },
   "ui": {

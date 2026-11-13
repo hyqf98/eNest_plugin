@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
 import { PanelView } from './PanelView.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import {
   formatKb, formatPct, isSystemProc, searchProc, searchPort,
   makeSampler, SampleRing, drawSparkline, shortName,
@@ -59,6 +60,8 @@ export function App() {
   const [quickQuery, setQuickQuery] = useState('')
   const [quickList, setQuickList] = useState({ kind: 'rows', rows: [] }) // 渲染快照
   const [dashVersion, setDashVersion] = useState(0)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ intervalMs: 1500, cpuWarn: 70, cpuDanger: 90, memWarn: 70, memDanger: 90 })
 
   const setStatus = useCallback((text) => setFoot(text), [])
 
@@ -505,11 +508,13 @@ export function App() {
       title: '进程与端口',
       quickPlaceholder: '端口号查占用 / 进程名搜索',
       height: 460,
+      prefs: true,
       defaults: { intervalMs: 1500, cpuWarn: 70, cpuDanger: 90, memWarn: 70, memDanger: 90 },
     })
     kitRef.current = kit
     modeRef.current = kit.mode
     setModeState(kit.mode)
+    disposers.push(kit.onSettings((next) => setSettings({ ...next })))
 
     document.addEventListener('visibilitychange', onVis)
     const disposers = []
@@ -534,6 +539,7 @@ export function App() {
       }
       await kit.ready
       if (!alive) return
+      setSettings({ ...kit.settings })
       const hostInterval = Number(kit.settings.intervalMs)
       if (INTERVALS.includes(hostInterval)) st.intervalMs = hostInterval
       setHideSys(st.hideSys)
@@ -683,18 +689,21 @@ export function App() {
     updateProcTable()
   }
 
-  const onInterval = async (e) => {
-    const value = Number(e.target.value)
-    if (!INTERVALS.includes(value)) return
-    st.intervalMs = value
-    setIntervalMs(value)
-    const capacity = Math.min(240, Math.max(16, Math.round(60000 / value)))
+  /** 应用采样间隔：环形容量调整 + 持久化 + 采样器按新间隔重启（频率下拉与设置弹窗共用） */
+  const applyInterval = async (value) => {
+    if (!INTERVALS.includes(Number(value))) return false
+    const ms = Number(value)
+    st.intervalMs = ms
+    setIntervalMs(ms)
+    const capacity = Math.min(240, Math.max(16, Math.round(60000 / ms)))
     st.cpuRing.setCapacity(capacity)
     st.memRing.setCapacity(capacity)
     await persist()
     restartSampler()
-    setStatus(`刷新频率：每 ${value / 1000} 秒`)
+    setStatus(`刷新频率：每 ${ms / 1000} 秒`)
+    return true
   }
+  const onInterval = (e) => { void applyInterval(e.target.value) }
 
   let quickDeb = 0
   const onQuickInput = (e) => {
@@ -805,6 +814,7 @@ export function App() {
               },
             ]}
           />
+          <SettingsGear onClick={() => setSettingsOpen(true)} />
         </header>
         <div className="sg-body" id="tab-body">
           {mode === 'shell' && st.error ? (
@@ -909,6 +919,18 @@ export function App() {
         <span id="foot">{foot}</span>
         <span className="sg-foot-hint">宿主 1s 采样缓存 · 结束进程需二次确认</span>
       </footer>
+
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+          if (key === 'intervalMs') void applyInterval(value)
+          else setDashVersion((v) => v + 1) // 阈值变化 → 概览卡片/榜单重绘
+        }}
+      />
 
       <dialog id="dlg" ref={dlgHostRef}></dialog>
     </main>

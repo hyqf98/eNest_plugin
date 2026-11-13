@@ -1,6 +1,6 @@
-/** 备份管理 Dialog：列出 ~/.zsh* 的 eNest 自动备份，支持恢复（含确认）。 */
+/** 备份管理 Dialog：列出 ~/.zsh* 或 ~/.profile 的 eNest 自动备份，支持恢复（含确认）。 */
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/index.jsx'
-import { formatSize, formatWhen } from '../js/format.js'
+import { formatSize, formatWhen, tildePath } from '../js/format.js'
 
 export function BackupsDialog({ open, backups, onRefresh, onRestore, onClose }) {
   if (!open) return null
@@ -13,7 +13,7 @@ export function BackupsDialog({ open, backups, onRefresh, onRestore, onClose }) 
           {!backups.length && <div className="empty">暂无备份</div>}
           {backups.map((item) => (
             <div className="backup-row" key={item.file}>
-              <span className="backup-name mono" title={item.file}>{item.file.replace(/^\/Users\/[^/]+/, '~')}</span>
+              <span className="backup-name mono" title={item.file}>{tildePath(item.file)}</span>
               <span className="backup-meta">{formatSize(item.size)} · {formatWhen(item.createdAt)}</span>
               <Button variant="ghost" size="sm" onClick={() => onRestore(item.file)}>恢复</Button>
             </div>

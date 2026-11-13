@@ -427,7 +427,8 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
+  /* 右侧让出悬浮主钮宽度，保存按钮不会被圆钮压住。 */
+  padding: 8px 68px 8px 14px;
   color: var(--muted);
   font-size: 11px;
   border-top: 1px solid var(--line);

@@ -17,6 +17,9 @@ import { createSketchPaper, doodle, tape } from '../shared/sketchPrimitives.js'
 const CATEGORY_ORDER = ['效率', '开发', '设计', '媒体', '其它']
 const CATEGORY_INK = ['var(--ink-1)', 'var(--ink-2)', 'var(--ink-3)', 'var(--ink-4)', 'var(--ink-5)', 'var(--ink-6)']
 
+// 本页 dev 源码态由宿主直接从磁盘读取（零构建），不能用裸包名 import，快捷键符号就地判定平台
+const mac = /Mac/.test(navigator.platform)
+
 const inkFor = category => {
   const index = CATEGORY_ORDER.indexOf(category)
   return CATEGORY_INK[(index < 0 ? 3 : index) % CATEGORY_INK.length]
@@ -190,7 +193,7 @@ export function createMarketView(controller) {
     role: 'combobox', 'aria-autocomplete': 'list', 'aria-controls': 'sk-quick-results', 'aria-expanded': 'false',
   })
   const searchClear = h('button', { type: 'button', class: 'sk-search-clear', 'aria-label': '清除搜索', hidden: true }, icon('close', 14))
-  const searchHint = h('kbd', null, '⌘F')
+  const searchHint = h('kbd', null, `${mac ? '⌘' : 'Ctrl'}F`)
   const searchResults = h('div', { id: 'sk-quick-results', class: 'sk-results', role: 'listbox', 'aria-label': '搜索结果', hidden: true })
   const searchWrap = h('div', { class: 'sk-search' }, icon('search', 17), searchInput, searchClear, searchHint, searchResults)
   page.append(headerSlot, searchWrap, contentSlot)

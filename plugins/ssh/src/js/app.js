@@ -266,7 +266,7 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
         fab.title = label
         fab.setAttribute('aria-label', label)
       }
-      fab.textContent = '⌘'
+      fab.textContent = /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl'
       fab.dataset.mode = 'term'
     } else {
       const label = '新建连接'
@@ -992,41 +992,30 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
   }
 
   async function registerPluginSettings() {
-    await api.settingsRegister({
-      id: 'ssh.prefs',
-      title: 'SSH',
-      items: [
-        {
-          key: 'followShellTheme',
-          type: 'switch',
-          shareWithThemes: true,
-          label: '跟随壳子主题',
-          default: true,
-        },
-        { key: 'workbenchSettings', type: 'page', label: 'SSH 详细设置与快捷键', entry: { code: 'settings' } },
-      ],
-    })
-    const follow = await api.settingsGet('followShellTheme', true)
-    followShellTheme = follow !== false && follow !== 'false' && follow !== 0
+    // 插件内自存（storage KV），不再注册壳设置页；旧值来自宿主 settings 的单向迁移
+    let stored = null
+    try { stored = await api.storageGet('ssh.prefs.v1', null) } catch { stored = null }
+    if (!stored || typeof stored !== 'object') {
+      const legacy = await api.settingsGet('followShellTheme', undefined)
+      stored = { followShellTheme: legacy === undefined || legacy === null ? true : (legacy !== false && legacy !== 'false' && legacy !== 0) }
+      try { await api.storageSet('ssh.prefs.v1', stored) } catch { /* 下次启动重试 */ }
+    }
+    followShellTheme = stored.followShellTheme !== false
     return followShellTheme
+  }
+
+  async function persistFollowShellTheme(next) {
+    followShellTheme = next !== false
+    let prefs = null
+    try { prefs = await api.storageGet('ssh.prefs.v1', null) } catch { prefs = null }
+    try { await api.storageSet('ssh.prefs.v1', { ...(prefs && typeof prefs === 'object' ? prefs : {}), followShellTheme }) } catch { /* ignore */ }
+    await api.initTheme(onTheme, { followShellTheme })
+    onTheme()
   }
 
   async function initPluginTheme() {
     const follow = await registerPluginSettings()
     await api.initTheme(onTheme, { followShellTheme: follow })
-    try {
-      api.raw?.onEnter?.(async () => {
-        const next = await api.settingsGet('followShellTheme', true)
-        const val = next !== false && next !== 'false' && next !== 0
-        if (val !== followShellTheme) {
-          followShellTheme = val
-          await api.initTheme(onTheme, { followShellTheme: val })
-          onTheme()
-        }
-      })
-    } catch {
-      /* optional */
-    }
   }
 
   /* ========== sessions ========== */
@@ -3896,7 +3885,7 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
       }
       await actions.connectProfileById(id)
     })
-    window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, runHint, navigateHistory: (direction, target) => { getCompletion().hide(); return commandActions.history(direction, target) }, completionVisible: () => getCompletion().isOpen(), completionMove: delta => getCompletion().move(delta), completionAccept: () => getCompletion().accept(), openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, showMoreMenu: (el) => showMenuFromEl(el, sideMoreItems()), toggleDrawer, openCollection, setDrawerOpen, setSidebarCollapsed, api, store }
+        window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, runHint, navigateHistory: (direction, target) => { getCompletion().hide(); return commandActions.history(direction, target) }, completionVisible: () => getCompletion().isOpen(), completionMove: delta => getCompletion().move(delta), completionAccept: () => getCompletion().accept(), openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, showMoreMenu: (el) => showMenuFromEl(el, sideMoreItems()), toggleDrawer, openCollection, setDrawerOpen, setSidebarCollapsed, api, store, get followShellTheme() { return followShellTheme }, setFollowShellThemePref: (next) => persistFollowShellTheme(next) }
     window.dispatchEvent(new Event('ssh-workbench-ready'))
     setInterval(renderTopStatus, 30000)
   }

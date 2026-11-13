@@ -107,7 +107,7 @@ function CockpitView({ state, onGoSettings, onGoShell, onNewSession, onPickSessi
         <div className="composer-row">
           <textarea
             id="composer-input" ref={inputRef} aria-label="快速对话内容"
-            placeholder="快速对话，Enter 发送，Shift+Enter 换行" rows={1}
+            placeholder="快速对话" rows={1}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault()
@@ -214,7 +214,7 @@ export function App() {
   useEffect(() => {
     const kit = window.PluginKit.create({
       title: 'DSH 驾驶舱',
-      quickPlaceholder: '快速对话，Enter 发送',
+      quickPlaceholder: '快速对话',
       height: 560,
       onQuery: (value) => {
         const input = document.getElementById('composer-input')

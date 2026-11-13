@@ -58,39 +58,6 @@
     "background": "transparent",
     "preferredColorScheme": "auto"
   },
-  "contributes": {
-    "settings": [
-      {
-        "id": "anything.preferences",
-        "title": "Anything 文件搜索",
-        "items": [
-          {
-            "key": "resultLimit",
-            "type": "number",
-            "label": "单次结果上限（条）",
-            "default": 100,
-            "min": 20,
-            "max": 500,
-            "shareWithThemes": true
-          },
-          {
-            "key": "everythingPort",
-            "type": "number",
-            "label": "Everything HTTP 端口（Windows，0 为不启用）",
-            "default": 0,
-            "min": 0,
-            "max": 65535
-          },
-          {
-            "key": "everythingAuth",
-            "type": "text",
-            "label": "Everything HTTP 认证（用户名:密码，可空）",
-            "default": ""
-          }
-        ]
-      }
-    ]
-  },
   "market": {
     "tags": [
       "文件搜索",
@@ -104,7 +71,7 @@
     ]
   },
   "development": {
-    "main": "http://127.0.0.1:5173/"
+    "main": "http://127.0.0.1:5216/"
   },
   "backend": {
     "entry": "backend/index.cjs"

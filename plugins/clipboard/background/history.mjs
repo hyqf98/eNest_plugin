@@ -1,4 +1,5 @@
 const DOCUMENT = 'clipboard.history.v2'
+const PREFERENCES_DOCUMENT = 'clipboard.preferences.v1'
 const LEGACY_SOURCE = 'clipboard-history-v1'
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
@@ -49,6 +50,7 @@ function validateEntry(value) {
 export function createClipboardHistory(host, { now = Date.now, uuid = () => crypto.randomUUID() } = {}) {
   let entries = [], migration = null, loaded = false, disposed = false, loading = null, tail = Promise.resolve()
   let newestRevision = -1
+  let currentPreferences = preferences()
   const assertCurrent = () => { if (disposed) throw new Error('Clipboard background is closed') }
   const serial = task => {
     const result = tail.catch(() => {}).then(async () => { assertCurrent(); return task() })
@@ -66,10 +68,26 @@ export function createClipboardHistory(host, { now = Date.now, uuid = () => cryp
     migration = nextMigration
   }
 
+  /* Plugin-owned preferences live in a private document; the shell settings page no longer stores them.
+     Legacy host settings (written while contributes.settings still existed) migrate once on first load. */
+  async function loadPreferences() {
+    const stored = await host.private.readDocument(PREFERENCES_DOCUMENT)
+    if (stored !== null && stored !== undefined) return preferences(stored)
+    const legacy = preferences(await host.settings.get())
+    await host.private.writeDocument(PREFERENCES_DOCUMENT, legacy)
+    return legacy
+  }
+
+  async function writePreferences(next) {
+    await host.private.writeDocument(PREFERENCES_DOCUMENT, next)
+    currentPreferences = next
+  }
+
   async function load() {
     assertCurrent()
     if (loaded) return
     if (!loading) loading = (async () => {
+      currentPreferences = await loadPreferences()
       const stored = await host.private.readDocument(DOCUMENT)
       assertCurrent()
       if (stored !== null && stored !== undefined) {
@@ -146,7 +164,7 @@ export function createClipboardHistory(host, { now = Date.now, uuid = () => cryp
   async function capture(snapshot) {
     await load()
     if (!snapshot || !Number.isSafeInteger(snapshot.revision) || snapshot.revision <= newestRevision) return false
-    const settings = preferences(await host.settings.get())
+    const settings = currentPreferences
     assertCurrent()
     if (!settings.monitoring) { newestRevision = snapshot.revision; return false }
     const source = snapshot.sourceApp
@@ -231,7 +249,13 @@ export function createClipboardHistory(host, { now = Date.now, uuid = () => cryp
       return publicEntry(updated)
     }
     if (method === 'history.preferencesChanged') {
-      await commit(trim(entries, preferences(await host.settings.get())))
+      await commit(trim(entries, currentPreferences))
+      return true
+    }
+    if (method === 'history.setPreferences') {
+      const next = preferences(args[0])
+      await writePreferences(next)
+      await commit(trim(entries, next))
       return true
     }
     throw new Error('Unknown clipboard background operation')

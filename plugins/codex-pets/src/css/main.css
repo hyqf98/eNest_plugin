@@ -214,20 +214,8 @@ html, body {
   from { background-position: var(--sprite-x, 0px) var(--sprite-y, 0px); }
   to { background-position: var(--sprite-end-x, -1536px) var(--sprite-y, 0px); }
 }
-/* 缩放容器：卡片 / 光标宠物显示半尺寸 */
+/* 缩放容器：卡片动画显示半尺寸 */
 .cp-card-sprite .sprite { transform: scale(0.5); }
-
-/* ---------- 光标跟随宠物 ---------- */
-.cp-cursor-pet {
-  position: fixed; left: 0; top: 0; z-index: 9999;
-  width: 96px; height: 104px; overflow: hidden;
-  display: grid; place-items: center;
-  pointer-events: none; opacity: 0;
-  transition: opacity 0.15s ease;
-  filter: drop-shadow(0 6px 10px color-mix(in srgb, light-dark(var(--text), var(--bg)) 40%, transparent));
-}
-.cp-cursor-pet.is-visible { opacity: 1; }
-.cp-cursor-pet .sprite { transform: scale(0.5); }
 
 /* ---------- 分页 ---------- */
 .cp-pager {
@@ -374,7 +362,6 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .cp-card, .cp-btn { transition: none; }
   .cp-card.is-hover, .cp-btn:active:not(:disabled) { transform: none; }
-  .cp-cursor-pet { transition: none; }
 }
 
 /* React 挂载根：全高布局 */

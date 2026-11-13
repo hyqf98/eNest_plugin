@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '../ui/index.jsx'
 import { parseTime, timeRows, formatZoned, formatTemplates, durationText, zoneOffsetText } from '../js/core.mjs'
 import { PanelView } from './PanelView.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const api = window.enest || window.zapi
 const WORLD_KEY = 'timestamp.worldZones.v1'
@@ -41,6 +42,8 @@ export function App() {
   const [dateAddStart, setDateAddStart] = useState('')
   const [dateOffset, setDateOffset] = useState('+1d')
   const [addResult, setAddResult] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, defaultUnit: 'auto', batchFormat: 'date' })
 
   const nowRef = useRef(Date.now())
   const pausedRef = useRef(paused)
@@ -219,6 +222,7 @@ export function App() {
       title: '时间戳',
       quickPlaceholder: '时间戳、日期或 +30m',
       height: 480,
+      prefs: true,
       defaults: {
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         defaultUnit: 'auto',
@@ -245,6 +249,7 @@ export function App() {
     void (async () => {
       await kit.ready
       if (!alive) return
+      setSettings({ ...kit.settings })
       let tz = kit.settings.timeZone || 'UTC'
       try {
         formatZoned(nowRef.current, tz)
@@ -263,9 +268,11 @@ export function App() {
       if (Array.isArray(saved)) recentsRef.current = saved.filter((r) => r && r.expr).slice(0, 20)
       setDateStart(formatZoned(nowRef.current, tz))
       setDateEnd(formatZoned(nowRef.current + 86400000, tz))
-      kit.onSettings((settings) => {
-        setZone(settings.timeZone || 'UTC')
-        setUnit(settings.defaultUnit || 'auto')
+      kit.onSettings((next) => {
+        setSettings({ ...next })
+        setZone(next.timeZone || 'UTC')
+        setUnit(next.defaultUnit || 'auto')
+        setBatchFormat(next.batchFormat || 'date')
       })
     })()
     api?.onOut?.(() => {
@@ -338,6 +345,7 @@ export function App() {
           <button type="button" data-tab="date" role="tab" aria-selected={tab === 'date'} onClick={() => setTab('date')}>日期计算</button>
         </nav>
         <Button id="pause" variant="ghost" size="sm" pressed={paused} onClick={pauseToggle}>{paused ? '继续' : '暂停'}</Button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
       </header>
       <div className="workspace">
         <aside className="clock-panel">
@@ -587,9 +595,21 @@ export function App() {
         </section>
       </div>
       <footer>
-        <span>点击结果行复制 · ↑ ↓ 选择 · Enter 复制</span>
+        <span>点击结果行复制 · ↑ ↓ 选择</span>
         <span className="mono" id="footer-clock">{footerClock}</span>
       </footer>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+          if (key === 'timeZone') setZone(value || 'UTC')
+          if (key === 'defaultUnit') setUnit(value || 'auto')
+          if (key === 'batchFormat') setBatchFormat(value || 'date')
+        }}
+      />
     </main>
   )
 }

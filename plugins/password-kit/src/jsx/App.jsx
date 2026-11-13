@@ -17,6 +17,7 @@ import {
   crackTimeEstimate,
   strengthIssues,
 } from '../js/core.mjs'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const api = window.enest || window.zapi
 const HISTORY_KEY = 'password_kit.history.v1'
@@ -38,6 +39,7 @@ export function App() {
   const historyEnabledRef = useRef(true)
 
   const [kind, setKind] = useState('password')
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [values, setValues] = useState([])
   const [history, setHistory] = useState([])
   const [masked, setMasked] = useState(true)
@@ -216,6 +218,7 @@ export function App() {
       title: '密码工具箱',
       quickPlaceholder: '输入长度、uuid 或 strength',
       height: 540,
+      prefs: true,
       defaults: {
         defaultLength: 16,
         avoidAmbiguous: false,
@@ -311,6 +314,7 @@ export function App() {
         <span className="grow"></span>
         <button id="mask" className="pk-btn ghost shell-only" aria-pressed={masked} hidden={kind === 'inspect'}
           onClick={() => setMasked((m) => !m)}>{masked ? '显示内容' : '隐藏内容'}</button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
       </header>
 
       <div className="layout">
@@ -469,8 +473,32 @@ export function App() {
 
       <footer>
         <span id="privacy">{KIND_META[kind].privacy}</span>
-        <span className="shell-only">Enter 生成 · 按住条目可临时显示 · 点击复制</span>
+        <span className="shell-only">按住条目可临时显示 · 点击复制</span>
       </footer>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={{
+          defaultLength: length,
+          avoidAmbiguous: ambiguous,
+          maskResults: masked,
+          uuidUppercase: uppercase,
+          uuidHyphens: hyphens,
+          keepHistory: historyEnabledRef.current,
+        }}
+        onChange={(key, value) => {
+          kitRef.current?.setPref(key, value)
+          if (key === 'defaultLength') setLengthClamped(value)
+          else if (key === 'avoidAmbiguous') setAmbiguous(Boolean(value))
+          else if (key === 'maskResults') setMasked(value !== false)
+          else if (key === 'uuidUppercase') setUppercase(Boolean(value))
+          else if (key === 'uuidHyphens') setHyphens(value !== false)
+          else if (key === 'keepHistory') {
+            historyEnabledRef.current = value !== false
+            if (!historyEnabledRef.current) clearHistory()
+          }
+        }}
+      />
     </main>
   )
 }

@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
 import { PanelView } from './PanelView.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const KEY = 'todos_v2'
 const LABELS = { all: '全部', today: '今天', important: '重要', done: '已完成', archived: '归档' }
@@ -59,6 +60,7 @@ export function App() {
   const [dayStats, setDayStats] = useState({ doneToday: 0, totalToday: 0 })
   const [listFormOpen, setListFormOpen] = useState(false)
   const [settings, setSettings] = useState({ showCompleted: false, defaultView: 'all' })
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [mode, setMode] = useState(() => api?.getLaunchMode?.() || 'shell')
   const [detailOpen, setDetailOpen] = useState(false)
   const [draft, setDraft] = useState(null) // 详情编辑草稿 { text, due, priority, list, tags, note }
@@ -479,8 +481,9 @@ export function App() {
   useEffect(() => {
     const kit = PluginKit.create({
       title: '待办清单',
-      quickPlaceholder: '搜索待办，回车完成选中任务',
+      quickPlaceholder: '搜索待办',
       height: 480,
+      prefs: true,
       defaults: { defaultView: 'all', showCompleted: false },
       onQuery: (value) => {
         setQuery(value)
@@ -714,13 +717,13 @@ export function App() {
         />
         <MoreMenu
           label="更多"
-          ariaLabel="导出与设置"
+          ariaLabel="导出"
           buttonClassName="header-more"
           items={[
             { key: 'export', label: '导出任务…', onSelect: exportTasks },
-            { key: 'settings', label: '设置…', onSelect: () => api?.ui?.openSettings?.() },
           ]}
         />
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
       </header>
       <div className={`workspace${navCollapsed ? ' sidebar-collapsed' : ''}`} data-nav-compact={compactNav ? 'true' : 'false'}>
         <nav className="list-navigation" id="todo-navigation" ref={navRef} aria-label="清单导航">
@@ -1012,6 +1015,15 @@ export function App() {
           )}
         </aside>
       </div>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+        }}
+      />
     </>
   )
 }

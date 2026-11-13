@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import {
   toast as AToast, notify as ANotify, errMsg as AErrMsg,
   agentApps, agentRead, agentBackups, agentRestore,
@@ -14,7 +15,6 @@ import {
   saveTextFile, copyText,
   registerQuickProvider, onQuickQuery, respondQuickQuery,
   getThemeTokens, onThemeChange, onEnter, getLaunchMode, onModeChange, onHotkey,
-  settingsGet, settingsSet,
 } from '../js/api.js'
 import {
   APPS, APP_MAP, tagsOf, loadProviders, sorted as sortedProviders,
@@ -35,6 +35,8 @@ import { aggregate as aggregateUsage, drawDaily, drawHeatmap, fmtTokens, testEnd
 import { PRESETS, instantiate } from '../js/presets.js'
 
 const PROJECTS_KEY = 'ccswitch.projects.v1'
+const PREFS_KEY = 'ccswitch.prefs.v1'
+const PREFS_DEFAULTS = { defaultApp: 'claude-code', diffConfirm: true, backupKeep: '插件后端自动快照，每应用保留最近 20 份' }
 const NAV_ITEMS = [
   ['history', '◷', '切换历史'],
   ['mcp', '⌗', 'MCP'],
@@ -42,7 +44,6 @@ const NAV_ITEMS = [
   ['usage', '▤', '用量'],
   ['backups', '⏱', '备份'],
   ['projects', '❖', '项目预设'],
-  ['settings', '⚙', '设置'],
 ]
 
 function host(hostname) {
@@ -92,6 +93,7 @@ const tagFilters = new Map() // app → tag
 export function App() {
   const [, forceRender] = useState(0)
   const rerender = useCallback(() => forceRender((t) => t + 1), [])
+  const kitRef = useRef(null)
 
   // 渲染状态（原命令式 DOM 写回的等价镜像）
   const [appsReady, setAppsReady] = useState(false)
@@ -111,7 +113,8 @@ export function App() {
   const [usageView, setUsageView] = useState({ loading: false, sub: 'token / 请求 / 按日趋势 / 热力图', data: null, error: null })
   const [backupsView, setBackupsView] = useState({ rows: null, sub: '切换前自动备份，保留最近 20 份' })
   const [projectsRows, setProjectsRows] = useState(null)
-  const [settingsView, setSettingsView] = useState(null)
+  const [settings, setSettings] = useState({ ...PREFS_DEFAULTS })
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [toasts, setToasts] = useState([])
   // 抽屉/弹层
   const [drawer, setDrawer] = useState({ open: false, title: '新建供应商' })
@@ -360,7 +363,7 @@ export function App() {
         diffs.push({ app: target, provider: p, diff })
       }
       if (diffs.length === 0) return
-      const diffConfirmOn = await settingsGet('diffConfirm', true)
+      const diffConfirmOn = kitRef.current?.settings?.diffConfirm
       if (!skipConfirm && diffConfirmOn !== false) {
         showDiffModal(diffs, beforeStates)
         return
@@ -868,16 +871,20 @@ export function App() {
     }
   }, [])
 
-  // 图表绘制（canvas 原样复用 usage.js）
+  // 图表绘制（canvas 复用 usage.js；hidden 页 clientWidth=0，用 ResizeObserver 兜可见重绘）
   useEffect(() => {
     if (page !== 'usage' || !usageView.data) return
-    const raf = requestAnimationFrame(() => {
+    const draw = () => {
       const c1 = document.getElementById('chart-daily')
       const c2 = document.getElementById('chart-heat')
       if (c1) drawDaily(c1, usageView.data.days)
       if (c2) drawHeatmap(c2, usageView.data.days)
-    })
-    return () => cancelAnimationFrame(raf)
+    }
+    const raf = requestAnimationFrame(draw)
+    const c1 = document.getElementById('chart-daily')
+    const ro = c1 ? new ResizeObserver(draw) : null
+    if (c1 && ro) ro.observe(c1)
+    return () => { cancelAnimationFrame(raf); ro?.disconnect() }
   }, [page, usageView.data])
 
   /* ================ 备份页 ================ */
@@ -926,13 +933,6 @@ export function App() {
     await renderProjects()
   }
 
-  /* ================ 设置页 ================ */
-  const renderSettings = useCallback(async () => {
-    const defaultApp = await settingsGet('defaultApp', 'claude-code')
-    const diffConfirm = await settingsGet('diffConfirm', true)
-    setSettingsView({ defaultApp, diffConfirm: diffConfirm !== false })
-  }, [])
-
   /* ================ 页面路由 ================ */
   const PAGE_LOADERS = {
     providers: refreshCurrentApp,
@@ -942,7 +942,6 @@ export function App() {
     usage: loadUsagePage,
     backups: () => loadBackups(),
     projects: renderProjects,
-    settings: renderSettings,
   }
 
   const navigate = useCallback((next) => {
@@ -950,7 +949,7 @@ export function App() {
     setPage(next)
     const loader = PAGE_LOADERS[next]
     if (loader) Promise.resolve(loader()).catch((e) => console.warn('[ccswitch] page load:', e))
-  }, [loadBackups, loadHistoryPage, loadSessionsPage, loadUsagePage, refreshCurrentApp, renderMcp, renderProjects, renderSettings]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadBackups, loadHistoryPage, loadSessionsPage, loadUsagePage, refreshCurrentApp, renderMcp, renderProjects]) // eslint-disable-line react-hooks/exhaustive-deps
 
   navigationRef.current = { navApps, page, onNavApp, navigate }
   useEffect(() => {
@@ -996,7 +995,7 @@ export function App() {
             id: p.id,
             title: 'cc 切换 → ' + p.name,
             subtitle: [p.baseUrl ? host(p.baseUrl) : '官方默认', p.model].filter(Boolean).join(' · '),
-            explain: '回车切换该供应商（默认应用）',
+            explain: '切换到该供应商（默认应用）',
             code: 'quick-switch:' + p.id,
             payload: { providerId: p.id },
           })))
@@ -1009,7 +1008,7 @@ export function App() {
     const providers = await loadProviders()
     const p = providers.find((x) => x.id === providerId)
     if (!p) return
-    const defaultApp = await settingsGet('defaultApp', state.currentApp)
+    const defaultApp = kitRef.current?.settings?.defaultApp || state.currentApp
     state.currentApp = state.installed.has(defaultApp) ? defaultApp : state.currentApp
     await switchProvider(p)
   }
@@ -1028,12 +1027,24 @@ export function App() {
   useEffect(() => {
     let disposed = false
     let offQuickQuery
+    const kit = window.PluginKit.create({
+      title: '供应商切换',
+      prefs: true,
+      prefsKey: PREFS_KEY,
+      defaults: { ...PREFS_DEFAULTS },
+    })
+    kitRef.current = kit
+    const offKitSettings = kit.onSettings(() => {
+      setSettings({ ...kit.settings })
+    })
     void (async () => {
       try {
         await loadApps()
         if (disposed) return
-        const defaultApp = await settingsGet('defaultApp', 'claude-code')
+        await kit.ready
         if (disposed) return
+        setSettings({ ...kit.settings })
+        const defaultApp = kit.settings.defaultApp
         if (state.installed.has(defaultApp)) state.currentApp = defaultApp
         navigate('providers')
         const off = await registerQuick()
@@ -1048,7 +1059,7 @@ export function App() {
       const code = event?.code || ''
       if (code === 'mcp') navigate('mcp')
       else if (code === 'sessions') navigate('sessions')
-      else if (code === 'settings') navigate('settings')
+      else if (code === 'settings') setSettingsOpen(true)
       else if (code === 'main') navigate('providers')
       if (typeof event?.payload?.providerId === 'string') await handleQuickSwitch(event.payload.providerId)
       if (!disposed) applyMode(getLaunchMode())
@@ -1087,6 +1098,9 @@ export function App() {
       offTheme?.()
       offHotkey?.()
       offQuickQuery?.()
+      offKitSettings?.()
+      kit.destroy()
+      if (kitRef.current === kit) kitRef.current = null
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1573,6 +1587,8 @@ export function App() {
         <div className="nav-head">
           <div className="nav-logo">⇄</div>
           <div className="nav-title">供应商切换</div>
+          <div className="spacer"></div>
+          <SettingsGear onClick={() => setSettingsOpen(true)} />
         </div>
         <div className="nav-scroll">
           <div className="nav-group" id="nav-apps" data-label="应用">
@@ -1791,53 +1807,6 @@ export function App() {
             <button className="pk-btn pk-btn-primary" id="btn-project-save" onClick={saveCurrentProject}>＋ 保存当前为项目</button>
           </header>
           <div className="content" id="projects-body">{renderProjectsBody()}</div>
-        </section>
-
-        {/* 设置页 */}
-        <section className="page" id="page-settings" hidden={page !== 'settings'}>
-          <header className="page-head">
-            <div className="page-titles">
-              <div className="page-title">设置</div>
-            </div>
-          </header>
-          <div className="content settings" id="settings-body">
-            {!settingsView ? <div className="settings-loading">加载中…</div> : (
-              <>
-                <div className="field-row">
-                  <div className="lbl">默认应用<div className="desc">Quick 切换与启动时的默认应用</div></div>
-                  <select
-                    className="settings-select"
-                    value={settingsView.defaultApp}
-                    onChange={async (e) => { await settingsSet('defaultApp', e.target.value); setSettingsView((s) => ({ ...s, defaultApp: e.target.value })) }}
-                  >
-                    {['claude-code', 'codex', 'gemini-cli'].map((o) => (
-                      <option key={o} value={o}>{APP_MAP[o]?.name || o}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field-row">
-                  <div className="lbl">切换前 diff 确认<div className="desc">关闭后一键直接切换（仍自动快照）</div></div>
-                  <input
-                    type="checkbox"
-                    checked={settingsView.diffConfirm}
-                    onChange={async (e) => { await settingsSet('diffConfirm', e.target.checked); setSettingsView((s) => ({ ...s, diffConfirm: e.target.checked })) }}
-                  />
-                </div>
-                <div className="field-row">
-                  <div className="lbl">备份保留策略</div>
-                  <span className="field-hint">插件后端自动快照 · 每应用保留最近 20 份</span>
-                </div>
-                <div className="field-row">
-                  <div className="lbl">切换历史</div>
-                  <span className="field-hint">环形保留最近 50 条，可在「切换历史」页回退或清空</span>
-                </div>
-                <div className="field-row">
-                  <div className="lbl">数据来源</div>
-                  <span className="field-hint">功能语义与预设数据复刻自 cc-switch（Apache-2.0）</span>
-                </div>
-              </>
-            )}
-          </div>
         </section>
       </main>
 
@@ -2131,6 +2100,16 @@ export function App() {
           </div>
         </div>
       )}
+
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+        }}
+      />
 
       {/* toast 容器 */}
       <div className="toasts" id="toasts">

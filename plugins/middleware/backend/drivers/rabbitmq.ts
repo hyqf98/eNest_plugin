@@ -1,6 +1,6 @@
 /** RabbitMQ 驱动：管理面走 15672 Management HTTP API；实时监听走 amqplib 直连
  * （consume 不 ack，channel 关闭时未确认消息自动回队，无副作用）。运行于 mwUtility。 */
-import * as amqp from 'amqplib'
+import type { ChannelModel } from 'amqplib'
 import type {
   MwClient,
   MwConnectionConfig,
@@ -18,6 +18,9 @@ import type {
 import type { MwDriver, MwDriverContext, MwDriverHandle, MwTestResult } from '@backend/types'
 import { unsupported } from '@backend/types'
 import { mwHttp, mwHttpJson } from '@backend/httpRequest'
+import { createLazyResource, type LazyResource } from '@backend/lazyResource'
+
+const amqpModule = createLazyResource(() => import('amqplib'))
 
 const CAPS: Record<string, { state: 'available' | 'unsupported'; reason?: string }> = {
   topicCrud: { state: 'available', reason: '对应队列的创建/编辑/删除' },
@@ -44,7 +47,10 @@ interface RmqRuntime {
   username: string
   password: string
   vhost: string
-  amqpConn?: amqp.ChannelModel
+  amqp: LazyResource<ChannelModel>
+  signal: AbortSignal
+  closing?: Promise<void>
+  detachAbort?: () => void
 }
 
 function rt(h: MwDriverHandle): RmqRuntime {
@@ -64,11 +70,14 @@ function amqpUrlOf(config: MwConnectionConfig, password?: string): string {
   return `${secure ? 'amqps' : 'amqp'}://${encodeURIComponent(config.username ?? 'guest')}:${encodeURIComponent(password ?? '')}@${url.hostname}:${port}/${encodeURIComponent(config.vhost || '/')}`
 }
 
-async function amqpOf(h: MwDriverHandle): Promise<amqp.ChannelModel> {
+async function amqpOf(h: MwDriverHandle): Promise<ChannelModel> {
   const r = rt(h)
-  if (r.amqpConn) return r.amqpConn
-  r.amqpConn = await amqp.connect(amqpUrlOf(h.config, h.password))
-  return r.amqpConn
+  if (h.closed) throw new Error('RabbitMQ connection is closing')
+  r.signal.throwIfAborted()
+  const connection = await r.amqp.get()
+  r.signal.throwIfAborted()
+  if (h.closed) throw new Error('RabbitMQ connection is closing')
+  return connection
 }
 
 interface RmqQueue {
@@ -141,28 +150,35 @@ export const rabbitmqDriver: MwDriver = {
   },
 
   async open(config, password, ctx) {
+    ctx.signal.throwIfAborted()
     const base = (config.managementUrl ?? '').replace(/\/$/, '')
     if (!/^https?:\/\//.test(base)) throw new Error('管理端点必须以 http(s):// 开头')
     const overview = await mwHttpJson<{ rabbitmq_version?: string; node?: string }>(`${base}/api/overview`, {
       basicAuth: { username: config.username ?? 'guest', password: password ?? 'guest' }, insecureTls: config.tlsRejectUnauthorized === false
     })
+    ctx.signal.throwIfAborted()
+    const amqp = createLazyResource(async () => {
+      ctx.signal.throwIfAborted()
+      const module = await amqpModule.get()
+      ctx.signal.throwIfAborted()
+      return module.connect(amqpUrlOf(config, password))
+    }, connection => connection.close())
+    const runtime: RmqRuntime = {
+      base, username: config.username ?? 'guest', password: password ?? 'guest',
+      vhost: config.vhost || '/', amqp, signal: ctx.signal
+    }
     const handle: MwDriverHandle = {
       kind: 'rabbitmq', raw: { version: overview?.rabbitmq_version }, config, readOnly: false, password,
       capabilities: { ...CAPS }, messageQueryModes: [],
-      runtime: {
-        base,
-        username: config.username ?? 'guest',
-        password: password ?? 'guest',
-        vhost: config.vhost || '/'
-      } as unknown as Record<string, unknown>
+      runtime: runtime as unknown as Record<string, unknown>
     }
-    ctx.signal.addEventListener('abort', () => { if (!handle.closed) void closeQuiet(handle) }, { once: true })
+    const aborted = () => { void closeQuiet(handle) }
+    runtime.detachAbort = () => ctx.signal.removeEventListener('abort', aborted)
+    ctx.signal.addEventListener('abort', aborted, { once: true })
     return handle
   },
 
   async close(h) {
-    if (h.closed) return
-    h.closed = true
     await closeQuiet(h)
   },
 
@@ -479,8 +495,12 @@ export const rabbitmqDriver: MwDriver = {
   }
 }
 
-async function closeQuiet(h: MwDriverHandle): Promise<void> {
+function closeQuiet(h: MwDriverHandle): Promise<void> {
   const r = h.runtime as RmqRuntime | undefined
-  if (r?.amqpConn) await r.amqpConn.close().catch(() => undefined)
-  if (r) r.amqpConn = undefined
+  h.closed = true
+  if (!r) return Promise.resolve()
+  if (r.closing) return r.closing
+  r.detachAbort?.()
+  r.closing = r.amqp.close().catch(() => undefined)
+  return r.closing
 }

@@ -5,7 +5,8 @@
  * 原生 select 仍由 plugin-kit upgradeSelects 接管。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button } from '../ui/index.jsx'
+import { Button, FloatingAction } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import * as core from '../js/core.js'
 
 const api = window.enest || window.zapi
@@ -38,6 +39,8 @@ export function App() {
   const [fxInfo, setFxInfo] = useState({ fetchedAt: 0, source: '' })
   const [rmbInput, setRmbInput] = useState('')
   const [footNote, setFootNote] = useState('')
+  const [settings, setSettings] = useState({ followShellTheme: true, baseCurrency: 'USD' })
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const stateRef = useRef({})
   stateRef.current = { ...stateRef.current, activeTab, favorites, precision, scientific, editingField, fxBase, fxAmount, fxRates, fxInfo }
@@ -231,7 +234,8 @@ export function App() {
       title: '单位与汇率',
       quickPlaceholder: '输入数值即时换算',
       height: 420,
-      defaults: { baseCurrency: 'USD' },
+      prefs: true,
+      defaults: { followShellTheme: true, baseCurrency: 'USD' },
     })
     kitRef.current = kit
     const syncMode = (nextMode) => {
@@ -277,9 +281,11 @@ export function App() {
       stateRef.current.savedPrefs = prefs
       await kit.ready
       if (!alive) return
+      setSettings({ ...kit.settings })
       setFxBase(String(kit.settings.baseCurrency || 'USD'))
       offSettings = kit.onSettings(() => {
-        if (stateRef.current.activeTab === 'fx') setFxBase(String(kit.settings.baseCurrency || 'USD'))
+        setSettings({ ...kit.settings })
+        setFxBase(String(kit.settings.baseCurrency || 'USD'))
       })
     })()
     const offEnter = api?.onEnter?.(async (event) => {
@@ -487,7 +493,7 @@ export function App() {
             <select id="fx-base" value={base} onChange={(e) => {
               setFxBase(e.target.value)
               if (kitRef.current) kitRef.current.settings.baseCurrency = e.target.value
-              void api?.settings?.set?.('baseCurrency', e.target.value).catch?.(() => {})
+              void kitRef.current?.setPref('baseCurrency', e.target.value)
             }}>
               {core.FX_CURRENCIES.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -560,11 +566,27 @@ export function App() {
       </section>
       </div>
 
+      {/* 唯一操作移到右下悬浮钮，底栏只留状态说明。 */}
       <footer>
         <span id="foot-note">{footNote}</span>
         <span className="grow"></span>
-        <Button id="copy-all" size="sm" variant="ghost" className="shell-only" onClick={copyAll}>复制全部结果</Button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
       </footer>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+        }}
+      />
+      <FloatingAction
+        className="shell-only"
+        icon={<span className="fab-glyph">⧉</span>}
+        label="复制全部结果"
+        onPrimary={copyAll}
+      />
     </main>
   )
 }

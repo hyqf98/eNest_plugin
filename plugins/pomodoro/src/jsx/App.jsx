@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPomodoroController } from '../timer/pomodoro.js'
 import { PanelView } from './PanelView.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const api = window.enest || window.zapi
 const timer = createPomodoroController(api)
@@ -17,6 +18,8 @@ const RING = 339.292
 export function App() {
   const kitRef = useRef(null)
   const [mode, setMode] = useState(() => api?.getLaunchMode?.() || 'shell')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState(null)
   const [snapshot, setSnapshot] = useState(null)
   const [now, setNow] = useState(Date.now)
   const [task, setTask] = useState('')
@@ -113,10 +116,6 @@ export function App() {
   const toggleRef = useRef(toggle)
   toggleRef.current = toggle
 
-  const openSettings = useCallback(() => {
-    void api.ui.openSettings().catch(error => kitRef.current?.toast(error.message, 'error'))
-  }, [])
-
   // —— 记录编辑 / 导出（等价原 handlers）——
   const openEdit = useCallback((r) => {
     editIdRef.current = r.id
@@ -173,8 +172,8 @@ export function App() {
     const [f, r] = value.split(',')
     setFocusMin(f)
     setBreakMin(r)
-    // 预设持久化：写壳设置，重启后沿用（基础设置能力，无新增权限）
-    void api?.settings?.set?.('preset', value).catch(() => {})
+    // 预设持久化：插件内自存，重启后沿用
+    kitRef.current?.setPref('preset', value).catch(() => {})
   }, [])
 
   // —— 空状态插画（纯 SVG，等价原 emptyState）——
@@ -196,6 +195,7 @@ export function App() {
       title: '番茄钟',
       quickPlaceholder: '为这次专注写个任务名称',
       height: 490,
+      prefs: true,
       defaults: {
         focusMin: 25,
         breakMin: 5,
@@ -217,17 +217,20 @@ export function App() {
     kitRef.current = kit
     setMode(kit.mode)
     const offMode = kit.onMode(setMode)
-    kit.onSettings(() => {
+    // 设置变化仅更新待启参数；运行中的计时归 deadlineTasks，按启动时快照走完本阶段
+    kit.onSettings((next, key) => {
+      setSettings({ ...next })
       const snap = snapshotRef.current
-      if (!snap || snap.state.status === 'idle') {
-        const preset = String(kit.settings.preset || '')
+      if (snap && snap.state.status !== 'idle') return
+      if (key === 'preset' || key === undefined) {
+        const preset = String(next.preset || '')
         if (/^\d+,\d+$/.test(preset)) {
           const [f, r] = preset.split(',')
           setFocusMin(f)
           setBreakMin(r)
-        } else {
-          setFocusMin(String(kit.settings.focusMin))
-          setBreakMin(String(kit.settings.breakMin))
+        } else if (key === 'preset') {
+          setFocusMin(String(next.focusMin))
+          setBreakMin(String(next.breakMin))
         }
       }
     })
@@ -355,7 +358,7 @@ export function App() {
     return (
       <div className="app">
         <header>
-          <button onClick={openSettings}>偏好设置</button>
+          <SettingsGear onClick={() => setSettingsOpen(true)} />
         </header>
         <main className="workspace">
           <section className="focus-panel">
@@ -395,7 +398,6 @@ export function App() {
             </div>
             <div className="keys">
               <span><kbd>Space</kbd> 开始 / 暂停</span>
-              <span><kbd>⌘</kbd><kbd>↵</kbd> quick 模式转完整窗口</span>
             </div>
             <div className="hint" id="hint">{hint}</div>
             <div className="quick-today quick-only" id="quick-today"></div>
@@ -433,7 +435,7 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <button onClick={openSettings}>偏好设置</button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
       </header>
       <main className="workspace">
         <section className="focus-panel">
@@ -499,7 +501,6 @@ export function App() {
           </div>
           <div className="keys">
             <span><kbd>Space</kbd> 开始 / 暂停</span>
-            <span><kbd>⌘</kbd><kbd>↵</kbd> quick 模式转完整窗口</span>
           </div>
           <div className="hint" id="hint">{hint}</div>
           <div className="quick-today quick-only" id="quick-today">{quickToday}</div>
@@ -558,6 +559,12 @@ export function App() {
           </div>
         </form>
       </dialog>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings ?? { focusMin: 25, breakMin: 5, longBreakMin: 15, longBreakEvery: 4, preset: '25,5', sound: true, autoStart: false, notify: true }}
+        onChange={(key, value) => { kitRef.current?.setPref(key, value) }}
+      />
     </div>
   )
 }

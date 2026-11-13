@@ -65,6 +65,7 @@ input, textarea, select { font: inherit; color: var(--text); }
 }
 .nav-title { font-weight: 600; font-size: 13px; letter-spacing: 0.01em; white-space: nowrap; }
 .nav.collapsed .nav-title, .nav.collapsed .nav-item .t, .nav.collapsed .nav-group[data-label]::before { display: none; }
+.nav.collapsed .nav-head .spacer, .nav.collapsed .nav-head .pk-set-trigger { display: none; }
 
 .nav-scroll { flex: 1; overflow-y: auto; padding: 2px 8px 8px; }
 .nav-group { margin-bottom: 8px; }
@@ -401,7 +402,6 @@ textarea { width: 100%; resize: vertical; }
 .key-row { display: flex; gap: 6px; }
 .key-row input { flex: 1; }
 .field-actions { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; }
-.settings-select { max-width: 220px; }
 .form-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
 .form-tabs button {
   border: 1px solid var(--border, #d9dfe6); background: transparent;
@@ -483,19 +483,26 @@ textarea { width: 100%; resize: vertical; }
 .token-chip { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 
 /* ================ 用量 ================ */
-.usage-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.usage-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); }
+/* 指标卡：数字左对齐 + 标签同基线，卡片等高对齐 */
+.usage-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; }
+.usage-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 12px; background: var(--surface);
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
 .usage-card .num {
-  font-size: 20px; font-weight: 650; text-align: right;
+  font-size: 18px; font-weight: 650;
   font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
 }
-.usage-card .lbl { font-size: 11px; color: var(--text-2); }
-.chart-box { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; background: var(--surface); }
-.chart-box h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.usage-card .lbl { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+/* 图表卡与指标卡同宽对齐；标题与图内容左对齐 */
+.chart-box { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--surface); }
+.chart-box h3 { margin: 0 0 10px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 canvas { width: 100%; display: block; }
 .model-bars { display: flex; flex-direction: column; gap: 6px; }
-.model-bar { display: grid; grid-template-columns: minmax(0, 180px) minmax(0, 1fr) 72px; gap: 8px; align-items: center; font-size: 12px; }
+.model-bar { display: grid; grid-template-columns: minmax(0, 200px) minmax(0, 1fr) 64px; gap: 10px; align-items: center; font-size: 12px; }
+.model-bar .n { text-align: right; font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
 .model-bar .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-bar .bar {
   appearance: none; width: 100%; height: 8px; border: 0;
@@ -504,7 +511,6 @@ canvas { width: 100%; display: block; }
 .model-bar .bar::-webkit-progress-bar { background: var(--surface-2, var(--border)); border-radius: 4px; }
 .model-bar .bar::-webkit-progress-value { background: var(--accent); border-radius: 4px; }
 .model-bar .bar::-moz-progress-bar { background: var(--accent); border-radius: 4px; }
-.model-bar .n { text-align: right; font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
 
 /* ================ 备份 / 历史 / 项目 ================ */
 .backup-item, .project-item {
@@ -513,14 +519,6 @@ canvas { width: 100%; display: block; }
   padding: 10px 12px; background: var(--surface); margin-bottom: 8px;
 }
 .backup-item .when, .project-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ================ 设置 ================ */
-.settings .field-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 0; border-bottom: 1px solid var(--border);
-}
-.settings .field-row .lbl { flex: 1; }
-.settings .field-row .desc { font-size: 11px; color: var(--text-2); }
 
 /* ================ toast ================ */
 .toasts {
@@ -550,6 +548,7 @@ canvas { width: 100%; display: block; }
   :root { --nav-w: 52px; }
   .nav { width: 52px; }
   .nav-title, .nav-item .t, .nav-group[data-label]::before { display: none; }
+  .nav-head .spacer, .nav-head .pk-set-trigger { display: none; }
   .toolbar { flex-wrap: wrap; }
   .diff-row { grid-template-columns: 72px 1fr; }
   .diff-row .after { grid-column: 2; }

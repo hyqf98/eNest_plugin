@@ -54,8 +54,8 @@ async function agentRestore(app, id) {
 async function sessionsList(app) {
   return backendCall('sessions.list', { app: String(app) })
 }
-async function sessionsRead(app, file, maxBytes) {
-  return backendCall('sessions.read', { app: String(app), file: String(file), maxBytes })
+async function sessionsRead(app, file, maxBytes, options = {}) {
+  return backendCall('sessions.read', { app: String(app), file: String(file), maxBytes, ...options })
 }
 
 /* —— net.fetch 连接测试 —— */
@@ -140,15 +140,12 @@ async function hotkeyRegister(accelerator, label) {
 }
 function onHotkey(cb) { try { return api?.hotkey?.onHotkey?.(cb) } catch { return () => {} } }
 
-/* —— settings —— */
+/* —— settings（仅读旧值迁移；写入走插件自有 kit prefs） —— */
 async function settingsGet(key, fallback) {
   try {
     const v = await api?.settings?.get?.(key)
     return v === undefined || v === null ? fallback : v
   } catch { return fallback }
-}
-async function settingsSet(key, value) {
-  try { return await api?.settings?.set?.(key, value) } catch { return false }
 }
 
 export {
@@ -162,5 +159,5 @@ export {
   registerQuickProvider, onQuickQuery, respondQuickQuery,
   getThemeTokens, onThemeChange, onEnter, getLaunchMode, onModeChange,
   hotkeyRegister, onHotkey,
-  settingsGet, settingsSet
+  settingsGet
 }

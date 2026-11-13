@@ -20,8 +20,9 @@ input:disabled { opacity: .45; }
 .pk-mono { font-family: var(--mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; }
 .pk-muted { color: var(--text-2, #666c70); }
 
-.image-app { max-width: 1280px; margin: 0 auto; padding: 20px 24px 12px; min-height: 100dvh; display: flex; flex-direction: column; }
-.app-head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+/* 三栏工作台铺满视口；不再套 1280px 居中容器和双层留白。 */
+.image-app { padding: 12px 14px 10px; height: 100dvh; display: flex; flex-direction: column; min-height: 0; }
+.app-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex: none; }
 .app-head > div { margin-right: auto; }
 .eyebrow { display: block; font-size: 10px; letter-spacing: 1.6px; color: var(--text-3, #82888b); }
 h1 { font-size: 20px; font-weight: 650; letter-spacing: -.4px; }
@@ -49,9 +50,38 @@ h1 { font-size: 20px; font-weight: 650; letter-spacing: -.4px; }
 .image-app.dragging .drop-hint { display: grid; }
 .image-app.dragging { cursor: copy; }
 
-/* 工作区双栏 */
-.work-layout { display: grid; grid-template-columns: minmax(300px, 5fr) minmax(360px, 7fr); gap: 16px; align-items: start; flex: 1; }
-.queue-panel, .editor-panel { background: var(--surface, #fff); border: 1px solid var(--border, rgba(41,44,46,.08)); border-radius: 12px; padding: 16px; min-width: 0; }
+/* 工作区三栏：队列 / 画板 / 工具。画板是主体，两侧只留必要信息。 */
+.work-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 232px) minmax(0, 1fr) minmax(268px, 336px);
+  gap: 12px; align-items: stretch; flex: 1; min-height: 0;
+}
+.queue-panel, .editor-panel { background: var(--surface, #fff); border: 1px solid var(--border, rgba(41,44,46,.08)); border-radius: 12px; padding: 12px; min-width: 0; overflow: auto; }
+/* 画板本身不设底色与描边：图片直接坐在页面上，视觉上成为中心。 */
+.board-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; gap: 8px; }
+.board-head { display: flex; align-items: center; gap: 10px; min-height: 24px; padding: 0 2px; font-size: 11px; }
+.board-selection-hint { margin-left: auto; display: flex; align-items: center; gap: 7px; color: var(--accent, #bd542b); }
+.board-stage {
+  flex: 1; min-height: 0; display: grid; place-items: center;
+  border-radius: 12px; padding: 10px;
+  background: color-mix(in srgb, var(--text, #292c2e) 4%, transparent);
+  overflow: hidden;
+}
+.board-idle { display: grid; gap: 12px; place-items: center; color: var(--text-3, #82888b); font-size: 12.5px; text-align: center; }
+.board-idle kbd { font-family: var(--mono, ui-monospace, monospace); font-size: 10.5px; padding: 1px 5px; border-radius: 4px; background: var(--surface, #fff); border: 1px solid var(--border, rgba(41,44,46,.12)); }
+.board-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 2px; }
+.board-hint { margin-left: auto; font-size: 11px; }
+/* 大图占满可用空间，但保持比例；不再固定 300px 高 */
+.board-crop { display: grid; place-items: center; width: 100%; height: 100%; min-height: 0; position: relative; }
+/* max-* 同时给 100%：小图不被强制拉大，大图被限制在容器内并等比缩放 */
+.board-crop img {
+  max-width: 100%; max-height: 100%; width: auto; height: auto; display: block;
+  border-radius: 4px; cursor: crosshair; user-select: none;
+  background: repeating-conic-gradient(var(--surface-2, #eeefed) 0 25%, var(--surface, #fff) 0 50%) 0 / 16px 16px;
+}
+.board-tip { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--text-3, #82888b); background: color-mix(in srgb, var(--surface, #fff) 88%, transparent); padding: 3px 10px; border-radius: 999px; pointer-events: none; white-space: nowrap; }
+.crop-stage.moving img { cursor: move; }
+.crop-stage.moving .crop-box { cursor: move; }
 
 /* 缩略图网格：统一 1:1 裁切 + 两行等高信息 */
 .thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; max-height: 46dvh; overflow: auto; padding: 2px; }
@@ -86,7 +116,7 @@ h1 { font-size: 20px; font-weight: 650; letter-spacing: -.4px; }
 /* 编辑面板 */
 .panel-empty { display: grid; place-items: center; min-height: 300px; color: var(--text-3, #82888b); font-size: 13px; }
 .preview-stage { display: grid; gap: 8px; margin-bottom: 12px; }
-.preview-stage img, .crop-stage img { max-width: 100%; max-height: 300px; margin: 0 auto; display: block; border-radius: var(--radius); border: 1px solid var(--border, rgba(41,44,46,.08)); background: repeating-conic-gradient(var(--surface-2, #eeefed) 0 25%, var(--surface, #fff) 0 50%) 0 / 16px 16px; }
+.preview-stage img { max-width: 100%; max-height: 300px; margin: 0 auto; display: block; border-radius: var(--radius); border: 1px solid var(--border, rgba(41,44,46,.08)); background: repeating-conic-gradient(var(--surface-2, #eeefed) 0 25%, var(--surface, #fff) 0 50%) 0 / 16px 16px; }
 .compare-row { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; font-size: 11px; word-break: break-word; }
 #compare-meta { color: var(--ok, #318469); }
 
@@ -147,27 +177,37 @@ h1 { font-size: 20px; font-weight: 650; letter-spacing: -.4px; }
 .result-actions { display: flex; gap: 8px; }
 .result-actions button { font-size: 12px; }
 
-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--border, rgba(41,44,46,.08)); color: var(--text-3, #82888b); font-size: 11px; }
-
 /* 动画档位 */
 :root[data-anim="low"] { --t: 0ms; }
 :root[data-anim="high"] { --t: 200ms; }
 
 /* Quick 紧凑形态：单列队列 + 操作 */
 :root[data-mode="quick"] .image-app { padding: 12px 14px 8px; }
-:root[data-mode="quick"] .app-head { margin-bottom: 10px; }
+/* Quick 小窗只留中央拖放/粘贴入口：顶部「添加图片」按钮与左侧状态引导不再显示；
+   添加能力由空态拖放区、Ctrl+V 粘贴与 Quick 输入行承载，#file-input 仅程序化触发。 */
+:root[data-mode="quick"] .app-head { display: none; }
 :root[data-mode="quick"] .eyebrow, :root[data-mode="quick"] h1 { display: none; }
-:root[data-mode="quick"] footer { margin-top: 10px; padding-top: 8px; }
 :root[data-mode="quick"] .thumb-grid { max-height: 30dvh; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
 /* Quick 紧凑形态：按钮统一 24px 紧凑档，避免头部/操作行溢出 */
 :root[data-mode="quick"] button { min-height: 24px; padding: 2px 10px; }
 :root[data-mode="quick"] .mode-seg button, :root[data-mode="quick"] .tabs button, :root[data-mode="quick"] input[type="range"] { min-height: 24px; }
 
-/* 容器查询：窄容器退化为单列（容器 = 页面根） */
+/* 容器查询：中窄两栏（画板 + 工具），更窄单列 */
 .image-app { container-type: inline-size; container-name: work; }
-@container work (max-width: 740px) { .work-layout { grid-template-columns: 1fr; } }
+@container work (max-width: 980px) {
+  .work-layout { grid-template-columns: minmax(160px, 200px) minmax(0, 1fr); }
+  .editor-panel { grid-column: 1 / -1; max-height: 46dvh; }
+}
+@container work (max-width: 720px) {
+  .work-layout { grid-template-columns: 1fr; }
+  .board-stage { min-height: 260px; }
+}
 @supports not (container-type: inline-size) {
-  @media (max-width: 780px) { .work-layout { grid-template-columns: 1fr; } }
+  @media (max-width: 980px) {
+    .work-layout { grid-template-columns: minmax(160px, 200px) minmax(0, 1fr); }
+    .editor-panel { grid-column: 1 / -1; }
+  }
+  @media (max-width: 720px) { .work-layout { grid-template-columns: 1fr; } }
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; animation-duration: .01ms !important; } }

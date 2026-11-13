@@ -283,6 +283,38 @@ const PluginKit = (() => {
       await Promise.all([...writes.values()])
       return api.storage.flush()
     }
+    // —— 插件内自绘设置（storage 自存；启动时从宿主 settings 旧值单向迁移一次）——
+    const prefsKey = options.prefs && (options.prefsKey || 'plugin.prefs.v1')
+    const prefsReady = (async () => {
+      const fallback = (options.defaults && typeof options.defaults === 'object' && !Array.isArray(options.defaults)) ? options.defaults : {}
+      let stored = null
+      try { stored = await api?.storage?.get?.(prefsKey) } catch { stored = null }
+      if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+        kit.settings = { ...fallback, ...stored }
+        return
+      }
+      // 首次：逐键从宿主 settings 旧值迁移（撤出 contributes.settings 后旧值只读，读得到即沿用）
+      const migrated = {}
+      for (const key of Object.keys(fallback)) {
+        let legacy = null
+        try { legacy = await api?.settings?.get?.(key) } catch { legacy = null }
+        if (legacy !== undefined && legacy !== null) migrated[key] = legacy
+      }
+      kit.settings = { ...fallback, ...migrated }
+      if (Object.keys(migrated).length) {
+        try { await kit.save(prefsKey, kit.settings) } catch { /* 迁移失败时保持默认值，下次启动重试 */ }
+      }
+    })().catch(error => { kit.toast(`读取设置失败：${error.message}`, 'error') })
+    if (prefsKey) {
+      kit.setPref = (key, value) => {
+        if (!Object.hasOwn(kit.settings, key) && Object.hasOwn(options.defaults || {}, key)) kit.settings[key] = options.defaults[key]
+        if (!Object.hasOwn(kit.settings, key)) return Promise.reject(new Error(`未知设置项：${key}`))
+        kit.settings[key] = value
+        for (const cb of settingListeners) cb(kit.settings, key)
+        return kit.save(prefsKey, kit.settings).then(() => { void kit.flush() }).catch(error => { kit.toast(`保存设置失败：${error.message}`, 'error') })
+      }
+      kit.ready = prefsReady.then(() => { for (const cb of settingListeners) cb(kit.settings); return kit.settings })
+    }
     const focus = event => {
       const target = event.target
       const context = target?.closest?.('[data-input-context]')?.dataset.inputContext
@@ -312,11 +344,11 @@ const PluginKit = (() => {
       if (action === 'clear') { query = ''; options.onQuery?.('') }
       options.onAction?.(action)
     }))
-    if (api?.settings?.onChange) disposers.push(api.settings.onChange(({ key, value }) => {
+    if (!prefsKey && api?.settings?.onChange) disposers.push(api.settings.onChange(({ key, value }) => {
       kit.settings[key] = value
       for (const cb of settingListeners) cb(kit.settings, key)
     }))
-    kit.ready = Promise.all(Object.keys(kit.settings).map(async key => {
+    if (!prefsKey) kit.ready = Promise.all(Object.keys(kit.settings).map(async key => {
       const value = await api?.settings?.get?.(key)
       if (value !== undefined && value !== null) kit.settings[key] = value
     })).then(() => { for (const cb of settingListeners) cb(kit.settings); return kit.settings }).catch(error => { kit.toast(`读取设置失败：${error.message}`, 'error'); return kit.settings })

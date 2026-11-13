@@ -18,6 +18,22 @@ function tsToDay(ts) {
 function extractUsage(line) {
   const v = line.json
   if (!v || typeof v !== 'object') return null
+  // zcode 语义（rollout/model-io-sess_*.jsonl：每次模型调用一行）
+  const zUsage = v.response?.usage
+  if (zUsage && typeof zUsage === 'object') {
+    const total = (zUsage.inputTokens || 0) + (zUsage.outputTokens || 0)
+    if (!total) return null
+    const ts = Date.parse(v.completedAt || v.startedAt)
+    if (!Number.isFinite(ts)) return null
+    return {
+      ts,
+      model: v.model?.modelId || v.request?.body?.model || 'unknown',
+      input: zUsage.inputTokens || 0,
+      output: (zUsage.outputTokens || 0) + (zUsage.reasoningTokens || 0),
+      cacheRead: zUsage.cacheReadTokens || 0,
+      cacheWrite: 0
+    }
+  }
   const ts = Date.parse(v.timestamp)
   if (!Number.isFinite(ts)) return null
   // claude 语义
@@ -34,7 +50,7 @@ function extractUsage(line) {
       cacheWrite: u.cache_creation_input_tokens || 0
     }
   }
-  // codex 语义（token_count 快照近似为增量）
+  // codex 语义（token_count 快照近似为增量；model 在 turn_context/session_meta 行，extractModel 负责回填）
   if (v.type === 'event_msg' && v.payload?.type === 'token_count') {
     const u = v.payload.info?.total_token_usage || v.payload.info?.last_token_usage
     if (!u) return null
@@ -66,7 +82,24 @@ function extractUsage(line) {
   return null
 }
 
-/** 全量聚合一个应用的 usage（读列表全部文件；单文件 maxBytes 256KB 平衡速度） */
+/** 行级模型名提取（codex：token_count 行不带 model，从 turn_context / session_meta / thread_settings 行取） */
+function extractModel(line) {
+  const v = line.json
+  if (!v || typeof v !== 'object') return null
+  if (v.type === 'turn_context' && typeof v.payload?.model === 'string') return v.payload.model
+  if (v.type === 'session_meta') {
+    const m = v.payload?.base_instructions?.provenance?.model
+    if (typeof m === 'string') return m
+  }
+  if (v.type === 'event_msg' && v.payload?.type === 'thread_settings_applied') {
+    const m = v.payload.thread_settings?.model
+    if (typeof m === 'string') return m
+  }
+  return null
+}
+
+/** 全量聚合一个应用的 usage（读列表全部文件；默认尾读 256KB——会话文件 usage 行集中在尾部，
+    头读会因截断把整份用量丢掉；model 由 turn_context/session_meta 行回填到 unknown 记录） */
 async function aggregate(app, { onProgress } = {}) {
   const roots = await sessionsList(app)
   const records = []
@@ -75,10 +108,33 @@ async function aggregate(app, { onProgress } = {}) {
     for (const file of root.files || []) {
       files++
       try {
-        const r = await sessionsRead(app, file.file, 256 * 1024)
+        const r = await sessionsRead(app, file.file, 256 * 1024, { fromEnd: true })
+        // codex 的 model 行（turn_context/session_meta）多在文件头部，尾读窗口可能不含：
+        // 补一次头读 64KB 只为收集模型名，与尾读行序合并回填。
+        let headModels = null
+        if (app === 'codex' && r.truncated) {
+          try {
+            const head = await sessionsRead(app, file.file, 64 * 1024)
+            headModels = []
+            for (const line of head.lines) {
+              const m = extractModel(line)
+              if (m) headModels.push(m)
+            }
+          } catch { /* 头读失败按无模型处理 */ }
+        }
+        let lastModel = headModels?.[0] || null
+        let headIdx = 0
         for (const line of r.lines) {
+          lastModel = extractModel(line) || lastModel
           const u = extractUsage(line)
-          if (u) records.push(u)
+          if (!u) continue
+          if (u.model === 'unknown') {
+            // 会话中途切模型的场景按时间序取最近的头部模型名（粗粒度，足够分布展示）
+            if (headModels && headIdx < headModels.length && u.model === 'unknown') u.model = headModels[headIdx] || lastModel
+            else u.model = lastModel || 'unknown'
+            headIdx++
+          }
+          records.push(u)
         }
       } catch { /* 单文件失败跳过 */ }
       if (onProgress) onProgress(files, (root.files || []).length)
@@ -125,8 +181,10 @@ function drawDaily(canvas, days) {
   const dpr = window.devicePixelRatio || 1
   const w = canvas.clientWidth || 600
   const h = 160
+  if (!w) return /* 隐藏容器（clientWidth 0）跳过，等可见后重绘 */
   canvas.width = w * dpr
   canvas.height = h * dpr
+  canvas.style.height = h + 'px'
   const ctx = canvas.getContext('2d')
   ctx.scale(dpr, dpr)
   ctx.clearRect(0, 0, w, h)
@@ -177,6 +235,7 @@ function drawHeatmap(canvas, days) {
   const gap = 2
   const weeks = 53
   const w = canvas.clientWidth || 600
+  if (!w) return /* 隐藏容器（clientWidth 0）跳过，等可见后重绘 */
   const leftPad = 18
   const topPad = 14
   const h = topPad + 7 * (cell + gap) + 4
@@ -193,9 +252,10 @@ function drawHeatmap(canvas, days) {
 
   const byDay = new Map(days.map(d => [d.day, d]))
   const today = new Date()
-  // 从本周周六对齐往回 53 周
+  // 列首对齐周日：起点 = 本周六（本周最后一格）往前推 52 周，共 53 列
   const end = new Date(today)
-  const start = new Date(end.getTime() - (weeks * 7 - 1 - end.getDay()) * 86400000)
+  end.setDate(end.getDate() + (6 - end.getDay()))
+  const start = new Date(end.getTime() - (weeks * 7 - 1) * 86400000)
   const max = Math.max(1, ...days.map(d => d.tokens || 0))
 
   for (let i = 0; i < weeks * 7; i++) {

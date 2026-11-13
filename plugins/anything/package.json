@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev": "vite --host 127.0.0.1 --port 5216 --strictPort",
     "build": "node ../../scripts/build-plugin.mjs com.github.eNest.anything",
     "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.anything",
     "typecheck:backend": "tsc -p backend/tsconfig.json",

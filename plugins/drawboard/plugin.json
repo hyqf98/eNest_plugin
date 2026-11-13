@@ -522,21 +522,6 @@
           "additionalProperties": false
         }
       }
-    ],
-    "settings": [
-      {
-        "id": "drawboard.desktop",
-        "title": "画板",
-        "items": [
-          {
-            "key": "desktopFloatingTools",
-            "type": "switch",
-            "label": "桌面浮动工具",
-            "description": "关闭主窗口后仍可切换工具画草稿；重启后仅恢复工具栏，不拦截桌面鼠标。",
-            "default": false
-          }
-        ]
-      }
     ]
   },
   "window": {
@@ -598,7 +583,8 @@
   "activation": {
     "resident": {
       "setting": "desktopFloatingTools",
-      "code": "desktop-canvas"
+      "code": "desktop-canvas",
+      "default": false
     }
   }
 }

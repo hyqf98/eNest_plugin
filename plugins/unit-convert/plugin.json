@@ -56,50 +56,6 @@
         "explain": "同屏多单位联动换算、汇率与人民币大写",
         "openCode": "main"
       }
-    ],
-    "settings": [
-      {
-        "id": "unit-convert.preferences",
-        "title": "单位与汇率",
-        "items": [
-          {
-            "key": "followShellTheme",
-            "type": "switch",
-            "label": "跟随壳子主题",
-            "default": true,
-            "shareWithThemes": true
-          },
-          {
-            "key": "baseCurrency",
-            "type": "select",
-            "label": "汇率基准币种",
-            "default": "USD",
-            "options": [
-              {
-                "label": "USD 美元",
-                "value": "USD"
-              },
-              {
-                "label": "CNY 人民币",
-                "value": "CNY"
-              },
-              {
-                "label": "EUR 欧元",
-                "value": "EUR"
-              },
-              {
-                "label": "JPY 日元",
-                "value": "JPY"
-              },
-              {
-                "label": "HKD 港币",
-                "value": "HKD"
-              }
-            ],
-            "shareWithThemes": true
-          }
-        ]
-      }
     ]
   },
   "development": {

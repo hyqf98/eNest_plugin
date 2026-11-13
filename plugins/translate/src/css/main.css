@@ -308,17 +308,6 @@ body,
       .pane-bottom .spacer {
         flex: 1;
       }
-      .primary {
-        background: var(--blue);
-        color: white;
-        border-color: var(--blue);
-        padding: 6px 20px;
-      }
-      .primary:hover:not(:disabled) {
-        background: var(--blue);
-        border-color: var(--blue);
-        filter: brightness(1.04);
-      }
       .actions {
         display: flex;
         gap: 8px;
@@ -441,6 +430,15 @@ body,
         font-size: 11px;
         color: var(--muted);
       }
+      /* 复制译文：图标钮（14px SVG），紧凑方钮与 pane-bottom 行高对齐 */
+      #copy {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        min-height: 24px;
+        padding: 0;
+      }
       [data-mode='quick'] header {
         display: none;
       }
@@ -478,7 +476,12 @@ body,
       [data-mode='quick'] .actions {
         padding: 8px 12px;
       }
-      :root[data-mode='quick'] .history.open {
+      /* kit style.css 在 main.css 之后加载，其
+         :root[data-mode]:not([data-mode="shell"]) .shell-only { display:none !important }
+         与本规则同 specificity 且更晚，会压掉历史面板。加 .workspace 提升一档
+         specificity 并保留 !important，quick 模式下 .open 才能真正显示；
+         未 open 时仍由 kit 的 shell-only 规则隐藏，不删 shell-only 类。 */
+      :root[data-mode='quick'] .workspace .history.open {
         display: flex !important;
         position: absolute;
         inset: 0;
@@ -532,4 +535,17 @@ body,
       /* Radix pk-select 适配：宽度由内容决定（同旧 kit 包裹的 inline-flex 行为） */
       .language-bar .pk-select {
         min-width: 0;
+      }
+      /*
+       * kit upgradeSelects 的下拉菜单（.pk-select-menu，absolute 定位在 .pk-select
+       * 包裹器内）在 quick 布局里可能落在 .panes 上方或与历史面板（z-index:5）、
+       * 悬浮钮（z-index:20）竞争层级。菜单自身 z-index 由 kit 提供（60），这里
+       * 显式兜底：语言栏包裹器允许内容溢出显示并压过内容区，保证任何模式下
+       * 菜单可点选，不受兄弟区域层级影响。
+       */
+      .language-bar .pk-select {
+        overflow: visible;
+      }
+      .language-bar .pk-select-menu {
+        z-index: 60;
       }

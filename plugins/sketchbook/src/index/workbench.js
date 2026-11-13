@@ -8,6 +8,9 @@ import { h } from '../shared/dom.js'
 import { icon, SKETCH_ICON_NAMES } from '../shared/icons.js'
 import { createSketchPaper, mountSketchDefs } from '../shared/sketchPrimitives.js'
 
+// 零构建页：快捷键符号就地判定平台，不用裸包名 import
+const mac = /Mac/.test(navigator.platform)
+
 const THEME_TOKENS = [
   ['--bg', '纸张底色'], ['--surface', '卡纸'], ['--surface-2', '次级卡纸'], ['--surface-3', '叠层卡纸'],
   ['--text', '墨色'], ['--text-2', '次要文字'], ['--text-3', '弱化文字'], ['--accent', '马克笔'],
@@ -82,7 +85,7 @@ function inputsSheet() {
     '输入框只有一条底线，聚焦时底线换成马克笔色并透出一层淡色，像笔尖落在纸上。',
     h('div', { class: 'sk-cols' },
       field('插件名称', nameInput, '名称会出现在市场卡片与 Quick 搜索结果里。'),
-      field('搜索', searchWrap, '⌘F 可以在市场页直接聚焦搜索。')),
+      field('搜索', searchWrap, `${mac ? '⌘' : 'Ctrl'}F 可以在市场页直接聚焦搜索。`)),
     h('div', { class: 'sk-row', style: { marginTop: '12px' } },
       field('校验失败', invalid, '版本号需要三段数字，例如 1.0.0。', 'is-error'),
       field('已锁定', locked, '禁用态的输入框只读且降低对比度。')),

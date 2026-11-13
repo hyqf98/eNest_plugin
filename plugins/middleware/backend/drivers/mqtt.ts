@@ -1,7 +1,7 @@
 /** MQTT 驱动：mqtt.js 通用底座（pub/sub、retained 快照、$SYS 监控）+
  * EMQX 管理面适配（v5 18083 /api/v5 与 v4 8081 /api/v4 自动探测，Basic(apiKey:secret)）。
  * 运行于 mwUtility。MQTT 模型无 Topic 实体/历史消息：相关能力声明为不支持或待配置。 */
-import mqtt, { type MqttClient } from 'mqtt'
+import type { MqttClient } from 'mqtt'
 import type {
   MwClient,
   MwConnectionConfig,
@@ -20,8 +20,10 @@ import type {
 import type { MwDriver, MwDriverContext, MwDriverHandle, MwTestResult } from '@backend/types'
 import { unsupported } from '@backend/types'
 import { mwHttpJson } from '@backend/httpRequest'
+import { createLazyResource } from '@backend/lazyResource'
 
 const NOT_CONFIGURED = '启用连接配置中的 EMQX 管理适配后可用'
+const mqttModule = createLazyResource(() => import('mqtt').then(module => module.default))
 
 function baseCaps(): Record<string, MwCapability> {
   return {
@@ -57,19 +59,22 @@ interface MqttRuntime {
   client: MqttClient
   mgmt?: EmqxMgmt
   mgmtError?: string
+  detachAbort?: () => void
 }
 
 function rt(h: MwDriverHandle): MqttRuntime {
   return h.runtime as unknown as MqttRuntime
 }
 
-function connectClient(config: MwConnectionConfig, password?: string): Promise<MqttClient> {
+async function connectClient(config: MwConnectionConfig, password?: string, signal?: AbortSignal): Promise<MqttClient> {
+  if (!config.brokerUrl || !/^mqtts?:\/\/|^wss?:\/\//.test(config.brokerUrl)) {
+    throw new Error('brokerUrl 必须以 mqtt:// mqtts:// ws:// wss:// 开头')
+  }
+  signal?.throwIfAborted()
+  const mqtt = await mqttModule.get()
+  signal?.throwIfAborted()
   return new Promise((resolve, reject) => {
-    if (!config.brokerUrl || !/^mqtts?:\/\/|^wss?:\/\//.test(config.brokerUrl)) {
-      reject(new Error('brokerUrl 必须以 mqtt:// mqtts:// ws:// wss:// 开头'))
-      return
-    }
-    const client = mqtt.connect(config.brokerUrl, {
+    const client = mqtt.connect(config.brokerUrl!, {
       username: config.username,
       password,
       clientId: config.clientId || `enest-mw-${Math.random().toString(36).slice(2, 10)}`,
@@ -77,19 +82,27 @@ function connectClient(config: MwConnectionConfig, password?: string): Promise<M
       reconnectPeriod: 5000,
       connectTimeout: 8000
     })
-    const timer = setTimeout(() => {
-      client.end(true)
-      reject(new Error('MQTT 连接超时（8s）'))
-    }, 9000)
-    client.once('connect', () => {
+    let settled = false
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
       clearTimeout(timer)
-      resolve(client)
+      signal?.removeEventListener('abort', aborted)
+      if (error) { client.end(true); reject(error) }
+      else resolve(client)
+    }
+    const aborted = () => finish(new Error('MQTT connection is closing'))
+    const timer = setTimeout(() => finish(new Error('MQTT 连接超时（8s）')), 9000)
+    client.once('connect', () => {
+      if (signal?.aborted) aborted()
+      else finish()
     })
     client.once('error', error => {
-      clearTimeout(timer)
       client.end(true)
-      reject(error instanceof Error ? error : new Error(String(error)))
+      finish(error instanceof Error ? error : new Error(String(error)))
     })
+    signal?.addEventListener('abort', aborted, { once: true })
+    if (signal?.aborted) aborted()
   })
 }
 
@@ -208,27 +221,37 @@ export const mqttDriver: MwDriver = {
   },
 
   async open(config, password, ctx) {
-    const client = await connectClient(config, password)
+    const client = await connectClient(config, password, ctx.signal)
     const runtime: MqttRuntime = { client }
-    const capabilities = baseCaps()
-    if (config.emqx?.enabled) {
-      const probed = await probeEmqx(config, password)
-      runtime.mgmt = probed.mgmt
-      runtime.mgmtError = probed.error
-      if (probed.mgmt) upgradeCaps(capabilities, probed.mgmt)
+    const aborted = () => { client.end(true) }
+    runtime.detachAbort = () => ctx.signal.removeEventListener('abort', aborted)
+    ctx.signal.addEventListener('abort', aborted, { once: true })
+    try {
+      ctx.signal.throwIfAborted()
+      const capabilities = baseCaps()
+      if (config.emqx?.enabled) {
+        const probed = await probeEmqx(config, password)
+        ctx.signal.throwIfAborted()
+        runtime.mgmt = probed.mgmt
+        runtime.mgmtError = probed.error
+        if (probed.mgmt) upgradeCaps(capabilities, probed.mgmt)
+      }
+      return {
+        kind: 'mqtt', raw: null, config, readOnly: false, password,
+        capabilities, messageQueryModes: runtime.mgmt ? ['key'] : [],
+        runtime: runtime as unknown as Record<string, unknown>
+      }
+    } catch (error) {
+      runtime.detachAbort()
+      await new Promise<void>(resolve => client.end(true, {}, () => resolve()))
+      throw error
     }
-    const handle: MwDriverHandle = {
-      kind: 'mqtt', raw: null, config, readOnly: false, password,
-      capabilities, messageQueryModes: runtime.mgmt ? ['key'] : [],
-      runtime: runtime as unknown as Record<string, unknown>
-    }
-    ctx.signal.addEventListener('abort', () => { if (!handle.closed) client.end(true) }, { once: true })
-    return handle
   },
 
   async close(h) {
     if (h.closed) return
     h.closed = true
+    rt(h).detachAbort?.()
     await new Promise<void>((resolve, reject) => rt(h).client.end(true, {}, error => error ? reject(error) : resolve()))
   },
 

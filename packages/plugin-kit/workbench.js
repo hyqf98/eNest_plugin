@@ -36,6 +36,11 @@ export function normalizeShortcut(event) {
   return parts.join('+')
 }
 
+/** Platform-aware modifier label for shortcut hints: ⌘ on macOS, Ctrl elsewhere. */
+const IS_MAC_PLATFORM = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform || navigator.userAgent || '')
+export const modLabel = () => (IS_MAC_PLATFORM ? '⌘' : 'Ctrl')
+export const isMacPlatform = () => IS_MAC_PLATFORM
+
 export class CommandRegistry {
   constructor() { this.commands = new Map(); this.bindings = {} }
   register(command) {

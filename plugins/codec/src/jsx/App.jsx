@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, MoreMenu, Select } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import {
   MODES,
   convert,
@@ -44,13 +45,15 @@ export function App() {
   const [outSize, setOutSize] = useState('')
   const [error, setError] = useState(null) // { message, index }
   const [batchRows, setBatchRows] = useState(null)
-  const [status, setStatus] = useState('所有转换均在本地完成')
+  const [status, setStatus] = useState('')
   const [copyDisabled, setCopyDisabled] = useState(true)
   const [saveDisabled, setSaveDisabled] = useState(true)
   const [saveFileHidden, setSaveFileHidden] = useState(true)
   const [fileChip, setFileChip] = useState(null) // { name, size }
   const [historyOpen, setHistoryOpen] = useState(false)
   const [history, setHistory] = useState([])
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ defaultMode: 'base64', liveConversion: true, strictUtf8: true })
 
   const resultRef = useRef('')
   const dataUrlResultRef = useRef(null)
@@ -132,7 +135,7 @@ export function App() {
       setError(null)
       resetResult(true)
       if (!text) {
-        setStatus('所有转换均在本地完成')
+        setStatus('')
         return
       }
       const options = { strictUtf8: kitRef.current.settings.strictUtf8 !== false }
@@ -332,6 +335,7 @@ export function App() {
       title: '编解码',
       quickPlaceholder: '输入待转换文本',
       height: 490,
+      prefs: true,
       defaults: { defaultMode: 'base64', liveConversion: true, strictUtf8: true },
       onQuery(value) {
         setInput(value)
@@ -348,6 +352,7 @@ export function App() {
     })
     kitRef.current = kit
     kit.onSettings(() => {
+      setSettings({ ...kit.settings })
       setLive(kit.settings.liveConversion !== false)
       runRef.current()
     })
@@ -385,6 +390,7 @@ export function App() {
         dirRef.current = 'decode'
       }
       setLive(kit.settings.liveConversion !== false)
+      setSettings({ ...kit.settings })
       const loaded = normalizeHistory(await kit.load(HISTORY_KEY, []))
       if (!alive) return
       setHistory(loaded)
@@ -429,8 +435,6 @@ export function App() {
             options={Object.entries(MODES).map(([key, label]) => ({ value: key, label }))}
             onChange={pickMode}
           />
-        </header>
-        <div className="toolbar">
           <div className="segmented dir" role="group" aria-label="方向">
             <button
               id="dir-enc"
@@ -482,6 +486,7 @@ export function App() {
             文件转 Data URL
           </Button>
           <Button id="run" variant="primary" onClick={() => run()}>执行</Button>
+          <SettingsGear onClick={() => setSettingsOpen(true)} />
           <input
             id="file-input"
             ref={fileInputRef}
@@ -521,7 +526,7 @@ export function App() {
               暂无记录。复制、导出或回填结果后，会自动记下内容片段与所用模式。
             </p>
           </div>
-        </div>
+        </header>
       </div>
 
       <section className="panes">
@@ -574,6 +579,7 @@ export function App() {
             </Button>
             <MoreMenu
               ariaLabel="结果操作"
+              buttonClassName="pk-btn-sm"
               items={[
                 { key: 'swap', label: '回填反转', disabled: !output, onSelect: swap },
                 { key: 'save-file', label: '存为文件', disabled: saveFileHidden || saveDisabled, onSelect: onSaveFile },
@@ -620,10 +626,17 @@ export function App() {
       )}
       <footer>
         <span id="status">{status}</span>
-        <span className="keys">
-          <kbd>⌘/Ctrl</kbd> <kbd>⇧</kbd> <kbd>Enter</kbd> 执行
-        </span>
       </footer>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          // setPref 同步回调 onSettings：那里负责 live 同步与重新转换
+          kitRef.current?.setPref(key, value)
+        }}
+      />
     </main>
   )
 }

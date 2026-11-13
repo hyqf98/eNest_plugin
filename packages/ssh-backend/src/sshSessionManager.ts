@@ -15,7 +15,7 @@ import { homedir } from 'node:os'
 import { StringDecoder } from 'node:string_decoder'
 import { pipeline } from 'node:stream/promises'
 import { basename, join, posix } from 'node:path'
-import { Client, type ClientChannel, type ConnectConfig, type SFTPWrapper } from 'ssh2'
+import type { Client, ClientChannel, ConnectConfig, SFTPWrapper } from 'ssh2'
 import type {
   SshCompletionItem,
   SshCompletionResult,
@@ -83,6 +83,11 @@ export interface SshSession {
 const sessions = new Map<string, SshSession>()
 let sessionSeq = 0
 const authChallenges = new Map<string, { session: SshSession; count: number; finish: (answers: string[]) => void; cleanup: () => void }>()
+let sshModule: Promise<typeof import('ssh2')> | undefined
+function loadSshModule(): Promise<typeof import('ssh2')> {
+  if (!sshModule) sshModule = import('ssh2').catch(error => { sshModule = undefined; throw error })
+  return sshModule
+}
 
 function attachInteractiveAuth(session: SshSession, client: Client, host: string): void {
   client.on('keyboard-interactive', (_name, instructions, _lang, prompts, finish) => {
@@ -226,6 +231,8 @@ export async function sshConnect(
   const scope = getRuntimeScope(pluginId)
   if (!scope || !scope.isCurrent() || scope.signal.aborted) throw new Error('plugin runtime is closing')
   const cfg = await buildConnectConfig(input, pluginId)
+  if (!scope.isCurrent() || scope.signal.aborted) throw new Error('plugin runtime is closing')
+  const { Client } = await loadSshModule()
   if (!scope.isCurrent() || scope.signal.aborted) throw new Error('plugin runtime is closing')
   const client = new Client()
   const session: SshSession = {

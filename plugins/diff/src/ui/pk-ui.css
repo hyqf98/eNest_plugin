@@ -333,3 +333,74 @@ select.pk-select-native { display: none !important; }
   .pk-input:focus-visible, .pk-checkbox:focus-visible, .pk-switch:focus-visible,
   .pk-select-trigger:focus-visible, .pk-slider-thumb:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
 }
+
+/* —— 悬浮主操作钮（pk-fab）——
+   替代插件底部常驻操作条：主操作常驻右下，其余动作进菜单。
+   与 orb 圆轨同一视觉语言（圆形、单层描边、轻投影），不抢内容。 */
+.pk-fab {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
+  display: flex;
+  /* DOM 顺序是「⋯ 在前、主钮在后」；column-reverse 会把它们倒过来，
+     所以这里用 column：主钮落在最下方（拇指区），其余动作向上堆叠。 */
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.pk-fab > * { pointer-events: auto; }
+.pk-fab-main {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent, #3579dd) 78%, transparent);
+  background: var(--accent, #3579dd);
+  color: var(--accent-contrast, #fff);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent, #3579dd) 28%, transparent), 0 1px 2px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+.pk-fab-main:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); box-shadow: 0 8px 22px color-mix(in srgb, var(--accent, #3579dd) 34%, transparent), 0 2px 4px rgba(0, 0, 0, 0.14); }
+.pk-fab-main:active:not(:disabled) { transform: scale(0.96); }
+.pk-fab-main:disabled { opacity: 0.45; cursor: default; filter: grayscale(0.3); box-shadow: none; }
+.pk-fab-main:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring), 0 6px 18px color-mix(in srgb, var(--accent, #3579dd) 28%, transparent); }
+.pk-fab-extra {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line, var(--border, #dfe3e8));
+  background: var(--surface, #fff);
+  color: var(--text-2, #747c88);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+.pk-fab-extra:hover:not(:disabled) { color: var(--text, #252a32); border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line)); background: var(--surface-2, #f0f2f5); }
+.pk-fab-extra:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring); }
+/* 主钮内的字形：不用 emoji，统一为几何符号，随字号缩放 */
+.fab-glyph { font-size: 18px; line-height: 1; font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pk-fab-main, .pk-fab-extra { transition-duration: 0.01ms !important; }
+}
+:root[data-anim='low'] .pk-fab-main, :root[data-anim='low'] .pk-fab-extra { transition: none; }
+
+/* 窗口矮时收紧边距，Quick 小窗再小一档 */
+@media (max-height: 420px) {
+  .pk-fab { right: 12px; bottom: 12px; gap: 6px; }
+  .pk-fab-main { width: 38px; height: 38px; }
+  .pk-fab-extra { width: 28px; height: 28px; }
+}
+
+/* kit 全局样式给 .pk-select-trigger 画 ::after 折线箭头；Radix Select（pk-select-rich）自带 .pk-select-caret，压制避免双箭头。 */
+.pk-select-rich::after { content: none; }

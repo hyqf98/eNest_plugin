@@ -2,24 +2,22 @@
  * Codex 宠物市场 —— React 版（原 src/js/main.js 路由装配 + detail.js/installed.js 逻辑等价迁移）
  * DOM 结构 / 类名 / id 与原版完全一致；gallery.js 渲染函数、sprite.js 逐帧引擎、
  * api/netbin/installer/config/demo 资产与业务通道原样复用（未改动）。
- * hash 路由：#/ 画廊 · #/pets/<id> 详情 · #/installed 已安装，等价迁移。
+ * hash 路由：#/ 宠物市场 · #/pets/<id> 详情 · #/installed 已安装，等价迁移。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createKit } from '../js/kit.js'
 import { renderGallery, refreshInstalledMarks } from '../js/gallery.js'
 import { getPet, normalizePet, formatCount, petImportCommand, INSTALL_HINT, listPets } from '../js/api.js'
 import { fetchImageBlob, downloadBinary, toDataUrl } from '../js/netbin.js'
-import { detailTabs, lookCell, applySpriteStyle, galleryCardState, CursorPet } from '../js/sprite.js'
+import { detailTabs, lookCell, applySpriteStyle, galleryCardState } from '../js/sprite.js'
 import { detectCodex, listInstalled, listInstalledAssets, deleteInstalled } from '../js/installer.js'
 import { runInstall } from '../js/gallery.js'
 
 const escapeHtmlLocal = (value) =>
-  String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+  String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '&lt;': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
 export function App() {
   const bodyRef = useRef(null)
-  const cursorPetRef = useRef(null)
-  const cursorPetElRef = useRef(null)
   const kitRef = useRef(null)
   const [, force] = useState(0)
 
@@ -38,12 +36,12 @@ export function App() {
     try {
       pet = await getPet(petId)
     } catch (err) {
-      body.innerHTML = `<div class="cp-empty">加载失败：${escapeHtmlLocal(err.message)}<br/><button type="button" class="cp-btn" data-back>返回画廊</button></div>`
+      body.innerHTML = `<div class="cp-empty">加载失败：${escapeHtmlLocal(err.message)}<br/><button type="button" class="cp-btn" data-back>返回宠物市场</button></div>`
       body.querySelector('[data-back]').addEventListener('click', () => { location.hash = '#/' })
       return
     }
     if (!pet) {
-      body.innerHTML = '<div class="cp-empty">宠物不存在（可能已被删除）<br/><button type="button" class="cp-btn" data-back>返回画廊</button></div>'
+      body.innerHTML = '<div class="cp-empty">宠物不存在（可能已被删除）<br/><button type="button" class="cp-btn" data-back>返回宠物市场</button></div>'
       body.querySelector('[data-back]').addEventListener('click', () => { location.hash = '#/' })
       return
     }
@@ -238,8 +236,8 @@ export function App() {
       body.innerHTML = `
         <div class="cp-empty">
           <p><strong>还没有安装任何宠物</strong></p>
-          <p class="cp-muted">去画廊挑一只，点击「安装」即可写入 ~/.codex/pets/。</p>
-          <button type="button" class="cp-btn primary" data-gallery>去画廊</button>
+          <p class="cp-muted">去宠物市场挑一只，点击「安装」即可写入 ~/.codex/pets/。</p>
+          <button type="button" class="cp-btn primary" data-gallery>去宠物市场</button>
         </div>`
       body.querySelector('[data-gallery]').addEventListener('click', () => onNavigate('#/'))
       return
@@ -323,11 +321,9 @@ export function App() {
   }, [kit, onNavigate])
 
   const route = useCallback(async () => {
-    const cursorPet = cursorPetRef.current
     const body = bodyRef.current
     const statusEl = document.getElementById('foot-status')
     if (!body) return
-    cursorPet?.hide()
     const hash = location.hash || '#/'
     syncNav(hash)
     try {
@@ -339,9 +335,9 @@ export function App() {
         statusEl.textContent = '已安装管理'
         await renderInstalledInto(body)
       } else {
-        statusEl.textContent = '画廊'
+        statusEl.textContent = '宠物市场'
         await refreshInstalledMarks()
-        await renderGallery(body, kit, { onNavigate, cursorPet })
+        await renderGallery(body, kit, { onNavigate })
       }
     } catch (err) {
       body.innerHTML = `<div class="cp-empty">页面渲染失败：${escapeHtmlLocal(err?.message ?? String(err))}</div>`
@@ -356,13 +352,10 @@ export function App() {
   }
 
   useEffect(() => {
-    cursorPetRef.current = new CursorPet(cursorPetElRef.current)
     window.addEventListener('hashchange', routeRef.current)
-    ;(window.enest || window.zapi)?.onBeforeClose?.(() => cursorPetRef.current?.hide())
     void routeRef.current()
     return () => {
       window.removeEventListener('hashchange', routeRef.current)
-      cursorPetRef.current?.hide()
     }
   }, [])
 
@@ -379,16 +372,16 @@ export function App() {
   return (
     <>
       <main className="cp" id="app">
-        {/* 页面切换跟随内容滚动区，不占壳标题栏：画廊 / 已安装两张视图共用。 */}
+        {/* 页面切换跟随内容滚动区，不占壳标题栏：宠物市场 / 已安装两张视图共用。 */}
         <nav className="cp-nav" id="nav" aria-label="页面">
           <button
             type="button"
             className={`cp-nav-btn${navActive === '#/' ? ' is-active' : ''}`}
             data-route="#/"
-            title="画廊"
+            title="宠物市场"
             onClick={() => onNavigate('#/')}
           >
-            画廊
+            宠物市场
           </button>
           <button
             type="button"
@@ -409,11 +402,6 @@ export function App() {
           <a className="cp-origin" id="origin-link" href="https://codex-pets.net/" title="在浏览器打开原站" onClick={openOrigin}>codex-pets.net ↗</a>
         </footer>
       </main>
-
-      {/* 光标跟随宠物（画廊卡片 hover 触发） */}
-      <div className="cp-cursor-pet" id="cursor-pet" aria-hidden="true" ref={cursorPetElRef}>
-        <div className="sprite"></div>
-      </div>
 
       {/* 通用浮层宿主 */}
       <dialog id="dlg"></dialog>

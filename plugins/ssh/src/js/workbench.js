@@ -440,13 +440,15 @@ async function boot() {
       section = next; page.querySelectorAll('[data-section]').forEach(button => button.classList.toggle('active', button.dataset.section === next))
       if (next === 'appearance') {
         const paper = normalizePaper(store.state.ui.paper)
-        content.innerHTML = `<h2>界面主题</h2><p>纸感手绘主题：墨色描边与纸面色板，仅作用于 SSH 插件界面；终端区保持等宽字体与自身底色。「跟随明暗」在浅色环境用白纸、深色环境用墨纸。</p><div class="wb-theme-options" role="group" aria-label="纸面界面主题">${PAPER_OPTIONS.map((item) => `<button type="button" class="wb-theme-option" data-paper-option="${item.id}" aria-pressed="${paper === item.id}"><span class="wb-theme-swatch" aria-hidden="true">${item.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span><span class="wb-theme-copy"><strong>${item.label}</strong><small>${item.desc}</small></span></button>`).join('')}</div>`
+        content.innerHTML = `<h2>界面主题</h2><p>纸感手绘主题：墨色描边与纸面色板，仅作用于 SSH 插件界面；终端区保持等宽字体与自身底色。「跟随明暗」在浅色环境用白纸、深色环境用墨纸。</p><div class="wb-theme-options" role="group" aria-label="纸面界面主题">${PAPER_OPTIONS.map((item) => `<button type="button" class="wb-theme-option" data-paper-option="${item.id}" aria-pressed="${paper === item.id}"><span class="wb-theme-swatch" aria-hidden="true">${item.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span><span class="wb-theme-copy"><strong>${item.label}</strong><small>${item.desc}</small></span></button>`).join('')}</div><form class="wb-settings-form"><label class="wb-follow-theme"><input type="checkbox" name="followShellTheme" ${bridge.followShellTheme ? 'checked' : ''}>跟随壳子主题配色（关闭后使用本插件纸面色板）</label></form>`
         content.querySelectorAll('[data-paper-option]').forEach((button) => button.onclick = () => {
           const next2 = normalizePaper(button.dataset.paperOption)
           store.setUi({ paper: next2 }, true)
           applyPaper(next2)
           content.querySelectorAll('[data-paper-option]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)))
         })
+        const followBox = content.querySelector('input[name="followShellTheme"]')
+        if (followBox) followBox.onchange = () => { void bridge.setFollowShellThemePref?.(followBox.checked) }
       }
       if (next === 'completion') renderCompletionSettings(content, { store, toast, integrate: enableSessionHints, connected, shortcuts: bridge.completionShortcuts })
       if (next === 'terminal') {

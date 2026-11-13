@@ -73,7 +73,7 @@ const more = h('button', {
   onClick: () => { if (snapshot) void act({ type: 'expand', expanded: !snapshot.expanded }) },
 })
 const market = button('去插件市场', 'layers', () => { void act({ type: 'open-market' }) }, 'skq-market')
-const keys = h('span', { class: 'skq-keys' }, '↑ ↓ / Tab 选择', h('kbd', null, 'Enter'), '打开')
+const keys = h('span', { class: 'skq-keys' }, '↑ ↓ / Tab 选择')
 const footer = h('footer', { class: 'skq-footer' }, keys, more, market)
 const panel = h('section', { class: 'skq-panel' }, filters, status, error, results, footer)
 const surface = h('div', { class: 'sk-work sk-quick', 'data-mode': 'list' }, createSketchPaper(), bar, panel)

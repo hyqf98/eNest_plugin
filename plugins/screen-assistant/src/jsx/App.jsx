@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { bindFileInput } from '@enest/plugin-kit/file-inputs'
 import { createNativeSurfaces } from '@enest/native-surfaces'
 import { MoreMenu } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import { selection, EditHistory, elapsed } from '../js/editor-core.js'
 
 const TOOL_HINTS = {
@@ -72,6 +73,9 @@ export function App() {
   const [recentVersion, setRecentVersion] = useState(0)
   const [historyVersion, setHistoryVersion] = useState(0)
   const [initialized, setInitialized] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [recentOpen, setRecentOpen] = useState(false)
+  const [settings, setSettings] = useState({ historyLimit: 24, captureAction: 'preview', withAudio: false })
 
   const stateRef = useRef({})
   stateRef.current = { history, recordings, drafts, pinNames, activeId, tab, tool, query, busy, editingOpen, legacyActive }
@@ -121,8 +125,68 @@ export function App() {
     }
   }
 
-  function persist(current) {
-    const s = current ?? stateRef.current
+  /* —— 视频转 GIF（ffmpeg backend + 私有文件区读写） —— */
+  const [gifBusyId, setGifBusyId] = useState(null)
+  const gifBusyRef = useRef(null)
+  const [gifAvailable, setGifAvailable] = useState(false)
+  useEffect(() => {
+    void (async () => {
+      try { setGifAvailable((await (window.enest || window.zapi).backend.call('gif.available')).ok === true) }
+      catch { setGifAvailable(false) }
+    })()
+  }, [])
+  async function readRecordingBytes(id) {
+    const chunks = []
+    let offset = 0
+    for (;;) {
+      const chunk = await privateRecordingFiles().get(id, { offset })
+      if (!chunk) break
+      chunks.push(chunk.bytes)
+      if (chunk.nextOffset == null) break
+      offset = chunk.nextOffset
+    }
+    const total = chunks.reduce((sum, view) => sum + view.byteLength, 0)
+    const merged = new Uint8Array(total)
+    let cursor = 0
+    for (const view of chunks) { merged.set(new Uint8Array(view), cursor); cursor += view.byteLength }
+    return merged.buffer
+  }
+  async function convertRecordingToGif(item, options = {}) {
+    const id = recordingFileId(item)
+    if (!id) throw new Error('此旧记录没有可验证的私有文件 ID')
+    if (gifBusyRef.current) return
+    gifBusyRef.current = id
+    setGifBusyId(id)
+    try {
+      const webm = await readRecordingBytes(id)
+      const result = await (window.enest || window.zapi).backend.call('gif.convert', webm, {
+        fps: options.fps ?? 10,
+        width: options.width ?? 0,
+      })
+      const streams = api?.files?.stream
+      if (!streams) throw new Error('此版本宿主不支持写入私有文件，请升级 eNest')
+      const { streamId } = await streams.open({ extension: 'gif' })
+      try {
+        await streams.write(streamId, 0, result.bytes)
+      } catch (error) {
+        await streams.abort(streamId).catch(() => {})
+        throw error
+      }
+      const finished = await streams.finish(streamId)
+      const gifRecord = { id: finished.id, size: finished.size, durationMs: item.durationMs, ts: Date.now(), gif: true }
+      const next = [gifRecord, ...stateRef.current.recordings]
+      setRecordings(next)
+      stateRef.current.recordings = next
+      await persist({ ...stateRef.current, recordings: next })
+      const exported = await privateRecordingFiles().export(finished.id, { defaultName: `GIF-${stamp()}.gif` })
+      setStatusText(exported ? `GIF 已生成（${(finished.size / 1024 / 1024).toFixed(1)} MB）并导出到 ${exported.path}` : `GIF 已生成（${(finished.size / 1024 / 1024).toFixed(1)} MB），可在录制记录中导出`)
+    } finally {
+      gifBusyRef.current = null
+      setGifBusyId(null)
+    }
+  }
+
+  function persist(current) {    const s = current ?? stateRef.current
     // Completed files are authoritative; keep only recent recording annotations in the bounded KV value.
     const snapshot = structuredClone({ history: s.history, recordings: s.recordings.slice(0, 30), drafts: s.drafts, activeId: s.activeId, pinNames: s.pinNames })
     saveQueue.current = saveQueue.current.catch(() => {}).then(() => kitRef.current.save('screen_workspace_v2', snapshot))
@@ -520,23 +584,35 @@ export function App() {
       return next
     })
   }
-  async function startRecording() {
+  async function startRecording(mode = 'region') {
     if (recBusyRef.current || recSession.current) return
     if (!api?.screen?.record) throw new Error('录屏需在 eNest 中使用')
     recBusyRef.current = true
     setRecBusy(true)
     renderRecordingState()
     try {
-      const bounds = await api.screen.selectRegion()
-      if (!bounds) {
-        setStatusText('已取消录制')
-        return
+      let bounds
+      if (mode === 'full') {
+        const displays = await (window.enest || window.zapi)?.screen?.displays?.()
+        const primary = displays?.find(display => display.primary) ?? displays?.[0]
+        if (primary) {
+          bounds = { x: 0, y: 0, width: primary.bounds.width, height: primary.bounds.height, displayId: primary.id }
+          setRecInfo(`全屏 ${primary.bounds.width} × ${primary.bounds.height}`)
+        }
+      } else {
+        bounds = await api.screen.selectRegion()
+        if (!bounds) {
+          setStatusText('已取消录制')
+          return
+        }
+        setRecInfo(`录制区域 ${bounds.width} × ${bounds.height}`)
       }
-      const result = await api.screen.record.start({ bounds, withAudio: recordAudioRef.current?.checked === true })
+      const result = await api.screen.record.start({ ...(bounds ? { bounds } : {}), withAudio: recordAudioRef.current?.checked === true })
       recSession.current = result.sessionId
       recStartedAt.current = Date.now()
-      setRecInfo(`录制区域 ${bounds.width} × ${bounds.height}`)
       setStatusText('正在录制，可切换窗口继续工作')
+      // 让出前台回桌面：quick 收小窗，主窗最小化；顶栏悬浮条接管停止/取消
+      try { await (window.enest || window.zapi)?.ui?.hide?.() } catch { /* 宿主不支持时忽略 */ }
     } finally {
       recBusyRef.current = false
       setRecBusy(false)
@@ -562,9 +638,9 @@ export function App() {
     do {
       const page = await files.list({ cursor, limit: 200 })
       for (const file of page.items) {
-        if (file.extension !== 'webm') continue
+        if (file.extension !== 'webm' && file.extension !== 'gif') continue
         const old = annotations.get(file.id)
-        items.push({ id: file.id, size: file.size, durationMs: old?.durationMs ?? 0, ts: old?.ts ?? file.createdAt })
+        items.push({ id: file.id, size: file.size, durationMs: old?.durationMs ?? 0, ts: old?.ts ?? file.createdAt, gif: file.extension === 'gif' || old?.gif === true })
       }
       cursor = page.nextCursor
       if (cursor && (cursors.has(cursor) || cursors.size >= 41)) throw new Error('录制文件列表异常，请重试')
@@ -581,7 +657,7 @@ export function App() {
   async function exportRecording(item) {
     const id = recordingFileId(item)
     if (!id) throw new Error('此旧记录没有可验证的私有文件 ID，不能直接操作保存路径')
-    const result = await privateRecordingFiles().export(id, { defaultName: `录制-${new Date(item.ts).toLocaleString('sv-SE').replaceAll(':', '-')}.webm` })
+    const result = await privateRecordingFiles().export(id, { defaultName: `${item.gif ? 'GIF' : '录制'}-${new Date(item.ts).toLocaleString('sv-SE').replaceAll(':', '-')}.${item.gif ? 'gif' : 'webm'}` })
     setStatusText(result ? `已导出到 ${result.path}` : '已取消导出')
   }
   async function deleteRecording(item) {
@@ -689,6 +765,7 @@ export function App() {
       title: '屏幕助手',
       height: 480,
       quickPlaceholder: '查找截图名称或日期…',
+      prefs: true,
       defaults: { historyLimit: 24, captureAction: 'preview', withAudio: false },
       onQuery: onQueryBridge,
       onAction: onActionBridge,
@@ -701,6 +778,7 @@ export function App() {
       renderRecordingState()
     })
     kit.onSettings(() => {
+      setSettings({ ...kit.settings })
       if (!recSession.current && recordAudioRef.current) recordAudioRef.current.checked = kit.settings.withAudio === true
     })
     api?.onOut?.(() => {
@@ -874,10 +952,10 @@ export function App() {
     <main className="screen-app">
       <header className="app-head">
         <span id="status" role="status">{statusText}</span>
-        <button id="capture" className="pk-btn pk-btn-primary" disabled={busy} onClick={() => void run(() => capture('region'))}>矩形截图</button>
         <MoreMenu
           ariaLabel="截图来源"
           items={[
+            { key: 'region', label: '矩形截图', disabled: busy, onSelect: () => void run(() => capture('region')) },
             { key: 'full', label: '全屏截图', disabled: busy, onSelect: () => void run(() => capture('full')) },
             // 原「打开图片」仅在桌面模式暴露（quick 单窗口无落盘选择路径）
             mode === 'quick' ? null : { key: 'import', label: '打开图片', disabled: busy, onSelect: () => document.getElementById('image-file').click() },
@@ -1036,10 +1114,19 @@ export function App() {
               </button>
             </div>
           </div>
-          <aside className="recent-aside">
+          <button
+            type="button"
+            className={`recent-toggle${recentOpen ? ' open' : ''}`}
+            aria-expanded={recentOpen}
+            aria-label={recentOpen ? '收起最近原图' : '展开最近原图'}
+            onClick={() => setRecentOpen(value => !value)}
+          >
+            最近原图<span className="recent-count">{historyCount || ''}</span>
+          </button>
+          <aside className={`recent-aside${recentOpen ? ' open' : ''}`}>
             <div className="section-head">
               <h2>最近原图</h2>
-              <button id="all-history" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => showTab('history')}>全部</button>
+              <button id="all-history" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => { setRecentOpen(false); showTab('history') }}>全部</button>
             </div>
             <div id="recent-list">
               {history.slice(0, 5).map((item) => (
@@ -1058,21 +1145,40 @@ export function App() {
         </div>
       </section>
       <section id="record-panel" className="panel" hidden={tab !== 'record'} aria-label="录屏">
+        <div className={`record-floating${recording ? ' show' : ''}`} role="toolbar" aria-label="录制控制">
+          <span className="rec-time" aria-live="polite">{recTimer || '00:00'}</span>
+          <button className="pk-btn pk-btn-primary pk-btn-sm" onClick={() => void run(stopRecording)}>停止并保存</button>
+          <button className="pk-btn pk-btn-danger pk-btn-sm" onClick={() => void run(cancelRecording)}>取消</button>
+        </div>
         <div className="record-layout">
-          <div className="record-control">
-            <span className="eyebrow" id="record-label">{recLabel}</span>
-            <div id="record-timer">{recSession.current ? elapsed(Date.now() - recStartedAt.current) : '00:00'}</div>
-            <p id="record-info">{recInfo}</p>
-            <label className="check">
-              <input id="record-audio" ref={recordAudioRef} type="checkbox" disabled={recording || recBusy} />
-              录入系统声音
-            </label>
-            <div className="record-actions">
-              <button id="record-start" className="pk-btn pk-btn-primary" disabled={recording || recBusy} onClick={() => void run(startRecording)}>选区并录制</button>
-              <button id="record-stop" className="pk-btn" disabled={!recording || recBusy} onClick={() => void run(stopRecording)}>停止并保存</button>
-              <button id="record-cancel" disabled={!recording || recBusy} className="pk-btn pk-btn-danger" onClick={() => void run(cancelRecording)}>取消录制</button>
+          <div className="record-stage">
+            <div className={`record-preview${recording ? ' live' : ''}`}>
+              <span className="record-live-badge">{recTimer || '00:00'}</span>
+              <div className="preview-empty">
+                {recording ? (
+                  <>
+                    <h2>{recTimer || '00:00'} · 录制中</h2>
+                    <p>{recInfo}。画面正在写入私有文件；顶栏悬浮条可随时停止或取消，也可切回本窗口查看状态。</p>
+                  </>
+                ) : (
+                  <>
+                    <h2>{recBusy ? '正在准备录制…' : '选择区域开始录制'}</h2>
+                    <p>选区操作与截图标注一致；全屏录制直接开始。开始后本窗口自动隐藏回桌面，顶栏出现悬浮控制条。</p>
+                  </>
+                )}
+              </div>
             </div>
-            <p className="helper">音频支持取决于系统与权限；无法获取时宿主可能录制无声视频。</p>
+            <div className="record-setup">
+              <label className="check">
+                <input id="record-audio" ref={recordAudioRef} type="checkbox" disabled={recording || recBusy} />
+                录入系统声音
+              </label>
+              <div className="record-actions">
+                <button id="record-start" className="pk-btn pk-btn-primary" disabled={recording || recBusy} onClick={() => void run(() => startRecording('region'))}>选区录制</button>
+                <button className="pk-btn" disabled={recording || recBusy} onClick={() => void run(() => startRecording('full'))}>全屏录制</button>
+              </div>
+              <p className="helper">选区与截图标注一致：框选后直接开始；停止时自动保存 webm。音频支持取决于系统与权限。</p>
+            </div>
           </div>
           <div className="record-history">
             <div className="section-head"><h2>录制记录</h2><button className="pk-btn pk-btn-ghost pk-btn-sm" disabled={recBusy || busy} onClick={() => void run(() => work(refreshRecordingFiles))}>刷新文件</button></div>
@@ -1080,10 +1186,22 @@ export function App() {
               {recordings.length ? (
                 recordings.slice(0, recordLimit).map((recording2, i) => (
                   <article className="record-row" key={recordingFileId(recording2) || i}>
-                    <strong>{`${new Date(recording2.ts).toLocaleString()} · ${elapsed(recording2.durationMs)} · ${(recording2.size / 1024 / 1024).toFixed(1)} MB`}</strong>
-                    <p>{recordingFileId(recording2)}.webm</p>
-                    <button className="pk-btn pk-btn-ghost pk-btn-sm" disabled={recBusy || busy} onClick={() => void run(() => work(() => exportRecording(recording2)))}>导出文件</button>
-                    <button className="pk-btn pk-btn-danger pk-btn-sm" disabled={recBusy || busy} onClick={() => void run(() => work(() => deleteRecording(recording2)))}>删除文件</button>
+                    <strong>{`${recording2.gif ? 'GIF · ' : ''}${new Date(recording2.ts).toLocaleString()}${!recording2.gif && recording2.durationMs ? ` · ${elapsed(recording2.durationMs)}` : ''} · ${(recording2.size / 1024 / 1024).toFixed(1)} MB`}</strong>
+                    <p>{recordingFileId(recording2)}{recording2.gif ? '.gif' : '.webm'}</p>
+                    <div className="record-row-actions">
+                      <button className="pk-btn pk-btn-ghost pk-btn-sm" disabled={recBusy || busy} onClick={() => void run(() => work(() => exportRecording(recording2)))}>导出文件</button>
+                      {!recording2.gif ? (
+                        <button
+                          className="pk-btn pk-btn-ghost pk-btn-sm"
+                          disabled={recBusy || busy || !gifAvailable || gifBusyId != null}
+                          title={gifAvailable ? '转换为本机 GIF（ffmpeg），完成后自动导出' : '本机未安装 ffmpeg，无法转换'}
+                          onClick={() => void run(() => work(() => convertRecordingToGif(recording2)))}
+                        >
+                          {gifBusyId === recordingFileId(recording2) ? '转换中…' : '转 GIF'}
+                        </button>
+                      ) : null}
+                      <button className="pk-btn pk-btn-danger pk-btn-sm" disabled={recBusy || busy} onClick={() => void run(() => work(() => deleteRecording(recording2)))}>删除文件</button>
+                    </div>
                   </article>
                 ))
               ) : (
@@ -1216,9 +1334,17 @@ export function App() {
       </section>
       <footer>
         <span id="footer-hint">标注草稿自动保留，另存版本不覆盖原图</span>
-        <span className="kbd-hints">工具快捷键：A 箭头 · R 矩形 · T 文字 · M 马赛克 · C 裁剪</span>
-        <button className="pk-btn pk-btn-ghost pk-btn-sm" data-open-settings>截图与录屏设置</button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
       </footer>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+        }}
+      />
     </main>
   )
 }

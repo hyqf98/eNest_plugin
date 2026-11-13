@@ -6,12 +6,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PanelView } from './PanelView.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   MoreMenu,
+  FloatingAction,
 } from '../ui/index.jsx'
 
 const api = window.enest || window.zapi
@@ -141,6 +143,8 @@ export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [libraryPinned, setLibraryPinned] = useState(false)
   const [libraryPeek, setLibraryPeek] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ defaultColor: '#cfa467', defaultLayout: 'list' })
   const libraryRef = useRef(null)
   const libraryToggleRef = useRef(null)
   const libraryBindingRef = useRef(null)
@@ -381,6 +385,7 @@ export function App() {
       title: '备忘录',
       quickPlaceholder: '搜索笔记与标签',
       height: 500,
+      prefs: true,
       defaults: { defaultColor: '#cfa467', defaultLayout: 'list' },
       onQuery: (value) => {
         queryRef.current = value
@@ -419,6 +424,7 @@ export function App() {
       if (readyRef.current) setNoteVersion((v) => v + 1)
     })
     kit.onSettings((s) => {
+      setSettings({ ...s })
       layoutRef.current = s.defaultLayout === 'grid' ? 'grid' : 'list'
       setLayout(layoutRef.current)
       if (readyRef.current) setNoteVersion((v) => v + 1)
@@ -435,6 +441,7 @@ export function App() {
       try {
         await kit.ready
         if (!alive) return
+        setSettings({ ...kit.settings })
         layoutRef.current = kit.settings.defaultLayout === 'grid' ? 'grid' : 'list'
         setLayout(layoutRef.current)
         const view = await kit.load('notes.view.v1', {})
@@ -603,6 +610,7 @@ export function App() {
       <section className="library" id="note-library" ref={libraryRef} aria-label="笔记导航">
         <header>
           <span></span><button className="pk-btn new" id="new" onClick={() => create()}>＋ 新建</button>
+          <SettingsGear onClick={() => setSettingsOpen(true)} />
         </header>
         <div className="search-wrap shell-only">
           <input id="search" type="search" placeholder="搜索笔记、标签" aria-label="搜索笔记" onInput={onSearchInput} />
@@ -686,19 +694,18 @@ export function App() {
             ))
           )}
         </div>
-        <footer className="shell-only">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" className="pk-btn pk-btn-ghost footer-more" aria-label="备份与设置">备份与设置 ▾</button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem id="export-all" onSelect={exportAll}>导出备份 JSON</DropdownMenuItem>
-              <DropdownMenuItem id="export-md" onSelect={exportMd}>导出全部 Markdown</DropdownMenuItem>
-              <DropdownMenuItem id="import" onSelect={() => void importNotes()}>导入…</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => api?.ui?.openSettings?.()}>设置…</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </footer>
+        {/* 底栏只有一个管理菜单：合并为右下悬浮「⋯」，不再占一条常驻高度。 */}
+        <FloatingAction
+          className="shell-only"
+          icon={<span className="fab-glyph">✎</span>}
+          label="新建笔记"
+          onPrimary={() => create()}
+          items={[
+            { key: 'export-all', label: '导出备份 JSON', onSelect: exportAll },
+            { key: 'export-md', label: '导出全部 Markdown', onSelect: exportMd },
+            { key: 'import', label: '导入…', onSelect: () => void importNotes() },
+          ]}
+        />
       </section>
       <section className={`editor${editorOpen ? ' open' : ''}`} id="editor">
         {!current ? (
@@ -745,7 +752,6 @@ export function App() {
             <div className="editor-foot">
               <span className="stat">{wc.chars} 字符 · {wc.words} 词</span>
               <span className="stat" title={new Date(current.updatedAt).toLocaleString()}>编辑于 {relTime(current.updatedAt)}</span>
-              <span>⌘ / Ctrl + Shift + Enter 保存</span>
               <button id="undo" className="pk-btn pk-btn-ghost pk-btn-sm" hidden={!undo} onClick={() => undoDelete()}>撤销删除</button>
               <button id="purge" className="pk-btn pk-btn-danger pk-btn-sm" hidden={!current.deletedAt} onClick={() => purgeNote()}>永久删除</button>
               <button id="save-state" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void persist()}>{saveState}</button>
@@ -753,6 +759,15 @@ export function App() {
           </>
         )}
       </section>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+        }}
+      />
     </div>
   )
 }

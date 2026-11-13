@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, MoreMenu, Segmented, Switch } from '../ui/index.jsx'
 import { backend, demoMode } from '../js/backend.js'
-import { formatSize, formatWhen, originLabel, scopeLabel } from '../js/format.js'
+import { formatSize, formatWhen, originLabel, scopeLabel, tildePath } from '../js/format.js'
 import { PathEditor } from './PathEditor.jsx'
 import { VarDialog } from './VarDialog.jsx'
 import { SettingsDialog } from './SettingsDialog.jsx'
@@ -17,11 +17,27 @@ const api = () => window.enest || window.zapi
 const SETTINGS_KEY = 'settings'
 const DEFAULT_SETTINGS = { macTarget: 'zshenv', launchctlSync: false }
 const MAC_TARGET_PATH = { zshenv: '~/.zshenv', zprofile: '~/.zprofile', zshrc: '~/.zshrc' }
+const LINUX_TARGET_PATH = '~/.profile'
 const MAC_TARGETS = [
   { value: 'zshenv', label: '.zshenv' },
   { value: 'zprofile', label: '.zprofile' },
   { value: 'zshrc', label: '.zshrc' }
 ]
+/** 范围菜单：图标（线性 1.7 描边，与壳内视觉一致）+ 一句说明 */
+const SCOPE_ICONS = {
+  user: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  machine: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><path d="M7 20h10M12 16v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  process: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h6v6H4zM14 5h6v6h-6zM4 15h6v4H4zM14 13h6v6h-6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>,
+  persistent: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  path: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 4 4 12l5 8M15 4l5 8-5 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+}
+const SCOPE_HINTS = {
+  user: '当前用户登录会话',
+  machine: '全机生效（需提权）',
+  process: 'eNest 插件进程内',
+  persistent: '写入 shell 受管块',
+  path: '逐条查看与排序'
+}
 
 function sameNameConflict(vars) {
   const seen = new Set()
@@ -51,6 +67,9 @@ export function App() {
   const report = (text, kind = '') => setStatus({ text, kind })
   const isMac = snapshot?.platform === 'darwin'
   const isWin = snapshot?.platform === 'win32'
+  const isLinux = snapshot?.platform === 'linux'
+  // macOS/Linux 持久写入同走受管块（目标分别是 ~/.zsh* 与 ~/.profile）。
+  const isPosix = isMac || isLinux
 
   // —— 设置持久化：enest.storage（demo fixture 与真实宿主都提供） ——
   const persistSettings = useCallback(async (next) => {
@@ -96,8 +115,8 @@ export function App() {
   }, [loadSnapshot])
 
   function defaultScope(result) {
-    const isDarwin = result?.platform === 'darwin'
-    const preferred = isDarwin ? 'persistent' : 'user'
+    const posix = result?.platform === 'darwin' || result?.platform === 'linux'
+    const preferred = posix ? 'persistent' : 'user'
     return result?.scopes.some(item => item.id === preferred) ? preferred : (result?.scopes[0]?.id ?? '')
   }
 
@@ -131,7 +150,7 @@ export function App() {
 
   // —— 写操作 ——
   const saveVar = useCallback(async ({ name, value }, retryElevate) => {
-    const targetScope = isMac ? 'persistent' : scope
+    const targetScope = isPosix ? 'persistent' : scope
     try {
       const result = await backend.setVar({ name, value, scope: targetScope, settings, elevate: retryElevate === true })
       if (result?.needsElevation) {
@@ -153,10 +172,10 @@ export function App() {
       report(`写入失败：${error.message}`, 'error')
       return false
     }
-  }, [isMac, scope, settings, loadSnapshot])
+  }, [isPosix, scope, settings, loadSnapshot])
 
   const deleteVar = useCallback(async (item, retryElevate) => {
-    const targetScope = isMac ? 'persistent' : item.scope
+    const targetScope = isPosix ? 'persistent' : item.scope
     try {
       const result = await backend.deleteVar({ name: item.name, scope: targetScope, settings, elevate: retryElevate === true })
       if (result?.needsElevation) {
@@ -175,7 +194,7 @@ export function App() {
     } catch (error) {
       report(`删除失败：${error.message}`, 'error')
     }
-  }, [isMac, settings, loadSnapshot])
+  }, [isPosix, settings, loadSnapshot])
 
   const savePath = useCallback(async (entries) => {
     await saveVar({ name: 'PATH', value: entries.join(':') })
@@ -194,7 +213,7 @@ export function App() {
   const restoreBackup = useCallback(async (file) => {
     try {
       await backend.restoreBackup(file)
-      report(`已恢复 ${file.replace(/^\/Users\/[^/]+/, '~')}`)
+      report(`已恢复 ${tildePath(file)}`)
       setConfirmState(null)
       setDialog(null)
       await loadSnapshot()
@@ -206,11 +225,11 @@ export function App() {
   const openManagedFolder = useCallback(async () => {
     try {
       await backend.openManagedFolder('')
-      report('已在 Finder 中打开')
+      report(isLinux ? '已在文件管理器中打开' : '已在 Finder 中打开')
     } catch (error) {
       report(error.message, 'error')
     }
-  }, [])
+  }, [isLinux])
 
   // —— 确认框回调 ——
   const confirmAction = useCallback(async () => {
@@ -225,20 +244,20 @@ export function App() {
 
   const askDelete = (item) => setConfirmState({
     kind: 'delete', target: item,
-    text: `将删除变量 ${item.name}${item.scope === 'machine' ? '（系统变量）' : ''}${isMac ? '，仅移除 eNest 受管块中的定义' : ''}。此操作写入前会自动备份${isMac ? '（macOS）' : ''}。`
+    text: `将删除变量 ${item.name}${item.scope === 'machine' ? '（系统变量）' : ''}${isPosix ? '，仅移除 eNest 受管块中的定义' : ''}。此操作写入前会自动备份${isMac ? '（macOS）' : isLinux ? '（Linux）' : ''}。`
   })
 
   // —— 渲染 ——
-  const platformBadge = loading ? '' : isMac ? 'macOS' : isWin ? 'Windows' : String(snapshot?.platform ?? '')
+  const platformBadge = loading ? '' : isMac ? 'macOS' : isWin ? 'Windows' : isLinux ? 'Linux' : String(snapshot?.platform ?? '')
   const canCreate = scope && scope !== 'process' && scope !== 'path'
   const pathVar = snapshot?.vars.find(item => item.name === 'PATH' && item.scope === 'process')
   const expandedItem = expanded !== null ? filteredVars[expanded] : null
+  const managedTargetPath = isLinux ? LINUX_TARGET_PATH : (MAC_TARGET_PATH[settings.macTarget] ?? '')
 
   const moreItems = [
-    { key: 'settings', label: '设置', onSelect: () => setDialog({ kind: 'settings' }) },
-    { key: 'backups', label: '备份管理', onSelect: openBackups, hidden: !isMac },
+    { key: 'backups', label: '备份管理', onSelect: openBackups, hidden: !isPosix },
     'sep',
-    { key: 'open-folder', label: '打开受管块所在文件夹', onSelect: openManagedFolder, hidden: !isMac }
+    { key: 'open-folder', label: '打开受管块所在文件夹', onSelect: openManagedFolder, hidden: !isPosix }
   ]
 
   return (
@@ -255,6 +274,12 @@ export function App() {
         </div>
         <div className="header-actions">
           <Button variant="ghost" size="sm" onClick={() => void loadSnapshot()} disabled={loading}>刷新</Button>
+          <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm pk-set-trigger" title="设置" aria-label="打开设置" onClick={() => setDialog({ kind: 'settings' })}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
           <MoreMenu
             label="更多" ariaLabel="插件更多操作" buttonClassName="header-more"
             items={moreItems}
@@ -270,8 +295,14 @@ export function App() {
               className={'scope-item' + (scope === item.id ? ' active' : '')}
               onClick={() => { setScope(item.id); setExpanded(null); setPathParts(null) }}
             >
-              <span className="scope-label">{item.label}</span>
-              {item.id !== 'path' && <span className="scope-count">{item.count}</span>}
+              <span className="scope-icon" aria-hidden="true">{SCOPE_ICONS[item.id] ?? SCOPE_ICONS.process}</span>
+              <span className="scope-copy">
+                <span className="scope-line">
+                  <span className="scope-label">{item.label}</span>
+                  {item.id !== 'path' && <span className="scope-count">{item.count}</span>}
+                </span>
+                <span className="scope-hint">{SCOPE_HINTS[item.id] ?? ''}</span>
+              </span>
             </button>
           ))}
           {loading && <div className="scope-loading">读取中…</div>}
@@ -281,8 +312,8 @@ export function App() {
           {isWin && scope === 'machine' && (
             <div className="scope-hint">写入系统变量需要管理员权限，失败时会请求提权（弹出系统 UAC 确认）。</div>
           )}
-          {isMac && (scope === 'persistent' || scope === 'path') && (
-            <div className="scope-hint">持久写入落在 eNest 受管块（目标 {MAC_TARGET_PATH[settings.macTarget]}），其余内容一字不动。</div>
+          {isPosix && (scope === 'persistent' || scope === 'path') && (
+            <div className="scope-hint">持久写入落在 eNest 受管块（目标 {managedTargetPath}），其余内容一字不动。</div>
           )}
 
           {scope === 'path' ? (
@@ -358,7 +389,8 @@ export function App() {
       <VarDialog
         dialog={dialog}
         isMac={isMac}
-        targetPath={MAC_TARGET_PATH[settings.macTarget] ?? ''}
+        isLinux={isLinux}
+        targetPath={managedTargetPath}
         existing={snapshot?.vars.map(item => item.name) ?? []}
         onClose={() => setDialog(null)}
         onSave={saveVar}
@@ -367,6 +399,7 @@ export function App() {
       <SettingsDialog
         open={dialog?.kind === 'settings'}
         isMac={isMac}
+        isLinux={isLinux}
         settings={settings}
         onApply={persistSettings}
         onClose={() => setDialog(null)}
@@ -378,7 +411,7 @@ export function App() {
         onRefresh={openBackups}
         onRestore={(file) => setConfirmState({
           kind: 'restore', target: file,
-          text: `将用备份 ${file.replace(/^\/Users\/[^/]+/, '~')} 覆盖当前文件（覆盖前会先备份当前版）。继续？`
+          text: `将用备份 ${tildePath(file)} 覆盖当前文件（覆盖前会先备份当前版）。继续？`
         })}
         onClose={() => setDialog(null)}
       />

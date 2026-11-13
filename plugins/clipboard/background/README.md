@@ -3,7 +3,7 @@
 `history.mjs` owns the complete history model and business policy. It imports neither Node nor Electron, starts no timer, and does not write to the frozen frontend host API. `assets/background.html` registers it in the generic sandboxed background runtime.
 
 - Native changes arrive as `clipboard.changed` snapshots. The host owns OS access, permission checks, bounded delivery, instance cancellation, and its single shared native observer, not history records or retention policy.
-- `eventSettings` binds that event to the plugin-declared `monitoring` switch. The host interprets the declaration generically; it does not know what a history limit or excluded application means.
+- Preferences are plugin-owned. The UI stores them with the plugin kit (`storage` self-save) and pushes them to the background via `history.setPreferences`; the background persists them in a private document and reads no host settings page. Legacy values written while `contributes.settings` still existed migrate once on first load.
 - `history.*` calls are plugin-private methods over `enest.background.call`. `src/js/history-api.mjs` adapts them for this plugin's existing UI. Copy, paste, and confirmed file reveal remain foreground native actions.
 - All events, calls, and Quick searches use one serialized writer. A mutation persists its document before ACK; unused blobs are removed only after the index commit. Native publication failures can retry, and same-generation revision checks reject stale snapshots.
 - A background can be recreated after idle disposal. Its durable document and blob storage are private to its plugin, independent of visible UI lifetime. Temporary UI consent never authorizes continuing clipboard observation.

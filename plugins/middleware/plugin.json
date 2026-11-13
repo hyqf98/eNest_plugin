@@ -19,23 +19,6 @@
     "shell.openExternal",
     "backend.node"
   ],
-  "contributes": {
-    "settings": [
-      {
-        "id": "middleware.prefs",
-        "title": "中间件",
-        "items": [
-          {
-            "key": "followShellTheme",
-            "type": "switch",
-            "label": "跟随壳子主题",
-            "default": true,
-            "shareWithThemes": true
-          }
-        ]
-      }
-    ]
-  },
   "window": {
     "width": 720,
     "height": 440,

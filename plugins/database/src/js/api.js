@@ -88,7 +88,8 @@ export const StorageKeys = {
   activeSessionId: 'db.activeSessionId',
   queryHistory: 'db.queryHistory',
   completionUsage: 'db.completionUsage',
-  ui: 'db.ui'
+  ui: 'db.ui',
+  followShellTheme: 'db.followShellTheme'
 }
 
 export async function storageGet(key, fallback = null) {
@@ -358,32 +359,18 @@ export function getFollowShellTheme() {
   return followShellTheme
 }
 
-/** 注册壳子设置页（followShellTheme 默认 true） */
+/** 插件内自存跟随壳主题（storage KV），不再注册壳设置页；旧值来自宿主 settings 的单向迁移 */
 export async function registerPluginSettings() {
-  try {
-    await api?.settings?.register?.({
-      id: 'database.prefs',
-      title: '数据库',
-      items: [
-        { key: 'workbench', type: 'page', label: '打开数据库设置与快捷键', entry: { code: 'settings' } },
-        {
-          key: 'followShellTheme',
-          type: 'switch',
-          shareWithThemes: true,
-          label: '跟随壳子主题',
-          default: true
-        }
-      ]
-    })
-  } catch {
-    /* 权限未声明 / 宿主滞后时忽略 */
+  const stored = await storageGet(StorageKeys.followShellTheme, null)
+  if (stored === null) {
+    let legacy = null
+    try { legacy = await api?.settings?.get?.('followShellTheme') } catch { legacy = null }
+    const value = legacy === undefined || legacy === null ? true : legacy !== false
+    setFollowShellTheme(value)
+    try { await api?.storage?.set?.(StorageKeys.followShellTheme, value) } catch { /* 下次启动重试 */ }
+    return
   }
-  try {
-    const v = await api?.settings?.get?.('followShellTheme')
-    if (v !== undefined && v !== null) setFollowShellTheme(v !== false)
-  } catch {
-    /* ignore */
-  }
+  setFollowShellTheme(stored !== false)
 }
 
 export async function applyShellTheme() {

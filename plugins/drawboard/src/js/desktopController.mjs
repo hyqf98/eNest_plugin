@@ -2,6 +2,9 @@ import { createDesktopTransport } from './desktopTransport.mjs'
 
 export const DESKTOP_SETTING = 'desktopFloatingTools'
 const POSITION_KEY = 'drawboard.desktop.position'
+/** 悬浮球形态的工具窗口尺寸（收起态）；面板右下角与球右下角锚定，展开视觉上原地铺开。 */
+const BALL_SIZE = { width: 64, height: 64 }
+const PANEL_SIZE = { width: 610, height: 144 }
 export const DESKTOP_TOOLS = [
   ['select', '选择'], ['pen', '钢笔'], ['highlighter', '荧光笔'], ['eraser', '橡皮'],
   ['rect', '矩形'], ['ellipse', '椭圆'], ['line', '直线'], ['arrow', '箭头'], ['text', '文字'], ['image', '贴图'],
@@ -12,6 +15,7 @@ export function createDesktopController(api, model) {
   const readyWindows = new Set(), readyWaiters = new Map()
   let generation = 0, opening, canvasId, toolsId, revision = 0, drawing = false, disposed = false, syncing
   let tool = 'pen', documentSignature = '', syncTimer, closing = false, queue = Promise.resolve(), lastError = ''
+  let expanded = false, toolsBounds = null
   const sentImages = new Map()
   const waitReady = id => readyWindows.has(id) ? Promise.resolve() : new Promise((resolve, reject) => {
     const timer = setTimeout(() => { readyWaiters.delete(id); reject(new Error('桌面画布界面启动超时')) }, 20_000)
@@ -51,6 +55,20 @@ export function createDesktopController(api, model) {
     await send(toolsId, toolsState())
     status()
   }
+  /** 悬浮球 ↔ 完整面板：右下角锚定换算窗口 bounds，展开在视觉上原地铺开。 */
+  const setExpanded = async value => {
+    if (!toolsId || expanded === Boolean(value)) return
+    expanded = Boolean(value)
+    const size = expanded ? PANEL_SIZE : BALL_SIZE
+    if (!toolsBounds) toolsBounds = { width: size.width, height: size.height, x: 40, y: 40 }
+    const next = {
+      width: size.width, height: size.height,
+      x: toolsBounds.x + toolsBounds.width - size.width,
+      y: toolsBounds.y + toolsBounds.height - size.height,
+    }
+    toolsBounds = next
+    await api.auxiliary.send(toolsId, { type: 'expand-ack', value: expanded }, { bounds: next })
+  }
   const stop = async () => {
     generation++
     closing = true
@@ -58,7 +76,7 @@ export function createDesktopController(api, model) {
     const ids = [...surfaces.keys()]
     canvasId = toolsId = undefined
     for (const transport of surfaces.values()) transport.dispose()
-    surfaces.clear(); drawing = false; documentSignature = ''; acknowledged.clear(); sentImages.clear()
+    surfaces.clear(); drawing = false; expanded = false; toolsBounds = null; documentSignature = ''; acknowledged.clear(); sentImages.clear()
     for (const waiter of readyWaiters.values()) waiter.reject()
     readyWaiters.clear(); readyWindows.clear()
     await Promise.all(ids.map(id => api.auxiliary.close(id).catch(() => {})))
@@ -76,6 +94,7 @@ export function createDesktopController(api, model) {
       return
     }
     if (data.type === 'operate') { await setDrawing(false); return }
+    if (data.type === 'expand' && id === toolsId) { await setExpanded(data.value === true); return }
     if (data.type === 'tool-current' && id === canvasId && DESKTOP_TOOLS.some(([key]) => key === data.tool)) {
       tool = data.tool; await send(toolsId, toolsState()); return
     }
@@ -158,9 +177,15 @@ export function createDesktopController(api, model) {
       const canvas = await api.auxiliary.open({ entry: 'assets/vendor/drawboard-desktop/canvas.html', placement: 'display',
         transparent: true, alwaysOnTop: true, focus: false, interaction: 'passthrough', data: {} })
       canvasId = canvas.windowId; addSurface(canvasId); valid()
+      // 存储的位置是「完整面板」的左上角；收起球以右下角锚定换算，展开时原地铺开。
+      const anchor = position && typeof position === 'object' ? position : null
+      const ballBounds = {
+        width: BALL_SIZE.width, height: BALL_SIZE.height,
+        ...(anchor ? { x: anchor.x + (anchor.width ?? PANEL_SIZE.width) - BALL_SIZE.width, y: anchor.y + (anchor.height ?? PANEL_SIZE.height) - BALL_SIZE.height } : {}),
+      }
       const tools = await api.auxiliary.open({ entry: 'assets/vendor/drawboard-desktop/tools.html', title: '画板工具',
         transparent: true, alwaysOnTop: true, focus: false, parentWindowId: canvasId,
-        bounds: { width: 610, height: 144, ...(position && typeof position === 'object' ? { x: position.x, y: position.y } : {}) }, data: toolsState() })
+        bounds: ballBounds, data: toolsState() })
       toolsId = tools.windowId; addSurface(toolsId); valid()
       await Promise.all([waitReady(canvasId), waitReady(toolsId)])
       valid()
@@ -174,7 +199,14 @@ export function createDesktopController(api, model) {
     if (!closing && surfaces.has(event.windowId)) void stop().then(() => api.settings.set(DESKTOP_SETTING, false)).catch(fail)
   }
   const onChanged = event => {
-    if (event.windowId === toolsId) void api.storage.set(POSITION_KEY, event.state.bounds).then(() => api.storage.flush()).catch(fail)
+    if (event.windowId === toolsId) {
+      toolsBounds = { ...event.state.bounds }
+      // 只持久化「完整面板」形态的位置：收起球换算回面板左上角，下次展开仍在原位。
+      const panel = expanded || !toolsBounds.width
+        ? toolsBounds
+        : { ...toolsBounds, x: toolsBounds.x + toolsBounds.width - PANEL_SIZE.width, y: toolsBounds.y + toolsBounds.height - PANEL_SIZE.height, width: PANEL_SIZE.width, height: PANEL_SIZE.height }
+      void api.storage.set(POSITION_KEY, panel).then(() => api.storage.flush()).catch(fail)
+    }
     if (event.windowId === canvasId && event.state.interaction === 'passthrough' && drawing) {
       drawing = false; void send(toolsId, toolsState()).catch(fail); status()
     }

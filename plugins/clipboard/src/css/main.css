@@ -102,10 +102,8 @@ header input{margin-left:auto;flex:1;max-width:460px}
 /* —— 底栏操作 —— */
 .selection{display:flex;gap:8px;align-items:center;font-size:11px;color:var(--muted-c);min-width:0}
 .selection button{font-size:11px;min-height:0;padding:3px 6px}
-.actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
-.actions button{font-size:12px}
-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--line);padding:8px 14px;background:color-mix(in srgb,var(--paper) 78%,transparent);backdrop-filter:blur(12px)}
-kbd{font-family:inherit;opacity:.6;font-size:11px;margin-left:5px}
+/* 底栏只承载选择计数：主操作由宿主 quick 输入框 Enter 承担，不再需要描边与整条底衬。 */
+footer,footer.selection-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 14px;background:transparent}
 
 /* —— 权限条 / 对话框 —— */
 .capability{display:flex;align-items:center;justify-content:space-between;padding:6px 16px;font-size:11px;color:var(--muted-c);background:color-mix(in srgb,var(--warn,#b07c2a) 8%,var(--soft))}
@@ -144,7 +142,7 @@ html[data-mode="quick"] .tools{grid-template-columns:1fr;max-height:46vh}
 html[data-mode="quick"] .tools-block + .tools-block{border-left:0;border-top:1px solid var(--line)}
 html[data-mode="quick"] .snippets{max-height:100px}
 
-@media(max-width:640px){html[data-mode="shell"] .workspace{grid-template-columns:1fr;overflow:auto}html[data-mode="shell"] .history{min-height:270px;max-height:50vh;border:0;border-bottom:1px solid var(--line)}header{padding:14px 16px;gap:10px;flex-wrap:wrap}header input{order:3;max-width:none;flex-basis:100%}header button{margin-left:auto}#detail{min-height:230px;padding:16px}.selection{max-width:none;flex-wrap:wrap}html[data-mode="shell"] footer{flex-wrap:wrap}.selection button{font-size:10px}.filters{padding:0 6px}.filters #types{gap:0}.filters #types button{padding-left:9px;padding-right:9px}footer{padding:8px}.actions button{padding:6px 8px}.tools{grid-template-columns:1fr}.tools-block + .tools-block{border-left:0;border-top:1px solid var(--line)}}
+@media(max-width:640px){html[data-mode="shell"] .workspace{grid-template-columns:1fr;overflow:auto}html[data-mode="shell"] .history{min-height:270px;max-height:50vh;border:0;border-bottom:1px solid var(--line)}header{padding:14px 16px;gap:10px;flex-wrap:wrap}header input{order:3;max-width:none;flex-basis:100%}header button{margin-left:auto}#detail{min-height:230px;padding:16px}.selection{max-width:none;flex-wrap:wrap}html[data-mode="shell"] footer{flex-wrap:wrap}.selection button{font-size:10px}.filters{padding:0 6px}.filters #types{gap:0}.filters #types button{padding-left:9px;padding-right:9px}footer{padding:8px}.tools{grid-template-columns:1fr}.tools-block + .tools-block{border-left:0;border-top:1px solid var(--line)}}
 @media(max-width:640px){html[data-mode="shell"] .entry:has(img){grid-template-columns:auto 50px minmax(0,1fr) auto}}
 html[data-mode="shell"] .entry:has(img){grid-template-columns:auto 50px minmax(0,1fr) auto}
 

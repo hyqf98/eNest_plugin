@@ -1,5 +1,5 @@
 /**
- * gallery — 画廊页：搜索 / 排序 / 筛选 / 分页 / 卡片网格 / hover 动效。
+ * gallery — 宠物市场页：搜索 / 排序 / 筛选 / 分页 / 卡片网格 / hover 动效。
  */
 import { listPets } from './api.js'
 import { normalizePet, formatCount } from './api.js'
@@ -17,7 +17,7 @@ export async function refreshInstalledMarks() {
   installedIds.clear()
   try {
     for (const item of await listInstalled()) installedIds.add(item.id)
-  } catch { /* 检测失败不阻塞画廊 */
+  } catch { /* 检测失败不阻塞宠物市场 */
   }
 }
 
@@ -53,8 +53,8 @@ export function galleryHash(state) {
   return suffix ? `#/?${suffix}` : '#/'
 }
 
-/** 画廊页渲染入口 */
-export async function renderGallery(body, kit, { onNavigate, cursorPet }) {
+/** 宠物市场页渲染入口 */
+export async function renderGallery(body, kit, { onNavigate }) {
   const state = galleryStateFromHash()
   body.innerHTML = `
     <div class="cp-toolbar">
@@ -117,7 +117,7 @@ export async function renderGallery(body, kit, { onNavigate, cursorPet }) {
     return
   }
 
-  renderCards(grid, pets, kit, { onNavigate, cursorPet })
+  renderCards(grid, pets, kit, { onNavigate })
   renderPager(pager, data.page ?? state.page, totalPages, next => onNavigate(galleryHash({ ...state, page: next })))
 
   // 视口懒加载 poster
@@ -131,7 +131,7 @@ export async function renderGallery(body, kit, { onNavigate, cursorPet }) {
   for (const el of grid.querySelectorAll('.cp-card-poster[data-poster]')) observer.observe(el)
 }
 
-function renderCards(grid, pets, kit, { onNavigate, cursorPet }) {
+function renderCards(grid, pets, kit, { onNavigate }) {
   grid.innerHTML = ''
   for (const pet of pets) {
     const card = document.createElement('article')
@@ -173,7 +173,7 @@ function renderCards(grid, pets, kit, { onNavigate, cursorPet }) {
         onNavigate(galleryHash({ ...grid2, tags, page: 1 }))
       })
     }
-    // hover 动效：拉全图播放 hash 选行 + 光标跟随宠物（对齐原站行为）
+    // hover 动效：拉全图播放 hash 选行动画（原站另有光标跟随宠物，小窗内易被窗口边缘裁切，不引入）
     const spriteLayer = card.querySelector('.cp-card-sprite')
     card.addEventListener('pointerenter', () => {
       card.classList.add('is-hover')
@@ -189,14 +189,10 @@ function renderCards(grid, pets, kit, { onNavigate, cursorPet }) {
           spriteLayer.classList.add('is-playing')
         })
         .catch(() => { /* 全图加载失败保持静帧 */ })
-      fetchImageBlob('spritesheet', pet.spritesheetUrl)
-        .then(blobUrl => cursorPet?.show(pet, blobUrl))
-        .catch(() => { /* 光标宠物失败静默 */ })
     })
     card.addEventListener('pointerleave', () => {
       card.classList.remove('is-hover')
       spriteLayer.classList.remove('is-playing')
-      cursorPet?.hide()
     })
     // 安装
     card.querySelector('[data-install]').addEventListener('click', async event => {

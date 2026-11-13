@@ -74,9 +74,6 @@ export function petAnimationRows(version) {
   return version === 2 ? [...PET_STATES, ...PET_LOOK_ROWS] : PET_STATES
 }
 
-/** 光标跟随可用的状态（原站 CursorPreviewStateId） */
-export const CURSOR_PREVIEW_STATES = ['idle', 'waiting', 'running-left', 'running-right']
-
 /** sprite 图集几何（原站 cell 192×208 × 8 列；v1 9 行 / v2 11 行） */
 export const SPRITE_CELL_W = 192
 export const SPRITE_CELL_H = 208
@@ -120,15 +117,7 @@ export function pickGalleryPetState(petId) {
   return PET_STATES[Math.abs(hash) % PET_STATES.length]
 }
 
-/** 光标跟随宠物参数（原站 cursorPreview* 常量） */
-export const CURSOR_PET_W = 96
-export const CURSOR_PET_H = 104
-export const CURSOR_PET_OFFSET = 18
-export const CURSOR_IDLE_DELAY_MS = 360
-export const CURSOR_WAITING_DELAY_MS = 1800
-export const CURSOR_TILT_MIN_DEG = 3
-export const CURSOR_TILT_MAX_DEG = 12
-export const CURSOR_TILT_SPEED_FACTOR = 16
+/** 光标跟随宠物已随 CursorPreview 一起移除（小窗内跟随层易被窗口边缘裁切）。 */
 
 /** 画廊分页（原站：标准 30/紧凑 60/随机 3） */
 export const PAGE_SIZE = 30

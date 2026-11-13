@@ -564,12 +564,7 @@ async function boot() {
     resetLayout: () => { applySidebarCollapsed(false); dom.side.style.width = '240px'; dom.rightPanel.style.width = '280px'; dom.results.style.height = '300px' }
   })
   await workbench.initialize()
-  try {
-    const v = await api?.settings?.get?.('followShellTheme')
-    if (v !== undefined && v !== null) setFollowShellTheme(v !== false)
-  } catch {
-    /* ignore */
-  }
+  await registerPluginSettings()
 
   applySidebarCollapsed(!!state.ui.sidebarCollapsed)
   dom.rightPanel.style.width = `${state.ui.rightWidth || 280}px`

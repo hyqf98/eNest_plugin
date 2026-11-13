@@ -3,6 +3,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const api = window.enest || window.zapi
 const KEY = 'translate_history_v2'
@@ -115,14 +116,20 @@ export function App() {
   const [result, setResult] = useState(null)
   const [output, setOutput] = useState(IDLE)
   const [busy, setBusy] = useState(false)
-  const [runLabel, setRunLabel] = useState('翻译')
-  const [runDisabled, setRunDisabled] = useState(false)
   const [hint, setHint] = useState('输入即翻译 · Enter 立即 · Shift+Enter 换行')
   const [history, setHistory] = useState([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyFilter, setHistoryFilter] = useState('all')
   const [historyQuery, setHistoryQuery] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [settings, setSettings] = useState({
+    srcLang: 'auto',
+    tgtLang: 'zh-CN',
+    engine: 'auto',
+    autoTranslate: false,
+    resultFontSize: 18,
+  })
+  const [settingsOpen, setSettingsOpen] = useState(false)
   /* 导出文本原本带 .shell-only（quick 隐藏）；收进 ⋯ 后按模式决定是否给出该项 */
   const [quickMode, setQuickMode] = useState(
     () => (api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode')) === 'quick',
@@ -132,6 +139,11 @@ export function App() {
   const stateRef = useRef({})
   const inputRefValue = useRef('')
   inputRefValue.current = input
+  /* queryValueRef：onQuery/本地输入同步维护的"当前待翻译文本"。
+     React 18 批处理下 setInput 后 inputRefValue.current 在下一帧才更新，
+     防抖触发时读它会拿到 IME 拼音中间态（nihao），导致空格确认后的
+     中文被旧值翻译并回写宿主输入框。所有取值一律走本 ref。 */
+  const queryValueRef = useRef(input)
   const srcRef = useRef(src); srcRef.current = src
   const tgtRef = useRef(tgt); tgtRef.current = tgt
   const engineRef = useRef(engine); engineRef.current = engine
@@ -148,8 +160,6 @@ export function App() {
   const invalidate = useCallback(() => {
     requestRef.current++
     clearTimeout(timerRef.current)
-    setRunDisabled(false)
-    setRunLabel('翻译')
     setHint('输入即翻译 · Enter 立即 · Shift+Enter 换行')
   }, [])
 
@@ -160,6 +170,7 @@ export function App() {
   const clear = useCallback(() => {
     invalidate()
     setInput('')
+    queryValueRef.current = ''
     kitRef.current?.setQuery('')
     setResult(null)
     detectedRef.current = ''
@@ -173,9 +184,9 @@ export function App() {
     setResult(null)
     setOutput({ text: '原文已更新，正在翻译', cls: 'placeholder', engineTag: '', detected: '' })
     syncButtons()
-    if (updateHost) kitRef.current?.setQuery(inputRefValue.current)
+    if (updateHost) kitRef.current?.setQuery(queryValueRef.current)
     // 即时翻译：停 350ms 自动联网翻译（防抖；autoTranslate 设置为暂停开关）
-    if (!autoTranslateRef.current && inputRefValue.current.trim())
+    if (!autoTranslateRef.current && queryValueRef.current.trim())
       timerRef.current = setTimeout(() => stateRef.current.run?.(), 350)
   }, [invalidate, syncButtons])
 
@@ -192,7 +203,7 @@ export function App() {
   const run = useCallback(async () => {
     await stateRef.current.initialized
     clearTimeout(timerRef.current)
-    const source = inputRefValue.current.trim()
+    const source = queryValueRef.current.trim()
     if (!source) {
       stateRef.current.clear?.()
       return
@@ -202,8 +213,7 @@ export function App() {
     const engineV = engineRef.current
     const id = ++requestRef.current
     setResult(null)
-    setRunDisabled(true)
-    setRunLabel('翻译中…')
+    setBusy(true)
     setOutput({ text: '', cls: 'placeholder busy', engineTag: '', detected: '' })
     const stateText = engineV === 'mymemory' ? 'MyMemory 正在翻译…' : '正在获取译文…'
     try {
@@ -245,10 +255,7 @@ export function App() {
       setOutput({ text: '翻译失败：' + e.message, cls: 'error', engineTag: '', detected: '' })
       setHint('调整语言或引擎后重试')
     } finally {
-      if (id === requestRef.current) {
-        setRunDisabled(false)
-        setRunLabel('翻译')
-      }
+      if (id === requestRef.current) setBusy(false)
     }
   }, [saveHistory])
 
@@ -259,7 +266,7 @@ export function App() {
       .catch(() => {})
       .then(async () => {
         for (const [key, value] of Object.entries(prefs))
-          await api.settings.set(key, value)
+          await kitRef.current?.setPref(key, value)
       })
       .catch((e) => kitRef.current?.toast('偏好保存失败：' + e.message, 'error'))
   }, [])
@@ -269,7 +276,7 @@ export function App() {
     setResult(null)
     syncButtons()
     savePrefs()
-    if (rerun && inputRefValue.current.trim()) void run()
+    if (rerun && queryValueRef.current.trim()) void run()
   }, [invalidate, savePrefs, run, syncButtons])
 
   /* —— 语言快捷 chips：当前目标语言高亮；原文即该语言时禁用 —— */
@@ -286,6 +293,7 @@ export function App() {
     setResult(h)
     detectedRef.current = h.detected || ''
     setInput(h.source)
+    queryValueRef.current = h.source
     kitRef.current?.setQuery(h.source)
     setSrc(h.src)
     setTgt(h.tgt)
@@ -313,7 +321,10 @@ export function App() {
   }, [])
 
   /* ── 宿主适配器（latest-ref 桥接，PluginKit.create 仅一次） ── */
-  stateRef.current = { run, clear }
+  /* 注意：inputChanged 必须挂进 stateRef——onQuery/onEnter 走
+     stateRef.current.inputChanged 调用；此前整对象替换漏掉它，
+     导致 quick 顶部输入框打字永远不触发防抖翻译。 */
+  stateRef.current = { run, clear, inputChanged }
 
   /* 首帧前同步 data-mode：旧版由 kit 同步脚本在渲染前设置 html[data-mode]，
      React 挂载晚于该时序会丢掉首帧的 quick/shell 网格切换 */
@@ -329,6 +340,7 @@ export function App() {
       title: '翻译',
       quickPlaceholder: '输入要翻译的文字 · Enter 翻译',
       height: 510,
+      prefs: true,
       defaults: {
         srcLang: 'auto',
         tgtLang: 'zh-CN',
@@ -337,7 +349,9 @@ export function App() {
         resultFontSize: 18,
       },
       onQuery: (value) => {
-        setInput(String(value).slice(0, 10000))
+        const text = String(value).slice(0, 10000)
+        setInput(text)
+        queryValueRef.current = text // setState 未 flush 前后续读取必须拿到最新值
         stateRef.current.inputChanged?.(false)
       },
       onAction: (action) => {
@@ -354,6 +368,7 @@ export function App() {
         await kit.ready
         if (!alive) return
         renderChipsRef.current?.()
+        setSettings({ ...kit.settings })
         const migrated = await kit.load('translate_prefs_v2_migrated', false)
         if (!migrated) {
           const old = {
@@ -370,8 +385,7 @@ export function App() {
                 ? ['auto', 'google', 'mymemory'].includes(value)
                 : LANGS[value] && (key !== 'tgtLang' || value !== 'auto'))
             ) {
-              await api.settings.set(key, value)
-              kit.settings[key] = value
+              await kit.setPref(key, value)
             }
           }
           await kit.save('translate_prefs_v2_migrated', true).catch(() => {})
@@ -405,6 +419,7 @@ export function App() {
     if (!kit) return
     kit.onSettings((_settings, key) => {
       autoTranslateRef.current = !!kit.settings.autoTranslate
+      setSettings({ ...kit.settings })
       const changed =
         (key === 'srcLang' && srcRef.current !== kit.settings.srcLang) ||
         (key === 'tgtLang' && tgtRef.current !== kit.settings.tgtLang) ||
@@ -431,6 +446,7 @@ export function App() {
             : ''
       if (text) {
         setInput(text.slice(0, 10000))
+        queryValueRef.current = text.slice(0, 10000)
         stateRef.current.inputChanged?.()
         void stateRef.current.run?.()
       }
@@ -464,7 +480,9 @@ export function App() {
   const paste = async () => {
     try {
       const text = await api.clipboard.readText()
-      setInput(String(text || '').slice(0, 10000))
+      const clipped = String(text || '').slice(0, 10000)
+      setInput(clipped)
+      queryValueRef.current = clipped
       inputChanged()
       inputRef.current?.focus()
     } catch (e) {
@@ -482,6 +500,7 @@ export function App() {
     setTgt(srcV)
     if (result) {
       setInput(result.text)
+      queryValueRef.current = result.text
       kitRef.current?.setQuery(result.text)
     }
     detectedRef.current = ''
@@ -496,7 +515,7 @@ export function App() {
     <div className="app">
       <header>
         <button id="history-toggle" onClick={() => setHistoryOpen((o) => !o)}>历史与收藏</button>
-        <button data-open-settings>设置</button>
+        {!quickMode && <SettingsGear onClick={() => setSettingsOpen(true)} />}
       </header>
       <main className="workspace">
         <section className="translator">
@@ -547,7 +566,7 @@ export function App() {
                 aria-label="待翻译文本"
                 maxlength="10000"
                 value={input}
-                onChange={(e) => { setInput(e.target.value); inputChanged() }}
+                onChange={(e) => { setInput(e.target.value); queryValueRef.current = e.target.value; inputChanged() }}
                 onKeyDown={(e) => {
                   if (
                     e.key === 'Enter' &&
@@ -580,8 +599,10 @@ export function App() {
                   <span className="dot blink" aria-hidden="true"></span>
                   <span className="busy-text" id="output-state-text">正在获取译文…</span>
                 </div>
-                <button id="copy" disabled={!hasResult}
-                  onClick={() => hasResult && kitRef.current?.copy(result.text).catch((e) => kitRef.current?.toast(e.message, 'error'))}>复制译文</button>
+                <button id="copy" aria-label="复制译文" title="复制译文" disabled={!hasResult}
+                  onClick={() => hasResult && kitRef.current?.copy(result.text).catch((e) => kitRef.current?.toast(e.message, 'error'))}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                </button>
                 <span className="spacer"></span>
                 <MoreMenu
                   ariaLabel="译文操作"
@@ -605,7 +626,6 @@ export function App() {
           <div className="actions">
             <span className="hint" id="hint">{hint}</span>
             <span className="grow"></span>
-            <button id="run" className="primary" disabled={runDisabled} onClick={() => void run()}>{runLabel}</button>
           </div>
         </section>
         <aside className={'history shell-only' + (historyOpen ? ' open' : '')} id="history">
@@ -679,6 +699,15 @@ export function App() {
           </div>
         </aside>
       </main>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+        }}
+      />
     </div>
   )
 }

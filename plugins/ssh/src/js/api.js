@@ -428,16 +428,6 @@ import { createSshHost } from '@enest/ssh-backend/client'
     document.documentElement.dataset.theme = m
   }
 
-  async function settingsRegister(section) {
-    try {
-      const f = api?.settings?.register
-      if (!has(f)) return false
-      return Boolean(await f.call(api.settings, section))
-    } catch (_) {
-      return false
-    }
-  }
-
   async function settingsGet(key, fallback) {
     try {
       const f = api?.settings?.get
@@ -446,16 +436,6 @@ import { createSshHost } from '@enest/ssh-backend/client'
       return v === undefined || v === null ? fallback : v
     } catch (_) {
       return fallback
-    }
-  }
-
-  async function settingsSet(key, value) {
-    try {
-      const f = api?.settings?.set
-      if (!has(f)) return false
-      return Boolean(await f.call(api.settings, key, value))
-    } catch (_) {
-      return false
     }
   }
 
@@ -555,9 +535,7 @@ import { createSshHost } from '@enest/ssh-backend/client'
     initTheme,
     applyThemeTokens,
     applyFallbackPalette,
-    settingsRegister,
     settingsGet,
-    settingsSet,
     systemMode,
     on,
   }

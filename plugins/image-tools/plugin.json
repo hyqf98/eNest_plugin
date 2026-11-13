@@ -75,54 +75,6 @@
         ],
         "role": "Viewer"
       }
-    ],
-    "settings": [
-      {
-        "id": "image-tools.preferences",
-        "title": "图片工具箱",
-        "items": [
-          {
-            "key": "followShellTheme",
-            "type": "boolean",
-            "label": "跟随壳子主题",
-            "default": true,
-            "shareWithThemes": true
-          },
-          {
-            "key": "targetKb",
-            "type": "slider",
-            "label": "Quick 快速压缩目标体积（KB）",
-            "default": 200,
-            "min": 20,
-            "max": 2048,
-            "step": 20,
-            "shareWithThemes": true
-          },
-          {
-            "key": "quickFormat",
-            "type": "select",
-            "label": "Quick 快速压缩格式",
-            "default": "image/jpeg",
-            "options": [
-              {
-                "label": "JPEG",
-                "value": "image/jpeg"
-              },
-              {
-                "label": "WebP",
-                "value": "image/webp"
-              }
-            ],
-            "shareWithThemes": true
-          },
-          {
-            "key": "autoPin",
-            "type": "boolean",
-            "label": "压缩完成后自动贴图预览",
-            "default": false
-          }
-        ]
-      }
     ]
   },
   "development": {

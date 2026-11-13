@@ -174,7 +174,7 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
         <div className="md-sidebar-panel md-outline">
           <div className="md-outline-search">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.2"/><path d="m10.2 10.2 3 3"/></svg>
-            <input type="text" placeholder="检索标题，回车定位" value={outlineQuery}
+            <input type="text" placeholder="检索标题定位" value={outlineQuery}
               onChange={(e) => setOutlineQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {

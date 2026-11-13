@@ -70,6 +70,7 @@ export function createClipboardApi(host) {
     clear: () => call('clear'),
     togglePin: id => call('togglePin', [id]),
     preferencesChanged: () => call('preferencesChanged'),
+    setPreferences: preferences => call('setPreferences', [preferences]),
     onChange(callback) {
       if (typeof api.on !== 'function') return () => {}
       const listener = payload => { if (payload?.event === 'history.changed') callback(payload.data) }

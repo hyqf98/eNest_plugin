@@ -1,4 +1,4 @@
-/** 设置 Dialog：mac 写入目标 Segmented + launchctl 同步 Switch；win 显示说明。 */
+/** 设置 Dialog：mac 写入目标 Segmented + launchctl 同步 Switch；linux/win 显示说明。 */
 import { useEffect, useState } from 'react'
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Segmented, Switch } from '../ui/index.jsx'
 
@@ -8,7 +8,7 @@ const MAC_TARGETS = [
   { value: 'zshrc', label: '.zshrc' }
 ]
 
-export function SettingsDialog({ open, isMac, settings, onApply, onClose }) {
+export function SettingsDialog({ open, isMac, isLinux, settings, onApply, onClose }) {
   const [macTarget, setMacTarget] = useState(settings.macTarget)
   const [launchctlSync, setLaunchctlSync] = useState(settings.launchctlSync)
 
@@ -19,7 +19,7 @@ export function SettingsDialog({ open, isMac, settings, onApply, onClose }) {
   if (!open) return null
 
   const apply = async () => {
-    await onApply({ macTarget, launchctlSync })
+    await onApply(isMac ? { macTarget, launchctlSync } : { macTarget: 'zshenv', launchctlSync: false })
     onClose()
   }
 
@@ -27,7 +27,9 @@ export function SettingsDialog({ open, isMac, settings, onApply, onClose }) {
     <Dialog open onOpenChange={(next) => { if (!next) onClose() }}>
       <DialogContent aria-describedby="settings-desc">
         <DialogTitle>设置</DialogTitle>
-        <DialogDescription id="settings-desc">{isMac ? 'macOS 写入行为' : 'Windows 写入行为'}</DialogDescription>
+        <DialogDescription id="settings-desc">
+          {isMac ? 'macOS 写入行为' : isLinux ? 'Linux 写入行为' : 'Windows 写入行为'}
+        </DialogDescription>
         {isMac ? (
           <div className="settings-grid">
             <div className="settings-row">
@@ -44,6 +46,13 @@ export function SettingsDialog({ open, isMac, settings, onApply, onClose }) {
               </div>
               <Switch checked={launchctlSync} onCheckedChange={setLaunchctlSync} aria-label="同步 launchctl" />
             </div>
+          </div>
+        ) : isLinux ? (
+          <div className="settings-grid">
+            <p className="settings-note">
+              持久写入固定落在 ~/.profile 的 eNest 受管块，登录 shell（bash/zsh）自动加载；
+              写入前自动备份，文件其余内容不动。
+            </p>
           </div>
         ) : (
           <div className="settings-grid">

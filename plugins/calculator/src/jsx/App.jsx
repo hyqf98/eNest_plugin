@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { calculate, formatNumber, parseAssignment, isVariableName } from '../js/core.mjs'
 import { TooltipProvider, MoreMenu } from '../ui/index.jsx'
 import { PanelView } from './PanelView.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const VARS_KEY = 'calculator.vars.v1'
 const KEYS = [
@@ -29,6 +30,7 @@ export function App() {
   const [degrees, setDegrees] = useState(false)
   const [group, setGroup] = useState(true)
   const [padOpen, setPadOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState({ precision: 12, historyLimit: 100, angleUnit: 'rad' })
 
   const ansRef = useRef(0)
@@ -207,8 +209,9 @@ export function App() {
   useEffect(() => {
     const kit = PluginKit.create({
       title: '计算器',
-      quickPlaceholder: '输入表达式，Enter 记录',
+      quickPlaceholder: '输入表达式记录',
       height: 470,
+      prefs: true,
       defaults: { precision: 12, historyLimit: 100, angleUnit: 'rad' },
       onQuery: (value) => { setExpr(value); setSelected(-1) },
       onAction: (action) => {
@@ -277,6 +280,7 @@ export function App() {
               onClick={() => setGroup((g) => !g)}>{group ? '千分位' : '原始'}</button>
             <button id="toggle-pad" type="button" aria-expanded={padOpen}
               onClick={() => setPadOpen((p) => !p)}>键盘</button>
+            <SettingsGear onClick={() => setSettingsOpen(true)} />
           </div>
         </header>
         <section className="workbench">
@@ -295,7 +299,7 @@ export function App() {
               <button id="copy" type="button" disabled={result.value == null}
                 onClick={() => result.value != null && copy(fmt(result.value))}>复制结果</button>
             </div>
-            <p className="status" id="status">Enter 记录 · x = 5 赋值变量 · 10% 百分比 · 10 % 3 取模</p>
+            <p className="status" id="status">x = 5 赋值变量 · 10% 百分比 · 10 % 3 取模</p>
             <nav className="memory" aria-label="记忆操作">
               <button type="button" onClick={() => insert('Ans')}>Ans</button>
               <button type="button" onClick={() => insert('M')}>MR</button>
@@ -347,7 +351,7 @@ export function App() {
             </div>
             <div id="history-list" className="history-list" ref={listRef}>
               {records.length === 0 ? (
-                <p className="empty">还没有计算记录<br />输入表达式后按 Enter，随时回填继续计算。</p>
+                <p className="empty">还没有计算记录<br />输入表达式，随时回填继续计算。</p>
               ) : (
                 records.map((r, i) => (
                   <article key={r.id} data-row-actions className={'record' + (i === selectedClamped ? ' selected' : '')}>
@@ -372,8 +376,20 @@ export function App() {
           </aside>
         </section>
         <footer>
-          <span id="selection-hint">↑ ↓ 选择历史 · Enter 回填</span>
+          <span id="selection-hint">↑ ↓ 选择历史</span>
         </footer>
+        {mode !== 'panel' && (
+          <SettingsDialog
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+            settings={settings}
+            onChange={(key, value) => {
+              setSettings((prev) => ({ ...prev, [key]: value }))
+              kitRef.current?.setPref(key, value)
+              if (key === 'angleUnit') setDegrees(value === 'deg')
+            }}
+          />
+        )}
       </main>
     </TooltipProvider>
   )

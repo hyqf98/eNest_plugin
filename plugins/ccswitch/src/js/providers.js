@@ -1,7 +1,7 @@
 import { storageGet, storageSet, agentWrite } from './api.js'
 /**
  * com.github.eNest.ccswitch — 供应商模型与切换语义
- * 应用元数据：10 应用 + 切换式/共存式 + 各应用 changes 构造器（对齐 cc-switch provider 适配层语义）。
+ * 应用元数据：11 应用 + 切换式/共存式 + 各应用 changes 构造器（对齐 cc-switch provider 适配层语义）。
  * 供应商 store：storage.local 持久化；顺序、默认供应商、通用供应商。
  * 命名空间挂 window.CCS.providers。
  */
@@ -17,7 +17,8 @@ const APPS = [
   { id: 'openclaw', name: 'OpenClaw', mode: 'additive', color: '#f59e0b' },
   { id: 'hermes', name: 'Hermes', mode: 'switch', color: '#0ea5e9' },
   { id: 'pi', name: 'Pi', mode: 'switch', color: '#84cc16' },
-  { id: 'minimax-code', name: 'MiniMax Code', mode: 'switch', color: '#ef4444' }
+  { id: 'minimax-code', name: 'MiniMax Code', mode: 'switch', color: '#ef4444' },
+  { id: 'zcode', name: 'ZCode', mode: 'switch', color: '#7c5cfc' }
 ]
 const APP_MAP = Object.fromEntries(APPS.map(a => [a.id, a]))
 
@@ -82,6 +83,13 @@ function changesForGenericJson(p) {
   if (p.model) out.model = p.model
   return { provider: out }
 }
+/** zcode：magpie 网关 applied.json 的 zcode 段（fields.provider = 供应商 id；模型经 fields.model） */
+function changesForZcode(p) {
+  const fields = {}
+  if (p.baseUrl) fields.provider = p.baseUrl /* 复用 Base URL 列存 magpie provider id */
+  if (p.model) fields.model = p.model
+  return { zcode: { at: new Date().toISOString(), fields } }
+}
 
 function slug(name) {
   return String(name).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'custom'
@@ -109,7 +117,8 @@ const CHANGES_BUILDERS = {
   openclaw: changesForGenericJson,
   hermes: changesForGenericJson,
   pi: changesForGenericJson,
-  'minimax-code': changesForGenericJson
+  'minimax-code': changesForGenericJson,
+  zcode: changesForZcode
 }
 
 /** codex 密钥写入目标（auth.json OPENAI_API_KEY） */
@@ -222,6 +231,11 @@ function extractCurrent(app, snapshot) {
       return { baseUrl: env.GOOGLE_GEMINI_BASE_URL || null, model: env.GEMINI_MODEL || null }
     case 'grok-build':
       return { baseUrl: mainParsed.base_url || null, model: mainParsed.model || null }
+    case 'zcode': {
+      // applied.json 的 zcode 段：fields.provider（magpie 供应商 id）/ fields.model
+      const fields = mainParsed.zcode?.fields || {}
+      return { baseUrl: fields.provider || null, model: fields.model || null }
+    }
     default: {
       // generic 应用：provider.baseUrl / provider.model（与 changesForGenericJson 对应）
       const prov = mainParsed.provider

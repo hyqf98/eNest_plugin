@@ -21,6 +21,7 @@ import {
 } from '../js/core.mjs'
 import { queryJson, jsonStats, toTypeScript } from '../js/extra.mjs'
 import { MoreMenu } from '../ui/index.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const api = window.enest || window.zapi
 const esc = PluginKit.escape
@@ -48,6 +49,8 @@ export function App() {
 
   /* —— 与原版模块级变量一一对应 —— */
   const [mode, setMode] = useState('format') // activeMode
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ indent: '2', defaultView: 'text', wrapLines: true })
   const [indent, setIndent] = useState('2')
   const [wrapOff, setWrapOff] = useState(false) // wrapLines === false
   const [input, setInput] = useState('')
@@ -412,7 +415,7 @@ export function App() {
   const runQuery = useCallback(() => {
     const query = queryText.trim()
     if (!query) {
-      setQueryHtml('<p class="query-empty">输入路径后回车，例如 .users[*].name</p>')
+      setQueryHtml('<p class="query-empty">输入路径，例如 .users[*].name</p>')
       queryDirtyRef.current = false
       return
     }
@@ -714,8 +717,9 @@ export function App() {
     let alive = true
     const kit = PluginKit.create({
       title: 'JSON 工具',
-      quickPlaceholder: '粘贴 JSON，Enter 格式化',
+      quickPlaceholder: '粘贴 JSON 格式化',
       height: 510,
+      prefs: true,
       defaults: { indent: '2', defaultView: 'text', wrapLines: true },
       onQuery(value) {
         setInput(value)
@@ -763,13 +767,15 @@ export function App() {
     void (async () => {
       await kit.ready
       if (!alive) return
+      setSettings({ ...kit.settings })
       setIndent(String(kit.settings.indent || 2))
       setWrapOff(kit.settings.wrapLines === false)
       PluginKit.upgradeSelects() // 纯 state 赋值不触发 change，手动同步自定义下拉标签
       switchViewRef.current(kit.settings.defaultView === 'tree' ? 'tree' : 'text')
-      kit.onSettings((settings) => {
-        setIndent(String(settings.indent || 2))
-        setWrapOff(settings.wrapLines === false)
+      kit.onSettings((next) => {
+        setSettings({ ...next })
+        setIndent(String(next.indent || 2))
+        setWrapOff(next.wrapLines === false)
         PluginKit.upgradeSelects()
       })
     })()
@@ -817,6 +823,7 @@ export function App() {
         <span className="tool-gap"></span>
         <button id="paste" className="ghost" onClick={() => void paste()}>粘贴</button>
         <button id="clear" className="ghost" onClick={clearAll}>清空</button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
       </div>
       <div id="error" role="alert">{errorText}</div>
       <section className="editors">
@@ -988,14 +995,24 @@ export function App() {
           </div>
           <div className="result-empty" id="result-empty" hidden={!emptyVisible}>
             <p className="empty-title">还没有结果</p>
-            <p className="empty-desc">在左侧粘贴 JSON，选择上方模式；<br />⌘/Ctrl + Shift + Enter 快速格式化</p>
+            <p className="empty-desc">在左侧粘贴 JSON，选择上方模式</p>
           </div>
         </div>
       </section>
       <footer>
         <span id="result-size">{resultSize}</span>
-        <span className="foot-hint">⌘/Ctrl + Shift + Enter 格式化</span>
       </footer>
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          kitRef.current?.setPref(key, value)
+          if (key === 'indent') setIndent(String(value))
+          if (key === 'wrapLines') setWrapOff(value === false)
+        }}
+      />
     </main>
   )
 }

@@ -23,6 +23,7 @@ import { loadProviders } from '../js/providers.mjs'
 import { loadPreferences, savePreferences, resolvePaper, watchSystemScheme } from '../js/theme.mjs'
 import { executeNode, runWorkflow, createRunContext, downstreamOf, topoLevels } from '../js/workflow.mjs'
 import { assetPreviewUrl } from '../js/assets.mjs'
+import { modLabel } from '@enest/plugin-kit/workbench'
 import { getNodeDef, listNodeDefs, groupNodeDefs } from '../js/nodeRegistry.mjs'
 import { makeNode, downstreamPosition, upstreamPosition, layoutPositions, dropAnchorPosition } from '../js/canvasNodes.mjs'
 import { findPort, matchInputPort, matchOutputToTarget } from '../js/nodeSchema.mjs'
@@ -595,8 +596,8 @@ function Workbench() {
     if (def?.runnable) items.push({ glyph: '▶', label: '运行此节点', onClick: () => runSingle(node.id) })
     if (downstreamOf(node.id, edgesRef.current).length) items.push({ glyph: '⇥', label: '运行下游', onClick: () => runDownstream(node.id) })
     items.push({ sep: true },
-      { glyph: '⧉', label: '复制', hint: '⌘C', onClick: () => copyNodes(group) },
-      { glyph: '⧉', label: '原地副本', hint: '⌘D', onClick: () => duplicateNodes(group) },
+      { glyph: '⧉', label: '复制', hint: `${modLabel()}C`, onClick: () => copyNodes(group) },
+      { glyph: '⧉', label: '原地副本', hint: `${modLabel()}D`, onClick: () => duplicateNodes(group) },
       { sep: true },
       { glyph: '×', label: '删除', danger: true, hint: 'Del', onClick: () => deleteNodes(group) })
     setMenu({ anchor: { x: event.clientX, y: event.clientY }, items })
@@ -755,7 +756,7 @@ function Workbench() {
           {menu && <FloatingMenu anchor={menu.anchor} items={menu.items} onClose={() => setMenu(null)} />}
         </div>
         <div className="ac-status">
-          <span>点端口 ＋ 接出节点 · 线中点插入 · {mode === 'pointer' ? '拖拽框选 / 滚轮平移（V 指针）' : '拖拽平移（H 手）'} · ⌘Z 撤销 · 右键更多</span>
+          <span>点端口 ＋ 接出节点 · 线中点插入 · {mode === 'pointer' ? '拖拽框选 / 滚轮平移（V 指针）' : '拖拽平移（H 手）'} · {modLabel()}Z 撤销 · 右键更多</span>
           <span className="ac-status-flex" />
           <span>{workflowRunning ? '运行中，编辑已锁定，可停止' : '就绪'}</span>
         </div>

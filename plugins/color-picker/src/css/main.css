@@ -156,7 +156,6 @@ h1 { font-size: 21px; font-weight: 650; letter-spacing: -.4px; }
 #magnifier { width: 88px; height: 88px; border: 1px solid var(--cp-line); border-radius: var(--radius-sm); image-rendering: pixelated; }
 
 footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--cp-line); color: var(--cp-ink-3); font-size: 11px; }
-footer .text-button { font-size: 11px; padding: 0; }
 
 /* 动画档位 */
 :root[data-anim="low"] { --t: 0ms; }
@@ -165,7 +164,7 @@ footer .text-button { font-size: 11px; padding: 0; }
 /* Quick 紧凑形态 */
 :root[data-mode="quick"] .color-app { padding: 10px; }
 :root[data-mode="quick"] .app-head { padding-bottom: 8px; margin-bottom: 10px; }
-:root[data-mode="quick"] .eyebrow, :root[data-mode="quick"] h1, :root[data-mode="quick"] .desktop, :root[data-mode="quick"] footer > span:last-child { display: none; }
+:root[data-mode="quick"] .eyebrow, :root[data-mode="quick"] h1, :root[data-mode="quick"] .desktop { display: none; }
 :root[data-mode="quick"] .app-head > div { display: none; }
 :root[data-mode="quick"] .app-head #status { margin-right: auto; max-width: none; }
 :where(:root[data-mode="quick"]) .color-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 12px; }

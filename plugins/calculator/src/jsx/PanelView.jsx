@@ -22,7 +22,7 @@ export function PanelView({ expr, inputRef, result, recent, onChange, onConfirm,
       <form className="calculator-widget-form" onSubmit={(event) => { event.preventDefault(); onConfirm() }}>
         <div className="calculator-widget-body">
           <input ref={inputRef} className="pk-input calculator-widget-input" value={expr} onChange={(event) => onChange(event.target.value)}
-            spellCheck="false" autoComplete="off" aria-label="计算表达式，按 Enter 记入历史" title="按 Enter 计算并记入历史" placeholder="输入表达式，如 128 / 4" />
+            spellCheck="false" autoComplete="off" aria-label="计算表达式" title="计算表达式并记入历史" placeholder="输入表达式，如 128 / 4" />
           <output className="calculator-widget-result" data-error={result.error} aria-live="polite" title={result.text}>
             {result.value == null && !result.error ? '即输即算' : result.text}
           </output>

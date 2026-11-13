@@ -8,11 +8,14 @@ import { MoreMenu } from '../ui/index.jsx'
 import * as tk from '../js/textkit.js'
 import { createClipboardApi } from '../js/history-api.mjs'
 import { PanelView } from './PanelView.jsx'
+import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const SNIPPET_KEY = 'clipboard.snippets.v1'
 const SNIPPET_MAX = 20
 const TYPE_LABEL = { text: '文本', image: '图片', files: '文件' }
 const esc = PluginKit.escape
+/** 这些设置由剪贴板后台解释；变化时推送给后台即时生效。 */
+const BACKGROUND_PREF_KEYS = ['monitoring', 'historyLimit', 'retentionDays', 'recordSource', 'excludedApps']
 
 const age = (ts) => {
   const minutes = Math.floor((Date.now() - ts) / 60000)
@@ -56,6 +59,8 @@ export function App() {
   const [settingsDraft, setSettingsDraft] = useState({ excluded: '', collections: '' })
   const [confirmState, setConfirmState] = useState(null) // { title, text, action }
   const [monitoring, setMonitoring] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState({ monitoring: true, historyLimit: 200, retentionDays: 0, recordSource: true, defaultAction: 'paste', density: 'comfortable', excludedApps: '' })
 
   // A host without the background bridge can never serve history; show the reason instead of a bare toast.
   const historySupported = api.clipboard.history.supported !== false
@@ -379,8 +384,7 @@ export function App() {
     run(async () => {
       const kit = kitRef.current
       const excluded = document.getElementById('excluded').value
-      await api.settings.set('excludedApps', excluded)
-      kit.settings.excludedApps = excluded
+      await kit.setPref('excludedApps', excluded)
       const names = [...new Set(document.getElementById('collections').value.split('\n').map((v) => v.trim()).filter(Boolean))].slice(0, 30)
       const next = { ...stateRef.current.groups, names }
       setGroups(next)
@@ -469,6 +473,7 @@ export function App() {
       title: '剪贴板',
       height: 490,
       quickPlaceholder: '搜索剪贴板内容、文件或来源…',
+      prefs: true,
       defaults: { monitoring: true, historyLimit: 200, retentionDays: 0, recordSource: true, defaultAction: 'paste', density: 'comfortable', excludedApps: '' },
       onQuery: (value) => search(value),
       onAction: (action) => {
@@ -479,11 +484,17 @@ export function App() {
     })
     kitRef.current = kit
     setMode(kit.mode)
-    kit.onSettings((_settings, changedKey) => {
+    // excludedApps 是逐键输入：后台偏好推送做短防抖，避免每个键位唤醒一次后台
+    let prefsTimer = 0
+    kit.onSettings((next, changedKey) => {
+      setSettings({ ...kit.settings })
       setDensity(kit.settings.density)
       setMonitoring(kit.settings.monitoring)
       setCountText(`${stateRef.current.total} 条记录${kit.settings.monitoring ? '' : ' · 已暂停监控'}`)
-      if (['historyLimit', 'retentionDays'].includes(changedKey)) void run(() => api.clipboard.history.preferencesChanged())
+      if (BACKGROUND_PREF_KEYS.includes(changedKey)) {
+        clearTimeout(prefsTimer)
+        prefsTimer = setTimeout(() => { void run(() => api.clipboard.history.setPreferences(kit.settings)) }, 400)
+      }
     })
     kit.onMode(() => {
       setMode(kit.mode)
@@ -559,6 +570,8 @@ export function App() {
       if (searchRef.current) searchRef.current.value = q
       kit.setQuery(q)
       setDensity(kit.settings.density)
+      setSettings({ ...kit.settings })
+      setMonitoring(kit.settings.monitoring !== false)
       await refreshRef.current()
       requestAnimationFrame(() => {
         if (listRef.current) listRef.current.scrollTop = view.scroll || 0
@@ -567,6 +580,7 @@ export function App() {
     })
     return () => {
       alive = false
+      clearTimeout(prefsTimer)
       release?.()
       observer.current?.disconnect()
       clearTimeout(queryTimer.current)
@@ -617,13 +631,6 @@ export function App() {
   const many = mode === 'shell' && selected.size > 0
   const currentItem = items.find((item) => item.id === current)
   const selectedLabel = many ? `已选 ${selected.size} 条` : currentItem ? `${label(currentItem)} · ${age(currentItem.ts)}` : '请选择记录'
-  const buttonsDisabled = !currentItem && !many
-  const pasteDisabled = !currentItem || many
-  const pinDisabled = !currentItem || many
-  const pinText = currentItem?.pinned ? '取消收藏' : '收藏'
-  const copyText = many ? '合并复制' : '复制'
-  // 与原版一致：按钮内 HTML 恒为「{动作} <kbd>↵</kbd>」，动作名由 defaultAction 决定
-  const pasteAction = kitRef.current?.settings.defaultAction === 'copy' ? '复制' : '回贴'
 
   if (mode === 'panel') {
     return <PanelView snippets={snippets} ready={snippetsReady} error={snippetsError}
@@ -648,7 +655,7 @@ export function App() {
             search(e.target.value)
           }}
         />
-        <button data-open-settings className="pk-btn pk-btn-ghost">偏好设置</button>
+        <SettingsGear onClick={() => setSettingsOpen(true)} />
       </header>
       <nav className="filters" aria-label="历史分类">
         <div id="types">
@@ -864,7 +871,6 @@ export function App() {
                 <p className="muted">{historyUnavailableReason || '当前 eNest 版本不提供剪贴板历史后台。'}</p>
                 <div className="empty-actions">
                   <button className="pk-btn pk-btn-sm" onClick={() => window.location.reload()}>重新加载</button>
-                  <button className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void api?.ui?.openSettings?.().catch(() => {})}>查看详情</button>
                 </div>
               </div>
             ) : emptyReason === 'read-failed' ? (
@@ -981,7 +987,8 @@ export function App() {
           )}
         </aside>
       </div>
-      <footer>
+      {/* 操作区只留选择计数：主操作由宿主 quick 输入框 Enter 承担，其余操作在列表行内。 */}
+      <footer className="selection-bar">
         <div className="selection">
           <span id="selected-label">{selectedLabel}</span>
           <button
@@ -990,24 +997,6 @@ export function App() {
             onClick={() => setSelected(selected.size === items.length ? new Set() : new Set(items.map((item) => item.id)))}
           >
             全选已载入
-          </button>
-        </div>
-        <div className="actions">
-          <MoreMenu
-            label="更多"
-            ariaLabel="记录更多操作"
-            buttonClassName="footer-more"
-            items={[
-              { key: 'pin', label: pinText, disabled: pinDisabled, onSelect: () => void run(async () => {
-                await api.clipboard.history.togglePin(current)
-                await refresh()
-              }) },
-              { key: 'delete', label: '删除', danger: true, disabled: buttonsDisabled, onSelect: removeCurrent },
-            ]}
-          />
-          <button id="copy" className="pk-btn" disabled={buttonsDisabled} onClick={() => void run(batchCopy)}>{copyText}</button>
-          <button id="paste" className="pk-btn pk-btn-primary" disabled={pasteDisabled} onClick={() => void run(primary)}>
-            {pasteAction} <kbd>↵</kbd>
           </button>
         </div>
       </footer>
@@ -1055,7 +1044,7 @@ export function App() {
           </button>
           <button id="save-management" className="pk-btn pk-btn-primary" onClick={saveManagement}>保存管理设置</button>
         </div>
-        <button data-open-settings className="pk-btn pk-btn-ghost settings-link">在壳设置中调整监控、容量、保留期限和密度</button>
+        <button className="pk-btn pk-btn-ghost settings-link" onClick={() => { document.getElementById('manager').close(); setSettingsOpen(true) }}>调整监控、容量、保留期限和密度</button>
       </dialog>
       <dialog id="confirm">
         <h2 id="confirm-title">{confirmState?.title ?? '删除记录'}</h2>
@@ -1098,6 +1087,16 @@ export function App() {
       ) : (
         <dialog id="snippet-dialog"></dialog>
       )}
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={(key, value) => {
+          setSettings((prev) => ({ ...prev, [key]: value }))
+          // setPref 同步回调 onSettings：那里负责 density/monitoring/countText 同步与后台偏好推送
+          kitRef.current?.setPref(key, value)
+        }}
+      />
     </main>
   )
 }

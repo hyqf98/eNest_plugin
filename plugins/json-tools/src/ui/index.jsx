@@ -86,7 +86,7 @@ export function Select({ value, options, onChange, disabled = false, ariaLabel, 
   return (
     <SelectPrimitive.Root value={value} onValueChange={(next) => onChange(next)} disabled={disabled}>
       <SelectPrimitive.Trigger
-        className={`pk-select-trigger${className ? ` ${className}` : ''}`}
+        className={`pk-select-trigger pk-select-rich${className ? ` ${className}` : ''}`}
         aria-label={ariaLabel}
         style={minWidth ? { minWidth } : undefined}
       >
@@ -231,5 +231,38 @@ export function MoreMenu({ label = '⋯', ariaLabel = '更多操作', items = []
               </DropdownMenuItem>)}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/* —— FloatingAction：悬浮主操作钮 ——
+   取代各插件底部常驻操作条。主操作一眼可见，其余动作收进同一个菜单，
+   底部不再固定占掉一条 40px 的高度。 */
+export function FloatingAction({
+  icon, label, onPrimary, items = [], disabled = false, hint, className = ''
+}) {
+  const extra = items.filter(Boolean)
+  return (
+    <div className={`pk-fab${className ? ` ${className}` : ''}`} data-pk-fab>
+      {extra.length > 0 && (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className="pk-fab-extra" aria-label="更多操作" title="更多操作">⋯</button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent aria-label="更多操作" side="top" align="end">
+            {extra.map((item, index) => item === 'sep' || item.sep || item.key === 'sep'
+              ? <DropdownMenuSeparator key={`sep-${index}`} />
+              : <DropdownMenuItem key={item.key} danger={item.danger} disabled={item.disabled} onSelect={item.onSelect}>
+                  <span className="pk-menu-check" aria-hidden="true" />
+                  <span className="pk-menu-label">{item.label}</span>
+                  {item.hint && <span className="pk-menu-hint pk-mono">{item.hint}</span>}
+                </DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      <button type="button" className="pk-fab-main" aria-label={label} title={hint ? `${label} · ${hint}` : label}
+        disabled={disabled} onClick={onPrimary}>
+        {icon}
+      </button>
+    </div>
   )
 }

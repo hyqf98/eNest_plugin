@@ -11,15 +11,18 @@ import { applyTheme, builtinThemeCss, adaptTyporaCss, BUILTIN_THEMES } from '../
 import { setMermaidLook } from '../render/render.js'
 import { resolveImageDir } from '../js/imageDir.js'
 import { applyContentMetrics, applyMotionSettings, loadUserThemes, applyUserTheme, deleteUserTheme } from '../js/preferences.js'
+import { runLegacyMigration } from '../js/migration.js'
+import { modLabel } from '@enest/plugin-kit/workbench'
 import { Sidebar } from './Sidebar.jsx'
 import { SettingsPage } from './SettingsPage.jsx'
 import { UploadMenu } from './UploadMenu.jsx'
 import { ExportMenu } from './ExportMenu.jsx'
 import { PanelView } from './PanelView.jsx'
 
+const MOD = modLabel()
 const WELCOME = `# 未命名文档
 
-开始书写。粘贴图片试试（⌘V），或把 .md 文件拖进来。
+开始书写。粘贴图片试试（${MOD}V），或把 .md 文件拖进来。
 
 ## 语法速览
 
@@ -684,8 +687,9 @@ export function App() {
     let alive = true
     const k = PluginKit.create({
       title: 'Markdown 编辑器',
-      quickPlaceholder: '速记一句话，⏎ 落收件箱…',
+      quickPlaceholder: '速记一句话落收件箱…',
       height: 420,
+      prefs: true,
       onAction: action => scratchActionRef.current?.(action),
       defaults: {
         typewriterMode: false,
@@ -698,6 +702,11 @@ export function App() {
         codeTheme: 'default',
         motionEnabled: false,
         motionPreset: 'both',
+        followShellTheme: true,
+        motionMermaid: true,
+        motionTable: true,
+        motionHighlight: true,
+        motionCode: true,
         imageMaxWidth: 100,
         imageMaxHeight: 0,
         htmlBlockMaxWidth: 100,
@@ -730,12 +739,11 @@ export function App() {
       if (!alive) return
       applyPreferences(k.settings)
       void refreshImageDir(k.settings)
-      // 旧笔记清理（v2 改为本地文件编辑器，旧 storage 数据废弃）
-      void call('legacy.cleanup').then(async (r) => {
-        if (!r?.skipped) {
-          try { await api()?.storage?.remove?.('mdnotes_v1') } catch { /* 无旧数据 */ }
-        }
-      }).catch(() => {})
+      // 旧自管数据目录一次性迁移（KV set 幂等；完成后再恢复最近文件，避免首启读到空列表）
+      try {
+        const { migrated } = await runLegacyMigration()
+        if (migrated && alive) toast('旧数据已迁移到 eNest 统一存储', 'success')
+      } catch { /* 迁移失败静默：下次启动再试 */ }
       // 恢复最近文件
       try {
         const { list } = await call('recent.list')
@@ -865,7 +873,7 @@ export function App() {
         imageDir={imageDir}
         onRefreshImageDir={() => void refreshImageDir()}
         settings={kit?.settings || {}}
-        onSettingChange={(key, value) => void api()?.settings?.set?.(key, value)}
+        onSettingChange={(key, value) => { kitRef.current?.setPref(key, value) }}
       />
     )
   }
@@ -878,23 +886,23 @@ export function App() {
       {ctxMenu && (
         <div className="md-ctx-menu" style={{ left: Math.min(ctxMenu.x, window.innerWidth - 230), top: Math.min(ctxMenu.y, window.innerHeight - 420) }} role="menu">
           <div className="md-menu-label">格式</div>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ wrap: '**' }) }}>加粗<kbd>⌘B</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ wrap: '*' }) }}>斜体<kbd>⌘I</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ wrap: '`' }) }}>行内代码<kbd>⌘E</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ wrap: '**' }) }}>加粗<kbd>{MOD}B</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ wrap: '*' }) }}>斜体<kbd>{MOD}I</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ wrap: '`' }) }}>行内代码<kbd>{MOD}E</kbd></button>
           <div className="md-menu-sep" />
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '# ' }) }}>一级标题<kbd>⌘1</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '## ' }) }}>二级标题<kbd>⌘2</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '### ' }) }}>三级标题<kbd>⌘3</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '# ' }) }}>一级标题<kbd>{MOD}1</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '## ' }) }}>二级标题<kbd>{MOD}2</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '### ' }) }}>三级标题<kbd>{MOD}3</kbd></button>
           <div className="md-menu-sep" />
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '- ' }) }}>无序列表<kbd>⌘⇧8</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '1. ' }) }}>有序列表<kbd>⌘⇧9</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '- [ ] ' }) }}>任务清单<kbd>⌘⇧7</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '> ' }) }}>引用<kbd>⌘⇧U</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '- ' }) }}>无序列表<kbd>{MOD}⇧8</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '1. ' }) }}>有序列表<kbd>{MOD}⇧9</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '- [ ] ' }) }}>任务清单<kbd>{MOD}⇧7</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ line: '> ' }) }}>引用<kbd>{MOD}⇧U</kbd></button>
           <div className="md-menu-sep" />
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ fence: true }) }}>代码块<kbd>⌘⇧L</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ table: true }) }}>表格<kbd>⌘⇧G</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ link: true }) }}>链接<kbd>⌘K</kbd></button>
-          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ image: true }) }}>图片<kbd>⇧⌘K</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ fence: true }) }}>代码块<kbd>{MOD}⇧L</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ table: true }) }}>表格<kbd>{MOD}⇧G</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ link: true }) }}>链接<kbd>{MOD}K</kbd></button>
+          <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ image: true }) }}>图片<kbd>⇧{MOD}K</kbd></button>
         </div>
       )}
       {imageMenu && (
@@ -997,9 +1005,9 @@ export function App() {
             {moreOpen && (
               <div className="md-more-menu" role="menu">
                 <div className="md-menu-label">文件</div>
-                <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(newDoc)}>新建<kbd>⌘N</kbd></button>
+                <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(newDoc)}>新建<kbd>{MOD}N</kbd></button>
                 <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(() => void openWithPicker())}>打开…</button>
-                <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(() => void doSave())}>保存<kbd>⌘S</kbd></button>
+                <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(() => void doSave())}>保存<kbd>{MOD}S</kbd></button>
                 <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(() => void saveAs())}>另存为…</button>
                 <div className="md-menu-sep" />
                 <div className="md-menu-label">导出</div>
@@ -1010,7 +1018,7 @@ export function App() {
                 <div className="md-menu-label">视图</div>
                 <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(toggleTypewriter)} aria-checked={typewriter}>{typewriter ? '✓ ' : ''}打字机模式<kbd>F8</kbd></button>
                 <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(toggleFocus)} aria-checked={focusMode}>{focusMode ? '✓ ' : ''}专注模式<kbd>F9</kbd></button>
-                <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(toggleSidebar)}>侧栏<kbd>⌘\</kbd></button>
+                <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(toggleSidebar)}>侧栏<kbd>{MOD}\</kbd></button>
                 <div className="md-menu-sep" />
                 <div className="md-menu-label">主题</div>
                 <div className="md-menu-themes">
@@ -1028,11 +1036,11 @@ export function App() {
         </section>
       </div>
       <footer className="md-statusbar">
-        <button className={`md-status-save md-save-${saveState}`} onClick={() => void doSave()} title="保存（⌘S）">
+        <button className={`md-status-save md-save-${saveState}`} onClick={() => void doSave()} title={`保存（${MOD}S）`}>
           <span className={`md-doc-pill-dot md-dot-${saveState}`} />
           {{ saved: '已保存', dirty: '未保存', saving: '保存中', error: '保存失败', conflict: '冲突' }[saveState]}
         </button>
-        <span className="md-docname" title={docPath}>{docPath ? docPath : '未落盘文档（⌘S 选择位置）'}</span>
+        <span className="md-docname" title={docPath}>{docPath ? docPath : `未落盘文档（${MOD}S 选择位置）`}</span>
         <span className="md-grow" />
         <span className="md-stats">{stats.words} 词 · {stats.chars} 字符 · {stats.lines} 行 · 约 {stats.readMinutes} 分钟</span>
       </footer>
@@ -1098,7 +1106,7 @@ function QuickScratch({ kit, draftRef, actionRef, syncRef, onSave }) {
     <main className="md-app md-quick md-scope">
       <div ref={hostRef} className="md-editor-host" />
       <footer className="md-quick-status">
-        <span>速记 · ⏎ 提交到收件箱 · Esc 收起</span>
+        <span>速记 · Esc 收起</span>
         <span className="md-grow" />
         <span>{saved ? '已同步' : '草稿…'}</span>
       </footer>

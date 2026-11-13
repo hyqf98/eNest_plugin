@@ -123,7 +123,9 @@ export function uvDataDir(): DirSpec {
 
 export function uvCacheDir(): DirSpec {
   if (isWin && winEnv('LOCALAPPDATA')) return { label: 'UV 缓存', path: path.join(winEnv('LOCALAPPDATA')!, 'uv') }
-  return { label: 'UV 缓存', path: joinHome('Library', 'Caches', 'uv') }
+  if (isMac) return { label: 'UV 缓存', path: joinHome('Library', 'Caches', 'uv') }
+  const xdgCache = process.env.XDG_CACHE_HOME
+  return { label: 'UV 缓存', path: path.join(xdgCache && path.isAbsolute(xdgCache) ? xdgCache : joinHome('.cache'), 'uv') }
 }
 
 export function pipConfigFile(): string {

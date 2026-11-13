@@ -7,12 +7,18 @@
  */
 import { exec } from './exec'
 import { parentPort } from './parentPort'
+import * as linux from './platforms/linux'
 import * as mac from './platforms/mac'
 import * as win from './platforms/win'
 import type { PluginSettings } from './types'
 
 const port = parentPort
 if (!port) throw new Error('env-vars service requires an Electron utility parent')
+
+const isDarwin = process.platform === 'darwin'
+const isWindows = process.platform === 'win32'
+const isLinux = process.platform === 'linux'
+// Linux 统一走 linux 实现（~/.profile 受管块）；其余冷门平台不暴露持久写入。
 
 type Unknown = Record<string, unknown>
 
@@ -26,9 +32,10 @@ function requireName(input: unknown): string {
   if (typeof input !== 'string') throw new Error('变量名无效')
   const name = input.trim()
   if (!name) throw new Error('变量名不能为空')
-  if (process.platform === 'win32') {
+  if (isWindows) {
     if (!win.WIN_NAME_RE.test(name)) throw new Error('变量名仅允许字母、数字、下划线、括号、点、空格、连字符，且以字母或下划线开头')
   } else {
+    // macOS 与 Linux 同为 POSIX shell 变量名规则。
     if (!mac.MAC_NAME_RE.test(name)) throw new Error('变量名仅允许字母、数字、下划线，且以字母或下划线开头')
   }
   return name
@@ -40,61 +47,92 @@ function requireScope(input: unknown): string {
 }
 
 function settingsFrom(input: unknown): PluginSettings {
-  return process.platform === 'darwin' ? mac.parseSettings(input) : { macTarget: 'zshenv', launchctlSync: false }
+  return isDarwin ? mac.parseSettings(input) : linux.parseSettings(input)
 }
 
 const methods: Record<string, (...args: never[]) => unknown> = {
-  snapshot: () => (process.platform === 'win32' ? win.snapshot() : mac.snapshot()),
+  snapshot: () => {
+    if (isWindows) return win.snapshot()
+    if (isDarwin) return mac.snapshot()
+    return linux.snapshot()
+  },
   setVar: (...args: never[]) => {
     const raw = requireObject(args[0], 'setVar')
     const name = requireName(raw.name)
     if (typeof raw.value !== 'string') throw new Error('变量值无效')
     const scope = requireScope(raw.scope)
     const settings = settingsFrom(raw.settings)
-    if (process.platform === 'win32') {
+    if (isWindows) {
       if (scope !== 'user' && scope !== 'machine') throw new Error('Windows 仅支持 user / machine 范围')
       return win.setVar(name, raw.value, scope, raw.elevate === true)
     }
-    if (scope !== 'persistent') throw new Error('macOS 持久写入仅支持 persistent 范围')
-    return mac.setVar(name, raw.value, settings)
+    if (isDarwin || isLinux) {
+      if (scope !== 'persistent') {
+        throw new Error(isDarwin ? 'macOS 持久写入仅支持 persistent 范围' : 'Linux 持久写入仅支持 persistent 范围')
+      }
+      return isDarwin ? mac.setVar(name, raw.value, settings) : linux.setVar(name, raw.value)
+    }
+    throw new Error('当前平台不支持写入环境变量')
   },
   deleteVar: (...args: never[]) => {
     const raw = requireObject(args[0], 'deleteVar')
     const name = requireName(raw.name)
     const scope = requireScope(raw.scope)
     const settings = settingsFrom(raw.settings)
-    if (process.platform === 'win32') {
+    if (isWindows) {
       if (scope !== 'user' && scope !== 'machine') throw new Error('Windows 仅支持 user / machine 范围')
       return win.deleteVar(name, scope, raw.elevate === true)
     }
-    if (scope !== 'persistent') throw new Error('macOS 持久删除仅支持 persistent 范围')
-    return mac.deleteVar(name, settings)
+    if (isDarwin || isLinux) {
+      if (scope !== 'persistent') {
+        throw new Error(isDarwin ? 'macOS 持久删除仅支持 persistent 范围' : 'Linux 持久删除仅支持 persistent 范围')
+      }
+      return isDarwin ? mac.deleteVar(name, settings) : linux.deleteVar(name)
+    }
+    throw new Error('当前平台不支持删除环境变量')
   },
-  getSettings: () => (process.platform === 'darwin' ? mac.defaultSettings() : { macTarget: 'zshenv', launchctlSync: false }),
+  getSettings: () => (isDarwin ? mac.defaultSettings() : linux.defaultSettings()),
   setSettings: (...args: never[]) => {
     const raw = requireObject(args[0], 'setSettings')
-    return mac.parseSettings(raw)
+    return isDarwin ? mac.parseSettings(raw) : linux.parseSettings(raw)
   },
-  listBackups: () => (process.platform === 'darwin' ? mac.listBackups() : []),
+  listBackups: () => {
+    if (isDarwin) return mac.listBackups()
+    if (isLinux) return linux.listBackups()
+    return [] // Windows 写注册表，无文件备份
+  },
   restoreBackup: (...args: never[]) => {
-    if (process.platform !== 'darwin') throw new Error('备份恢复仅支持 macOS')
+    if (!isDarwin && !isLinux) throw new Error('备份恢复仅支持 macOS 与 Linux')
     const file: unknown = args[0]
     if (typeof file !== 'string' || !file.trim()) throw new Error('备份文件参数无效')
-    return mac.restoreBackup(file)
+    return isDarwin ? mac.restoreBackup(file) : linux.restoreBackup(file)
   },
   pathParts: () => {
-    if (process.platform !== 'darwin') throw new Error('PATH 来源视图仅支持 macOS')
+    if (!isDarwin) throw new Error('PATH 来源视图仅支持 macOS')
     return mac.pathParts()
   },
   openManagedFolder: (...args: never[]) => {
     const raw = requireObject(args[0], 'openManagedFolder')
     const filePath = typeof raw.path === 'string' ? raw.path : ''
-    if (process.platform === 'darwin') {
-      if (!filePath) return exec('/usr/bin/open', [requireHome()])
-      if (!filePath.startsWith(requireHome() + '/')) throw new Error('路径超出允许范围')
+    const home = requireHome()
+    if (isDarwin) {
+      if (!filePath) return exec('/usr/bin/open', [home])
+      if (!filePath.startsWith(home + '/')) throw new Error('路径超出允许范围')
       return exec('/usr/bin/open', ['-R', filePath])
     }
-    return exec('explorer.exe', ['shell:Downloads'])
+    if (isWindows) return exec('explorer.exe', ['shell:Downloads'])
+    if (isLinux) {
+      // xdg-open 只开目录：受管/备份文件统一打开其所在目录（home）。
+      if (filePath) {
+        if (!filePath.startsWith(home + '/')) throw new Error('路径超出允许范围')
+        const base = filePath.slice(home.length + 1)
+        if (base !== '.profile' && !/^\.profile(\.enest-backup-\d{8}-\d{6}|\.enest-tmp)?$/.test(base)) {
+          throw new Error('路径超出允许范围')
+        }
+      }
+      return exec('xdg-open', [home])
+    }
+    throw new Error('当前平台不支持打开文件夹')
   }
 }
 

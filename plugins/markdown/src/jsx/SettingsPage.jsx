@@ -1,11 +1,18 @@
 /**
  * markdown v2 —— 设置页（code=settings）：图床四提供方、自定义 JS 脚本编辑器、
- * 主题管理（导入/上传 CSS 主题）、本地图片目录、代码配色与动效、数据目录展示。
+ * 主题管理（导入/上传 CSS 主题）、本地图片目录、代码配色与动效、数据位置展示。
+ * Token 走 vault：输入非空 → vault.set 存 ref；留空保留现有；「清除」回收并清 ref。
  */
 import { useCallback, useEffect, useState } from 'react'
 import { call } from '../js/rpc.js'
 import { describeImageDir } from '../js/imageDir.js'
 import { importUserThemeFromPicker, saveUserTheme, deleteUserTheme, loadUserThemes } from '../js/preferences.js'
+import { TOKEN_VAULT_KEY } from '../js/migration.js'
+import { modLabel } from '@enest/plugin-kit/workbench'
+
+const MOD = modLabel()
+
+function api() { return (window).enest || (window).zapi }
 
 const CODE_THEMES = [
   { value: 'default', label: '默认（跟随编辑器主题）' },
@@ -21,6 +28,19 @@ const MOTION_PRESETS = [
   { value: 'flow', label: '只做流光（箭头/边框）' },
   { value: 'breathe', label: '只做呼吸灯（高亮/表头）' },
   { value: 'subtle', label: '轻微（仅极淡呼吸）' },
+]
+
+const MERMAID_LOOKS = [
+  { value: 'handDrawn', label: '手绘（Excalidraw 风）' },
+  { value: 'rounded', label: '圆润' },
+  { value: 'classic', label: '经典' },
+]
+
+const IMAGE_ACTIONS = [
+  { value: 'ask', label: '每次询问' },
+  { value: 'upload', label: '上传到当前图床' },
+  { value: 'local', label: '存本地 assets 目录' },
+  { value: 'base64', label: '转 base64 内联' },
 ]
 
 
@@ -70,37 +90,37 @@ const SHORTCUT_GROUPS = [
   {
     title: '格式',
     items: [
-      ['加粗', ['⌘', 'B']],
-      ['斜体', ['⌘', 'I']],
-      ['行内代码', ['⌘', 'E']],
-      ['插入链接', ['⌘', 'K']],
-      ['插入图片', ['⇧', '⌘', 'K']],
-      ['一级标题', ['⌘', '1']],
-      ['二级标题', ['⌘', '2']],
-      ['三级标题', ['⌘', '3']],
-      ['无序列表', ['⌘', '⇧', '8']],
-      ['有序列表', ['⌘', '⇧', '9']],
-      ['任务清单', ['⌘', '⇧', '7']],
-      ['引用', ['⌘', '⇧', 'U']],
-      ['代码块', ['⌘', '⇧', 'L']],
-      ['插入表格', ['⌘', '⇧', 'G']],
+      ['加粗', [MOD, 'B']],
+      ['斜体', [MOD, 'I']],
+      ['行内代码', [MOD, 'E']],
+      ['插入链接', [MOD, 'K']],
+      ['插入图片', ['⇧', MOD, 'K']],
+      ['一级标题', [MOD, '1']],
+      ['二级标题', [MOD, '2']],
+      ['三级标题', [MOD, '3']],
+      ['无序列表', [MOD, '⇧', '8']],
+      ['有序列表', [MOD, '⇧', '9']],
+      ['任务清单', [MOD, '⇧', '7']],
+      ['引用', [MOD, '⇧', 'U']],
+      ['代码块', [MOD, '⇧', 'L']],
+      ['插入表格', [MOD, '⇧', 'G']],
     ],
   },
   {
     title: '文件',
     items: [
-      ['新建', ['⌘', 'N']],
-      ['保存', ['⌘', 'S']],
+      ['新建', [MOD, 'N']],
+      ['保存', [MOD, 'S']],
       ['打开 / 另存为', ['菜单 ⋯']],
     ],
   },
   {
     title: '搜索与替换',
     items: [
-      ['查找', ['⌘', 'F']],
+      ['查找', [MOD, 'F']],
       ['替换', ['查找面板展开后自动显示']],
-      ['查找下一个 / 上一个', ['⌘', 'G / ⇧⌘G']],
-      ['选中下一个匹配（多光标）', ['⌘', 'D']],
+      ['查找下一个 / 上一个', [`${MOD}G / ⇧${MOD}G`]],
+      ['选中下一个匹配（多光标）', [MOD, 'D']],
       ['关闭查找', ['Esc']],
     ],
   },
@@ -109,11 +129,11 @@ const SHORTCUT_GROUPS = [
     items: [
       ['打字机模式', ['F8']],
       ['专注模式', ['F9']],
-      ['切换侧栏', ['⌘', '\\']],
-      ['撤销 / 重做', ['⌘', 'Z / ⇧⌘Z']],
+      ['切换侧栏', [MOD, '\\']],
+      ['撤销 / 重做', [`${MOD}Z / ⇧${MOD}Z`]],
       ['表格右键', ['增删行列 / 重置列宽']],
       ['表格悬停', ['拖动列边界调列宽']],
-      ['粘贴图片', ['⌘', 'V']],
+      ['粘贴图片', [MOD, 'V']],
     ],
   },
 ]
@@ -122,7 +142,9 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, on
   const [section, setSection] = useState('uploaders')
   const [cfg, setCfg] = useState(null)
   const [script, setScript] = useState('')
-  const [token, setToken] = useState('')
+  const [tokenInput, setTokenInput] = useState('')
+  const [tokenConfigured, setTokenConfigured] = useState(false)
+  const [tokenMsg, setTokenMsg] = useState(null)
   const [testing, setTesting] = useState('')
   const [testResult, setTestResult] = useState(null)
   const [newThemeName, setNewThemeName] = useState('')
@@ -138,7 +160,7 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, on
     void call('uploader.config').then((c) => {
       setCfg(c.uploaders)
       setScript(c.uploaders?.script?.code ?? '')
-      setToken(c.uploaders?.github?.token ?? '')
+      setTokenConfigured(Boolean(c.uploaders?.github?.tokenConfigured))
     }).catch(() => {})
     void call('info.paths').then(setPaths).catch(() => {})
   }, [])
@@ -150,6 +172,39 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, on
       alert(`保存失败：${e.message}`)
     }
   }, [])
+
+  /** token 保存：非空输入 → vault.set 得 ref → ref 存 config（明文不落 KV） */
+  const saveToken = useCallback(async () => {
+    const value = tokenInput.trim()
+    if (!value) return // 留空 = 保持现有
+    setTokenMsg(null)
+    try {
+      const res = await api()?.vault?.set?.(TOKEN_VAULT_KEY, value)
+      const ref = res?.secretRef || ''
+      if (!ref) throw new Error('密钥库未返回引用')
+      await save({ github: { tokenRef: ref } })
+      setTokenConfigured(true)
+      setTokenInput('')
+      setTokenMsg({ ok: true, message: 'Token 已存入密钥库' })
+    } catch (e) {
+      setTokenMsg({ ok: false, message: `保存失败：${e.message}` })
+    }
+  }, [tokenInput, save])
+
+  /** token 清除：vault.remove + 清 config 里的 ref */
+  const clearToken = useCallback(async () => {
+    if (!confirm('清除已保存的 Token？')) return
+    setTokenMsg(null)
+    try {
+      try { await api()?.vault?.remove?.(TOKEN_VAULT_KEY) } catch { /* 已不存在 */ }
+      await save({ github: { tokenRef: '' } })
+      setTokenConfigured(false)
+      setTokenInput('')
+      setTokenMsg({ ok: true, message: '已清除' })
+    } catch (e) {
+      setTokenMsg({ ok: false, message: `清除失败：${e.message}` })
+    }
+  }, [save])
 
   const setActive = async (active) => {
     setCfg({ ...cfg, active })
@@ -261,6 +316,7 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, on
         <button className={section === 'uploaders' ? 'is-active' : ''} onClick={() => setSection('uploaders')}>图床</button>
         <button className={section === 'themes' ? 'is-active' : ''} onClick={() => setSection('themes')}>主题</button>
         <button className={section === 'appearance' ? 'is-active' : ''} onClick={() => setSection('appearance')}>外观与动效</button>
+        <button className={section === 'editor' ? 'is-active' : ''} onClick={() => setSection('editor')}>编辑器行为</button>
         <button className={section === 'shortcuts' ? 'is-active' : ''} onClick={() => setSection('shortcuts')}>快捷键</button>
         <button className={section === 'data' ? 'is-active' : ''} onClick={() => setSection('data')}>数据</button>
       </nav>
@@ -326,10 +382,15 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, on
                 onBlur={(e) => void save({ github: { branch: e.target.value } })} />
             ))}
             {field('Token（PAT）', (
-              <input className="pk-input" type="password" value={token} placeholder={token === '(已配置)' ? '已配置（留空保留）' : 'ghp_… 或 github_pat_…'}
-                onChange={(e) => setToken(e.target.value)}
-                onBlur={() => { if (token && token !== '(已配置)') void save({ github: { token } }) }} />
-            ), '需要 contents:write 权限；保存后明文不再回显')}
+              <div className="md-set-row">
+                <input className="pk-input" type="password" value={tokenInput} placeholder={tokenConfigured ? '已存入密钥库（留空保留）' : 'ghp_… 或 github_pat_…'}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void saveToken() }} />
+                <button className="pk-btn pk-btn-sm" disabled={!tokenInput.trim()} onClick={() => void saveToken()}>保存</button>
+                {tokenConfigured && <button className="pk-btn pk-btn-sm" onClick={() => void clearToken()}>清除</button>}
+              </div>
+            ), '需要 contents:write 权限；经 eNest 密钥库（vault）加密保存，不进配置文件。')}
+            {tokenMsg && <p className={`md-set-hint ${tokenMsg.ok ? 'md-test-ok' : 'md-test-fail'}`}>{tokenMsg.message}</p>}
             {field('路径模板', (
               <input className="pk-input" type="text" value={cfg.github?.pathTemplate ?? 'images/{date}/{name}'}
                 onChange={(e) => setCfg({ ...cfg, github: { ...cfg.github, pathTemplate: e.target.value } })}
@@ -383,7 +444,7 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, on
                 </div>
               ))}
             </div>
-            <p className="md-set-hint">内置主题随插件走；用户主题存在 eNest 插件私有文件区（storage.files），删除时同步回收。也可把 .css 直接丢进 themes 目录。</p>
+            <p className="md-set-hint">内置主题随插件走；用户主题存在 eNest 插件私有文件区（storage.files），删除时同步回收。</p>
           </section>
           <section className="md-set-section">
             <h3>代码块配色</h3>
@@ -453,11 +514,35 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, on
         </div>
       )}
 
+      {section === 'editor' && (
+        <div className="md-settings-body">
+          <section className="md-set-section">
+            <h3>编辑</h3>
+            {settingSwitch('typewriterMode', '打字机模式（当前行居中）', '输入行保持在视口中部。')}
+            {settingSwitch('focusMode', '专注模式（淡出非当前段落）', '淡化未编辑段落，突出当前内容。')}
+            {settingSwitch('renderHtml', '渲染内嵌 HTML（消毒后生效）', '内联 HTML 经消毒后直接渲染。')}
+            {settingSwitch('autoSave', '自动保存（500ms 防抖）', '停止输入 500ms 后落盘。')}
+            {field('Mermaid 图形风格', (
+              <select className="pk-input md-set-select" value={settings.mermaidLook || 'handDrawn'}
+                onChange={(e) => onSettingChange?.('mermaidLook', e.target.value)}>
+                {MERMAID_LOOKS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            ))}
+            {field('粘贴图片默认动作', (
+              <select className="pk-input md-set-select" value={settings.imageDefaultAction || 'ask'}
+                onChange={(e) => onSettingChange?.('imageDefaultAction', e.target.value)}>
+                {IMAGE_ACTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            ))}
+          </section>
+        </div>
+      )}
+
       {section === 'shortcuts' && (
         <div className="md-settings-body">
           <section className="md-set-section">
             <h3>快捷键</h3>
-            <p className="md-set-hint">macOS 用 ⌘（Command），Windows/Linux 用 Ctrl。格式类快捷键在光标位于任意源码态块内时生效；Esc/⌘Enter/⌘K 由壳子保留。</p>
+            <p className="md-set-hint">格式类快捷键在光标位于任意源码态块内时生效；Esc/{MOD}K 由壳子保留。</p>
             <table className="md-kbd-table">
               <tbody>
                 {SHORTCUT_GROUPS.map((group) => group.items.map(([label, keys], i) => (
@@ -476,19 +561,17 @@ export function SettingsPage({ onBack, themeList, activeTheme, onThemeChange, on
       {section === 'data' && paths && (
         <div className="md-settings-body">
           <section className="md-set-section">
-            <h3>数据目录</h3>
-            <p className="md-set-hint">配置（config.json）· 主题镜像（themes/）· 速记收件箱（inbox/）· 图片缓存（cache/）· 默认图片目录（assets/）。</p>
+            <h3>数据位置</h3>
+            <p className="md-set-hint">配置、最近文件、速记收件箱与主题索引存于 eNest 统一插件存储（宿主 KV）；图片缓存（cache/）与默认图片目录（assets/）位于下面的插件数据目录。</p>
             <ul className="md-paths">
               <li><code>{paths.dataRoot}</code></li>
-              <li><code>{paths.themesDir}</code></li>
-              <li><code>{paths.inboxDir}</code></li>
-              <li><code>{imageDir?.path || paths.dataRoot + '/assets'}</code></li>
+              <li><code>{imageDir?.path || paths.assetsDir}</code></li>
             </ul>
-            <p className="md-set-hint">也可以直接把 .css 丢进主题目录，重启后出现在主题列表。用户主题正文另存于 eNest 插件私有文件区（宿主管理配额与回收）。</p>
+            <p className="md-set-hint">Token 经 eNest 密钥库（vault）加密保存。用户主题正文存于 eNest 插件私有文件区（宿主管理配额与回收）。</p>
           </section>
           <section className="md-set-section">
-            <h3>粘贴图片默认动作等开关</h3>
-            <p className="md-set-hint">HTML 渲染开关、Mermaid 风格、粘贴图片默认动作、代码配色、动效与尺寸上限：eNest 系统设置 → Markdown 编辑器。本地图片目录的完整配置在本页「图床」区。</p>
+            <h3>其它设置入口</h3>
+            <p className="md-set-hint">HTML 渲染开关、Mermaid 风格、粘贴图片默认动作在「编辑器行为」区；动效与尺寸上限在「外观与动效」区；代码块配色在「主题」区。本地图片目录的完整配置在「图床」区。</p>
           </section>
         </div>
       )}

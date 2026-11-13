@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5181 --strictPort",
+    "dev": "vite --host 127.0.0.1 --port 5217 --strictPort",
     "build": "node ../../scripts/build-plugin.mjs com.github.eNest.color-picker",
     "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.color-picker",
     "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.color-picker"

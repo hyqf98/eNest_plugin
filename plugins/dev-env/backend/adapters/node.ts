@@ -8,7 +8,13 @@ import { configFile, dirSize, exists, isDirectory, isWin, joinHome, npmCacheDir,
 import type { CleanAction, ConfigFile, CustomEnv, Dep, EnvAdapter, EnvDetail, EnvInstance, MigratePlan } from '../types'
 
 const NVM_DIR = process.env.NVM_DIR && path.isAbsolute(process.env.NVM_DIR) ? process.env.NVM_DIR : joinHome('.nvm')
-const FNM_DIR = isWin && winEnv('APPDATA') ? path.join(winEnv('APPDATA')!, 'fnm') : joinHome('Library', 'Application Support', 'fnm')
+// fnm 数据目录：win 为 %APPDATA%/fnm，mac 为 ~/Library/Application Support/fnm，linux 遵循 XDG_DATA_HOME（默认 ~/.local/share）。
+const FNM_DIR = (() => {
+  if (isWin && winEnv('APPDATA')) return path.join(winEnv('APPDATA')!, 'fnm')
+  if (process.platform === 'darwin') return joinHome('Library', 'Application Support', 'fnm')
+  const xdgData = process.env.XDG_DATA_HOME
+  return path.join(xdgData && path.isAbsolute(xdgData) ? xdgData : joinHome('.local', 'share'), 'fnm')
+})()
 const VOLTA_DIR = joinHome('.volta')
 
 function listSubDirs(root: string): string[] {

@@ -45,60 +45,6 @@
         "explain": "多张便签随手记，彩色标签、置顶、自动保存",
         "openCode": "main"
       }
-    ],
-    "settings": [
-      {
-        "id": "sticky-notes.preferences",
-        "title": "备忘录",
-        "items": [
-          {
-            "key": "defaultColor",
-            "type": "select",
-            "label": "新笔记颜色",
-            "default": "#cfa467",
-            "options": [
-              {
-                "label": "麦黄",
-                "value": "#cfa467"
-              },
-              {
-                "label": "青绿",
-                "value": "#7fa894"
-              },
-              {
-                "label": "暖红",
-                "value": "#b78180"
-              },
-              {
-                "label": "雾蓝",
-                "value": "#7b9ebc"
-              },
-              {
-                "label": "藤紫",
-                "value": "#a592b7"
-              }
-            ],
-            "shareWithThemes": true
-          },
-          {
-            "key": "defaultLayout",
-            "type": "select",
-            "label": "桌面笔记视图",
-            "default": "list",
-            "options": [
-              {
-                "label": "列表",
-                "value": "list"
-              },
-              {
-                "label": "卡片",
-                "value": "grid"
-              }
-            ],
-            "shareWithThemes": true
-          }
-        ]
-      }
     ]
   },
   "market": {

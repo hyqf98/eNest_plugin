@@ -1,12 +1,13 @@
 /**
  * Anything 文件搜索主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
  * 业务核心复用：backend.js（backend.call 封装）、query.js（语法/格式化）、icons.js（SVG）、
  * preview.js（预览面板 DOM 工厂，原样保留）。backend 目录与 API 调用代码未改动。
  * 结果数据流（backend 回调 → React state）经 latest-ref 桥接，避免闭包陷阱。
+ * 偏好设置为插件内置（右下悬浮钮 + 弹框），持久化走 enest.storage，不再注册到壳设置页；
+ * 首次启动自动把旧壳设置迁移到私有存储。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoreMenu } from '../ui/index.jsx'
+import { Button, Input, Dialog, DialogContent, DialogTitle } from '../ui/index.jsx'
 import { backend, backendReady } from '../js/backend.js'
 import { fileIcon } from '../js/icons.js'
 import { formatSize, formatWhen, highlightName, parseQuery } from '../js/query.js'
@@ -17,9 +18,28 @@ const api = () => window.enest || window.zapi
 const escape = PluginKit.escape
 const PROVIDER_LABEL = { spotlight: 'Spotlight', everything: 'Everything' }
 
+/** 插件私有偏好：defaults 与迁移用的旧壳设置键保持一致 */
+const PREFS_KEY = 'anything.prefs'
+const PREF_DEFAULTS = { resultLimit: 100, everythingPort: 0, everythingAuth: '' }
+const LEGACY_SETTING_KEYS = ['resultLimit', 'everythingPort', 'everythingAuth']
+
+/** data-path 查询用的路径转义（Windows 盘符冒号、引号等） */
+const cssPath = (path) => window.CSS?.escape?.(path) ?? String(path).replace(/["\\]/g, '\\$&')
+
 /** escape 后按 include 词包 <mark> 的名字 HTML（原 renderList 逻辑镜像） */
 function nameHtml(file, tokens) {
   return highlightName(escape(file.name), tokens)
+}
+
+/** 结果按目录分组成一层树：组顺序 = 结果首次出现的顺序 */
+function groupByDir(files) {
+  const map = new Map()
+  for (const file of files) {
+    if (!file.path) continue
+    if (!map.has(file.dir)) map.set(file.dir, [])
+    map.get(file.dir).push(file)
+  }
+  return Array.from(map, ([dir, items]) => ({ dir, files: items }))
 }
 
 export function App() {
@@ -31,32 +51,44 @@ export function App() {
   const dlgRef = useRef(null)
   const trashTargetRef = useRef(null)
 
-  // —— 与原 state 对象一一对应 ——
+  // —— 与原 state 对象一一对应（selected 改为按路径跟踪，配合树形收起） ——
   const [query, setQuery] = useState('')
   const [directory, setDirectory] = useState('')
   const [scopeLabel, setScopeLabel] = useState('范围：全盘')
   const [scopeTitle, setScopeTitle] = useState('限定搜索目录（Spotlight 内限定该目录索引）')
   const [sort, setSort] = useState('relevance')
   const [results, setResults] = useState([])
-  const [selected, setSelected] = useState(-1)
+  const [selectedPath, setSelectedPath] = useState(null)
   const [hasMore, setHasMore] = useState(false)
   const [status, setStatus] = useState({ text: '正在检测搜索引擎…', kind: '' })
   const [booted, setBooted] = useState(false)
   const [trashText, setTrashText] = useState('')
   const [mode, setMode] = useState(() => api()?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
+  /** 查询到结果之间的空档：用于骨架行与搜索进度条，避免"界面卡住"的错觉。 */
+  const [pending, setPending] = useState(false)
+  /** 插件内置偏好（storage 持久化）与设置弹框草稿 */
+  const [prefs, setPrefs] = useState({ ...PREF_DEFAULTS })
+  const [prefsOpen, setPrefsOpen] = useState(false)
+  const [draft, setDraft] = useState({ ...PREF_DEFAULTS })
+  /** 树形视图里收起的目录（dir 字符串集合）；收起只影响展示，不触发重搜 */
+  const [collapsedDirs, setCollapsedDirs] = useState(() => new Set())
 
   // latest-ref 桥接：可变搜索状态供回调读取最新值
   const stateRef = useRef({})
   stateRef.current = {
-    query, directory, sort, results, selected, mode, booted,
-    settings: kitRef.current?.settings ?? { resultLimit: 100, everythingPort: 0, everythingAuth: '' },
+    query, directory, sort, results, selectedPath, mode, booted,
+    settings: prefs,
   }
   const seqRef = useRef(0)
   const timerRef = useRef(0)
   const resultsRef = useRef(results)
   resultsRef.current = results
-  const selectedRef = useRef(selected)
-  selectedRef.current = selected
+  const selectedPathRef = useRef(selectedPath)
+  selectedPathRef.current = selectedPath
+  const prefsRef = useRef(prefs)
+  prefsRef.current = prefs
+  const collapsedRef = useRef(collapsedDirs)
+  collapsedRef.current = collapsedDirs
   const offsetRef = useRef(0)
   const searchingRef = useRef(false)
   const reportRef = useRef(null)
@@ -71,21 +103,24 @@ export function App() {
     if (mode !== 'shell' || !previewRef.current) return
     const preview = createPreview(previewRef.current)
     previewApiRef.current = preview
-    const file = resultsRef.current[selectedRef.current]
+    const file = resultsRef.current.find(row => row.path === selectedPathRef.current)
     if (file?.path) void preview.load(file)
     return () => { preview.destroy(); previewApiRef.current = null }
   }, [mode])
 
   const statusText = (label, kind = '') => setStatus({ text: label, kind })
 
+  const selectedFile = useCallback(() =>
+    resultsRef.current.find(row => row.path === selectedPathRef.current), [])
+
   const previewSelected = useCallback(() => {
-    const file = resultsRef.current[selectedRef.current]
+    const file = selectedFile()
     if (file && stateRef.current.mode === 'shell') previewApiRef.current?.load(file)
-  }, [])
+  }, [selectedFile])
 
   const renderIdle = useCallback(() => {
     setResults([])
-    setSelected(-1)
+    setSelectedPath(null)
     setHasMore(false)
     offsetRef.current = 0
     const label = reportRef.current?.active ? (PROVIDER_LABEL[reportRef.current.active] || '') : ''
@@ -106,7 +141,8 @@ export function App() {
     const offset = reset ? 0 : offsetRef.current
     try {
       const res = await backend.search(q, {
-        directory: directoryRef.current || undefined,
+        // 范围选择器只在 shell 工具栏出现；quick 小窗与桌面小组件始终搜全盘
+        directory: st.mode === 'shell' ? (directoryRef.current || undefined) : undefined,
         limit, offset, sort: sortRef.current,
         everythingPort: Number(settings.everythingPort) || 0,
         everythingAuth: String(settings.everythingAuth || '') || undefined
@@ -114,7 +150,7 @@ export function App() {
       if (seq !== seqRef.current) return
       if (reset) {
         setResults(res.results)
-        setSelected(res.results.length ? 0 : -1)
+        setSelectedPath(res.results.length ? res.results[0].path : null)
       } else {
         setResults((prev) => {
           const merged = prev.concat(res.results)
@@ -125,6 +161,7 @@ export function App() {
       if (reset) offsetRef.current = res.results.length
       setHasMore(Boolean(res.truncated))
       searchingRef.current = false
+      setPending(false)
       const label = PROVIDER_LABEL[res.provider] || res.provider
       const truncatedNote = res.truncated ? '（已截断）' : ''
       statusText(
@@ -132,17 +169,23 @@ export function App() {
           ? `${label} · ${reset ? res.total : offsetRef.current} 条 · ${res.elapsedMs} ms${truncatedNote}`
           : `${label} · ${res.total} 条 · ${res.elapsedMs} ms${truncatedNote}`
       )
-      if (reset) setTimeout(previewSelected, 0)
+      // 搜索结束后重置预览：有结果就载入首条，没有结果不能继续停在“正在搜索…”。
+      if (reset) setTimeout(() => {
+        if (res.results.length) previewSelected()
+        else previewApiRef.current?.placeholder('选择左侧文件查看预览')
+      }, 0)
     } catch (error) {
       if (seq !== seqRef.current) return
       searchingRef.current = false
+      setPending(false)
       if (reset) {
         setResults([])
-        setSelected(-1)
+        setSelectedPath(null)
         setHasMore(false)
         offsetRef.current = 0
       }
       statusText(error.message, 'error')
+      previewApiRef.current?.placeholder('搜索失败，请调整关键词或检查引擎设置')
     }
   }, [previewSelected])
 
@@ -155,11 +198,12 @@ export function App() {
     // Invalidate before the debounce window: Enter must never open the previous query's file.
     seqRef.current++
     resultsRef.current = []
-    selectedRef.current = -1
+    selectedPathRef.current = null
     searchingRef.current = Boolean(text.trim())
     setResults([])
-    setSelected(-1)
+    setSelectedPath(null)
     setHasMore(false)
+    setPending(Boolean(text.trim()))
     offsetRef.current = 0
     if (!text.trim()) {
       renderIdle()
@@ -170,11 +214,11 @@ export function App() {
     timerRef.current = setTimeout(() => void runSearch(true), stateRef.current.mode === 'quick' ? 120 : 220)
   }, [renderIdle, runSearch])
 
-  // —— 列表滚动定位 ——
+  // —— 列表滚动定位（树形 DOM 按 data-path 找行）——
   useEffect(() => {
-    if (selected < 0) return
-    listRef.current?.children[selected]?.scrollIntoView({ block: 'nearest' })
-  }, [selected, results])
+    if (!selectedPath) return
+    listRef.current?.querySelector(`[data-path="${cssPath(selectedPath)}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [selectedPath, results])
 
   // —— 文件操作 ——
   const dismissQuick = useCallback(() => {
@@ -195,12 +239,12 @@ export function App() {
 
   const activateSelected = useCallback(async () => {
     if (searchingRef.current) return
-    const file = resultsRef.current[selectedRef.current]
+    const file = selectedFile()
     if (file) await openTarget(file.path, true)
-  }, [openTarget])
+  }, [openTarget, selectedFile])
 
   const revealSelected = useCallback(async () => {
-    const file = resultsRef.current[selectedRef.current]
+    const file = selectedFile()
     if (!file) return
     try {
       await backend.reveal(file.path)
@@ -209,12 +253,12 @@ export function App() {
     } catch (error) {
       kitRef.current?.toast(error.message, 'error')
     }
-  }, [dismissQuick])
+  }, [dismissQuick, selectedFile])
 
   const copySelectedPath = useCallback(() => {
-    const file = resultsRef.current[selectedRef.current]
+    const file = selectedFile()
     if (file) void kitRef.current?.copy(file.path)
-  }, [])
+  }, [selectedFile])
 
   const askTrashFor = useCallback((file) => {
     if (!file?.path) return
@@ -225,7 +269,7 @@ export function App() {
       dlgRef.current.showModal()
     }
   }, [])
-  const askTrash = () => askTrashFor(resultsRef.current[selectedRef.current])
+  const askTrash = () => askTrashFor(selectedFile())
 
   const confirmTrash = useCallback(async () => {
     const file = trashTargetRef.current
@@ -235,34 +279,46 @@ export function App() {
       await backend.trash(file.path)
       kitRef.current?.toast('已移入废纸篓', 'success')
       const current = resultsRef.current
-      const selectedPath = current[selectedRef.current]?.path
+      const removedIdx = current.findIndex(row => row.path === file.path)
       const next = current.filter((row) => row.path !== file.path)
-      const nextIndex = next.findIndex((row) => row.path === selectedPath)
+      const keepIdx = next.findIndex(row => row.path === selectedPathRef.current)
+      const fallbackIdx = Math.min(Math.max(removedIdx, 0), next.length - 1)
       setResults(next)
-      setSelected(nextIndex >= 0 ? nextIndex : Math.min(selectedRef.current, next.length - 1))
+      setSelectedPath(next.length ? next[keepIdx >= 0 ? keepIdx : fallbackIdx].path : null)
       setTimeout(previewSelected, 0)
     } catch (error) {
       kitRef.current?.toast(error.message, 'error')
     }
   }, [previewSelected])
 
-  // —— 选择 / 导航 ——
+  // —— 选择 / 导航（按可见顺序移动；收起的目录跳过）——
   const move = useCallback((delta) => {
-    const rows = resultsRef.current
-    if (!rows.length) return
-    setSelected((prev) => Math.max(0, Math.min(prev + delta, rows.length - 1)))
+    const visible = resultsRef.current.filter(row => row.path && !collapsedRef.current.has(row.dir))
+    if (!visible.length) return
+    const idx = visible.findIndex(row => row.path === selectedPathRef.current)
+    const next = visible[Math.max(0, Math.min(idx + delta, visible.length - 1))]
+    if (!next || next.path === selectedPathRef.current) return
+    setSelectedPath(next.path)
     if (stateRef.current.mode === 'shell') setTimeout(previewSelected, 0)
   }, [previewSelected])
 
+  const toggleGroup = useCallback((dir) => {
+    setCollapsedDirs(prev => {
+      const next = new Set(prev)
+      if (next.has(dir)) next.delete(dir)
+      else next.add(dir)
+      return next
+    })
+  }, [])
+
   // —— 引擎探测（等价原 probeProviders）——
   const probeProviders = useCallback(async () => {
-    const kit = kitRef.current
     if (!backendReady()) {
       statusText('后端接口不可用，请更新 eNest 壳子', 'error')
       return
     }
     try {
-      const settings = kit?.settings ?? {}
+      const settings = prefsRef.current ?? PREF_DEFAULTS
       const report = await backend.providers({
         everythingPort: Number(settings.everythingPort) || 0,
         everythingAuth: String(settings.everythingAuth || '') || undefined
@@ -271,7 +327,7 @@ export function App() {
       if (!report.active) {
         // renderNoEngine：无引擎时列表给引导面板
         setResults([{ __idle: 'no-engine', platform: report.platform || '' }])
-        setSelected(-1)
+        setSelectedPath(null)
         setHasMore(false)
         statusText(report.platform === 'win32' ? '未检测到 Everything HTTP 服务' : '无可用引擎', 'error')
       }
@@ -333,7 +389,6 @@ export function App() {
       title: 'Anything 文件搜索',
       height: 490,
       quickPlaceholder: '搜索全盘文件，如 报告 pdf…',
-      defaults: { resultLimit: 100, everythingPort: 0, everythingAuth: '' },
       onQuery: (value) => queryInputRef.current(value),
       onAction: (action) => {
         if (action === 'next') moveRef.current(1)
@@ -345,14 +400,11 @@ export function App() {
     kitRef.current = kit
     setMode(kit.mode)
 
-    kit.onSettings(async (_settings, key) => {
-      if (key === 'everythingPort' || key === 'everythingAuth') await probeRef.current()
-    })
     kit.onMode((m) => {
       setMode(m)
       if (m === 'shell' && stateRef.current.query.trim() && !resultsRef.current.length) void searchRef.current(true)
       if (m === 'shell') setTimeout(() => {
-        const file = resultsRef.current[selectedRef.current]
+        const file = resultsRef.current.find(row => row.path === selectedPathRef.current)
         if (file) previewApiRef.current?.load(file)
       }, 0)
     })
@@ -379,6 +431,32 @@ export function App() {
     void (async () => {
       await kit.ready
       if (!alive) return
+      // 偏好读取：私有 storage 优先；首次启动把旧壳设置一次性迁移过来
+      let next = { ...PREF_DEFAULTS }
+      let loaded = false
+      try {
+        const stored = await api()?.storage?.get?.(PREFS_KEY)
+        if (stored && typeof stored === 'object') {
+          next = { ...next, ...stored }
+          loaded = true
+        }
+      } catch { /* storage 不可用时用默认值 */ }
+      if (!loaded) {
+        try {
+          const legacy = await Promise.all(LEGACY_SETTING_KEYS.map(key =>
+            api()?.settings?.get?.(key).catch(() => undefined)))
+          const migrated = {}
+          LEGACY_SETTING_KEYS.forEach((key, i) => {
+            if (legacy[i] !== undefined && legacy[i] !== null) migrated[key] = legacy[i]
+          })
+          if (Object.keys(migrated).length) {
+            next = { ...next, ...migrated }
+            void api()?.storage?.set?.(PREFS_KEY, next).catch(() => {})
+          }
+        } catch { /* 旧设置不可读就用默认值 */ }
+      }
+      prefsRef.current = next
+      setPrefs(next)
       idleRef.current()
       await probeRef.current()
       if (!alive) return
@@ -390,13 +468,51 @@ export function App() {
   const openTargetRef = useRef(openTarget)
   openTargetRef.current = openTarget
 
+  // —— 偏好设置弹框：草稿编辑，保存写回私有 storage ——
+  const openPrefs = () => {
+    setDraft({ ...prefsRef.current })
+    setPrefsOpen(true)
+  }
+  const savePrefs = async (event) => {
+    event.preventDefault()
+    const clamp = (value, min, max, fallback) => {
+      const n = Number(value)
+      if (!Number.isFinite(n)) return fallback
+      return Math.max(min, Math.min(Math.round(n), max))
+    }
+    const next = {
+      resultLimit: clamp(draft.resultLimit, 20, 500, PREF_DEFAULTS.resultLimit),
+      everythingPort: clamp(draft.everythingPort, 0, 65535, PREF_DEFAULTS.everythingPort),
+      everythingAuth: String(draft.everythingAuth ?? '')
+    }
+    try {
+      await api()?.storage?.set?.(PREFS_KEY, next)
+      await api()?.storage?.flush?.().catch(() => {})
+    } catch (error) {
+      kitRef.current?.toast(`保存失败：${error.message}`, 'error')
+      return
+    }
+    const engineConfigChanged = next.everythingPort !== prefsRef.current.everythingPort
+      || next.everythingAuth !== prefsRef.current.everythingAuth
+    prefsRef.current = next
+    setPrefs(next)
+    setPrefsOpen(false)
+    kitRef.current?.toast('设置已保存', 'success')
+    if (engineConfigChanged) void probeRef.current()
+  }
+
   // —— 渲染辅助 ——
   const tokens = parseQuery(query)
   const engineReport = reportRef.current
   const engineActive = engineReport?.providers?.find((item) => item.id === engineReport?.active)
   const rows = results
   const idleView = rows.length === 1 && rows[0]?.__idle === 'no-engine'
+  /** 三种空态互斥：无引擎（提示安装）、还在搜（骨架）、搜完了没命中（换词建议）。 */
+  const hasQuery = Boolean(query.trim())
+  const noMatch = booted && hasQuery && !pending && rows.length === 0 && !idleView
   const showIdle = rows.length === 0 || idleView
+  /** shell 模式结果按目录一层分组；quick 保持紧凑平铺 */
+  const groups = mode === 'shell' && !showIdle && !pending ? groupByDir(rows) : null
 
   const inputHandlers = {
     onInput: (e) => onQueryInput(e.target.value),
@@ -439,6 +555,94 @@ export function App() {
     if (stateRef.current.query.trim()) void runSearch(true)
   }
 
+  // —— 文件行（平铺与树形共用）：右键菜单 + 行内打开 ——
+  const renderFileRow = (file, index, tree) => (
+    <div
+      key={file.path + '#' + index}
+      data-path={file.path}
+      className={'row' + (tree ? ' tree-row' : '') + (file.path === selectedPath ? ' active' : '')}
+      role="option"
+      aria-selected={file.path === selectedPath ? 'true' : 'false'}
+      data-row-actions
+      style={{ '--i': Math.min(index, 16) }}
+      onClick={() => {
+        setSelectedPath(file.path)
+        selectedPathRef.current = file.path
+        if (mode === 'quick') void activateSelected()
+        else setTimeout(previewSelected, 0)
+      }}
+      onDoubleClick={() => { if (mode !== 'quick') void activateSelected() }}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        setSelectedPath(file.path)
+        selectedPathRef.current = file.path
+        PluginKit.openMenu(event, [
+          ['open', '打开'],
+          ['reveal', '在文件夹中定位'],
+          ['copy-path', '复制路径'],
+          { sep: true },
+          ['trash', '移入废纸篓', { danger: true }],
+        ], (key) => {
+          if (key === 'open') void openTarget(file.path, true)
+          if (key === 'reveal') void backend.reveal(file.path).then(() => kitRef.current?.toast('已在文件管理器中定位', 'success')).catch((error) => kitRef.current?.toast(error.message, 'error'))
+          if (key === 'copy-path') void kitRef.current?.copy(file.path)
+          if (key === 'trash') askTrashFor(file)
+        }, { align: 'end' })
+      }}
+    >
+      <span className="ficon-slot" dangerouslySetInnerHTML={{ __html: fileIcon(file) }}></span>
+      <span className="row-main">
+        <span className="name" dangerouslySetInnerHTML={{ __html: nameHtml(file, tokens) }}></span>
+        <span className="where">{file.dir}</span>
+      </span>
+      <span className="meta">
+        {[formatWhen(file.mtimeMs), formatSize(file.size, file.isDirectory)].filter(Boolean).join(' · ')}
+      </span>
+      <span className="pk-row-actions row-actions" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
+        <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void openTarget(file.path, true)}>打开</button>
+      </span>
+    </div>
+  )
+
+  // —— 目录组头：收起/展开 + 右键（定位、复制路径）——
+  const renderGroupHead = (dir, count) => {
+    const collapsed = collapsedDirs.has(dir)
+    return (
+      <div className="tree-group-head" key={`g:${dir}`}>
+        <button
+          type="button"
+          className="tree-toggle"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? `展开 ${dir}` : `收起 ${dir}`}
+          title={collapsed ? `展开 ${dir}` : `收起 ${dir}`}
+          onClick={() => toggleGroup(dir)}
+          onKeyDown={(e) => {
+            if (e.isComposing) return
+            if (e.key === 'ArrowRight' && collapsed) { e.preventDefault(); toggleGroup(dir) }
+            else if (e.key === 'ArrowLeft' && !collapsed) { e.preventDefault(); toggleGroup(dir) }
+          }}
+        >
+          <span className="tree-caret" aria-hidden="true">▾</span>
+        </button>
+        <span
+          className="tree-dir"
+          title={dir}
+          onContextMenu={(event) => {
+            event.preventDefault()
+            PluginKit.openMenu(event, [
+              ['reveal-dir', '在文件夹中定位'],
+              ['copy-dir', '复制路径'],
+            ], (key) => {
+              if (key === 'reveal-dir') void backend.reveal(dir).then(() => kitRef.current?.toast('已在文件管理器中定位', 'success')).catch((error) => kitRef.current?.toast(error.message, 'error'))
+              if (key === 'copy-dir') void kitRef.current?.copy(dir)
+            }, { align: 'end' })
+          }}
+        >{dir}</span>
+        <span className="tree-count" aria-hidden="true">{count}</span>
+      </div>
+    )
+  }
+
   if (mode === 'panel') return <PanelView query={query} results={results} status={status} booted={booted}
     onQuery={onQueryInput} onOpen={path => { if (!searchingRef.current && resultsRef.current.some(file => file.path === path)) void openTarget(path, false) }}
     onOpenShell={() => Promise.resolve(api()?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}
@@ -446,29 +650,33 @@ export function App() {
 
   return (
     <main className="app">
+      {/* 顶部一条工具栏：搜索框在上（主操作），排序与范围在其后同一行，尺寸一致。 */}
       <header className="shell-only">
-        {engineActive ? (
-          <span id="engine-badge" className="engine-badge" title={engineActive.detail}>{engineActive.label}</span>
-        ) : (
-          <span id="engine-badge" className="engine-badge" hidden></span>
-        )}
-        <button type="button" className="pk-btn pk-btn-ghost anything-settings-button" onClick={() => Promise.resolve(api()?.ui?.openSettings?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}>偏好设置</button>
+        <div className="searchbar">
+          <input
+            id="query" ref={queryRef} type="search" defaultValue={query}
+            placeholder='搜索文件名，如 报告 pdf　"精确"　-排除　*.sketch'
+            aria-label="搜索文件" data-input-context="editor" {...inputHandlers}
+          />
+          <select id="sort" aria-label="排序" value={sort} onChange={onSortChange}>
+            <option value="relevance">相关度</option>
+            <option value="name">名称</option>
+            <option value="mtime">修改时间</option>
+            <option value="size">大小</option>
+          </select>
+          <button id="scope-pick" className="pk-btn pk-btn-ghost pk-btn-sm" title={scopeTitle} onClick={pickScope}>{scopeLabel}</button>
+        </div>
+        <div className="header-meta">
+          {engineActive ? (
+            <span id="engine-badge" className="engine-badge" title={engineActive.detail}>{engineActive.label}</span>
+          ) : (
+            <span id="engine-badge" className="engine-badge" hidden></span>
+          )}
+          <div id="status" className="status" role="status" data-kind={status.kind}>{status.text}</div>
+        </div>
       </header>
-      <section className="searchbar shell-only">
-        <input
-          id="query" ref={queryRef} type="search" defaultValue={query}
-          placeholder='搜索文件名，如 报告 pdf　"精确"　-排除　*.sketch'
-          aria-label="搜索文件" data-input-context="editor" {...inputHandlers}
-        />
-        <button id="scope-pick" className="pk-btn pk-btn-ghost pk-btn-sm" title={scopeTitle} onClick={pickScope}>{scopeLabel}</button>
-        <select id="sort" aria-label="排序" value={sort} onChange={onSortChange}>
-          <option value="relevance">相关度</option>
-          <option value="name">名称</option>
-          <option value="mtime">修改时间</option>
-          <option value="size">大小</option>
-        </select>
-      </section>
-      <div id="status" className="status" role="status" data-kind={status.kind}>{status.text}</div>
+      {/* 搜索进行中的进度条：确定性动画，不遮挡内容 */}
+      <div className="search-progress" data-active={pending ? 'true' : 'false'} aria-hidden="true"><span /></div>
       <div className="workspace">
         <section className="results-col">
           <div
@@ -480,7 +688,21 @@ export function App() {
               else if (e.key === 'Enter') { e.preventDefault(); void activateSelected() }
             }}
           >
-            {showIdle ? (
+            {pending && !rows.length ? (
+              /* 搜索中的骨架行：形状与真实结果一致，出结果时位置不跳。 */
+              <div className="skeleton-list" aria-hidden="true">
+                {Array.from({ length: 8 }, (_, i) => (
+                  <div key={i} className="skeleton-row" style={{ '--i': i }}>
+                    <span className="skeleton-block skeleton-icon" />
+                    <span className="skeleton-lines">
+                      <span className="skeleton-block skeleton-name" />
+                      <span className="skeleton-block skeleton-where" />
+                    </span>
+                    <span className="skeleton-block skeleton-meta" />
+                  </div>
+                ))}
+              </div>
+            ) : showIdle ? (
               idleView ? (
                 <div className="idle">
                   <p className="idle-title">
@@ -491,6 +713,12 @@ export function App() {
                       ? '安装 Everything（voidtools.com），在 选项 → HTTP 服务器 中开启服务，然后回到本插件的偏好设置填入端口。'
                       : 'Linux 支持将在后续版本提供。'}
                   </p>
+                </div>
+              ) : noMatch ? (
+                /* 搜完了没命中：给换词方向，而不是重复"输入关键词"的新手引导。 */
+                <div className="idle">
+                  <p className="idle-title">没有匹配「{query.trim()}」的文件</p>
+                  <p className="idle-text">可以试试放宽关键词、去掉排除项，或切换搜索范围。</p>
                 </div>
               ) : (
                 <div className="idle">
@@ -503,58 +731,19 @@ export function App() {
                   </dl>
                 </div>
               )
-            ) : (
-              rows.map((file, index) => (
-                <div
-                  key={file.path + '#' + index}
-                  className={'row' + (index === selected ? ' active' : '')}
-                  role="option"
-                  aria-selected={index === selected ? 'true' : 'false'}
-                  data-row-actions
-                  style={{ '--i': Math.min(index, 16) }}
-                  onClick={() => {
-                    if (mode === 'quick') {
-                      setSelected(index)
-                      selectedRef.current = index
-                      void activateSelected()
-                    } else {
-                      setSelected(index)
-                      selectedRef.current = index
-                      setTimeout(previewSelected, 0)
-                    }
-                  }}
-                  onDoubleClick={() => { if (mode !== 'quick') void activateSelected() }}
-                  onContextMenu={(event) => {
-                    event.preventDefault()
-                    setSelected(index)
-                    selectedRef.current = index
-                    PluginKit.openMenu(event, [
-                      ['open', '打开'],
-                      ['reveal', '在文件夹中定位'],
-                      ['copy-path', '复制路径'],
-                      { sep: true },
-                      ['trash', '移入废纸篓', { danger: true }],
-                    ], (key) => {
-                      if (key === 'open') void openTarget(file.path, true)
-                      if (key === 'reveal') void backend.reveal(file.path).then(() => kitRef.current?.toast('已在文件管理器中定位', 'success')).catch((error) => kitRef.current?.toast(error.message, 'error'))
-                      if (key === 'copy-path') void kitRef.current?.copy(file.path)
-                      if (key === 'trash') askTrashFor(file)
-                    }, { align: 'end' })
-                  }}
-                >
-                  <span className="ficon-slot" dangerouslySetInnerHTML={{ __html: fileIcon(file) }}></span>
-                  <span className="row-main">
-                    <span className="name" dangerouslySetInnerHTML={{ __html: nameHtml(file, tokens) }}></span>
-                    <span className="where">{file.dir}</span>
-                  </span>
-                  <span className="meta">
-                    {[formatWhen(file.mtimeMs), formatSize(file.size, file.isDirectory)].filter(Boolean).join(' · ')}
-                  </span>
-                  <span className="pk-row-actions row-actions" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
-                    <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => void openTarget(file.path, true)}>打开</button>
-                  </span>
+            ) : groups ? (
+              /* 树形：目录组头（可收起）+ 组内文件行；目录信息由组头表达，行内不再重复 */
+              groups.map(({ dir, files }) => (
+                <div className="tree-group" key={`grp:${dir}`} data-collapsed={collapsedDirs.has(dir) ? 'true' : 'false'}>
+                  {renderGroupHead(dir, files.length)}
+                  {!collapsedDirs.has(dir) && files.map((file) => {
+                    const index = rows.indexOf(file)
+                    return renderFileRow(file, index, true)
+                  })}
                 </div>
               ))
+            ) : (
+              rows.map((file, index) => renderFileRow(file, index, false))
             )}
           </div>
           <button id="more" className="pk-btn" hidden={!hasMore} onClick={() => void runSearch(false)}>载入更多</button>
@@ -563,25 +752,40 @@ export function App() {
           <div className="empty">选择左侧文件查看预览</div>
         </aside>
       </div>
-      <footer>
-        <div className="hint">
-          <span className="shell-only"><kbd>↵</kbd> 打开　<kbd>⌘↵</kbd> 所在目录　<kbd>↑</kbd><kbd>↓</kbd> 选择</span>
-          <span className="quick-only"><kbd>↵</kbd> 打开　<kbd>↑</kbd><kbd>↓</kbd> 选择　<kbd>Esc</kbd> 收起</span>
-        </div>
-        <div className="actions">
-          <MoreMenu
-            label="更多"
-            ariaLabel="文件更多操作"
-            buttonClassName="footer-more shell-only"
-            items={[
-              { key: 'copy-path', label: '复制路径', onSelect: copySelectedPath },
-              { key: 'trash', label: '移入废纸篓', danger: true, onSelect: askTrash },
-            ]}
-          />
-          <button id="reveal" className="pk-btn" onClick={() => void revealSelected()}>所在目录</button>
-          <button id="open" className="pk-btn pk-btn-primary" onClick={() => void activateSelected()}>打开 <kbd>↵</kbd></button>
-        </div>
-      </footer>
+      {/* 右下悬浮设置钮：打开插件内置偏好设置弹框（不注册到壳设置页）。 */}
+      <button type="button" className="anything-settings-fab shell-only" aria-label="偏好设置" title="偏好设置" onClick={openPrefs}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      <Dialog open={prefsOpen} onOpenChange={setPrefsOpen}>
+        <DialogContent aria-describedby={undefined} className="prefs-dialog">
+          <DialogTitle>偏好设置</DialogTitle>
+          <form className="prefs-form" onSubmit={(e) => void savePrefs(e)}>
+            <label className="prefs-field">
+              <span>单次结果上限（条）</span>
+              <Input type="number" min={20} max={500} step={10} value={draft.resultLimit}
+                onChange={(e) => setDraft(d => ({ ...d, resultLimit: e.target.value }))} />
+            </label>
+            <label className="prefs-field">
+              <span>Everything HTTP 端口（Windows，0 为不启用）</span>
+              <Input type="number" min={0} max={65535} value={draft.everythingPort}
+                onChange={(e) => setDraft(d => ({ ...d, everythingPort: e.target.value }))} />
+            </label>
+            <label className="prefs-field">
+              <span>Everything HTTP 认证</span>
+              <Input type="text" placeholder="用户名:密码（可空）" value={draft.everythingAuth}
+                onChange={(e) => setDraft(d => ({ ...d, everythingAuth: e.target.value }))} />
+            </label>
+            <p className="prefs-hint">设置保存在本插件私有存储中，端口或认证变更后会立即重新探测引擎。</p>
+            <div className="dialog-actions">
+              <Button type="button" variant="ghost" onClick={() => setPrefsOpen(false)}>取消</Button>
+              <Button type="submit">保存</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
       <dialog id="confirm-trash" ref={dlgRef} onClose={(event) => {
         if (event.currentTarget.returnValue === 'ok') void confirmTrash()
         else trashTargetRef.current = null

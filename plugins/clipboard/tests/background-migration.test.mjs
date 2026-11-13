@@ -171,7 +171,7 @@ test('background and UI mutations share one serialized writer and can restart wi
 test('unrelated events, paused monitoring and stale revisions do not add records', async () => {
   const f = fixture({ settings: { monitoring: false } })
   await f.service.onEvent('clipboard.changed', text(1, 'paused'))
-  f.state.settings.monitoring = true
+  await f.service.call('history.setPreferences', [{ monitoring: true }])
   await f.service.onEvent('clipboard.changed', text(2, 'active'))
   await f.service.onEvent('clipboard.changed', text(1, 'stale'))
   await f.service.onEvent('unrelated', text(3, 'wrong source'))
@@ -217,11 +217,10 @@ test('private UI facade routes storage to background and native actions to the c
 test('manifest declares sandboxed background and no Node backend or plugin polling', async () => {
   const manifest = JSON.parse(await readFile(new URL('../plugin.json', import.meta.url), 'utf8'))
   const source = await readFile(new URL('../background/history.mjs', import.meta.url), 'utf8')
-  assert.equal(manifest.version, '0.0.1')
-  assert.equal(manifest.engines.enest, '>=0.2.3')
   assert.equal(manifest.background.entry, 'assets/background.html')
-  assert.equal(manifest.background.eventSettings['clipboard.changed'], 'monitoring')
   assert.equal(manifest.background.quickSearch, true)
   assert.equal(manifest.permissions.includes('backend.node'), false)
+  assert.equal(manifest.background.eventSettings, undefined)
+  assert.equal(manifest.contributes, undefined)
   assert.doesNotMatch(source, /setInterval|setTimeout|from ['"](?:node:|electron|@main)/)
 })
