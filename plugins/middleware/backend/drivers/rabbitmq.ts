@@ -4,16 +4,21 @@ import type { ChannelModel } from 'amqplib'
 import type {
   MwClient,
   MwConnectionConfig,
+  MwConnectionField,
   MwConsumerGroup,
   MwConsumerGroupDetail,
   MwMessage,
   MwMessageQueryInput,
   MwMessageSendInput,
   MwOverview,
+  MwMetricSpec,
+  MwPageColumns,
   MwTopic,
   MwTrace,
+  MwSendField,
   MwBindingCreateInput,
-  MwTopicCreateInput
+  MwTopicCreateInput,
+  MwQueueTemplateInput
 } from '@backend/contracts/mw-workbench'
 import type { MwDriver, MwDriverContext, MwDriverHandle, MwTestResult } from '@backend/types'
 import { unsupported } from '@backend/types'
@@ -39,8 +44,84 @@ const CAPS: Record<string, { state: 'available' | 'unsupported'; reason?: string
   retained: { state: 'unsupported', reason: 'AMQP 无 retained 概念' },
   configMgmt: { state: 'available', reason: '队列 arguments/policy' },
   monitor: { state: 'available' },
-  dlqBrowse: { state: 'available', reason: '浏览死信队列（DLX 目标队列）后 get 重发' }
+  dlqBrowse: { state: 'available', reason: '浏览死信队列（DLX 目标队列）后 get 重发' },
+  dlqTemplates: { state: 'available', reason: '模板化死信/延迟队列一条龙' }
 }
+
+const CONNECTION_FIELDS: MwConnectionField[] = [
+  { key: 'managementUrl', label: '管理端点', type: 'text', required: true, pattern: 'https-url', placeholder: 'http://10.2.1.21:15672', tip: '15672 管理面 API · 默认端口 15672' },
+  { key: 'username', label: '用户名', type: 'text', placeholder: 'management 用户（guest 仅本机）', half: true },
+  { key: 'secret', label: '密码', type: 'password', vaultSlot: 'primary', half: true },
+  { key: 'vhost', label: 'vhost', type: 'text', placeholder: '/' }
+]
+
+/** 死信/延迟相关 arguments 的结构化提取（列表「死信去向」列与详情用） */
+function dlqExtras(args?: Record<string, unknown>): Record<string, string | number | boolean> {
+  if (!args) return {}
+  const out: Record<string, string | number | boolean> = {}
+  if (args['x-dead-letter-exchange'] !== undefined) out.dlx = String(args['x-dead-letter-exchange'])
+  if (args['x-dead-letter-routing-key'] !== undefined) out.dlk = String(args['x-dead-letter-routing-key'])
+  if (args['x-message-ttl'] !== undefined) out.ttl = Number(args['x-message-ttl'])
+  if (args['x-expires'] !== undefined) out.queueExpires = Number(args['x-expires'])
+  if (args['x-queue-type'] !== undefined) out.queueType = String(args['x-queue-type'])
+  if (args['x-delayed-type'] !== undefined) out.delayedType = String(args['x-delayed-type'])
+  return out
+}
+
+const PAGE_COLUMNS: MwPageColumns[] = [
+  { page: 'queues', columns: [
+    { key: 'name', title: '队列', format: 'mono', width: '26%' },
+    { key: 'type', title: '类型', format: 'chip' },
+    { key: 'messageCount', title: '消息数', format: 'compact' },
+    { key: 'ready', title: '就绪', format: 'num', from: 'extras' },
+    { key: 'consumerCount', title: '消费者', format: 'num' },
+    { key: 'dlx', title: '死信去向', format: 'text', from: 'extras' },
+    { key: 'ttl', title: 'TTL', format: 'ms', from: 'extras' },
+    { key: 'durable', title: '持久化', format: 'bool' }
+  ] },
+  { page: 'exchanges', columns: [
+    { key: 'name', title: '交换机', format: 'mono', width: '30%' },
+    { key: 'type', title: '类型', format: 'chip' },
+    { key: 'durable', title: '持久化', format: 'bool' },
+    { key: 'autoDelete', title: '自动删除', format: 'bool' },
+    { key: 'internal', title: '内部', format: 'bool' }
+  ] },
+  { page: 'bindings', columns: [
+    { key: 'source', title: 'Source → Destination', format: 'mono', width: '40%', route: true },
+    { key: 'routing_key', title: 'Routing Key', format: 'mono' },
+    { key: 'properties_key', title: 'Properties Key', format: 'mono' }
+  ] },
+  { page: 'groups', columns: [
+    { key: 'groupId', title: '队列（伪分组）', format: 'mono', width: '28%' },
+    { key: 'members', title: '消费者', format: 'num' },
+    { key: 'messageCount', title: '消息数', format: 'compact' },
+    { key: 'ready', title: '就绪', format: 'num', from: 'extras' },
+    { key: 'unacked', title: '未确认', format: 'num', from: 'extras' }
+  ] },
+  { page: 'clients', columns: [
+    { key: 'clientId', title: '连接（Client ID）', format: 'mono', width: '30%' },
+    { key: 'host', title: '来源地址', format: 'mono' },
+    { key: 'connectedAt', title: '连接时间', format: 'datetime' },
+    { key: 'subscriptionsCount', title: 'Channel/订阅', format: 'num' },
+    { key: 'state', title: '状态', format: 'chip', from: 'extras' }
+  ] }
+]
+
+const METRICS_SPEC: MwMetricSpec[] = [
+  { key: 'version', label: '版本', unit: 'text' },
+  { key: 'queues', label: '队列', unit: 'count' },
+  { key: 'messages', label: '消息总数', unit: 'count' },
+  { key: 'messagesReady', label: '就绪消息', unit: 'count' },
+  { key: 'messagesUnacked', label: '未确认消息', unit: 'count' },
+  { key: 'consumers', label: '消费者', unit: 'count' },
+  { key: 'connections', label: '连接数', unit: 'count' },
+  { key: 'publishRate', label: '发布速率', unit: 'rate' },
+  { key: 'deliverRate', label: '投递速率', unit: 'rate' }
+]
+
+const SEND_FIELDS: MwSendField[] = [
+  { key: 'routingKey', label: 'Routing Key（可选）', type: 'text', placeholder: '默认交换机按队列名路由' }
+]
 
 interface RmqRuntime {
   base: string
@@ -136,6 +217,10 @@ export const rabbitmqDriver: MwDriver = {
   defaultPort: 15672,
   capabilities: CAPS,
   messageQueryModes: [],
+  connectionFields: CONNECTION_FIELDS,
+  pageColumns: PAGE_COLUMNS,
+  metricsSpec: METRICS_SPEC,
+  sendFields: SEND_FIELDS,
 
   async test(config, password) {
     const started = Date.now()
@@ -153,10 +238,22 @@ export const rabbitmqDriver: MwDriver = {
     ctx.signal.throwIfAborted()
     const base = (config.managementUrl ?? '').replace(/\/$/, '')
     if (!/^https?:\/\//.test(base)) throw new Error('管理端点必须以 http(s):// 开头')
-    const overview = await mwHttpJson<{ rabbitmq_version?: string; node?: string }>(`${base}/api/overview`, {
-      basicAuth: { username: config.username ?? 'guest', password: password ?? 'guest' }, insecureTls: config.tlsRejectUnauthorized === false
-    })
+    const [overview, exchanges] = await Promise.all([
+      mwHttpJson<{ rabbitmq_version?: string; node?: string }>(`${base}/api/overview`, {
+        basicAuth: { username: config.username ?? 'guest', password: password ?? 'guest' }, insecureTls: config.tlsRejectUnauthorized === false
+      }),
+      // 探测 delayed-message 插件：exchanges 列表出现 x-delayed-message 类型即已安装
+      mwHttpJson<RmqExchange[]>(`${base}/api/exchanges/${encodeURIComponent(config.vhost || '/')}`, {
+        basicAuth: { username: config.username ?? 'guest', password: password ?? 'guest' }, insecureTls: config.tlsRejectUnauthorized === false
+      }).catch(() => [] as RmqExchange[])
+    ])
     ctx.signal.throwIfAborted()
+    const capabilities: Record<string, { state: 'available' | 'unsupported'; reason?: string }> = { ...CAPS }
+    if ((exchanges ?? []).some(e => e.type === 'x-delayed-message')) {
+      capabilities.delayQueue = { state: 'available', reason: 'x-delayed-message 插件已安装，支持延迟交换机' }
+    } else {
+      capabilities.delayQueue = { state: 'unsupported', reason: '未安装 rabbitmq_delayed_message_exchange 插件；延迟队列可用 TTL+DLQ 模板路线' }
+    }
     const amqp = createLazyResource(async () => {
       ctx.signal.throwIfAborted()
       const module = await amqpModule.get()
@@ -169,7 +266,7 @@ export const rabbitmqDriver: MwDriver = {
     }
     const handle: MwDriverHandle = {
       kind: 'rabbitmq', raw: { version: overview?.rabbitmq_version }, config, readOnly: false, password,
-      capabilities: { ...CAPS }, messageQueryModes: [],
+      capabilities, messageQueryModes: [],
       runtime: runtime as unknown as Record<string, unknown>
     }
     const aborted = () => { void closeQuiet(handle) }
@@ -231,7 +328,12 @@ export const rabbitmqDriver: MwDriver = {
         autoDelete: q.auto_delete,
         type: String(q.arguments?.['x-queue-type'] ?? 'classic'),
         lag: q.messages_ready,
-        extras: { ready: Number(q.messages_ready ?? 0), unacked: Number(q.messages_unacknowledged ?? 0), node: String(q.node ?? '') }
+        extras: {
+          ready: Number(q.messages_ready ?? 0),
+          unacked: Number(q.messages_unacknowledged ?? 0),
+          node: String(q.node ?? ''),
+          ...dlqExtras(q.arguments)
+        }
       }))
   },
 
@@ -244,7 +346,7 @@ export const rabbitmqDriver: MwDriver = {
         type: String(q.arguments?.['x-queue-type'] ?? 'classic'),
         ...(q.effective_policy_definition ? { policy: JSON.stringify(q.effective_policy_definition) } : {})
       },
-      extras: { arguments: q.arguments }
+      extras: { arguments: q.arguments, ...dlqExtras(q.arguments) }
     }
   },
 
@@ -463,6 +565,98 @@ export const rabbitmqDriver: MwDriver = {
   traceMessage: async (): Promise<MwTrace> => unsupported('消息轨迹'),
   retainedList: async () => unsupported('retained 管理'),
   retainedDelete: async () => unsupported('retained 管理'),
+
+  /** 死信/延迟队列模板：
+   *  - dlq：为既有 queue 配死信（建 {queue}.dlx direct 交换机 + {queue}.dlq 队列 + 绑定 + 回写源队列 arguments）
+   *  - delay(usePlugin)：建 x-delayed-message 交换机 + 目标队列 + 绑定，发送时带 x-delay 头
+   *  - delay(TTL 路线)：建 TTL 缓冲队列（无消费者）+ DLX 交换机 + 目标队列 + 绑定，消息到期死信转发 */
+  async queueTemplate(h, input) {
+    const r = rt(h)
+    const durable = input.durable ?? true
+    const created: string[] = []
+    if (input.template === 'dlq') {
+      const queue = input.queue
+      const exchange = input.exchange || `${queue}.dlx`
+      const dlq = input.dlq || `${queue}.dlq`
+      // 1. 死信交换机（direct）
+      await mwHttp(`${r.base}/api/exchanges/${vhostPath(h)}/${encodeURIComponent(exchange)}`, {
+        method: 'PUT', ...auth(h),
+        body: JSON.stringify({ type: 'direct', durable, auto_delete: false, arguments: {} })
+      })
+      created.push(`exchange:${exchange}`)
+      // 2. 死信队列
+      await mwHttp(`${r.base}/api/queues/${vhostPath(h)}/${encodeURIComponent(dlq)}`, {
+        method: 'PUT', ...auth(h),
+        body: JSON.stringify({ durable, auto_delete: false, arguments: {} })
+      })
+      created.push(`queue:${dlq}`)
+      // 3. 交换机 → 死信队列绑定（routing key 默认用源队列名，与 x-dead-letter-routing-key 一致）
+      const routingKey = input.routingKey || queue
+      await mwHttp(`${r.base}/api/bindings/${vhostPath(h)}/e/${encodeURIComponent(exchange)}/q/${encodeURIComponent(dlq)}`, {
+        method: 'POST', ...auth(h),
+        body: JSON.stringify({ routing_key: routingKey, arguments: {} })
+      })
+      created.push(`binding:${exchange}→${dlq}`)
+      // 4. 源队列回写死信 arguments（保留既有 arguments，幂等声明）
+      const existing = await mwHttpJson<RmqQueue>(`${r.base}/api/queues/${vhostPath(h)}/${encodeURIComponent(queue)}`, auth(h))
+      const args: Record<string, unknown> = { ...(existing.arguments ?? {}), 'x-dead-letter-exchange': exchange, 'x-dead-letter-routing-key': routingKey }
+      await mwHttp(`${r.base}/api/queues/${vhostPath(h)}/${encodeURIComponent(queue)}`, {
+        method: 'PUT', ...auth(h),
+        body: JSON.stringify({ durable: existing.durable ?? durable, auto_delete: existing.auto_delete ?? false, arguments: args })
+      })
+      created.push(`queue-args:${queue}`)
+      return { created }
+    }
+    // delay 模板
+    const target = input.queue
+    const ttl = Number(input.ttlMs) || 60000
+    if (input.usePlugin) {
+      if (h.capabilities.delayQueue?.state !== 'available') {
+        throw new Error('服务端未安装 rabbitmq_delayed_message_exchange 插件，请改用 TTL+DLQ 路线')
+      }
+      const exchange = input.exchange || 'delay.exchange'
+      await mwHttp(`${r.base}/api/exchanges/${vhostPath(h)}/${encodeURIComponent(exchange)}`, {
+        method: 'PUT', ...auth(h),
+        body: JSON.stringify({ type: 'x-delayed-message', durable, auto_delete: false, arguments: { 'x-delayed-type': 'direct' } })
+      })
+      created.push(`exchange:${exchange}(x-delayed-message)`)
+      await mwHttp(`${r.base}/api/queues/${vhostPath(h)}/${encodeURIComponent(target)}`, {
+        method: 'PUT', ...auth(h),
+        body: JSON.stringify({ durable, auto_delete: false, arguments: {} })
+      })
+      created.push(`queue:${target}`)
+      await mwHttp(`${r.base}/api/bindings/${vhostPath(h)}/e/${encodeURIComponent(exchange)}/q/${encodeURIComponent(target)}`, {
+        method: 'POST', ...auth(h),
+        body: JSON.stringify({ routing_key: input.routingKey || target, arguments: {} })
+      })
+      created.push(`binding:${exchange}→${target}`)
+      return { created }
+    }
+    // TTL+DLX 路线：buffer 队列带 TTL + 死信到 delay.exchange
+    const exchange = input.exchange || 'delay.exchange'
+    const buffer = `${target}.delay`
+    await mwHttp(`${r.base}/api/exchanges/${vhostPath(h)}/${encodeURIComponent(exchange)}`, {
+      method: 'PUT', ...auth(h),
+      body: JSON.stringify({ type: 'direct', durable, auto_delete: false, arguments: {} })
+    })
+    created.push(`exchange:${exchange}`)
+    await mwHttp(`${r.base}/api/queues/${vhostPath(h)}/${encodeURIComponent(target)}`, {
+      method: 'PUT', ...auth(h),
+      body: JSON.stringify({ durable, auto_delete: false, arguments: {} })
+    })
+    created.push(`queue:${target}`)
+    await mwHttp(`${r.base}/api/queues/${vhostPath(h)}/${encodeURIComponent(buffer)}`, {
+      method: 'PUT', ...auth(h),
+      body: JSON.stringify({ durable, auto_delete: false, arguments: { 'x-message-ttl': ttl, 'x-dead-letter-exchange': exchange } })
+    })
+    created.push(`queue:${buffer}(TTL=${ttl}ms)`)
+    await mwHttp(`${r.base}/api/bindings/${vhostPath(h)}/e/${encodeURIComponent(exchange)}/q/${encodeURIComponent(target)}`, {
+      method: 'POST', ...auth(h),
+      body: JSON.stringify({ routing_key: input.routingKey || target, arguments: {} })
+    })
+    created.push(`binding:${exchange}→${target}`)
+    return { created }
+  },
 
   async tailStart(h, input, sink) {
     const conn = await amqpOf(h)

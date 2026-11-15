@@ -203,7 +203,10 @@
         "password",
         "账号",
         "密码管理",
-        "password-book"
+        "password-book",
+        "mmb",
+        "mimaben",
+        "密码箱"
       ]
     }
   ],

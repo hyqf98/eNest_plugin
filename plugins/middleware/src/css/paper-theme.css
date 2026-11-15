@@ -37,7 +37,16 @@
   --ac-shadow: rgba(60, 56, 48, 0.10);
   /* 未解析纸面前的点阵兜底（暖墨，不用冷灰）。 */
   --bg-dot: rgba(51, 48, 43, 0.10);
+  /* 墨色发丝线/纸片混色（与 database 同语义；细线一律真 border，不用位移滤镜——
+     滤镜区按边框盒百分比算，细线会被整条推出裁掉）。 */
+  --ink-line: color-mix(in srgb, var(--text) 34%, transparent);
+  --ink-line-soft: color-mix(in srgb, var(--text) 20%, transparent);
+  --ink-card-bg: color-mix(in srgb, var(--surface) 82%, var(--bg));
+  --ink-well-bg: color-mix(in srgb, var(--bg) 58%, var(--surface));
 }
+/* 纸面下把 kit 的内缩契约抬到与间隙同量级（database 同款）：
+   三面圆角必须有外边距才成立，贴窗圆角只会像"窗口缺角"。 */
+:root[data-paper] { --appearance-inset: 12px; }
 
 /* ══ 白纸 paper ══ */
 :root[data-paper='paper'] {
@@ -70,9 +79,10 @@
   --radius-pill: 999px !important;
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
-  /* 四类中间件识别色：全部落在纸面语义色里（赭/赤褐/蓝墨/苔绿），不留冷灰。 */
+  /* 中间件识别色：全部落在纸面语义色里（赭/赤褐/蓝墨/苔绿/赭金/朱/紫墨），不留冷灰。 */
   --c-kafka: #6d6049 !important; --c-rabbit: #a8452f !important;
   --c-mqtt: #2f5f82 !important; --c-rocket: #3f7a4a !important;
+  --c-activemq: #8a6d2f !important; --c-redis: #a53232 !important; --c-pulsar: #5f4b8b !important;
   /* JSON 着色：键=墨棕、串=苔绿、数=朱、字面量=蓝墨。 */
   --j-k: #a89680; --j-s: #2f7a3a; --j-n: #a63a34; --j-b: #2f5f82;
   /* pk-ui 自己的柔光环也换成中性墨，避免控件聚焦时冒出蓝色光圈。 */
@@ -112,6 +122,7 @@
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
   --c-kafka: #72634c !important; --c-rabbit: #a8452f !important;
   --c-mqtt: #33607f !important; --c-rocket: #4f8b3f !important;
+  --c-activemq: #8f7434 !important; --c-redis: #a8452f !important; --c-pulsar: #63548f !important;
   --j-k: #9c8a6f; --j-s: #2f7a3a; --j-n: #a8452f; --j-b: #33607f;
   --pk-focus-ring-color: rgba(67, 51, 29, 0.28) !important;
 }
@@ -149,6 +160,7 @@
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
   --c-kafka: #b9a67d !important; --c-rabbit: #d98070 !important;
   --c-mqtt: #88b0cc !important; --c-rocket: #83bd8a !important;
+  --c-activemq: #c4b078 !important; --c-redis: #d9a294 !important; --c-pulsar: #b0a3cc !important;
   --j-k: #b8a888; --j-s: #83bd8a; --j-n: #d98070; --j-b: #88b0cc;
   --pk-focus-ring-color: rgba(236, 229, 211, 0.30) !important;
 }
@@ -186,6 +198,7 @@
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
   --c-kafka: #c2b68e !important; --c-rabbit: #d79180 !important;
   --c-mqtt: #a0c2d4 !important; --c-rocket: #a8d0a0 !important;
+  --c-activemq: #ccbf96 !important; --c-redis: #dcab9e !important; --c-pulsar: #bcb5d6 !important;
   --j-k: #c2bfa8; --j-s: #a8d0a0; --j-n: #d79180; --j-b: #a0c2d4;
   --pk-focus-ring-color: rgba(233, 232, 214, 0.30) !important;
 }
@@ -225,22 +238,77 @@
   background-position: 0 0 !important;
   background-color: var(--bg) !important;
 }
-:root[data-paper] .content { background: transparent !important; }
 :root[data-paper] .page-host, :root[data-paper] .page { background: transparent; }
 /* 宿主「外观」家族会在 .pk-appearance 上叠两层装饰（暖色渐变 + 斜向细纹），
  * 纸面已有自己的点阵，两套纹理叠在一起会发脏；纸面下只留点阵。 */
 :root[data-paper] .pk-appearance[data-layout-family]::before,
 :root[data-paper] .pk-appearance[data-layout-family]::after { opacity: 0 !important; animation: none !important; }
 
-/* ═══════════ 顶栏 / 连接树 / Tab / 子导航 / 状态栏 ═══════════ */
-
-/* 顶栏：纸面薄片（两色混合保持不透明，点阵只在正文透出）+ 手绘虚线分界。 */
-:root[data-paper] .workbench-head {
-  background: color-mix(in srgb, var(--surface) 80%, var(--bg)) !important;
-  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 26%, transparent) !important;
+/* ═══════════ 面板骨架：四张纸片浮在点阵纸上（对齐 database 的三纸片语言） ═══════════ */
+/* 内缩与间隙：kit 的 padding 契约写在 .app-body 上（顶栏/状态栏在它外面），
+   这里改为 #root 统一留白 + .app-body 归零，上下左右一致。
+   Quick 沿用 kit 原门禁（小窗单任务不内缩）。 */
+:root[data-paper]:not([data-mode='quick']) #root {
+  display: flex; flex-direction: column;
+  padding: var(--appearance-inset);
 }
-:root[data-paper] .workbench-head > span { letter-spacing: 0.02em; }
-:root[data-paper] .workbench-head-hint { font-style: italic; color: var(--text-3); }
+:root[data-paper] .pk-appearance[data-plugin='middleware'] .app-body { padding: 0 !important; }
+:root[data-paper] .app { gap: var(--workbench-gap, 12px); }
+:root[data-paper] .app-body { gap: var(--workbench-gap, 12px); }
+/* 顶栏已删（☰ 浮在树头）：浮钮贴纸面，半透混底。 */
+:root[data-paper] .nav-float {
+  background: color-mix(in srgb, var(--surface) 72%, transparent) !important;
+  border: 1.3px dashed transparent;
+}
+:root[data-paper] .nav-float:hover { border-color: var(--ink-line); }
+:root[data-paper] .shell-float {
+  background: color-mix(in srgb, var(--surface) 72%, transparent) !important;
+}
+/* 连接树纸片：整张卡，半透混色让点阵隐约透出（原来只有底色没边没影）。 */
+:root[data-paper] .tree {
+  background: color-mix(in srgb, var(--surface) 84%, transparent) !important;
+  border: 1.5px dashed var(--ink-line) !important;
+  border-radius: var(--appearance-panel-radius, 10px) !important;
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+}
+/* 树与内容之间的拖宽条：透明浮在点阵上（原来的墨线由 .tree 自身的整圈边框接管）。 */
+:root[data-paper] .tree-resizer {
+  background: transparent !important;
+  border-right: 0 !important;
+}
+/* 内容区纸片：子导航/页面/表格都住在里面，整张卡 + 圆角裁切。 */
+:root[data-paper] .content {
+  background: var(--ink-card-bg) !important;
+  border: 1.5px dashed var(--ink-line) !important;
+  border-radius: var(--appearance-panel-radius, 10px) !important;
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+  overflow: hidden;
+}
+/* 内容区顶部两条 chrome 保持透明（贴 .content 纸片底），分界线换墨色。 */
+:root[data-paper] .conn-tabs {
+  background: transparent !important;
+  border-bottom: 1.4px dashed var(--ink-line) !important;
+}
+:root[data-paper] .conn-tab.on { background: var(--ink-card-bg) !important; }
+:root[data-paper] .subnav {
+  background: transparent !important;
+  border-bottom: 1.4px dashed var(--ink-line) !important;
+}
+/* 状态栏纸片：原来只有底色横条，升级为独立纸条卡。 */
+:root[data-paper] .status-bar {
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg)) !important;
+  border: 1.5px dashed var(--ink-line) !important;
+  border-radius: var(--appearance-panel-radius, 10px) !important;
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+}
+/* 紧凑导航（窄屏）下 .tree 是 absolute 抽屉浮层，改用浮层硬投影。 */
+:root[data-paper] .navigation-compact .tree {
+  border-radius: 0 var(--ink-radius-pop) var(--ink-radius-pop) 0 !important;
+  box-shadow: -3px 4px 0 var(--ac-shadow) !important;
+}
+
+/* ═══════════ 顶栏 / 连接树 / Tab / 子导航 / 状态栏 ═══════════ */
+/* （顶栏已移除；☰ 浮钮样式在上方「面板骨架」段。） */
 :root[data-paper] #nav-toggle {
   border-radius: var(--ink-radius-ctl);
   border: 1.3px solid transparent;
@@ -249,16 +317,8 @@
 :root[data-paper] #nav-toggle:hover { transform: rotate(-6deg) scale(1.08); border-color: var(--text); background: transparent !important; }
 :root[data-paper] #nav-toggle[aria-expanded='true'] { border-color: color-mix(in srgb, var(--text) 55%, transparent); }
 
-/* 连接树：纸面薄片浮在点阵上（96% 实底，点阵只透出一点颗粒，不干扰文字），
- * 右侧分隔交给 resizer 的墨线。 */
-:root[data-paper] .tree {
-  background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
-  border-right: 0 !important;
-}
-:root[data-paper] .tree-resizer {
-  background: transparent !important;
-  border-right: 1.5px solid color-mix(in srgb, var(--text) 24%, transparent) !important;
-}
+/* 连接树：纸片外观已由「面板骨架」段接管（整圈墨边 + 圆角 + 硬投影），
+ * 这里不再覆写底色/边框，只保 hover 反馈。 */
 :root[data-paper] .tree-resizer:hover, :root[data-paper] .tree-resizer.active {
   background: color-mix(in srgb, var(--text) 10%, transparent) !important;
 }
@@ -321,15 +381,11 @@
   background: color-mix(in srgb, var(--text) 7%, transparent) !important;
 }
 
-/* 连接 Tab：纸片页签，活动态用墨下划线而不是蓝条。 */
-:root[data-paper] .conn-tabs {
-  background: color-mix(in srgb, var(--surface) 70%, var(--bg)) !important;
-  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 24%, transparent) !important;
-}
+/* 连接 Tab：纸片页签（tab 条底与分界线已由「面板骨架」段接管），活动态用墨下划线而不是蓝条。 */
 :root[data-paper] .conn-tab { border-radius: 9px 12px 0 0; color: var(--text-2); }
 :root[data-paper] .conn-tab:hover { background: color-mix(in srgb, var(--text) 6%, transparent) !important; color: var(--text); }
 :root[data-paper] .conn-tab.on {
-  background: var(--bg) !important;
+  background: var(--ink-card-bg) !important;
   color: var(--text) !important;
   border: 0 !important;
   border-radius: 9px 12px 0 0;
@@ -365,12 +421,8 @@
 :root[data-paper] .context-connection { font-style: italic; color: var(--text-3); }
 :root[data-paper] .subnav-right { color: var(--text-3); }
 
-/* 状态栏：虚线顶界 + 等宽延迟读数。 */
-:root[data-paper] .status-bar {
-  background: color-mix(in srgb, var(--surface) 72%, var(--bg)) !important;
-  border-top: 1.4px dashed color-mix(in srgb, var(--text) 24%, transparent) !important;
-  color: var(--text-3);
-}
+/* 状态栏：纸条卡外观已由「面板骨架」段接管，这里只留读数配色。 */
+:root[data-paper] .status-bar { color: var(--text-3); }
 :root[data-paper] .status-bar .lat { color: var(--text-2); }
 :root[data-paper] .status-bar .dot { border: 1.2px solid var(--bg); }
 

@@ -19,13 +19,25 @@
   --ink-radius-card: 14px 18px 15px 19px / 17px 14px 19px 15px;
   --ink-radius-pop: 13px 17px 14px 18px / 16px 13px 18px 14px;
   --ink-radius-input: 8px 11px 9px 12px / 11px 8px 12px 9px;
+  /* 小圆钮/圆点：百分比在这里是对的——元素本身就是小方块，椭圆半径才是"笔尖画圆"。 */
+  --ink-radius-ctl: 48% 52% 46% 54% / 54% 46% 55% 45%;
   --ink-speed: 0.16s;
+  /* 墨色发丝线/纸片混色：与 database 同一套语义（值里引用 --text，消费处解析，
+     四套纸各自成立）。细线一律真 border，不用位移滤镜（滤镜区按边框盒百分比算，细线会被整条推出裁掉）。 */
+  --ink-line: color-mix(in srgb, var(--text) 34%, transparent);
+  --ink-line-soft: color-mix(in srgb, var(--text) 20%, transparent);
+  --ink-card-bg: color-mix(in srgb, var(--surface) 82%, var(--bg));
+  --ink-well-bg: color-mix(in srgb, var(--bg) 58%, var(--surface));
 }
+/* 纸面下把 kit 的内缩契约抬到与间隙同量级（database 同款）：
+   三面圆角必须有外边距才成立，贴窗圆角只会像"窗口缺角"。 */
+:root[data-paper] { --appearance-inset: 12px; }
 
 /* ══ 白纸 paper ══ */
 :root[data-paper='paper'] {
   color-scheme: light !important;
   --ac-edge: #a89680; --ac-shadow: rgba(60, 56, 48, 0.10);
+  --bg-dot: rgba(120, 112, 100, 0.22);
   --scrim: #33302b !important;
   --bg: #fbfbf8 !important;
   --surface: #ffffff !important;
@@ -71,6 +83,7 @@
 :root[data-paper='cream'] {
   color-scheme: light !important;
   --ac-edge: #9c8a6f; --ac-shadow: rgba(64, 60, 50, 0.11);
+  --bg-dot: rgba(124, 116, 100, 0.22);
   --scrim: #3a362e !important;
   --bg: #f9f7f1 !important;
   --surface: #fdfcf8 !important;
@@ -115,6 +128,7 @@
 :root[data-paper='dark'] {
   color-scheme: dark !important;
   --ac-edge: #b8a888; --ac-shadow: rgba(0, 0, 0, 0.4);
+  --bg-dot: rgba(160, 150, 132, 0.22);
   --scrim: #222220 !important;
   --bg: #222220 !important;
   --surface: #2a2a27 !important;
@@ -159,6 +173,7 @@
 :root[data-paper='board'] {
   color-scheme: dark !important;
   --ac-edge: #c2bfa8; --ac-shadow: rgba(0, 0, 0, 0.38);
+  --bg-dot: rgba(170, 168, 152, 0.22);
   --scrim: #293029 !important;
   --bg: #293029 !important;
   --surface: #30372f !important;
@@ -210,6 +225,122 @@
 :root[data-paper] .pk-input, :root[data-paper] .pk-btn {
   font-family: var(--ink-hand) !important;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   面板骨架：纸底点阵 + 纸片浮起（对齐 database 的三纸片语言）
+   面板模式（自由面板小组件）不接管：widget.css 有自己的透明底约束。
+   ══════════════════════════════════════════════════════════════ */
+/* 纸底点阵：铺在 body/#root（.app 的 grid 子面板各自有底色，缝隙透出点阵）。
+   widget.css 给 #root 写了实底底色，必须 !important。 */
+:root[data-paper]:not([data-mode='panel']) body { background-color: var(--bg) !important; }
+:root[data-paper]:not([data-mode='panel']) body,
+:root[data-paper]:not([data-mode='panel']) #root {
+  background-image: radial-gradient(circle, var(--bg-dot) 1px, transparent 1.2px) !important;
+  background-size: 22px 22px !important;
+  background-position: 6px 8px !important;
+}
+/* 四边留白：kit 的 padding 契约写在 .app 上，但 ssh 的 .wb-header 是 .app 的
+   前置兄弟（workbench.js 里 app.before(header)），只给 .app 留白会让顶栏贴窗口
+   顶边、与下方内缩的面板错位。改为 #root 统一留白 + .app 归零，上下左右一致。
+   Quick 沿用 kit 的原门禁（小窗单任务不内缩）。 */
+:root[data-paper]:not([data-mode='quick']):not([data-launch-mode='quick']):not([data-mode='panel']) #root {
+  display: flex; flex-direction: column;
+  padding: var(--appearance-inset);
+}
+:root[data-paper] .pk-appearance[data-plugin='ssh'] .app { padding: 0 !important; }
+/* 高度契约同步：原 .app[data-workbench] 是 calc(100dvh - 40px) 按贴边假设算的，
+   #root 留白后交给 flex 分配（header 40px + .app 吃剩余）。 */
+:root[data-paper]:not([data-mode='quick']):not([data-launch-mode='quick']):not([data-mode='panel']) .app[data-workbench] {
+  height: auto; flex: 1; min-height: 0;
+  gap: var(--workbench-gap, 12px);
+}
+/* 顶栏：透明浮在纸底上，只留一条手绘虚线分界（不再吃 --ssh-chrome 实底）。 */
+:root[data-paper] .wb-header {
+  background: transparent;
+  border-bottom: 1.5px dashed var(--ink-line);
+}
+/* 侧栏纸片：整张卡（rail + 列表），半透混色让点阵隐约透出。
+   不加 overflow:hidden —— .wb-sidebar-resize 是 right:-3px 的外扩把手，裁了只剩一半。 */
+:root[data-paper] .app .sidebar {
+  background: color-mix(in srgb, var(--surface) 84%, var(--bg));
+  border: 1.5px dashed var(--ink-line);
+  border-radius: var(--appearance-panel-radius, 10px);
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+}
+:root[data-paper] .app .side-rail { border-right: 1.4px dashed var(--ink-line-soft); background: transparent; }
+/* 紧凑导航（窄屏）下 .side-body 是 fixed 浮层，自己成卡。 */
+:root[data-paper] .app[data-compact-navigation='true'] .side-body {
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  border: 1.5px dashed var(--ink-line);
+  border-radius: var(--appearance-panel-radius, 10px);
+  box-shadow: 3px 5px 0 var(--ac-shadow) !important;
+}
+/* 主区纸片：header 内的会话条/上下文条/终端区/状态栏合为一张卡。
+   终端本身保持等宽矩形（xterm 铺满 .term-wrap，底色走 --ink-card-bg）。 */
+:root[data-paper] .app .main {
+  background: var(--ink-card-bg);
+  border: 1.5px dashed var(--ink-line);
+  border-radius: var(--appearance-panel-radius, 10px);
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+  overflow: hidden;
+}
+/* 主区内的横向 chrome：各自纸片底 + 虚线分界（对齐 database 的 mid-chrome/wb-status）。 */
+:root[data-paper] .app .session-tabs {
+  background: color-mix(in srgb, var(--surface) 80%, var(--bg));
+  border-bottom: 1.5px dashed var(--ink-line);
+}
+:root[data-paper] .app .wb-session-context {
+  background: color-mix(in srgb, var(--surface) 78%, var(--bg));
+  border-bottom: 1.4px dashed var(--ink-line);
+}
+:root[data-paper] .app .wb-statusbar {
+  background: color-mix(in srgb, var(--surface) 72%, var(--bg));
+  border-top: 1.5px dashed var(--ink-line);
+}
+/* 文件视图右缘 / 工具坞顶缘分界换墨线。 */
+:root[data-paper] .app .wb-files { border-left: 1.4px dashed var(--ink-line); background: transparent; }
+:root[data-paper] .app .wb-dock { border-top: 1.5px dashed var(--ink-line); background: transparent; }
+:root[data-paper] .app .wb-pane-title,
+:root[data-paper] .app .wb-file-path,
+:root[data-paper] .app .wb-file-actions,
+:root[data-paper] .app .wb-tool-tabs,
+:root[data-paper] .app .wb-tool-toolbar { border-bottom-color: var(--ink-line-soft); }
+/* 抽屉浮层：纸片 + 硬偏移投影（main.css 的 40px 高斯投影在纸面上发糊）。 */
+:root[data-paper] .app .drawer,
+:root[data-paper] .app[data-workbench] .drawer {
+  background: var(--surface);
+  border-left: 1.5px dashed var(--ink-line);
+  border-radius: var(--ink-radius-pop) 0 0 var(--ink-radius-pop);
+  box-shadow: -3px 4px 0 var(--ac-shadow) !important;
+}
+/* 空态：虚线墨圈 + 中心墨点（替换圆角方块 + 点）。 */
+:root[data-paper] .empty::before {
+  width: 44px; height: 44px;
+  border-radius: var(--ink-radius-ctl);
+  border: 1.5px dashed var(--ink-line);
+  background: radial-gradient(circle at 50% 50%, var(--ink-line) 3px, transparent 3.6px);
+  background-color: transparent;
+  transform: rotate(-5deg);
+  margin-bottom: 4px;
+}
+/* 输入凹槽：侧栏搜索等 chrome 输入给纸面凹痕（终端/xterm 不动）。
+   排除 .wb-code-fallback（Monaco 回退编辑器是数据区，必须等宽+实底）。 */
+:root[data-paper] .app :is(input, select, textarea):where(:not([type='checkbox']):not([type='radio']):not(.inputarea):not(.wb-code-fallback)) {
+  background: var(--ink-well-bg) !important;
+  border: 1.4px solid var(--ink-line) !important;
+  border-radius: var(--ink-radius-input) !important;
+  font-family: var(--ink-hand);
+}
+/* 路径/快捷键这类"数据文本"输入保持等宽（对齐 database 的数据区纪律）。 */
+:root[data-paper] .app .wb-file-path input,
+:root[data-paper] .app #sftp-path,
+:root[data-paper] .app .wb-shortcut-list input,
+:root[data-paper] .app .wb-editor-path input { font-family: var(--mono) !important; }
+:root[data-paper] .app .side-tools input[type='search'],
+:root[data-paper] .app .wb-tool-toolbar input { font-family: var(--ink-hand) !important; }
+/* 终端区底色统一走 --term-bg（四套纸各自重定义），与纸片卡协调。 */
+:root[data-paper] .app .term-wrap,
+:root[data-paper] .app .term-host { background: var(--term-bg); }
 
 /* ── 手绘签名：浮层/弹框墨边 + 硬偏移投影 + 入场动画 ── */
 :root[data-paper] .ctx-menu, :root[data-paper] .cs-dropdown {

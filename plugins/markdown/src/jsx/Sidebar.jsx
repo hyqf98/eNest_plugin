@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { call, resolveImageToDataUrl } from '../js/rpc.js'
 import { extractResources, KIND_ICON, KIND_LABEL, isImageExt, titleFor } from '../js/resources.js'
 
-export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVersion, recentFiles, onOpenFile, onJump, toast, viewRef, imageDir }) {
+export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVersion, recentFiles, onOpenFile, onJump, toast, viewRef, imageDir, compact = false }) {
   const [tree, setTree] = useState([])
   const [roots, setRoots] = useState([])
   const [activeRoot, setActiveRoot] = useState('')
@@ -163,7 +163,13 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
   const KIND_ORDER = ['image', 'web', 'doc', 'file', 'anchor', 'mail', 'tel']
 
   return (
-    <aside className="md-sidebar" id="md-navigation" ref={panelRef} data-tab={tab} aria-label="文档导航">
+    <aside
+      className={compact ? 'md-sidebar md-sidebar-compact' : 'md-sidebar'}
+      id={compact ? undefined : 'md-navigation'}
+      ref={panelRef}
+      data-tab={tab}
+      data-compact={compact ? 'true' : undefined}
+      aria-label="文档导航">
       <div className="md-sidebar-tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'outline'} onClick={() => onTab('outline')}>大纲</button>
         <button role="tab" aria-selected={tab === 'files'} onClick={() => onTab('files')}>文件</button>
@@ -213,7 +219,7 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
               {roots.length === 0 && <option value="">选择目录…</option>}
               {roots.map((r) => <option key={r} value={r}>{r.split('/').pop()}</option>)}
             </select>
-            <button className="pk-btn pk-btn-sm" onClick={() => void pickRoot()} title="打开目录">＋</button>
+            {!compact && <button className="pk-btn pk-btn-sm" onClick={() => void pickRoot()} title="打开目录">＋</button>}
             <button className="pk-btn pk-btn-sm" onClick={() => void loadTree(activeRoot)} title="刷新">⟳</button>
           </div>
           <div className="md-file-tree" role="tree">

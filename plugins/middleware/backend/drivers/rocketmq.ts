@@ -4,15 +4,19 @@
 import type {
   MwClient,
   MwConnectionConfig,
+  MwConnectionField,
   MwConsumerGroup,
   MwConsumerGroupDetail,
   MwMessage,
   MwMessageQueryInput,
   MwMessageSendInput,
   MwOverview,
+  MwMetricSpec,
+  MwPageColumns,
   MwTopic,
   MwTrace,
   MwTraceStep,
+  MwSendField,
   MwBindingCreateInput,
   MwTopicCreateInput
 } from '@backend/contracts/mw-workbench'
@@ -49,6 +53,41 @@ interface RmqRuntime {
   password?: string
   clusterNames?: string[]
 }
+
+const CONNECTION_FIELDS: MwConnectionField[] = [
+  { key: 'dashboardUrl', label: 'rocketmq-dashboard 地址', type: 'text', required: true, pattern: 'https-url', placeholder: 'http://10.2.1.41:8080', tip: '经已部署的 dashboard 接口操作 · 默认端口 8080' },
+  { key: 'username', label: '用户名', type: 'text', placeholder: 'dashboard 账号（无鉴权可留空）', half: true },
+  { key: 'secret', label: '密码', type: 'password', vaultSlot: 'primary', half: true }
+]
+
+const PAGE_COLUMNS: MwPageColumns[] = [
+  { page: 'topics', columns: [
+    { key: 'name', title: 'TOPIC', format: 'mono', width: '30%' },
+    { key: 'type', title: '类型', format: 'type' },
+    { key: 'readQueueNums', title: '队列', format: 'num', from: 'extras' },
+    { key: 'messageCount', title: '消息数', format: 'compact' },
+    { key: 'totalSizeBytes', title: '大小', format: 'bytes' },
+    { key: 'lag', title: '堆积', format: 'lag' },
+    { key: 'lag', title: '健康', format: 'health' }
+  ] },
+  { page: 'groups', columns: [
+    { key: 'groupId', title: '消费组', format: 'mono', width: '28%' },
+    { key: 'state', title: '状态', format: 'chip' },
+    { key: 'members', title: '成员', format: 'num' },
+    { key: 'totalLag', title: '总堆积', format: 'lag' },
+    { key: 'topics', title: '订阅 Topic', format: 'num' }
+  ] }
+]
+
+const METRICS_SPEC: MwMetricSpec[] = [
+  { key: 'brokers', label: 'Broker', unit: 'count' },
+  { key: 'topics', label: 'Topic', unit: 'count' }
+]
+
+const SEND_FIELDS: MwSendField[] = [
+  { key: 'key', label: 'Key（可选）', type: 'text', placeholder: '消息 Key，可用于查询', half: true },
+  { key: 'tag', label: 'Tag（可选）', type: 'text', placeholder: '消息 Tag 过滤', half: true }
+]
 
 function rt(h: MwDriverHandle): RmqRuntime { return h.runtime as unknown as RmqRuntime }
 
@@ -165,6 +204,10 @@ export const rocketmqDriver: MwDriver = {
   defaultPort: 8080,
   capabilities: CAPS,
   messageQueryModes: ['time', 'key', 'id'],
+  connectionFields: CONNECTION_FIELDS,
+  pageColumns: PAGE_COLUMNS,
+  metricsSpec: METRICS_SPEC,
+  sendFields: SEND_FIELDS,
 
   async test(config, password) {
     const started = Date.now()
@@ -496,6 +539,7 @@ export const rocketmqDriver: MwDriver = {
 
   retainedList: async () => unsupported('retained 管理'),
   retainedDelete: async () => unsupported('retained 管理'),
+  queueTemplate: async () => unsupported('死信/延迟模板'),
 
   tailStart: async () => unsupported('实时监听（dashboard 无流式接口，请用时间段轮询）')
 }

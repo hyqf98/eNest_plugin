@@ -3,7 +3,8 @@
  * 显示：当前连接名 / kind 色点 / 延迟（overview 拉取缓存）/ 只读标识
  * 导出 refreshStatus(conn?) 与 setLatency(ms)；tabs.js 每次切页后调用 refreshStatus。
  */
-import { KIND_META, fmt } from './components.js'
+import { fmt } from './components.js'
+import { kindLabel, kindColor } from './kinds.js'
 import store from './store.js'
 
 let currentMode = 'shell'
@@ -30,16 +31,15 @@ export function refreshStatus(conn) {
     root.appendChild(renderIdle())
     return
   }
-  const meta = KIND_META[active.kind]
   const latency = latencyByConn.get(active.id)
   const quick = currentMode === 'quick'
 
   const dot = document.createElement('span')
   dot.className = 'dot'
-  dot.style.background = meta?.color ?? 'var(--text-3)'
+  dot.style.background = kindColor(active.kind)
 
   const name = document.createElement('span')
-  name.textContent = `${active.name || active.id} · ${meta?.label ?? active.kind}`
+  name.textContent = `${active.name || active.id} · ${kindLabel(active.kind)}`
 
   root.append(dot, name)
 

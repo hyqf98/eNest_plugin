@@ -25,7 +25,10 @@
       "cmds": [
         "换算",
         "convert",
-        "dw"
+        "dw",
+        "huansuan",
+        "hs",
+        "单位换算"
       ]
     }
   ],

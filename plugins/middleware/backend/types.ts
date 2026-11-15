@@ -6,6 +6,7 @@ import type {
   MwCapability,
   MwClient,
   MwConnectionConfig,
+  MwConnectionField,
   MwConsumerGroup,
   MwConsumerGroupDetail,
   MwMessage,
@@ -16,7 +17,11 @@ import type {
   MwTopic,
   MwTrace,
   MwBindingCreateInput,
-  MwTopicCreateInput
+  MwTopicCreateInput,
+  MwQueueTemplateInput,
+  MwPageColumns,
+  MwMetricSpec,
+  MwSendField
 } from '@backend/contracts/mw-workbench'
 
 /** open() 注入的运行时上下文 */
@@ -50,6 +55,14 @@ export interface MwDriver {
   /** 静态能力声明（kinds.list 描述符来源） */
   capabilities: Record<string, MwCapability>
   messageQueryModes: MwMessageQueryMode[]
+  /** 连接表单字段声明（前端抽屉表单按此渲染） */
+  connectionFields: MwConnectionField[]
+  /** 列表页列声明（topics 页各分段） */
+  pageColumns?: MwPageColumns[]
+  /** 指标卡声明（概览/监控页） */
+  metricsSpec?: MwMetricSpec[]
+  /** 发消息页特有字段 */
+  sendFields?: MwSendField[]
   test(config: MwConnectionConfig, password?: string): Promise<MwTestResult>
   open(config: MwConnectionConfig, password: string | undefined, ctx: MwDriverContext): Promise<MwDriverHandle>
   close(h: MwDriverHandle): Promise<void>
@@ -82,6 +95,8 @@ export interface MwDriver {
   traceMessage(h: MwDriverHandle, input: { key: string }): Promise<MwTrace>
   retainedList(h: MwDriverHandle, input: { search?: string }): Promise<MwTopic[]>
   retainedDelete(h: MwDriverHandle, topic: string): Promise<void>
+  /** rmq 死信/延迟队列模板：一条龙建交换机+队列+绑定；其余 kind unsupported */
+  queueTemplate(h: MwDriverHandle, input: MwQueueTemplateInput): Promise<{ created: string[] }>
   /** 实时监听：驱动内部常驻订阅，消息经 sink 推给 service；返回 stop 由 service 在 tail.stop/会话关闭时调用 */
   tailStart(h: MwDriverHandle, input: { tailId: string; topic: string; filter?: string }, sink: (message: MwMessage) => void): Promise<{ stop(): Promise<void> }>
 }

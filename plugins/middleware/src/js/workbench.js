@@ -8,6 +8,7 @@ import { commands, isComposing } from './commands.js'
 import api from './api.js'
 import store from './store.js'
 import { closeContextMenu } from './components.js'
+import { initKinds } from './kinds.js'
 import { renderAll, setMode as setTabsMode, closeTaskTab, disposePanels, openSettings } from './tabs.js'
 import { renderTree, applyTreeWidth, initializeNavigation, closeNavigation, disposeNavigation } from './tree.js'
 import { refreshStatus, setMode as setStatusMode } from './status.js'
@@ -86,6 +87,7 @@ async function boot() {
   mountPaper(() => store.ui.paper)
   await api.applyTheme()
   applyMode(await api.mode())
+  void initKinds() // kinds 注册表预载（树/表单/页面共享缓存；不阻塞首绘）
   await store.load()
   applyPaper(normalizePaper(store.ui.paper))
   watchPaperChanges(() => store.ui.paper)

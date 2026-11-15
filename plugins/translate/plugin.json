@@ -32,7 +32,8 @@
           "label": "翻译文本",
           "minLength": 1,
           "maxLength": 10000
-        }
+        },
+        "fanyi"
       ]
     }
   ],

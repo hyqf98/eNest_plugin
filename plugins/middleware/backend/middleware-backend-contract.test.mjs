@@ -63,7 +63,7 @@ function fixture(t, { initialize = true } = {}) {
       return { stop: async () => { operations.push({ op: 'tail.stop' }) } }
     }
   }
-  const backend = createMiddlewareBackend({ port, getDriver: () => driver, descriptors: () => [{ kind: 'kafka' }], onShutdown: () => port.exit() })
+  const backend = createMiddlewareBackend({ port, getDriver: () => driver, descriptors: () => [{ kind: 'kafka' }, { kind: 'mqtt' }, { kind: 'rabbitmq' }, { kind: 'rocketmq' }, { kind: 'activemq' }, { kind: 'redis' }, { kind: 'pulsar' }], onShutdown: () => port.exit() })
   t.after(async () => { await backend.shutdown(); for (const [key, value] of Object.entries(proxy)) { if (value === undefined) delete process.env[key]; else process.env[key] = value } })
   const init = { type: 'init', pluginId: OWNER, generation: 2, wcId: 8, context: { protocolVersion: 1, appDataPath: root, packagePath: root, appExecPath: process.execPath } }
   if (initialize) port.emit('message', { data: init })
@@ -282,9 +282,9 @@ test('frontend works with frozen host API, bounded timeout options and backend.e
 
 test('version-gated plugin entry bundles no host facade or production host contracts', async () => {
   const manifest = JSON.parse(readFileSync(root + '../plugin.json', 'utf8'))
-  assert.equal(manifest.version, '0.4.0'); assert.equal(manifest.engines.enest, '>=0.2.2')
+  assert.equal(manifest.version, '0.5.0'); assert.equal(manifest.engines.enest, '>=0.0.1')
   assert.ok(manifest.permissions.includes('backend.node'))
-  const entry = await build({ entryPoints: [root + 'index.ts'], bundle: true, write: false, platform: 'node', format: 'cjs', tsconfig: root + 'tsconfig.json', external: ['amqplib', 'kafkajs', 'mqtt'], metafile: true, logLevel: 'silent' })
+  const entry = await build({ entryPoints: [root + 'index.ts'], bundle: true, write: false, platform: 'node', format: 'cjs', tsconfig: root + 'tsconfig.json', external: ['amqplib', 'ioredis', 'kafkajs', 'mqtt', 'ws'], metafile: true, logLevel: 'silent' })
   assert.ok(Object.keys(entry.metafile.inputs).every(path => !path.includes('src/main/') && !path.includes('src/shared/')))
   const frontend = readFileSync(root + '../src/js/api.js', 'utf8')
   assert.doesNotMatch(frontend, /host\(\)\?\.mw|runtime\.workbench|enest\.mw/)

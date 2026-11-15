@@ -24,6 +24,7 @@
   --bg-dot: rgba(58, 47, 30, .11);
   /* 中间件类型识别色（纸面语义色；paper-theme 按纸面再覆盖） */
   --c-kafka: #6d6049; --c-rabbit: #b0431f; --c-mqtt: #1d5c8a; --c-rocket: #3f7a4a;
+  --c-activemq: #8a6d2f; --c-redis: #a53232; --c-pulsar: #5f4b8b;
   /* JSON 着色（payloadHighlight 的 j-* 类消费） */
   --j-k: #6e5a47; --j-s: #2f7a3a; --j-n: #a61e1e; --j-b: #1d5c8a;
 }

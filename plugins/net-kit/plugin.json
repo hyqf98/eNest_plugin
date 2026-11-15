@@ -32,7 +32,10 @@
       "cmds": [
         "接口",
         "http",
-        "tcp"
+        "tcp",
+        "jk",
+        "jiekou",
+        "api测试"
       ]
     }
   ],

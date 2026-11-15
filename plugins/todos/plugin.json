@@ -29,7 +29,10 @@
           "label": "添加到待办",
           "minLength": 1,
           "maxLength": 500
-        }
+        },
+        "daiban",
+        "db",
+        "todo清单"
       ]
     }
   ],

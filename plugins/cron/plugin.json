@@ -28,7 +28,10 @@
         "cron",
         "bs",
         "crontab",
-        "定时任务"
+        "定时任务",
+        "ds",
+        "dingshi",
+        "crontab定时"
       ]
     }
   ],

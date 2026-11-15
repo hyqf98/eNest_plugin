@@ -55,7 +55,25 @@ export default {
 - MwConsumerGroup: `{ groupId, state?, members?, totalLag?, topics?[], extras?{} }`；MwClient: `{ clientId, host?, connectedAt?, subscriptionsCount?, extras?{} }`
 - MwOverview: `{ kind, clusterName?, brokers:[{id,host,roles?,alive?,extras?}], metrics:{}, notes?[] }`
 - MwTrace: `{ key, messageId?, steps:[{phase:'produced'|'stored'|'consume-attempt', timestamp, status, actor, detail?{}, costMs?}] }`
-- action 清单（api.mw 第一个参数）：`overview / topics.list / topic.describe / topic.create / topic.update / topic.delete / topic.purge / partitions.grow / exchanges.list / exchange.create / exchange.delete / bindings.list / binding.create / binding.delete / groups.list / group.describe / group.resetOffsets / clients.list / client.kick / messages.query / messages.get / messages.send / messages.resend / tail.start / tail.stop / configs.describe / configs.alter / trace.message / retained.list / retained.delete`（输入字段见 mw-workbench.ts；sessionKey 由 api.mw 自动注入）
+- action 清单（api.mw 第一个参数）：`overview / topics.list / topic.describe / topic.create / topic.update / topic.delete / topic.purge / partitions.grow / exchanges.list / exchange.create / exchange.delete / bindings.list / binding.create / binding.delete / groups.list / group.describe / group.resetOffsets / clients.list / client.kick / messages.query / messages.get / messages.send / messages.resend / tail.start / tail.stop / configs.describe / configs.alter / trace.message / retained.list / retained.delete / queue.template`（输入字段见 mw-workbench.ts；sessionKey 由 api.mw 自动注入）
+
+## 驱动描述符（Schema 驱动，0.5.0 起）
+每个驱动在 `backend/drivers/*.ts` 声明四类描述符，经 `kinds.list` 下发，前端统一渲染：
+- `connectionFields: MwConnectionField[]` —— 连接抽屉表单（type: text/password/select/switch/number；`path` 支持嵌套如 `emqx.enabled`；`visibleWhen:{field,equals,not}` 条件显隐；`vaultSlot:'primary'|'emqx'` 凭据走 vault；`pattern` 前端预检）
+- `pageColumns: MwPageColumns[]` —— 列表列（page: topics/queues/exchanges/bindings/subscriptions/groups/clients；format: text/mono/num/compact/bytes/ms/datetime/chip/bool/lag/health/type；`from:'extras'` 取特有字段；`route:true` 渲染 source→destination）
+- `metricsSpec: MwMetricSpec[]` —— 指标卡（key/label/unit: count/bytes/ms/percent/rate/text；运行时 `MwOverview.metricSpecs` 可覆盖）
+- `sendFields: MwSendField[]` —— 发消息页特有字段（key 与 MwMessageSendInput 同名）
+
+### 新增中间件接入指南
+1. `backend/contracts/mw-workbench.ts`：`MwKind` 加成员 + `MwConnectionConfig` 加该 kind 字段段
+2. 新建 `backend/drivers/<kind>.ts`：实现 `MwDriver`（35 方法，不适用的 `unsupported()`）+ 四类描述符声明
+3. `backend/drivers/index.ts`：注册进 `MW_DRIVER_REGISTRY`
+4. 完成——前端零改动（表单/列/指标/发送字段全部描述符驱动）；仅 `src/js/kinds.js` 的 KIND_COLORS 需补一个色值（纯视觉）
+
+### RabbitMQ 死信/延迟（0.5.0）
+- 队列列表 `extras.dlx/dlk/ttl` 结构化透出（「死信去向」「TTL」列）
+- `open()` 探测 `x-delayed-message` 插件 → capabilities `delayQueue`
+- `queue.template` action（admin 权限）：`template:'dlq'`（建 DLX+DLQ+绑定+回写源队列 arguments）/ `template:'delay'`（`usePlugin:true` 插件路线或 TTL+DLX 路线建缓冲队列）
 
 ## store 契约（UI-A 实现；B/C 消费）
 - `store.connections`: `[{id,kind,name,env,readOnly,note,secretRef?,bootstrapServers?,managementUrl?,brokerUrl?,dashboardUrl?,vhost?,username?,saslMechanism?,tls?,emqx?...,options?}]`

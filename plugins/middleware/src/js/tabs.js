@@ -1,6 +1,7 @@
 /** Unified connection-bound work tabs. Hidden panels retain drafts, selection and results. */
 import { PAGES } from '@mw/pages/index.js'
-import { KIND_META, kindDot, el, escapeHtml } from './components.js'
+import { kindLabel, kindDot } from './kinds.js'
+import { el, escapeHtml } from './components.js'
 import api from './api.js'
 import store from './store.js'
 import { bindTaskApi } from './workspace.js'
@@ -120,7 +121,7 @@ function renderContext(connection, task) {
   root.replaceChildren()
   if (task?.pageId === 'settings') { root.append(el('span', { class: 'context-connection' }, '界面主题、快捷键与输入提示')); return }
   if (!connection) return
-  root.append(el('span', { class: 'context-connection', title: connection.name }, `${connection.name} · ${KIND_META[connection.kind]?.label || connection.kind}`))
+  root.append(el('span', { class: 'context-connection', title: connection.name }, `${connection.name} · ${kindLabel(connection.kind)}`))
   for (const page of visiblePages(connection.kind)) {
     root.append(el('button', { class: page.id === task.pageId ? 'on' : '', 'data-page': page.id, onclick: () => activateWithPage(connection.id, page.id) }, page.title))
   }

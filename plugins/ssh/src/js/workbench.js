@@ -37,7 +37,10 @@ async function boot() {
   const connected = () => !!bridge.activeSession()?.sessionId
   const sideActions = document.createElement('span'); sideActions.className = 'wb-connection-actions'
   sideActions.innerHTML = '<button data-create title="新建连接" aria-label="新建连接">＋</button><button data-import title="导入 OpenSSH config" aria-label="导入 OpenSSH config">↓</button>'
-  document.querySelector('.side-head .spacer').after(sideActions)
+  // 骨架侧栏早已改为 side-rail + side-body（side-head 在 807e50b 后的重构中被移除）：
+  // 新建/导入动作挂到侧栏搜索工具区下方，找不到锚点时静默跳过（rail 里仍有 ＋ 兜底）。
+  const sideTools = document.querySelector('.side-tools')
+  sideTools?.after(sideActions)
   sideActions.querySelector('[data-create]').onclick = () => bridge.openProfileForm(null)
   sideActions.querySelector('[data-import]').onclick = safe(() => importConfig())
 

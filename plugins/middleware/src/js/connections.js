@@ -1,24 +1,19 @@
 /**
  * connections.js — 新建/编辑连接抽屉 + 连接首页（home-grid 卡片视图）
- * - 抽屉：类型四宫格切换 data-f 字段组；密码只进 vault（mw:{connId} / mw:{connId}:emqx）
- * - 测试连接：临时 config + ephemeralSecret → api.testConnection，loading 态 + 结果写 .tip
- * - 编辑不回显密码（placeholder「留空保持不变」）；默认端口提示随类型变（KIND_META.port）
+ * - 抽屉：类型宫格按 kinds 注册表渲染；字段组 = 驱动 connectionFields 声明（schema 驱动）
+ * - 密码只进 vault：vaultSlot=primary → mw:{connId}；vaultSlot=emqx → mw:{connId}:emqx
+ * - 测试连接：临时 config + ephemeralSecret → api.testConnection
+ * - 编辑不回显密码（placeholder「留空保持不变」）
  * - renderHome：store.connections 卡片 + overview 健康懒加载 + ⊕ 卡片
  */
-import { KIND_META, kindDot, envChip, chip, escapeHtml, fmt } from './components.js'
+import { envChip, chip, escapeHtml, fmt } from './components.js'
+import { kindList, kindDot, descriptorOf, connectionFieldsOf } from './kinds.js'
 import api from './api.js'
 import store from './store.js'
 import { renderTree } from './tree.js'
 import { renderAll, openConnTab, forgetSessionCaps } from './tabs.js'
 import { setLatency } from './status.js'
 
-const KIND_ORDER = ['kafka', 'rabbitmq', 'mqtt', 'rocketmq']
-const SASL_OPTIONS = [
-  { value: 'none', label: '无' },
-  { value: 'scram-sha-512', label: 'SCRAM-SHA-512' },
-  { value: 'scram-sha-256', label: 'SCRAM-SHA-256' },
-  { value: 'plain', label: 'PLAIN' }
-]
 const ENV_OPTIONS = [
   { value: 'dev', label: '开发 dev' },
   { value: 'test', label: '测试 test' },
@@ -47,32 +42,48 @@ export function closeDrawer() {
 
 const esc = escapeHtml
 
-/** 必填端点的校验与占位提示（默认端口随类型变） */
-const ENDPOINT = {
-  kafka: {
-    key: 'bootstrapServers',
-    label: 'Bootstrap Servers',
-    placeholder: '10.2.1.11:9092,10.2.1.12:9092',
-    tip: () => `逗号分隔多个 broker 地址 · 默认端口 ${KIND_META.kafka.port}`
-  },
-  rabbitmq: {
-    key: 'managementUrl',
-    label: '管理端点',
-    placeholder: `http://10.2.1.21:${KIND_META.rabbitmq.port}`,
-    tip: () => `15672 管理面 API · 默认端口 ${KIND_META.rabbitmq.port}`
-  },
-  mqtt: {
-    key: 'brokerUrl',
-    label: 'Broker URL',
-    placeholder: 'mqtt://10.2.1.31:1883 或 mqtts:// wss://',
-    tip: () => `默认端口 ${KIND_META.mqtt.port}；EMQX 管理面默认 18083（v4 为 8081）`
-  },
-  rocketmq: {
-    key: 'dashboardUrl',
-    label: 'rocketmq-dashboard 地址',
-    placeholder: `http://10.2.1.41:${KIND_META.rocketmq.port}`,
-    tip: () => `经已部署的 dashboard 接口操作 · 默认端口 ${KIND_META.rocketmq.port}`
+/** pattern 预检（与后端驱动校验同一语义，前端提前拦） */
+const PATTERNS = {
+  'https-url': v => /^https?:\/\//.test(v) || '需以 http:// 或 https:// 开头',
+  'mqtt-url': v => /^(mqtts?|wss?):\/\//.test(v) || '需以 mqtt:// mqtts:// ws:// wss:// 开头',
+  'host-ports': v => /^[^,\s]+:\d+(,[^,\s]+:\d+)*$/.test(v.replace(/\s/g, '')) || '格式：host:port，多个用逗号分隔',
+  'redis-url': v => /^[^:]+:\d+$/.test(v) || /^rediss?:\/\//.test(v) || /^sentinel:\/\//.test(v) || '格式：host:port 或 redis://…'
+}
+
+/** 连接对象里按 path 取值（path=a.b → conn.a.b；缺省平铺顶层） */
+function getByPath(obj, field) {
+  if (!field.path) return obj[field.key]
+  let cur = obj
+  for (const seg of field.path.split('.')) {
+    if (!cur || typeof cur !== 'object') return undefined
+    cur = cur[seg]
   }
+  return cur
+}
+
+/** 按 path 写值（组装嵌套对象） */
+function setByPath(obj, field, value) {
+  if (!field.path) { obj[field.key] = value; return }
+  const segs = field.path.split('.')
+  let cur = obj
+  for (let i = 0; i < segs.length - 1; i++) {
+    if (!cur[segs[i]] || typeof cur[segs[i]] !== 'object') cur[segs[i]] = {}
+    cur = cur[segs[i]]
+  }
+  cur[segs[segs.length - 1]] = value
+}
+
+/** 表单字段可见性：visibleWhen { field, equals, not } */
+function fieldVisible(root, field) {
+  const cond = field.visibleWhen
+  if (!cond) return true
+  const control = root.querySelector(`[data-fk="${CSS.escape(cond.field)}"]`)
+  if (!control) return true
+  let actual
+  if (control.classList.contains('switch')) actual = control.classList.contains('on')
+  else actual = control.value
+  if (cond.equals !== undefined) return cond.not ? actual !== cond.equals : actual === cond.equals
+  return cond.not ? !!actual : !actual // 缺省 equals 视为真值
 }
 
 /* ———————————————— 抽屉 ———————————————— */
@@ -82,7 +93,10 @@ export function openConnectionDrawer(existing = null) {
   const editing = !!existing
   const c = existing
     ? structuredClone(existing)
-    : { id: store.uid('mwc'), kind: 'kafka', name: '', env: 'dev', readOnly: false, note: '', tls: true, saslMechanism: 'none' }
+    : { id: store.uid('mwc'), kind: 'kafka', name: '', env: 'dev', readOnly: false, note: '' }
+
+  const kinds = kindList()
+  const fields = connectionFieldsOf(c.kind)
 
   const mask = document.createElement('div')
   mask.className = 'mask'
@@ -94,104 +108,25 @@ export function openConnectionDrawer(existing = null) {
     <div class="dh"><h2>${editing ? '编辑连接' : '新建连接'}</h2><button type="button" class="x" title="关闭">✕</button></div>
     <div class="dbody">
       <div class="type-seg" data-el="typeSeg">
-        ${KIND_ORDER.map((k) => `<button type="button" data-kind="${k}" class="${c.kind === k ? 'on' : ''}">${kindDot(k)}<span>${KIND_META[k].label}</span></button>`).join('')}
+        ${kinds.map((d) => `<button type="button" data-kind="${d.kind}" class="${c.kind === d.kind ? 'on' : ''}" title="${esc(d.label)}${d.defaultPort ? ` · ${d.defaultPort}` : ''}">${kindDot(d.kind)}<span>${esc(d.label)}</span></button>`).join('')}
       </div>
       <div class="form-note"><span>🔐</span><span><b>密码只进保险库</b>：凭据经 enest.vault 存为 secretRef，明文不落盘、不出主进程。</span></div>
 
       <div class="form-row"><label>连接名称 <span class="req">*</span></label>
-        <input type="text" data-k="name" value="${esc(c.name)}" placeholder="如 prod-kafka" />
+        <input type="text" data-fk="name" value="${esc(c.name)}" placeholder="如 prod-kafka" />
       </div>
       <div class="form-row"><label>环境</label>
-        <select data-k="env">${ENV_OPTIONS.map((o) => `<option value="${o.value}" ${c.env === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}</select>
+        <select data-fk="env">${ENV_OPTIONS.map((o) => `<option value="${o.value}" ${c.env === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}</select>
       </div>
 
-      <!-- Kafka -->
-      <div data-f="kafka" ${c.kind !== 'kafka' ? 'style="display:none"' : ''}>
-        <div class="form-row"><label>Bootstrap Servers <span class="req">*</span></label>
-          <input type="text" data-k="bootstrapServers" value="${esc(c.bootstrapServers ?? '')}" placeholder="${ENDPOINT.kafka.placeholder}" />
-          <div class="tip" data-el="endpointTip">${ENDPOINT.kafka.tip()}</div>
-        </div>
-        <div class="form-cols">
-          <div class="form-row"><label>SASL 机制</label>
-            <select data-k="saslMechanism">${SASL_OPTIONS.map((o) => `<option value="${o.value}" ${(c.saslMechanism ?? 'none') === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}</select>
-          </div>
-          <div class="form-row"><label>用户名</label><input type="text" data-k="username" value="${esc(c.username ?? '')}" placeholder="SASL 用户" autocomplete="off" /></div>
-        </div>
-        <div class="form-row"><label>密码</label>
-          <input type="password" data-k="secret" placeholder="${editing && c.secretRef ? '留空保持不变' : '存入 vault，不落盘'}" autocomplete="new-password" />
-        </div>
-        <div class="switch-row"><button type="button" class="switch ${c.tls !== false ? 'on' : ''}" data-k="tls" role="switch" aria-checked="${c.tls !== false}"></button>
-          <span class="sl"><b>TLS 加密</b>（自签证书可关闭）</span>
-        </div>
-      </div>
-
-      <!-- RabbitMQ -->
-      <div data-f="rabbitmq" ${c.kind !== 'rabbitmq' ? 'style="display:none"' : ''}>
-        <div class="form-row"><label>管理端点 <span class="req">*</span></label>
-          <input type="text" data-k="managementUrl" value="${esc(c.managementUrl ?? '')}" placeholder="${ENDPOINT.rabbitmq.placeholder}" />
-          <div class="tip" data-el="endpointTip">${ENDPOINT.rabbitmq.tip()}</div>
-        </div>
-        <div class="form-cols">
-          <div class="form-row"><label>用户名</label><input type="text" data-k="username" value="${esc(c.username ?? '')}" placeholder="management 用户（guest 仅本机）" autocomplete="off" /></div>
-          <div class="form-row"><label>密码</label>
-            <input type="password" data-k="secret" placeholder="${editing && c.secretRef ? '留空保持不变' : '存入 vault'}" autocomplete="new-password" />
-          </div>
-        </div>
-        <div class="form-cols">
-          <div class="form-row"><label>vhost</label><input type="text" data-k="vhost" value="${esc(c.vhost ?? '')}" placeholder="/" /></div>
-        </div>
-        <div class="form-note" style="margin-top:14px"><span>ℹ️</span><span>队列/交换机/绑定 CRUD、队头 peek、实时监听（amqplib）均经 15672 管理面。</span></div>
-      </div>
-
-      <!-- MQTT -->
-      <div data-f="mqtt" ${c.kind !== 'mqtt' ? 'style="display:none"' : ''}>
-        <div class="form-row"><label>Broker URL <span class="req">*</span></label>
-          <input type="text" data-k="brokerUrl" value="${esc(c.brokerUrl ?? '')}" placeholder="${ENDPOINT.mqtt.placeholder}" />
-          <div class="tip" data-el="endpointTip">${ENDPOINT.mqtt.tip()}</div>
-        </div>
-        <div class="form-cols">
-          <div class="form-row"><label>用户名</label><input type="text" data-k="username" value="${esc(c.username ?? '')}" autocomplete="off" /></div>
-          <div class="form-row"><label>密码</label>
-            <input type="password" data-k="secret" placeholder="${editing && c.secretRef ? '留空保持不变' : '存入 vault'}" autocomplete="new-password" />
-          </div>
-        </div>
-        <div class="form-row"><label>ClientId（缺省自动生成）</label><input type="text" data-k="clientId" value="${esc(c.clientId ?? '')}" placeholder="enest-mw-…" /></div>
-        <div class="switch-row"><button type="button" class="switch ${c.emqx?.enabled ? 'on' : ''}" data-k="emqx" role="switch" aria-checked="${!!c.emqx?.enabled}"></button>
-          <span class="sl"><b>EMQX 管理适配</b>：启用客户端/订阅/retained 管理与完整监控</span>
-        </div>
-        <div data-el="emqxFields" ${c.emqx?.enabled ? '' : 'style="display:none"'}>
-          <div class="form-row" style="margin-top:10px"><label>EMQX 管理端点</label>
-            <input type="text" data-k="emqxApiUrl" value="${esc(c.emqx?.apiUrl ?? '')}" placeholder="http://10.2.1.31:18083（v4 填 8081）" />
-          </div>
-          <div class="form-cols">
-            <div class="form-row"><label>API Key</label><input type="text" data-k="emqxApiKey" value="${esc(c.emqx?.apiKey ?? '')}" autocomplete="off" /></div>
-            <div class="form-row"><label>API Secret</label>
-              <input type="password" data-k="emqxApiSecret" placeholder="${editing && c.emqx?.apiSecretRef ? '留空保持不变' : '存入 vault'}" autocomplete="new-password" />
-            </div>
-          </div>
-        </div>
-        <div class="form-note" style="margin-top:14px"><span>ℹ️</span><span>通用 MQTT 无 Topic 实体与历史消息：仅 pub/sub、retained 快照与 $SYS 监控；EMQX 适配补齐管理面。</span></div>
-      </div>
-
-      <!-- RocketMQ -->
-      <div data-f="rocketmq" ${c.kind !== 'rocketmq' ? 'style="display:none"' : ''}>
-        <div class="form-row"><label>rocketmq-dashboard 地址 <span class="req">*</span></label>
-          <input type="text" data-k="dashboardUrl" value="${esc(c.dashboardUrl ?? '')}" placeholder="${ENDPOINT.rocketmq.placeholder}" />
-          <div class="tip" data-el="endpointTip">${ENDPOINT.rocketmq.tip()}</div>
-        </div>
-        <div class="form-cols">
-          <div class="form-row"><label>用户名</label><input type="text" data-k="username" value="${esc(c.username ?? '')}" placeholder="dashboard 账号（无鉴权可留空）" autocomplete="off" /></div>
-          <div class="form-row"><label>密码</label>
-            <input type="password" data-k="secret" placeholder="${editing && c.secretRef ? '留空保持不变' : '存入 vault'}" autocomplete="new-password" />
-          </div>
-        </div>
-        <div class="form-note" style="margin-top:14px"><span>⚠️</span><span>RocketMQ 官方无 HTTP 管理 API，本插件经已部署的 dashboard 接口操作，接口随 dashboard 版本可能变化。</span></div>
+      <div data-el="kindFields">
+        ${renderFieldsHtml(fields, c, editing)}
       </div>
 
       <div class="form-row" style="margin-top:16px"><label>备注</label>
-        <textarea data-k="note" rows="2" placeholder="可选">${esc(c.note ?? '')}</textarea>
+        <textarea data-fk="note" rows="2" placeholder="可选">${esc(c.note ?? '')}</textarea>
       </div>
-      <div class="switch-row"><button type="button" class="switch ${c.readOnly ? 'on' : ''}" data-k="readOnly" role="switch" aria-checked="${!!c.readOnly}"></button>
+      <div class="switch-row"><button type="button" class="switch ${c.readOnly ? 'on' : ''}" data-fk="readOnly" role="switch" aria-checked="${!!c.readOnly}"></button>
         <span class="sl"><b>只读连接</b>：宿主层拦截全部变更操作（删 Topic / 清空 / 重置 offset / 发消息）</span>
       </div>
       <div class="tip" data-el="testTip" style="min-height:18px;margin-top:10px"></div>
@@ -212,10 +147,8 @@ export function openConnectionDrawer(existing = null) {
   })
 
   drawerState = { root, mask, close: closeDrawer }
-  const get = (key) => root.querySelector(`[data-k="${key}"]`)
-  const tipEl = () => root.querySelector('[data-el=testTip]')
   const setTip = (text, type = '') => {
-    const el = tipEl()
+    const el = root.querySelector('[data-el=testTip]')
     el.textContent = text || ''
     el.style.color = type === 'ok' ? 'var(--ok)' : type === 'err' ? 'var(--danger)' : ''
   }
@@ -223,107 +156,128 @@ export function openConnectionDrawer(existing = null) {
   root.querySelector('.dh .x').addEventListener('click', closeDrawer)
   root.querySelector('[data-act=cancel]').addEventListener('click', closeDrawer)
 
-  // 类型四宫格：切换字段组显隐（保留各类型已填值）
+  // 类型宫格：切换后整组重渲染（各类型已填值暂不跨类型保留，与旧版一致）
   root.querySelector('[data-el=typeSeg]').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-kind]')
     if (!btn) return
-    const kind = btn.dataset.kind
-    c.kind = kind
+    c.kind = btn.dataset.kind
     root.querySelectorAll('[data-el=typeSeg] button').forEach((b) => b.classList.toggle('on', b === btn))
-    root.querySelectorAll('[data-f]').forEach((g) => {
-      g.style.display = g.dataset.f === kind ? '' : 'none'
-    })
-    const meta = ENDPOINT[kind]
-    const tip = root.querySelector('[data-f="' + kind + '"] [data-el=endpointTip]')
-    if (tip && meta) tip.textContent = meta.tip()
+    const host = root.querySelector('[data-el=kindFields]')
+    host.innerHTML = renderFieldsHtml(connectionFieldsOf(c.kind), c, editing)
+    bindFieldEvents()
   })
 
-  // switch 通用切换
-  root.querySelectorAll('.switch').forEach((sw) => {
-    sw.addEventListener('click', () => {
-      sw.classList.toggle('on')
-      sw.setAttribute('aria-checked', sw.classList.contains('on'))
-      if (sw.dataset.k === 'emqx') {
-        const fields = root.querySelector('[data-el=emqxFields]')
-        fields.style.display = sw.classList.contains('on') ? '' : 'none'
-      }
+  function bindFieldEvents() {
+    // switch 通用切换 + 条件显隐联动
+    root.querySelectorAll('[data-el=kindFields] .switch').forEach((sw) => {
+      sw.addEventListener('click', () => {
+        sw.classList.toggle('on')
+        sw.setAttribute('aria-checked', sw.classList.contains('on'))
+        applyVisibility()
+      })
     })
-  })
+    // select 变化可能影响条件显隐（如 saslMechanism）
+    root.querySelectorAll('[data-el=kindFields] select[data-fk]').forEach((sel) => {
+      sel.addEventListener('change', applyVisibility)
+    })
+    applyVisibility()
+  }
+
+  function applyVisibility() {
+    for (const field of connectionFieldsOf(c.kind)) {
+      const el = root.querySelector(`[data-el=kindFields] [data-fk="${CSS.escape(field.key)}"]`)
+      if (!el) continue
+      const row = el.closest('.form-row, .switch-row')?.parentElement ?? el.closest('.form-row, .switch-row')
+      const target = el.closest('.form-row, .switch-row') || el
+      void row
+      target.style.display = fieldVisible(root, field) ? '' : 'none'
+    }
+  }
+
+  bindFieldEvents()
 
   /** 从表单读取连接对象（不含明文密码；密码单独处理） */
   function readForm() {
     const kind = c.kind
-    const val = (key) => (get(key)?.value ?? '').trim()
+    const val = (key) => (root.querySelector(`[data-fk="${CSS.escape(key)}"]`)?.value ?? '').trim()
     const conn = {
       id: c.id,
       kind,
       name: val('name'),
-      env: get('env')?.value || 'dev',
-      readOnly: get('readOnly')?.classList.contains('on') ?? false,
+      env: root.querySelector('[data-fk=env]')?.value || 'dev',
+      readOnly: root.querySelector('[data-fk=readOnly]')?.classList.contains('on') ?? false,
       note: val('note'),
       secretRef: c.secretRef
     }
-    if (kind === 'kafka') {
-      conn.bootstrapServers = val('bootstrapServers')
-      conn.saslMechanism = get('saslMechanism')?.value || 'none'
-      conn.username = val('username') || undefined
-      conn.tls = get('tls')?.classList.contains('on') ?? true
-    } else if (kind === 'rabbitmq') {
-      conn.managementUrl = val('managementUrl')
-      conn.username = val('username') || undefined
-      conn.vhost = val('vhost') || undefined
-    } else if (kind === 'mqtt') {
-      conn.brokerUrl = val('brokerUrl')
-      conn.username = val('username') || undefined
-      conn.clientId = val('clientId') || undefined
-      const emqxOn = get('emqx')?.classList.contains('on')
-      if (emqxOn) {
-        conn.emqx = {
-          ...(c.emqx && typeof c.emqx === 'object' ? c.emqx : {}),
-          enabled: true,
-          version: c.emqx?.version || 'auto',
-          apiUrl: val('emqxApiUrl') || undefined,
-          apiKey: val('emqxApiKey') || undefined,
-          apiSecretRef: c.emqx?.apiSecretRef
-        }
+    for (const field of connectionFieldsOf(kind)) {
+      if (!fieldVisible(root, field)) continue
+      if (field.type === 'password') continue // 凭据单独走 vault
+      const el = root.querySelector(`[data-el=kindFields] [data-fk="${CSS.escape(field.key)}"]`)
+      if (!el) continue
+      if (field.type === 'switch') {
+        setByPath(conn, field, el.classList.contains('on'))
+      } else if (field.type === 'number') {
+        const raw = el.value.trim()
+        if (raw !== '') setByPath(conn, field, Number(raw))
       } else {
-        conn.emqx = { ...(c.emqx || {}), enabled: false }
+        const value = el.value.trim()
+        if (value !== '') setByPath(conn, field, value)
       }
-    } else if (kind === 'rocketmq') {
-      conn.dashboardUrl = val('dashboardUrl')
-      conn.username = val('username') || undefined
+    }
+    // emqx 子对象整理：enabled=false 时保留结构但关开关（与旧版语义一致）
+    if (kind === 'mqtt') {
+      conn.emqx = { ...(c.emqx && typeof c.emqx === 'object' ? c.emqx : {}), ...(conn.emqx ?? {}) }
+      if (conn.emqx.enabled === undefined) conn.emqx.enabled = false
+      conn.emqx.version = conn.emqx.version || 'auto'
+      conn.emqx.apiSecretRef = c.emqx?.apiSecretRef
     }
     return conn
   }
 
   function validate(conn) {
     if (!conn.name) throw new Error('请填写连接名称')
-    const meta = ENDPOINT[conn.kind]
-    if (!conn[meta.key]) throw new Error(`请填写${meta.label}`)
-    if (conn.kind === 'kafka' && !/^[^,\s]+:\d+(,[^,\s]+:\d+)*$/.test(conn.bootstrapServers.replace(/\s/g, ''))) {
-      throw new Error('Bootstrap Servers 格式：host:port，多个用逗号分隔')
-    }
-    if (['rabbitmq', 'rocketmq'].includes(conn.kind) && !/^https?:\/\//.test(conn[meta.key])) {
-      throw new Error(`${meta.label}需以 http:// 或 https:// 开头`)
-    }
-    if (conn.kind === 'mqtt' && !/^(mqtts?|wss?):\/\//.test(conn.brokerUrl)) {
-      throw new Error('Broker URL 需以 mqtt:// mqtts:// ws:// wss:// 开头')
+    for (const field of connectionFieldsOf(conn.kind)) {
+      if (!fieldVisible(root, field) || field.type === 'password') continue
+      const value = getByPath(conn, field)
+      if (field.required && (value === undefined || value === null || value === '')) {
+        throw new Error(`请填写${field.label}`)
+      }
+      if (value !== undefined && value !== '' && field.pattern) {
+        const check = PATTERNS[field.pattern]
+        const result = check(String(value))
+        if (result !== true) throw new Error(`${field.label}${result}`)
+      }
     }
   }
 
   /** 密码 → vault；返回待保存的 conn（secretRef 已回填） */
   async function persistSecrets(conn) {
-    const pwd = get('secret')?.value ?? ''
-    if (pwd) {
-      conn.secretRef = await api.vault.set(`mw:${conn.id}`, pwd)
-    }
-    if (conn.kind === 'mqtt' && conn.emqx?.enabled) {
-      const emqxSecret = get('emqxApiSecret')?.value ?? ''
-      if (emqxSecret) {
-        conn.emqx.apiSecretRef = await api.vault.set(`mw:${conn.id}:emqx`, emqxSecret)
+    for (const field of connectionFieldsOf(conn.kind)) {
+      if (field.type !== 'password' || !field.vaultSlot) continue
+      const el = root.querySelector(`[data-el=kindFields] [data-fk="${CSS.escape(field.key)}"]`)
+      const value = el?.value ?? ''
+      if (!value) continue
+      const vaultKey = field.vaultSlot === 'emqx' ? `mw:${conn.id}:emqx` : `mw:${conn.id}`
+      const ref = await api.vault.set(vaultKey, value)
+      if (field.vaultSlot === 'emqx') {
+        conn.emqx = { ...(conn.emqx ?? {}), apiSecretRef: ref }
+      } else {
+        conn.secretRef = ref
       }
     }
     return conn
+  }
+
+  /** 表单明文密码 → ephemeralSecret（仅测试连接用） */
+  function formSecrets() {
+    const secrets = {}
+    for (const field of connectionFieldsOf(c.kind)) {
+      if (field.type !== 'password') continue
+      const el = root.querySelector(`[data-el=kindFields] [data-fk="${CSS.escape(field.key)}"]`)
+      const value = el?.value ?? ''
+      if (value) secrets[field.vaultSlot ?? 'primary'] = value
+    }
+    return secrets
   }
 
   root.querySelector('[data-act=test]').addEventListener('click', async (e) => {
@@ -335,8 +289,9 @@ export function openConnectionDrawer(existing = null) {
     try {
       const conn = readForm()
       validate(conn)
-      const pwd = get('secret')?.value ?? ''
-      const overrides = pwd ? { ephemeralSecret: pwd } : {}
+      const secrets = formSecrets()
+      const overrides = secrets.primary ? { ephemeralSecret: secrets.primary } : {}
+      if (secrets.emqx && conn.emqx) overrides.emqx = { ...conn.emqx, ephemeralSecret: secrets.emqx }
       const res = await api.testConnection(api.toMwConfig(conn, overrides))
       setLatency(Number(res?.latencyMs), conn.id)
       const detail = [res?.message, res?.latencyMs ? `${res.latencyMs}ms` : null].filter(Boolean).join(' · ')
@@ -375,25 +330,79 @@ export function openConnectionDrawer(existing = null) {
     }
   })
 
-  setTimeout(() => get('name')?.focus(), 120)
+  setTimeout(() => root.querySelector('[data-fk=name]')?.focus(), 120)
+}
+
+/** 按 connectionFields 声明渲染字段组 HTML */
+function renderFieldsHtml(fields, c, editing) {
+  const chunks = []
+  let i = 0
+  while (i < fields.length) {
+    const field = fields[i]
+    const next = fields[i + 1]
+    const html = renderFieldHtml(field, c, editing)
+    if (field.half && next?.half) {
+      const nextHtml = renderFieldHtml(next, c, editing)
+      chunks.push(`<div class="form-cols">${html}${nextHtml}</div>`)
+      i += 2
+    } else {
+      chunks.push(html)
+      i += 1
+    }
+  }
+  return chunks.join('')
+}
+
+function renderFieldHtml(field, c, editing) {
+  const current = getByPath(c, field)
+  const label = `${esc(field.label)}${field.required ? ' <span class="req">*</span>' : ''}`
+  const tip = field.tip ? `<div class="tip">${esc(field.tip)}</div>` : ''
+  if (field.type === 'switch') {
+    const on = current !== undefined ? !!current : !!field.default
+    return `<div class="switch-row"><button type="button" class="switch ${on ? 'on' : ''}" data-fk="${esc(field.key)}" role="switch" aria-checked="${on}"></button>
+      <span class="sl">${label}</span></div>`
+  }
+  if (field.type === 'select') {
+    const value = current !== undefined && current !== null ? String(current) : String(field.default ?? '')
+    return `<div class="form-row"><label>${label}</label>
+      <select data-fk="${esc(field.key)}">${(field.options ?? []).map((o) => `<option value="${esc(o.value)}" ${value === o.value ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>
+      ${tip}</div>`
+  }
+  if (field.type === 'password') {
+    const hasRef = field.vaultSlot === 'emqx' ? !!c.emqx?.apiSecretRef : !!c.secretRef
+    return `<div class="form-row"><label>${label}</label>
+      <input type="password" data-fk="${esc(field.key)}" placeholder="${editing && hasRef ? '留空保持不变' : '存入 vault'}" autocomplete="new-password" />
+      ${tip}</div>`
+  }
+  if (field.type === 'number') {
+    return `<div class="form-row"><label>${label}</label>
+      <input type="number" data-fk="${esc(field.key)}" value="${current !== undefined && current !== null ? esc(String(current)) : (field.default !== undefined ? esc(String(field.default)) : '')}" ${field.min !== undefined ? `min="${field.min}"` : ''} />
+      ${tip}</div>`
+  }
+  return `<div class="form-row"><label>${label}</label>
+    <input type="text" data-fk="${esc(field.key)}" value="${current !== undefined && current !== null ? esc(String(current)) : ''}" placeholder="${esc(field.placeholder ?? '')}" autocomplete="off" />
+    ${tip}</div>`
 }
 
 /* ———————————————— 连接首页 ———————————————— */
 
-/** 各 kind 卡片指标候选键（宿主 metrics 键名未知，逐个探测） */
-const METRIC_KEYS = {
-  kafka: { a: ['topics', 'topicCount', 'topicTotal'], b: ['consumerLag', 'totalLag', 'lag'], label: { a: 'Topic', b: '消费堆积' } },
-  rabbitmq: { a: ['queues', 'queueTotal', 'queueCount'], b: ['messagesReady', 'ready', 'messages_ready'], c: ['consumers', 'consumerTotal'], label: { a: '队列', b: '就绪', c: '消费者' } },
-  mqtt: { a: ['connections', 'clients', 'clientCount', 'liveConnections'], b: ['subscriptions', 'subscriptionCount'], c: ['retained', 'retainedCount', 'retainedMessages'], label: { a: '连接', b: '订阅', c: 'retained' } },
-  rocketmq: { a: ['topics', 'topicCount'], b: ['groups', 'consumerGroupCount', 'consumerGroups'], c: ['consumerLag', 'totalLag', 'diff'], label: { a: 'Topic', b: '消费组', c: '堆积' } }
-}
-
-function metricValue(metrics, keys) {
-  for (const k of keys || []) {
-    const v = metrics?.[k]
-    if (v !== undefined && v !== null && v !== '') return v
+/** 卡片 3 格指标：metricsSpec 前 3 个 count 类指标 */
+function renderCardMetrics(card, conn, overview) {
+  const metricsEl = card.querySelector('[data-el=metrics]')
+  const metrics = overview?.metrics || {}
+  const spec = (descriptorOf(conn.kind)?.metricsSpec ?? []).filter(s => s.unit === 'count').slice(0, 3)
+  const fallback = spec.length ? spec : [{ key: '', label: '指标' }, { key: '', label: '指标' }, { key: '', label: '指标' }]
+  metricsEl.innerHTML = ''
+  for (const d of fallback) {
+    const m = document.createElement('div')
+    m.className = 'm'
+    const raw = metrics[d.key]
+    const isLag = /lag|堆积|unack/i.test(`${d.key}${d.label}`)
+    const warn = isLag && Number(raw) > 5000
+    const text = raw === undefined || raw === null || raw === '' ? '—' : fmt.compact(raw)
+    m.innerHTML = `<div class="k">${esc(d.label)}</div><div class="v ${warn ? 'warn' : ''}">${esc(text)}</div>`
+    metricsEl.appendChild(m)
   }
-  return null
 }
 
 function authLabel(conn) {
@@ -406,6 +415,8 @@ function authLabel(conn) {
   }
   if (conn.kind === 'rabbitmq') return conn.username ? 'Basic' : '默认'
   if (conn.kind === 'mqtt') return conn.emqx?.enabled ? 'EMQX' : (conn.username ? 'User/Pass' : '匿名')
+  if (conn.kind === 'redis') return conn.secretRef || (conn.redisUrl && /@/.test(conn.redisUrl)) ? 'Auth' : '无鉴权'
+  if (conn.kind === 'pulsar') return conn.secretRef ? 'JWT' : '匿名'
   return conn.username ? 'Basic' : '无鉴权'
 }
 
@@ -434,9 +445,10 @@ export function renderHome(root, ctx) {
   home.className = 'home'
   home.style.flex = '1'
   home.style.minHeight = '0'
+  const labels = kindList().map(d => d.label).join(' · ')
   home.innerHTML = `
     <h1>中间件控制台</h1>
-    <div class="sub">Kafka · RabbitMQ · MQTT · RocketMQ 统一管理 —— 连接、Topic、消息溯源、消费组与监控</div>
+    <div class="sub">${esc(labels)} 统一管理 —— 连接、Topic、消息溯源、消费组与监控</div>
     <div class="home-grid" data-el="grid"></div>
   `
   const grid = home.querySelector('[data-el=grid]')
@@ -497,31 +509,6 @@ async function fillCard(card, conn) {
   }
 }
 
-function isBigLag(v) {
-  const n = Number(v)
-  return Number.isFinite(n) && n > 5000
-}
-
-/** 卡片 3 格指标（overview 未到达时画骨架 — ） */
-function renderCardMetrics(card, conn, overview) {
-  const metricsEl = card.querySelector('[data-el=metrics]')
-  const keys = METRIC_KEYS[conn.kind] || {}
-  const metrics = overview?.metrics || {}
-  metricsEl.innerHTML = ''
-  const defs = [
-    { raw: metricValue(metrics, keys.a), label: keys.label?.a ?? '指标', warn: false },
-    { raw: metricValue(metrics, keys.b), label: keys.label?.b ?? '指标', warn: isBigLag(metricValue(metrics, keys.b)) },
-    { raw: metricValue(metrics, keys.c), label: keys.label?.c ?? '指标', warn: isBigLag(metricValue(metrics, keys.c)) }
-  ]
-  for (const d of defs) {
-    const m = document.createElement('div')
-    m.className = 'm'
-    const text = d.raw === null || d.raw === undefined || d.raw === '' ? '—' : fmt.compact(d.raw)
-    m.innerHTML = `<div class="k">${esc(d.label)}</div><div class="v ${d.warn ? 'warn' : ''}">${esc(text)}</div>`
-    metricsEl.appendChild(m)
-  }
-}
-
 function applyOverview(card, conn, entry) {
   const healthEl = card.querySelector('[data-el=health]')
   const footLeft = card.querySelector('[data-el=footLeft]')
@@ -544,6 +531,9 @@ function applyOverview(card, conn, entry) {
   if (conn.kind === 'kafka') footLeft.textContent = `${brokers.length} brokers${cluster}`
   else if (conn.kind === 'rabbitmq') footLeft.textContent = metrics.version ? `RabbitMQ ${metrics.version}` : 'RabbitMQ 管理面'
   else if (conn.kind === 'mqtt') footLeft.textContent = conn.emqx?.enabled ? `EMQX${conn.emqx.version === 'v4' ? ' v4' : ''} 管理面已接入` : '通用 MQTT · 管理面未接入'
+  else if (conn.kind === 'redis') footLeft.textContent = `Redis ${metrics.version ?? ''}${conn.redisMode === 'pubsub' ? ' · Pub/Sub' : ''}`
+  else if (conn.kind === 'pulsar') footLeft.textContent = `Pulsar${metrics.brokers ? ` · ${metrics.brokers} brokers` : ''}`
+  else if (conn.kind === 'activemq') footLeft.textContent = `ActiveMQ ${metrics.version ?? ''}`
   else footLeft.textContent = `经 rocketmq-dashboard${conn.readOnly ? ' · 🔒 只读' : ''}`
 }
 

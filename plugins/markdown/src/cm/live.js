@@ -433,9 +433,13 @@ function buildInlineDecorations(view) {
         if (to <= from) return undefined;
         if (inAtomic(from)) return undefined; // 原子块源码态里不隐藏标记
 
-        /* 光标"碰到"这个标记 → 显形（Typora 唯一露源码的时机）。
-           pad 取 1：光标停在标记前后一个字符内也显形，方便直接删改。 */
-        const touched = sel.from <= to + 1 && sel.to >= from - 1;
+        /* 光标“碰到”这个标记 → 显形（Typora 唯一露源码的时机）。
+           只认“光标真的落在标记区间内或紧贴其边界”，不再向外多留 1 个字符：
+           多留会让「点到行内容」也把标记露出来（如引用行点内容就显出 `>`），
+           与 Typora 不一致——那边是点内容保持渲染态、退格删到标记才显形。
+           from - 1 ≤ 光标 < to + 1 即 [from-1, to] 闭区间取整，仍保留“标记前一位”
+           方便按左方向键退到标记前改它。 */
+        const touched = sel.from <= to && sel.to >= from - 1;
 
         /* 独立成段的图片（粘贴图片的常见形态）：渲染成图片预览，尺寸可被
            `{width=..}` 覆盖；光标进入该行时退回源码，便于改链接。 */

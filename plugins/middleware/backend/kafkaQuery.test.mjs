@@ -6,6 +6,9 @@ import ts from 'typescript'
 const js = ts.transpileModule(readFileSync(new URL('./drivers/kafka.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
 }).outputText
+const lazy = ts.transpileModule(readFileSync(new URL('./lazyResource.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+}).outputText
 function fixture() {
   let clock = 0, sequence = 0, eachMessage, rejectRun, disconnects = 0, seeks = 0
   const timers = new Map()
@@ -17,8 +20,12 @@ function fixture() {
   const handle = { runtime: { kafka: { consumer: () => consumer }, admin: { fetchTopicOffsets: async () => [{ partition: 0, high: '10', low: '0' }] } } }
   const module = { exports: {} }
   const setTimer = (fn, delay) => { const id = ++sequence; timers.set(id, { at: clock + delay, fn }); return id }
+  const lazyModule = { exports: {} }
+  new Function('require', 'module', 'exports', lazy)(() => { throw new Error('lazyResource has no imports') }, lazyModule, lazyModule.exports)
   new Function('require', 'module', 'exports', 'setTimeout', 'clearTimeout', js)(
-    name => name === 'kafkajs' ? { default: {} } : { unsupported() { throw new Error('unsupported') } },
+    name => name === 'kafkajs' ? { default: {} }
+      : name === '@backend/lazyResource' ? lazyModule.exports
+      : { unsupported() { throw new Error('unsupported') } },
     module, module.exports, setTimer, id => timers.delete(id)
   )
   return {

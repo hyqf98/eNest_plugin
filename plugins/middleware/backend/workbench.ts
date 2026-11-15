@@ -13,6 +13,7 @@ export function mwWorkbenchPermission(action: string): MiddlewarePermission {
     case 'messages.query': case 'messages.get':
     case 'tail.start': case 'tail.stop':
     case 'configs.describe': case 'trace.message': case 'retained.list': return 'net.messaging.read'
+    case 'queue.template': return 'net.messaging.admin'
     default:
       if (MW_MUTATING_ACTIONS.includes(action)) return 'net.messaging.admin'
       throw new Error(`Unknown middleware workbench action: ${String(action)}`)

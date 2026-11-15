@@ -88,7 +88,8 @@
   min-height: 0;
 }
 
-.md-app[data-sidebar="closed"] .md-sidebar { display: none; }
+/* 收起态隐藏常驻侧栏；快览面板（.md-sidebar-peek）内的 compact 实例豁免 */
+.md-app[data-sidebar="closed"] .md-body > .md-sidebar { display: none; }
 
 /* ---------------- 侧栏 ---------------- */
 
@@ -185,6 +186,7 @@
 /* 文件树 */
 .md-files-head { display: flex; gap: 4px; padding: 8px 8px; }
 .md-root-select { flex: 1; font-size: 12px; min-width: 0; }
+/* 双框已由 kit buildSelect 根治：拷 class 到 wrapper 时剔除 pk-input 等控件盒样式类 */
 .md-tree-dir, .md-tree-file {
   display: block;
   width: 100%;
@@ -472,8 +474,8 @@ html.md-printing .md-statusbar { display: none !important; }
 /* ---------------- 侧栏隐藏把手（侧栏右边缘垂直居中的细长条） ---------------- */
 /* 展开时：贴在侧栏右边缘中线，视觉上是 4px 宽 56px 高的半透明竖条，
    命中区更宽（不遮文字：只在侧栏边框上）；hover 展开成带竖线与箭头的胶囊。
-   收起时：把手贴到编辑区左边缘（原侧栏右边缘位置），只露一条细线，
-   鼠标移上去由 PluginKit.bindHoverPanel 触发 peek 展开。 */
+   收起态不再渲染本把手——旧版贴编辑区左缘（x≈0）与壳 orb 圆轨重叠会误触轨道；
+   收起态的展开入口是编辑区左上角悬浮钮 .md-sidebar-fab（悬停快览 + 点击展开）。 */
 .md-sidebar-handle {
   position: absolute;
   top: 50%;
@@ -549,62 +551,95 @@ html.md-printing .md-statusbar { display: none !important; }
 
 /* 展开态：把手贴在侧栏右边缘（left 由内联 --md-sidebar-width 提供） */
 .md-app[data-sidebar='open'] .md-sidebar-handle { left: var(--md-sidebar-width, 232px); }
-/* 收起态：贴编辑区左边缘，只露一条细线；命中区 10px 但背景透明 */
-.md-app[data-sidebar='closed'] .md-sidebar-handle {
-  left: 0;
-  width: 10px;
-  height: 88px;
-  opacity: .55;
-  background: transparent;
-  border-radius: 0 999px 999px 0;
-  transform: translate(0, -50%);
-  color: var(--text-3, var(--text-2, #999));
-}
-.md-app[data-sidebar='closed'] .md-sidebar-handle::before {
-  width: 3px;
-  height: 44px;
-  opacity: .55;
-  background: color-mix(in srgb, var(--text-3, var(--text-2, #999)) 70%, transparent);
-}
-/* 收起态 hover：露出更明显的把手，箭头指向右（点击即展开） */
-.md-app[data-sidebar='closed'] .md-sidebar-handle:hover,
-.md-app[data-sidebar='closed'] .md-sidebar-handle:focus-visible,
-.md-app[data-sidebar='closed'] .md-sidebar[data-peek='true'] ~ .md-sidebar-handle {
-  width: 14px;
-  height: 88px;
-  opacity: 1;
-  border-radius: 0 999px 999px 0;
-  background: var(--surface, #fff);
-  box-shadow: 2px 0 14px color-mix(in srgb, var(--text, #000) 12%, transparent);
-  color: var(--accent, #3b82f6);
-}
-.md-app[data-sidebar='closed'] .md-sidebar-handle:hover::before,
-.md-app[data-sidebar='closed'] .md-sidebar-handle:focus-visible::before {
-  width: 3px;
-  height: 34px;
-  opacity: 1;
-  background: currentColor;
-}
-.md-app[data-sidebar='closed'] .md-sidebar-handle:hover::after,
-.md-app[data-sidebar='closed'] .md-sidebar-handle:focus-visible::after {
-  opacity: .9;
-  transform: rotate(-135deg);
-  margin-left: 2px;
-}
 /* 拖拽调宽期间不做过渡，避免跟手迟滞 */
 .md-app[data-sidebar-resizing='on'] .md-sidebar-handle { transition: none; }
 body.md-sidebar-resizing { cursor: col-resize; user-select: none; }
 body.md-sidebar-resizing * { cursor: col-resize !important; }
 
-/* peek 展开（收起态悬停）：从左侧滑出 */
-.md-app[data-sidebar='closed'] .md-sidebar[data-peek='true'] {
-  display: flex;
+/* ---------------- 收起态：编辑区左上角悬浮钮 + 悬停快览面板 ---------------- */
+/* 悬浮钮离左缘 20px（避开壳 orb 圆轨的 14px 原生视图），不与任何壳层命中区重叠。 */
+.md-sidebar-fab {
   position: absolute;
-  inset: 0 auto 0 0;
-  width: min(var(--md-sidebar-width, 272px), calc(100% - 40px));
+  left: 20px;
+  top: 10px;
+  z-index: 41;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px 0 8px;
+  border: 1px solid color-mix(in srgb, var(--text, #000) 12%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface, #fff) 88%, transparent);
+  backdrop-filter: blur(8px);
+  color: var(--text-2, #888);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: .62;
+  transition: opacity .16s ease, background-color .16s ease, box-shadow .16s ease, color .16s ease, border-color .16s ease;
+}
+.md-sidebar-fab:hover,
+.md-sidebar-fab:focus-visible {
+  opacity: 1;
+  color: var(--text, #222);
+  border-color: color-mix(in srgb, var(--text, #000) 22%, transparent);
+  background: var(--surface, #fff);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--text, #000) 12%, transparent);
+}
+.md-sidebar-fab:active { transform: scale(.97); }
+/* peek 面板打开时按钮淡出让位（仍保留 hover 命中区，鼠标未离开前不会收起面板） */
+.md-sidebar-fab[data-peek='true'] { opacity: 0; pointer-events: none; }
+
+/* 快览面板：bindHoverPanel 以 data-peek 驱动；浮在编辑区之上，鼠标离开自动隐藏 */
+.md-sidebar-peek {
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  bottom: 34px;
+  width: min(var(--md-sidebar-width, 272px), calc(100% - 48px));
+  display: none;
+  flex-direction: column;
   z-index: 40;
-  box-shadow: 6px 0 24px color-mix(in srgb, var(--text, #333) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text, #333) 14%, transparent);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  box-shadow: 0 10px 34px color-mix(in srgb, var(--text, #333) 16%, transparent);
+  overflow: hidden;
+}
+.md-sidebar-peek[data-peek='true'] {
+  display: flex;
   animation: md-sidebar-peek-in .18s cubic-bezier(.16, 1, .3, 1);
+}
+/* 快览内嵌侧栏铺满面板（常驻展开入口收到右上角小钮） */
+.md-sidebar-peek .md-sidebar {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  flex: 1;
+  min-height: 0;
+}
+.md-sidebar-peek-expand {
+  position: absolute;
+  right: 7px;
+  top: 6px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3, #999);
+  cursor: pointer;
+  transition: color .14s ease, background-color .14s ease, border-color .14s ease;
+}
+.md-sidebar-peek-expand:hover,
+.md-sidebar-peek-expand:focus-visible {
+  color: var(--accent, #3b82f6);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent, #3b82f6) 26%, transparent);
 }
 @keyframes md-sidebar-peek-in {
   from { transform: translateX(-8px); opacity: .6; }
@@ -613,8 +648,11 @@ body.md-sidebar-resizing * { cursor: col-resize !important; }
 @media (prefers-reduced-motion: reduce) {
   .md-sidebar-handle,
   .md-sidebar-handle::before,
-  .md-sidebar-handle::after { transition: none !important; animation: none !important; }
-  .md-app[data-sidebar='closed'] .md-sidebar[data-peek='true'] { animation: none !important; }
+  .md-sidebar-handle::after,
+  .md-sidebar-fab { transition: none !important; animation: none !important; }
+  .md-sidebar-peek[data-peek='true'] { animation: none !important; }
 }
-@media print { .md-sidebar-handle { display: none !important; } }
-html.md-printing .md-sidebar-handle { display: none !important; }
+@media print { .md-sidebar-handle, .md-sidebar-fab, .md-sidebar-peek { display: none !important; } }
+html.md-printing .md-sidebar-handle,
+html.md-printing .md-sidebar-fab,
+html.md-printing .md-sidebar-peek { display: none !important; }

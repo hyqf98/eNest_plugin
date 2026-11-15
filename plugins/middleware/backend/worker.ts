@@ -55,7 +55,7 @@ export function createMiddlewareBackend(options: WorkerOptions) {
   })
   async function resolveConfig(value: unknown): Promise<MwConnectionConfig> {
     const config = { ...object(value) } as unknown as MwConnectionConfig
-    if (!['kafka', 'rabbitmq', 'mqtt', 'rocketmq'].includes(config.kind)) throw new Error('Unknown middleware kind')
+    if (!options.descriptors().some(descriptor => descriptor.kind === config.kind)) throw new Error('Unknown middleware kind')
     if (config.ephemeralSecret !== undefined && typeof config.ephemeralSecret !== 'string') throw new Error('Invalid temporary credential')
     const resolveRef = async (ref: string) => {
       const secret = await host('secret.resolve', { ref: text(ref, 512) })

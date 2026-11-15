@@ -583,11 +583,15 @@ const PluginKit = (() => {
 
   // —— 自定义下拉：隐藏原生 <select>，保留其 DOM/取值/change 契约，UI 由 kit 接管 —— //
   const selectInstances = new Map() // native select → instance
+  /** 带盒样式的表单控件类不能拷到 wrapper：wrapper 是纯布局壳，拷过去会与内部
+   *  trigger 的自带边框叠成双框（如 select 上写 pk-input → .pk-select.pk-input 两层框）。 */
+  const SELECT_WRAPPER_EXCLUDED_CLASSES = new Set(['pk-input', 'pk-btn', 'input', 'select', 'textarea', 'pk-textarea'])
   function buildSelect(native) {
     const originalClass = native.className
     native.classList.add('pk-select-native')
     const wrapper = document.createElement('div')
-    wrapper.className = 'pk-select' + (originalClass ? ' ' + originalClass : '')
+    const carried = originalClass ? originalClass.split(/\s+/).filter(token => token && !SELECT_WRAPPER_EXCLUDED_CLASSES.has(token)) : []
+    wrapper.className = 'pk-select' + (carried.length ? ' ' + carried.join(' ') : '')
     const trigger = document.createElement('button')
     trigger.type = 'button'
     trigger.className = 'pk-select-trigger'

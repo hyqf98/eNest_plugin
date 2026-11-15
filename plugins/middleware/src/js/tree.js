@@ -4,13 +4,12 @@
  * 点击 = 打开/激活 Tab；右键菜单 = 打开/编辑/复制配置/切换只读/删除（confirmDanger 两段式）
  * 底部 ⊕ 新建连接；#resizer-tree 拖宽持久化 store.ui.treeWidth
  */
-import { KIND_META, kindDot, envChip, showContextMenu, confirmDanger, escapeHtml } from './components.js'
+import { kindLabel, kindDot, kindList } from './kinds.js'
+import { envChip, showContextMenu, confirmDanger, escapeHtml } from './components.js'
 import api from './api.js'
 import store from './store.js'
 import { renderAll, activateWithPage, closeConnTab, forgetSessionCaps, openSettings } from './tabs.js'
 import { forgetStatus } from './status.js'
-
-const KIND_ORDER = ['kafka', 'rabbitmq', 'mqtt', 'rocketmq']
 
 let resizeBound = false
 let searchText = ''
@@ -51,13 +50,13 @@ export function renderTree() {
   const scroll = document.createElement('div')
   scroll.className = 'tree-scroll'
 
-  const groups = new Map(KIND_ORDER.map((k) => [k, []]))
+  const groups = new Map(kindList().map((d) => [d.kind, []]))
   for (const conn of store.connections) {
     if (!groups.has(conn.kind)) groups.set(conn.kind, [])
     groups.get(conn.kind).push(conn)
   }
 
-  for (const kind of KIND_ORDER) {
+  for (const kind of groups.keys()) {
     const conns = (groups.get(kind) || []).filter(conn => `${conn.name} ${conn.env || ''} ${conn.note || ''} ${kind}`.toLowerCase().includes(searchText.trim().toLowerCase()))
     if (!conns.length) continue
     const collapsed = store.ui.collapsedGroups?.includes(kind)
@@ -70,7 +69,7 @@ export function renderTree() {
     label.className = 'g-label'
     label.style.cursor = 'pointer'
     label.title = collapsed ? '展开分组' : '折叠分组'
-    label.innerHTML = `${kindDot(kind)}<span>${escapeHtml(KIND_META[kind]?.label ?? kind)}</span><span class="cnt">${conns.length}</span>`
+      label.innerHTML = `${kindDot(kind)}<span>${escapeHtml(kindLabel(kind))}</span><span class="cnt">${conns.length}</span>`
     label.addEventListener('click', () => {
       const list = store.ui.collapsedGroups ?? []
       store.setUi('collapsedGroups', list.includes(kind) ? list.filter((k) => k !== kind) : [...list, kind])
@@ -267,13 +266,13 @@ function bindTreeResize() {
   resizeBound = true
   let drag = null
   const apply = width => {
-    const value = Math.min(360, Math.max(220, Math.round(width)))
+    const value = Math.min(398, Math.max(258, Math.round(width)))
     tree.style.width = `${value}px`
     handle.setAttribute('aria-valuenow', String(value))
     return value
   }
-  handle.setAttribute('aria-valuemin', '220')
-  handle.setAttribute('aria-valuemax', '360')
+  handle.setAttribute('aria-valuemin', '258')
+  handle.setAttribute('aria-valuemax', '398')
   handle.addEventListener('pointerdown', event => {
     if (isCompact() || event.button !== 0) return
     drag = { x: event.clientX, width: tree.getBoundingClientRect().width, id: event.pointerId }
@@ -298,7 +297,7 @@ function bindTreeResize() {
   handle.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
-    const width = event.key === 'Home' ? 220 : event.key === 'End' ? 360 : tree.getBoundingClientRect().width + (event.key === 'ArrowRight' ? 10 : -10)
+    const width = event.key === 'Home' ? 258 : event.key === 'End' ? 398 : tree.getBoundingClientRect().width + (event.key === 'ArrowRight' ? 10 : -10)
     store.setUi('treeWidth', apply(width))
   })
 }
@@ -336,7 +335,7 @@ export function initializeNavigation(mode) {
     ...store.connections.map(conn => ({
       key: 'connection:' + conn.id,
       label: conn.name || conn.id,
-      hint: KIND_META[conn.kind]?.label || conn.kind,
+      hint: kindLabel(conn.kind),
       checked: store.activeTab === conn.id,
     })),
     ...(store.connections.length ? ['sep'] : []),
@@ -381,7 +380,7 @@ export function applyTreeWidth(mode) {
   navigationMode = mode
   const tree = document.getElementById('tree')
   if (!tree) return
-  tree.style.width = `${Math.max(220, Math.min(360, Number(store.ui.treeWidth) || 240))}px`
+  tree.style.width = `${Math.max(258, Math.min(398, Number(store.ui.treeWidth) || 278))}px`
   document.getElementById('open-shell').hidden = mode !== 'quick'
   updateNavigation()
 }

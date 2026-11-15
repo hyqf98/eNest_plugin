@@ -464,7 +464,8 @@ export function App() {
         setStatusText('已取消截图')
         return
       }
-      const shot = await api.screen.capture({ bounds })
+      // 选区自带视频帧裁剪结果（实时流 WYSIWYG）时直接用；否则回退宿主二次截屏。
+      const shot = bounds?.dataUrl ? { dataUrl: bounds.dataUrl } : await api.screen.capture({ bounds })
       await rememberImage(shot.dataUrl, `截图 ${stamp()}`)
       if (pinAfter || kitRef.current.settings.captureAction === 'pin') await pinImage(shot.dataUrl, currentItem()?.name)
       else if (kitRef.current.settings.captureAction === 'copy') {

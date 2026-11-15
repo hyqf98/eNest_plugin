@@ -15,8 +15,6 @@ const KEYS = {
   ui: 'mw.ui'
 }
 
-const KINDS = ['kafka', 'rabbitmq', 'mqtt', 'rocketmq']
-
 export function uid(prefix = 'mw') {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
@@ -245,8 +243,11 @@ export async function load() {
     api.storage.get(KEYS.ui, {})
   ])
   const savedUi = ui && typeof ui === 'object' && !Array.isArray(ui) ? ui : {}
+  // kind 校验走 kinds 注册表（kinds.js 已在 boot 时加载；此文件不依赖 kinds 以免环）
+  const { kindList } = await import('./kinds.js')
+  const knownKinds = new Set(kindList().map(d => d.kind))
   state.connections = (Array.isArray(connections) ? connections : [])
-    .filter((c) => c && c.id && KINDS.includes(c.kind))
+    .filter((c) => c && c.id && (knownKinds.size === 0 || knownKinds.has(c.kind)))
     .slice(0, LIMITS.connections)
   state.ui = {
     treeWidth: 240,

@@ -1,7 +1,10 @@
 /** 中间件控制台（mw.*）工作台类型：连接配置、能力描述符、统一消息模型与 workbench action 契约。
  * 与 db-workbench.ts 同构：action 判别联合 + 每插件 UtilityProcess 内执行。 */
 
-export type MwKind = 'kafka' | 'rabbitmq' | 'mqtt' | 'rocketmq'
+import type { MwConnectionField, MwListColumn, MwPageColumns, MwMetricSpec, MwSendField } from './mw-form'
+export type { MwConnectionField, MwListColumn, MwPageColumns, MwMetricSpec, MwSendField } from './mw-form'
+
+export type MwKind = 'kafka' | 'rabbitmq' | 'mqtt' | 'rocketmq' | 'activemq' | 'redis' | 'pulsar'
 export type MwFeatureState = 'available' | 'unsupported' | 'not-configured' | 'error'
 export interface MwCapability {
   state: MwFeatureState
@@ -45,6 +48,22 @@ export interface MwConnectionConfig {
   emqx?: MwEmqxMgmt
   // —— rocketmq ——
   dashboardUrl?: string
+  // —— activemq ——
+  /** Jolokia 端点，如 http://127.0.0.1:8161/console/jolokia（Classic 内置 console） */
+  jolokiaUrl?: string
+  /** Artemis 无 console 时可指 native jolokia agent，如 http://127.0.0.1:8774/jolokia */
+  brokerName?: string
+  // —— redis ——
+  /** host:port / redis:// / rediss:// / sentinel:// 均可 */
+  redisUrl?: string
+  /** 数据库编号（0-15） */
+  redisDb?: number
+  /** streams 模式默认带 "*" 号写入；pubsub 模式浏览通道 */
+  redisMode?: 'streams' | 'pubsub'
+  // —— pulsar ——
+  /** Pulsar Web 服务地址，如 http://127.0.0.1:8080（REST /admin/v2 与 WS /ws 同源推导） */
+  serviceUrl?: string
+  /** JWT token（vault 托管） */
   /** 透传扩展（如 kafka clientId、mqtt keepalive 等） */
   options?: Record<string, unknown>
 }
@@ -70,6 +89,14 @@ export interface MwDriverDescriptor {
   /** 历史消息定位方式（UI 据此渲染过滤栏） */
   messageQueryModes: MwMessageQueryMode[]
   capabilities: Record<string, MwCapability>
+  /** 连接表单字段（kind 专属；前端按声明渲染抽屉表单） */
+  connectionFields: MwConnectionField[]
+  /** 列表页列描述（topics 页按 kind 分段；rmq queues/exchanges/bindings 三段） */
+  pageColumns?: MwPageColumns[]
+  /** 概览/监控指标卡描述（label/unit 一次声明；运行时 metricSpecs 可覆盖） */
+  metricsSpec?: MwMetricSpec[]
+  /** 发消息页特有字段（topic/payload/headers 之外） */
+  sendFields?: MwSendField[]
 }
 
 /** 统一消息信封：四类中间件的浏览/重发/监听共用 */
@@ -146,6 +173,8 @@ export interface MwOverview {
   clusterName?: string
   brokers: Array<{ id: string; host: string; roles?: string; alive?: boolean; extras?: Record<string, string | number | boolean> }>
   metrics: Record<string, string | number>
+  /** 运行时指标描述覆盖（EMQX 探测前后/$SYS 动态键）；缺省用描述符 metricsSpec */
+  metricSpecs?: MwMetricSpec[]
   notes?: string[]
 }
 
@@ -227,6 +256,23 @@ export interface MwBindingCreateInput {
   arguments?: Record<string, unknown>
 }
 
+/** rmq 死信/延迟队列模板输入 */
+export interface MwQueueTemplateInput {
+  template: 'dlq' | 'delay'
+  /** 源队列名（dlq：为该队列配死信；delay：TTL+DLX 路线的延迟队列名） */
+  queue: string
+  /** 死信交换机名（dlq：默认 {queue}.dlx；delay：默认 delay.exchange） */
+  exchange?: string
+  /** 死信目标队列名（dlq：默认 {queue}.dlq） */
+  dlq?: string
+  routingKey?: string
+  /** delay 模板：消息 TTL 毫秒数（进入死信队列前滞留时长） */
+  ttlMs?: number
+  /** delay 模板：x-delayed-message 插件路线（服务端需装 rabbitmq_delayed_message_exchange） */
+  usePlugin?: boolean
+  durable?: boolean
+}
+
 // —— workbench action 契约（权限映射见插件 backend/workbench.ts）——
 
 export type MwWorkbenchRequest =
@@ -268,13 +314,15 @@ export type MwWorkbenchRequest =
   | { action: 'messages.resend'; input: { sessionKey: string; message: MwMessage; targetTopic?: string } }
   | { action: 'configs.alter'; input: { sessionKey: string; topic: string; configs: Record<string, string> } }
   | { action: 'retained.delete'; input: { sessionKey: string; topic: string } }
+  /** rmq 死信/延迟模板：一条龙建 DLX exchange + DLQ 队列 + 绑定（或延迟队列路线） */
+  | { action: 'queue.template'; input: { sessionKey: string } & MwQueueTemplateInput }
 
 /** 变更类 action 集合（连接 readOnly 时插件后端拒绝；与权限映射保持同步） */
 export const MW_MUTATING_ACTIONS: readonly string[] = [
   'topic.create', 'topic.update', 'topic.delete', 'topic.purge', 'partitions.grow',
   'exchange.create', 'exchange.delete', 'binding.create', 'binding.delete',
   'group.resetOffsets', 'client.kick', 'messages.send', 'messages.resend',
-  'configs.alter', 'retained.delete'
+  'configs.alter', 'retained.delete', 'queue.template'
 ]
 
 /** Connection probe result shared by renderer declarations and utility drivers. */

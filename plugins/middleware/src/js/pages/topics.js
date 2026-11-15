@@ -1,19 +1,9 @@
-/** Topic·队列页：kafka/rocketmq=Topic 表；rabbitmq=队列/交换机/绑定三段；mqtt=订阅关系降级视图 */
+/** Topic·队列页：列定义从驱动 pageColumns 描述符渲染（kafka/rocketmq=topics；rabbitmq=queues/exchanges/bindings；mqtt=订阅降级） */
 import {
-  fmt, chip, el, gate, capTitle, lagBar, healthChip, escapeHtml,
+  fmt, chip, el, gate, capTitle, escapeHtml, columnsFromSpec,
   simpleGrid, confirmDanger, infoDialog, showContextMenu
 } from '@mw/components.js'
-
-/* —— 类型 chip 样式 —— */
-function typeChip(type, internal) {
-  if (internal) return chip('internal', 'accent', '内部实体')
-  const t = String(type || 'normal')
-  const cls = t === 'fifo' ? 'accent' : t === 'delay' ? 'warn' : t === 'transaction' ? 'accent' : ''
-  return chip(t, cls)
-}
-function boolChip(v, onText, offText) {
-  return v ? chip(onText, 'ok') : chip(offText, '')
-}
+import { pageColumnsOf } from '@mw/kinds.js'
 
 /* —— 表单原子 —— */
 function fieldRow(label, input, tip) {
@@ -124,58 +114,36 @@ export default {
       applyFilter()
     }
 
-    /* —— 各 kind/segment 的列定义 —— */
+    /* —— 各 kind/segment 的列定义（pageColumns 描述符驱动；缺声明回落老逻辑兜底） —— */
     function buildGrid() {
-      if (isMqtt) {
-        rebuildGrid([
-          { key: 'name', title: '主题 Filter', mono: true, width: '38%' },
-          { key: 'qos', title: 'QoS', num: true, render: (r) => escapeHtml(String(r.extras?.qos ?? r.qos ?? '—')) },
-          { key: 'client', title: '客户端', mono: true, render: (r) => escapeHtml(String(r.extras?.clientId ?? r.clientId ?? '—')) }
-        ], '暂无订阅关系', {})
+      const segmentKey = isMqtt ? 'subscriptions'
+        : isRmq ? (segment === 'topics' ? 'queues' : segment)
+        : 'topics'
+      const spec = pageColumnsOf(kind, segmentKey)
+      if (spec && spec.length) {
+        rebuildGrid(columnsFromSpec(spec), specEmptyText(), { onRowCtx: rowCtxOf() })
         return
       }
-      if (isRmq && segment === 'exchanges') {
-        rebuildGrid([
-          { key: 'name', title: '交换机', mono: true, width: '30%' },
-          { key: 'type', title: '类型', render: (r) => chip(String(r.type ?? 'direct')) },
-          { key: 'durable', title: '持久化', render: (r) => boolChip(r.durable, '持久', '易失') },
-          { key: 'autoDelete', title: '自动删除', render: (r) => boolChip(r.autoDelete, '是', '否') },
-          { key: 'internal', title: '内部', render: (r) => (r.internal ? chip('内部', 'accent') : '<span style="color:var(--text-3)">—</span>') }
-        ], '暂无交换机', { onRowCtx: rmqExchangeCtx })
-        return
-      }
-      if (isRmq && segment === 'bindings') {
-        rebuildGrid([
-          {
-            key: 'route', title: 'Source → Destination', mono: true, width: '40%',
-            render: (r) => `${escapeHtml(String(bindField(r, 'source')))} <span style="color:var(--text-3)">→</span> ${escapeHtml(String(bindField(r, 'destination')))}`
-          },
-          { key: 'routingKey', title: 'Routing Key', mono: true, render: (r) => escapeHtml(String(bindField(r, 'routingKey') ?? '—')) },
-          { key: 'propertiesKey', title: 'Properties Key', mono: true, render: (r) => escapeHtml(String(bindField(r, 'propertiesKey') ?? '—')) }
-        ], '暂无绑定', { onRowCtx: rmqBindingCtx })
-        return
-      }
-      if (isRmq) { // queues
-        rebuildGrid([
-          { key: 'name', title: '队列', mono: true, width: '30%' },
-          { key: 'type', title: '类型', render: (r) => chip(String(r.type || r.extras?.type || 'classic'), r.type === 'quorum' || r.extras?.type === 'quorum' ? 'accent' : '') },
-          { key: 'messageCount', title: '消息数', num: true, render: (r) => fmt.compact(r.messageCount) },
-          { key: 'ready', title: '就绪', num: true, render: (r) => fmt.num(r.extras?.ready) },
-          { key: 'consumerCount', title: '消费者', num: true, render: (r) => fmt.num(r.consumerCount) },
-          { key: 'durable', title: '持久化', render: (r) => boolChip(r.durable, '持久', '易失') }
-        ], '暂无队列', { onRowCtx: rmqQueueCtx })
-        return
-      }
-      // kafka / rocketmq Topic
+      // 兜底（描述符未就绪）：两列通用表
       rebuildGrid([
-        { key: 'name', title: 'TOPIC', mono: true, width: '30%' },
-        { key: 'type', title: '类型', render: (r) => typeChip(r.type ?? r.extras?.type, r.internal || String(r.name ?? '').startsWith('__') || String(r.name ?? '').startsWith('%')) },
-        { key: 'partitions', title: '分区', num: true, render: (r) => r.partitions != null ? fmt.num(r.partitions) : '—' },
-        { key: 'messageCount', title: '消息数', num: true, render: (r) => fmt.compact(r.messageCount) },
-        { key: 'totalSizeBytes', title: '大小', num: true, render: (r) => fmt.bytes(r.totalSizeBytes) },
-        { key: 'lag', title: '堆积', render: (r) => lagBar(r.lag) },
-        { key: 'health', title: '健康', render: (r) => healthChip(r.lag) }
-      ], '暂无 Topic', { onRowCtx: topicCtx })
+        { key: 'name', title: '名称', mono: true, width: '40%' },
+        { key: 'messageCount', title: '消息数', num: true, render: (r) => fmt.compact(r.messageCount) }
+      ], specEmptyText(), { onRowCtx: rowCtxOf() })
+    }
+
+    function specEmptyText() {
+      if (isMqtt) return '暂无订阅关系'
+      if (isRmq) return ({ queues: '暂无队列', exchanges: '暂无交换机', bindings: '暂无绑定' }[segment] ?? '暂无数据')
+      return '暂无 Topic'
+    }
+
+    /** 当前分段对应的右键菜单 */
+    function rowCtxOf() {
+      if (isMqtt) return undefined
+      if (isRmq && segment === 'exchanges') return rmqExchangeCtx
+      if (isRmq && segment === 'bindings') return rmqBindingCtx
+      if (isRmq) return rmqQueueCtx
+      return topicCtx
     }
 
     function bindField(row, field) {
@@ -249,9 +217,23 @@ export default {
     }
 
     function rmqQueueCtx(e, row) {
+      const dlqGate = gate(caps, 'dlqTemplates')
       showContextMenu(e.clientX, e.clientY, [
         menuItem('查看消息', '📄', { onClick: () => gotoMessages(row.name) }),
         menuItem('编辑参数…', '⚙', { write: true, onClick: () => editRmqQueue(row) }),
+        'hr',
+        menuItem('配置死信…', '💀', {
+          write: true,
+          disabled: !dlqGate.enabled,
+          reason: dlqGate.reason,
+          onClick: () => openDlqTemplate(row)
+        }),
+        menuItem('延迟队列模板…', '⏱', {
+          write: true,
+          disabled: !dlqGate.enabled,
+          reason: dlqGate.reason,
+          onClick: () => openDelayTemplate()
+        }),
         'hr',
         menuItem('清空消息…', '🧹', { danger: true, onClick: () => purgeTopic(row) }),
         menuItem('删除队列…', '🗑', { danger: true, onClick: () => deleteTopic(row) })
@@ -591,6 +573,89 @@ export default {
         el('span', { html: 'Retained 保留消息请前往 <b>消息</b> 页查看与清理。' })
       ])
       root.insertBefore(el('div', { style: 'flex:none' }, [note, retainedNote]), gridHost)
+    }
+
+    /* —— RabbitMQ 死信/延迟模板 —— */
+    async function openDlqTemplate(row) {
+      const wg = writeGuard()
+      if (wg.blocked) return api.toast(wg.reason, 'warn')
+      const dlg = infoDialog({ title: `配置死信 · ${row.name}`, width: 480 })
+      const exchange = textInput({ value: `${row.name}.dlx`, placeholder: '死信交换机' })
+      const dlq = textInput({ value: `${row.name}.dlq`, placeholder: '死信队列' })
+      const routingKey = textInput({ value: row.name, placeholder: '缺省用源队列名' })
+      dlg.body.appendChild(fieldRow('死信交换机（direct）', exchange))
+      dlg.body.appendChild(fieldRow('死信队列', dlq))
+      dlg.body.appendChild(fieldRow('Routing Key', routingKey))
+      dlg.body.appendChild(el('div', { class: 'form-note', style: 'margin-top:10px' }, [
+        el('span', {}, 'ℹ️'),
+        el('span', { html: '将创建交换机+队列+绑定，并回写源队列的 <b>x-dead-letter-exchange</b> 参数（既有 arguments 保留）。' })
+      ]))
+      dialogButtons(dlg, {
+        submitLabel: '一键配置',
+        onSubmit: async () => {
+          if (!exchange.value.trim() || !dlq.value.trim()) { exchange.focus(); return }
+          try {
+            const res = await api.mw('queue.template', {
+              sessionKey: ctx.sessionKey, template: 'dlq', queue: row.name,
+              exchange: exchange.value.trim(), dlq: dlq.value.trim(), routingKey: routingKey.value.trim()
+            })
+            api.toast(`已配置死信（${res?.created?.length ?? 0} 项变更）`, 'success')
+            dlg.close()
+            load()
+          } catch (err) { api.toast(err?.message || String(err), 'error') }
+        }
+      })
+      setTimeout(() => exchange.focus(), 30)
+    }
+
+    async function openDelayTemplate() {
+      const wg = writeGuard()
+      if (wg.blocked) return api.toast(wg.reason, 'warn')
+      const delayGate = gate(caps, 'delayQueue')
+      const dlg = infoDialog({ title: '延迟队列模板', width: 520 })
+      const queue = textInput({ placeholder: '目标队列名（如 order.delay.queue）' })
+      let route = 'ttl' // 'ttl' | 'plugin'
+      const routeSeg = el('div', { class: 'seg' })
+      const routeButtons = [
+        { key: 'ttl', label: 'TTL + 死信' },
+        { key: 'plugin', label: 'x-delayed-message 插件', disabled: !delayGate.enabled }
+      ].map((r) => el('button', {
+        class: r.key === 'ttl' ? 'on' : '',
+        disabled: r.disabled ? '' : undefined,
+        title: r.disabled ? delayGate.reason : undefined,
+        onclick: (e) => {
+          route = r.key
+          e.currentTarget.parentNode.querySelectorAll('button').forEach((b) => b.classList.remove('on'))
+          e.currentTarget.classList.add('on')
+          ttlRow.style.display = r.key === 'ttl' ? '' : 'none'
+        }
+      }, r.label))
+      routeSeg.append(...routeButtons)
+      dlg.body.appendChild(fieldRow('路线', routeSeg, delayGate.enabled ? '插件路线按消息 x-delay 头延迟；TTL 路线队列级固定延迟' : `插件未安装（${delayGate.reason ?? ''}），仅 TTL 路线可用`))
+      dlg.body.appendChild(fieldRow('目标队列', queue))
+      const ttl = numInput(60000, { min: '1', step: '1000', style: 'width:100%' })
+      const ttlRow = fieldRow('延迟毫秒（TTL 路线）', ttl, '消息在缓冲队列滞留该时长后转入目标队列')
+      dlg.body.appendChild(ttlRow)
+      dialogButtons(dlg, {
+        submitLabel: '创建',
+        onSubmit: async () => {
+          if (!queue.value.trim()) { queue.focus(); return }
+          if (route === 'ttl' && !(Number(ttl.value) > 0)) { ttl.focus(); return }
+          try {
+            const res = await api.mw('queue.template', {
+              sessionKey: ctx.sessionKey,
+              template: 'delay',
+              queue: queue.value.trim(),
+              ttlMs: Number(ttl.value) || 60000,
+              usePlugin: route === 'plugin'
+            })
+            api.toast(`延迟队列已创建（${res?.created?.length ?? 0} 项）`, 'success')
+            dlg.close()
+            load()
+          } catch (err) { api.toast(err?.message || String(err), 'error') }
+        }
+      })
+      setTimeout(() => queue.focus(), 30)
     }
 
     buildGrid()

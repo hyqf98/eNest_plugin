@@ -54,15 +54,8 @@ export const fmt = {
   }
 }
 
-/* —— 类型识别 —— */
-export const KIND_META = {
-  kafka: { label: 'Kafka', color: 'var(--c-kafka)', port: 9092 },
-  rabbitmq: { label: 'RabbitMQ', color: 'var(--c-rabbit)', port: 15672 },
-  mqtt: { label: 'MQTT', color: 'var(--c-mqtt)', port: 1883 },
-  rocketmq: { label: 'RocketMQ', color: 'var(--c-rocket)', port: 8080 }
-}
+/* —— 类型识别 ——（label/color/dot 统一走 kinds.js 注册表镜像） */
 export const ENV_LABEL = { prod: 'prod', staging: 'stg', test: 'test', dev: 'dev' }
-export function kindDot(kind) { return `<span class="kind-dot" style="background:${KIND_META[kind]?.color ?? 'var(--text-3)'}"></span>` }
 export function envChip(env) { return env ? `<span class="chip env-${escapeHtml(env)}">${escapeHtml(ENV_LABEL[env] ?? env)}</span>` : '' }
 
 /* —— 能力门禁：caps[key] = { state, reason } —— */
@@ -322,4 +315,75 @@ export function sparkline(values, { stroke = 'var(--accent)', width = 160, heigh
   const path = pts.map((v, i) => `${i ? 'L' : 'M'}${(i * step).toFixed(1)},${(height - 3 - ((v - min) / span) * (height - 6)).toFixed(1)}`).join(' ')
   const last = pts[pts.length - 1]
   return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><path d="${path}" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round"/><circle cx="${width - 1}" cy="${(height - 3 - ((last - min) / span) * (height - 6)).toFixed(1)}" r="2.2" fill="${stroke}"/></svg>`
+}
+
+/* —— 描述符列 → simpleGrid columns（schema 驱动页面的统一入口） ——
+ * spec: MwListColumn[]（驱动 pageColumns 声明）；值先取 row 后取 row.extras。
+ * 未知 format 按 text 处理，保证新 kind 无需前端改动即可出表。
+ */
+export function columnsFromSpec(spec) {
+  return (spec ?? []).map(col => {
+    const base = col.width ? { width: col.width } : {}
+    switch (col.format) {
+      case 'mono': return { key: col.key, title: col.title, mono: true, ...base, render: r => monoText(cellValue(r, col)) }
+      case 'num': return { key: col.key, title: col.title, num: true, ...base, render: r => dash(r, fmt.num(cellValue(r, col))) }
+      case 'compact': return { key: col.key, title: col.title, num: true, ...base, render: r => dash(r, fmt.compact(cellValue(r, col))) }
+      case 'bytes': return { key: col.key, title: col.title, num: true, ...base, render: r => dash(r, fmt.bytes(cellValue(r, col))) }
+      case 'ms': return { key: col.key, title: col.title, num: true, ...base, render: r => dash(r, fmt.ms(cellValue(r, col))) }
+      case 'datetime': return { key: col.key, title: col.title, ...base, render: r => dash(r, fmt.datetime(cellValue(r, col))) }
+      case 'chip': return { key: col.key, title: col.title, ...base, render: r => cellValue(r, col) == null || cellValue(r, col) === '' ? placeholder() : chip(String(cellValue(r, col)), col.chipClass ?? '') }
+      case 'bool': return { key: col.key, title: col.title, ...base, render: r => booleanChip(cellValue(r, col)) }
+      case 'lag': return { key: col.key, title: col.title, ...base, render: r => lagBar(cellValue(r, col)) }
+      case 'health': return { key: col.key, title: col.title, ...base, render: r => healthChip(cellValue(r, col)) }
+      case 'type': return { key: col.key, title: col.title, ...base, render: r => typeChipText(cellValue(r, col)) }
+      default: return { key: col.key, title: col.title, ...base, render: r => col.route ? routeText(r, col) : dash(r, cellValue(r, col)) }
+    }
+  })
+}
+
+function cellValue(row, col) {
+  const direct = col.from === 'extras' ? undefined : row[col.key]
+  if (direct !== undefined && direct !== null && direct !== '') return direct
+  return row.extras?.[col.key]
+}
+
+function placeholder() { return '<span style="color:var(--text-3)">—</span>' }
+function dash(row, rendered) {
+  const v = rendered === '—' || rendered == null ? '' : rendered
+  return v === '' ? placeholder() : String(rendered)
+}
+function monoText(value) {
+  if (value === undefined || value === null || value === '') return placeholder()
+  return escapeHtml(String(value))
+}
+function booleanChip(v) {
+  return v ? chip('是', 'ok') : chip('否', '')
+}
+function typeChipText(type) {
+  if (!type) return placeholder()
+  const t = String(type).toLowerCase()
+  const cls = ['fifo', 'dlq'].includes(t) ? 'accent' : ['delay', 'retry'].includes(t) ? 'warn' : ['partitioned', 'stream', 'channel', 'x-delayed-message'].includes(t) ? 'accent' : ''
+  return chip(String(type), cls)
+}
+function routeText(row, col) {
+  const source = row.source ?? row.extras?.source ?? '—'
+  const destination = row.destination ?? row.extras?.destination ?? '—'
+  return `${escapeHtml(String(source))} <span style="color:var(--text-3)">→</span> ${escapeHtml(String(destination))}`
+}
+
+/* —— 描述符指标 → 卡片（overview/monitor 共用）——
+ * spec 缺失时回落 LABELS+智能猜测（老路径），保证 EMQX $SYS 动态键仍可显示。
+ */
+export function fmtMetricValue(specEntry, value) {
+  const unit = specEntry?.unit
+  if (value === undefined || value === null || value === '') return placeholder()
+  if (typeof value === 'boolean') return value ? '是' : '否'
+  if (typeof value === 'string') return escapeHtml(value)
+  const n = Number(value)
+  if (!Number.isFinite(n)) return escapeHtml(String(value))
+  if (unit === 'bytes') return fmt.bytes(n)
+  if (unit === 'ms') return fmt.ms(n)
+  if (unit === 'percent') return n < 0 ? placeholder() : `${Math.round(n)}%`
+  if (unit === 'rate') return fmt.compact(n) + '/s'
+  return fmt.compact(n)
 }

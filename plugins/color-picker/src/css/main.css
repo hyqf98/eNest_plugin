@@ -49,24 +49,25 @@ input[type="range"] { padding: 0; border: 0; accent-color: var(--cp-brand); min-
 [hidden] { display: none !important; }
 .pk-mono { font-family: var(--mono, ui-monospace, SFMono-Regular, monospace); font-variant-numeric: tabular-nums; }
 
-.color-app { max-width: 1440px; margin: auto; padding: 14px; min-height: 100dvh; display: flex; flex-direction: column; }
+.color-app { margin: auto; padding: 14px; height: 100dvh; display: flex; flex-direction: column; }
 .app-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--cp-line); }
 .app-head > div { margin-right: auto; }
 .eyebrow { display: block; font-size: 10px; letter-spacing: 1.6px; color: var(--cp-ink-3); }
 h1 { font-size: 21px; font-weight: 650; letter-spacing: -.4px; }
 #status { font-size: 12px; color: var(--cp-ink-2); max-width: 270px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* 双栏：左控制 320px 固定，右工作区自适应 */
-.color-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; align-items: start; flex: 1; }
+/* 双栏：左控制 320px 固定，右工作区自适应；两栏随窗口高度拉伸填满 */
+.color-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; align-items: stretch; flex: 1; min-height: 0; }
 
 /* —— 左侧控制面板 —— */
-.control-panel { background: var(--cp-raise); border: 1px solid var(--cp-line); border-radius: var(--radius); overflow: hidden; }
+.control-panel { background: var(--cp-raise); border: 1px solid var(--cp-line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
 .checker { background: repeating-conic-gradient(var(--cp-checker-a) 0 25%, var(--cp-checker-b) 0 50%) 0/16px 16px; }
-.color-stage { position: relative; height: 168px; }
+/* 色块预览弹性撑满剩余高度（窗口拉大时预览随之变大，不再留白） */
+.color-stage { position: relative; min-height: 168px; flex: 1; }
 .swatch-card { position: absolute; inset: 0; }
 .color-stage #swatch { position: absolute; inset: 0; }
 .swatch-chip { position: absolute; bottom: 14px; left: 16px; padding: 5px 9px; border-radius: 5px; background: color-mix(in srgb, var(--cp-raise) 92%, transparent); backdrop-filter: blur(6px); color: var(--cp-ink); font-size: 13px; letter-spacing: 1px; box-shadow: 0 1px 6px rgba(16, 24, 32, .18); }
-.control-body { padding: 14px; display: grid; gap: 12px; }
+.control-body { padding: 14px; display: grid; gap: 12px; flex: none; }
 .field-label { display: block; font-size: 12px; color: var(--cp-ink-2); }
 .input-row { display: flex; gap: 8px; }
 .input-row input, .input-row select { flex: 1; }
@@ -85,7 +86,7 @@ h1 { font-size: 21px; font-weight: 650; letter-spacing: -.4px; }
 .formats small { color: var(--cp-ink-3); font-size: 10px; flex: none; }
 
 /* —— 右侧工作区 —— */
-.work-panel { background: var(--cp-raise); border: 1px solid var(--cp-line); border-radius: var(--radius); min-height: 420px; overflow: hidden; display: flex; flex-direction: column; }
+.work-panel { background: var(--cp-raise); border: 1px solid var(--cp-line); border-radius: var(--radius); min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .work-seg { display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--cp-line); overflow-x: auto; }
 .work-seg button { border: 0; background: transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0; color: var(--cp-ink-2); min-height: 34px; }
 .work-seg button:hover:not(:disabled) { color: var(--cp-ink); background: var(--cp-wash); }
@@ -168,7 +169,7 @@ footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 1
 :root[data-mode="quick"] .app-head > div { display: none; }
 :root[data-mode="quick"] .app-head #status { margin-right: auto; max-width: none; }
 :where(:root[data-mode="quick"]) .color-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 12px; }
-:root[data-mode="quick"] .color-stage { height: auto; min-height: 150px; }
+:root[data-mode="quick"] .color-stage { min-height: 110px; flex: none; height: 120px; }
 :root[data-mode="quick"] .work-seg { flex-wrap: wrap; }
 :root[data-mode="quick"] .control-body { padding: 10px; }
 :root[data-mode="quick"] footer { margin-top: 10px; padding-top: 8px; }
@@ -176,8 +177,9 @@ footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 1
 /* 容器查询：窄容器单列 */
 .color-app { container-type: inline-size; container-name: colorpick; }
 @container colorpick (max-width: 760px) {
-  .color-layout { grid-template-columns: 1fr; }
+  .color-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(320px, 1fr); }
   .control-panel { max-width: 480px; }
+  .color-stage { min-height: 168px; flex: none; height: 168px; }
 }
 @supports not (container-type: inline-size) {
   @media (max-width: 820px) { .color-layout { grid-template-columns: 1fr; } }

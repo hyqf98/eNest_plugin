@@ -42,18 +42,52 @@ export function createNativeSurfaces(host) {
     if (selection) { selection.resolve(null); if (selection.id) await close(selection.id) }
     const result = defer(), token = { ...result, id: null }
     selection = token
-    try {
-      const shot = await capture()
-      if (selection !== token) return null
-      token.id = await open({ entry: ASSETS + 'region.html', placement: 'display', displayId: shot.displayId,
+    // 先开采集面：选区窗口可在真实拖拽手势里拉起整屏实时流（光标闪烁等动态可见），确认时直接从视频帧裁剪。
+    // screen.record 未授权或插件不可见时宿主拒绝 capture，自动降级为普通窗口 + 静态底图 + 宿主二次截屏。
+    const shot = await capture()
+    if (selection !== token) return null
+    const openRegion = live => {
+      let frame = null  // 选区窗口分块回传的视频帧：header + chunks 拼回 dataUrl
+      return open({ entry: ASSETS + 'region.html', placement: 'display', displayId: shot.displayId,
         transparent: true, alwaysOnTop: true, movable: false,
+        ...(live ? { capture: { displayId: shot.displayId } } : {}),
         data: { dataUrl: shot.dataUrl, width: shot.width, height: shot.height, displayId: shot.displayId } }, event => {
-        if (event.type === 'auxiliary.closed' || event.data?.type === 'cancel') result.resolve(null)
-        else if (event.data?.type === 'confirm') {
-          const b = event.data.bounds
+        const message = event.data
+        if (event.type === 'auxiliary.closed' || message?.type === 'cancel') { frame = null; result.resolve(null); return }
+        if (message?.type === 'confirm') {
+          const b = message.bounds
           if (b && [b.x, b.y, b.width, b.height].every(Number.isFinite) && b.width > 3 && b.height > 3) result.resolve({ ...b, displayId: shot.displayId })
+          return
+        }
+        if (message?.type === 'confirm-frame' && Number.isInteger(message.pieces) && message.pieces > 0 && message.pieces <= 64
+          && message.bounds && [message.bounds.x, message.bounds.y, message.bounds.width, message.bounds.height].every(Number.isFinite)) {
+          frame = { bounds: message.bounds, parts: new Array(message.pieces).fill('') }
+          return
+        }
+        if (message?.type === 'confirm-frame-chunk' && frame && Number.isInteger(message.index) && message.index >= 0 && message.index < frame.parts.length) {
+          frame.parts[message.index] = String(message.data ?? '')
+          if (frame.parts.every(part => part.length > 0)) {
+            const dataUrl = frame.parts.join('')
+            const frameBounds = frame.bounds
+            frame = null
+            if (/^data:image\/png;base64,/.test(dataUrl)) {
+              // WYSIWYG：选区窗口已从视频帧裁好图，直接带回，省掉宿主二次截屏。
+              result.resolve({ ...frameBounds, displayId: shot.displayId, dataUrl })
+            } else {
+              // 帧数据异常：按普通确认走，宿主二次截屏兜底。
+              result.resolve({ ...frameBounds, displayId: shot.displayId })
+            }
+          }
         }
       })
+    }
+    try {
+      token.id = await openRegion(true)
+    } catch (error) {
+      // 采集面被拒（权限收回/隐藏激活）：降级为普通透明窗口重开，选区仍可用。
+      token.id = await openRegion(false)
+    }
+    try {
       return await result.promise
     } finally { if (token.id) await close(token.id); if (selection === token) selection = null }
   }
@@ -97,8 +131,10 @@ export function createNativeSurfaces(host) {
         state.streamId = (await host.files.stream.open({ extension: 'webm' })).streamId
         if (state.done) { await host.files.stream.abort(state.streamId); throw state.error || new Error('录制已取消') }
         const displayId = options.displayId ?? options.bounds?.displayId
+        // selectRegion 的结果可能带选区视频帧 dataUrl（WYSIWYG 裁剪）；录屏只要几何，剥掉数据字段。
+        const crop = options.bounds ? { x: options.bounds.x, y: options.bounds.y, width: options.bounds.width, height: options.bounds.height } : null
         state.windowId = await open({ entry: ASSETS + 'recorder.html', title: '开始录制', bounds: { width: 340, height: 180 }, alwaysOnTop: true,
-          capture: { displayId, withAudio: options.withAudio === true }, data: { crop: options.bounds ?? null, withAudio: options.withAudio === true } }, event => {
+          capture: { displayId, withAudio: options.withAudio === true }, data: { crop, withAudio: options.withAudio === true } }, event => {
           if (state.done) return
           const message = event.data
           if (event.type === 'auxiliary.closed') { void abortRecording(state, new Error('录制窗口已关闭')); return }

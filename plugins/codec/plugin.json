@@ -21,7 +21,9 @@
       "explain": "编解码",
       "cmds": [
         "编解码",
-        "codec"
+        "codec",
+        "bjm",
+        "bianjiema"
       ]
     },
     {
@@ -42,7 +44,7 @@
     {
       "code": "hex",
       "explain": "Hex 十六进制编解码",
-      "cmds": ["hex", "十六进制编解码"]
+      "cmds": ["hex", "十六进制编解码", "十六进制"]
     },
     {
       "code": "unicode",
@@ -63,14 +65,17 @@
       "code": "jwt",
       "explain": "离线查看 JWT",
       "cmds": [
-        "jwt"
+        "jwt",
+        "jwt解码",
+        "b64"
       ]
     },
     {
       "code": "query",
       "explain": "URL 参数解析",
       "cmds": [
-        "url参数"
+        "url参数",
+        "urlcs"
       ]
     }
   ],

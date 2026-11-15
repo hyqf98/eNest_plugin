@@ -53,7 +53,9 @@
         "database",
         "sql",
         "mysql",
-        "sqlite"
+        "sqlite",
+        "sjk",
+        "shujuku"
       ]
     },
     {

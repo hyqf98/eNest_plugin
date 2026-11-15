@@ -19,14 +19,18 @@
       "explain": "随机密码",
       "cmds": [
         "密码",
-        "password"
+        "password",
+        "mm",
+        "mima",
+        "随机密码"
       ]
     },
     {
       "code": "uuid",
       "explain": "UUID v4 生成",
       "cmds": [
-        "uuid"
+        "uuid",
+        "uid"
       ]
     },
     {
@@ -34,7 +38,9 @@
       "explain": "密码强度检查",
       "cmds": [
         "强度",
-        "strength"
+        "strength",
+        "mimadu",
+        "md"
       ]
     }
   ],

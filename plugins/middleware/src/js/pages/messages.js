@@ -4,8 +4,8 @@ import { attachSuggestions } from '@mw/editorAssist.js'
 import { commands } from '@mw/commands.js'
 import { namedSuggestions } from '@mw/completionRules.js'
 import { normalizeQueryMode } from '@mw/protocol.js'
+import { TOPIC_LABELS } from '@mw/kinds.js'
 
-const TOPIC_LABEL = { kafka: 'Topic', rabbitmq: '队列', mqtt: 'Topic 过滤', rocketmq: 'Topic' }
 const MODE_LABEL = { offset: '按 Offset', timestamp: '按时间', key: '按 Key', id: '按 MsgId' }
 // 会话未回填 queryModes 时的静态兜底（与 kinds 描述符语义一致）
 const DEFAULT_MODES = { kafka: ['offset', 'timestamp', 'key'], rocketmq: ['timestamp', 'key', 'id'] }
@@ -58,7 +58,7 @@ export default {
     /* —— 过滤栏 —— */
     const requestState = el('div', { class: 'request-status', role: 'status', hidden: true })
     const topicInput = el('input', {
-      type: 'text', 'aria-label': '消息查询目标', placeholder: TOPIC_LABEL[kind] + '，可手输',
+      type: 'text', 'aria-label': '消息查询目标', placeholder: TOPIC_LABELS[kind] ?? 'Topic' + '，可手输',
       style: 'width:200px', autocomplete: 'off',
       onchange: () => { if (kind === 'kafka') loadPartitions(topicInput.value.trim()) }
     })
@@ -109,7 +109,7 @@ export default {
     shortWindow.addEventListener('change', syncOptions)
     const filterBar = el('div', { class: 'filter-bar query-toolbar' }, [
       el('div', { class: 'query-primary' }, [
-        el('span', { class: 'fld query-target' }, [TOPIC_LABEL[kind] + ' ', topicInput]),
+        el('span', { class: 'fld query-target' }, [TOPIC_LABELS[kind] ?? 'Topic' + ' ', topicInput]),
         queryButton, optionsButton, detailButton, countSpan
       ]), options
     ])
@@ -197,7 +197,7 @@ export default {
     async function doQuery() {
       if (destroyed || queryPending) return
       const topic = topicInput.value.trim()
-      if (!topic) { api.toast(`请先填写 ${TOPIC_LABEL[kind]}`, 'warn'); return }
+      if (!topic) { api.toast(`请先填写 ${TOPIC_LABELS[kind] ?? 'Topic'}`, 'warn'); return }
       const input = { topic, max: Number(maxSel.value), surface: ctx.mode }
       if (kind === 'kafka' && partsSel.value !== 'all') input.partition = Number(partsSel.value)
       if (locate === 'offset') { input.from = 'offset'; input.offset = Number(offsetIn.value) || 0 }
@@ -284,7 +284,7 @@ export default {
       if (conn.readOnly || ctx.mode === 'quick') { api.toast('只读连接（或 quick 模式）禁止重发', 'error'); return }
       const dlg = infoDialog({ title: '重发消息', width: 560 })
       const topicIn = el('input', { type: 'text', value: String(m.topic ?? ''), autocomplete: 'off' })
-      const bodyRows = [el('div', { class: 'form-row' }, [el('label', {}, `目标 ${TOPIC_LABEL[kind]}`), topicIn])]
+      const bodyRows = [el('div', { class: 'form-row' }, [el('label', {}, `目标 ${TOPIC_LABELS[kind] ?? 'Topic'}`), topicIn])]
       if (kind === 'rabbitmq') {
         bodyRows.push(el('div', { class: 'form-row' }, [
           el('label', {}, 'Routing Key'),
@@ -321,7 +321,7 @@ export default {
     async function startTail() {
       if (tail) return
       const topic = topicInput.value.trim()
-      if (!topic) { api.toast(`请先填写 ${TOPIC_LABEL[kind]}`, 'warn'); return }
+      if (!topic) { api.toast(`请先填写 ${TOPIC_LABELS[kind] ?? 'Topic'}`, 'warn'); return }
       const tailId = `tail-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       // 订阅必须先于 tail.start 建立，否则早期事件丢失
       const unsub = api.onMwData((data) => {

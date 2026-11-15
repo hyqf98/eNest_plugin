@@ -89,9 +89,15 @@ const CONTENT_CSS = `
 .md-scope > #write { box-sizing: border-box; }
 
 /* ================= 编辑态（行 class 驱动，Typora 混合架构） ================= */
-/* 文本块的行样式：文字始终可编辑，语法标记由 CM 装饰隐藏，外观全在这里定义 */
-.md-scope .md-line { padding: 0 0; }
-.md-scope .md-p { margin: 0 0 0.62em; }
+/* 文本块的行样式：文字始终可编辑，语法标记由 CM 装饰隐藏，外观全在这里定义。
+ *
+ * 硬约束（别改成 margin）：编辑区里的行与块只用 padding 做纵向间距。
+ * CodeMirror 的高度地图（viewState.heightOracle）只累加每个行/块 DOM 的盒子高度，
+ * 不计元素垂直 margin —— 一旦某行带 margin-top/bottom，该行之后的坐标就整体偏移，
+ * posAtCoords 会把点击落到别的行（表现为「点这里光标跑别处」，且越往文档下方越严重）。
+ * 空白行是真实 .cm-line，所以 margin 与 padding 的视觉间距等价，改动不影响观感。 */
+.md-scope .cm-content .md-line { margin-top: 0; margin-bottom: 0; }
+.md-scope .cm-content .md-p { margin-top: 0; margin-bottom: 0; padding-bottom: 0.62em; }
 .md-scope .md-h1, .md-scope .md-h2, .md-scope .md-h3,
 .md-scope .md-h4, .md-scope .md-h5, .md-scope .md-h6 {
   font-family: var(--md-font-serif);
@@ -99,25 +105,28 @@ const CONTENT_CSS = `
   letter-spacing: -0.01em;
   color: var(--md-text);
   line-height: 1.3;
+  margin: 0;
 }
-.md-scope .md-h1 { font-size: 1.72em; letter-spacing: -0.02em; margin: 0.35em 0 0.3em; }
-.md-scope .md-h2 { font-size: 1.4em; margin: 0.75em 0 0.28em; }
-.md-scope .md-h3 { font-size: 1.18em; margin: 0.7em 0 0.24em; }
-.md-scope .md-h4 { font-size: 1.04em; margin: 0.65em 0 0.2em; }
-.md-scope .md-h5, .md-scope .md-h6 { font-size: 0.95em; color: var(--md-text-2); margin: 0.6em 0 0.18em; }
-/* 引用：左线 + 微底（整行 class，多行连续自然连成一块） */
-.md-scope .md-quote {
+.md-scope .cm-content .md-h1 { font-size: 1.72em; letter-spacing: -0.02em; padding: 0.35em 0 0.3em; }
+.md-scope .cm-content .md-h2 { font-size: 1.4em; padding: 0.75em 0 0.28em; }
+.md-scope .cm-content .md-h3 { font-size: 1.18em; padding: 0.7em 0 0.24em; }
+.md-scope .cm-content .md-h4 { font-size: 1.04em; padding: 0.65em 0 0.2em; }
+.md-scope .cm-content .md-h5, .md-scope .cm-content .md-h6 { font-size: 0.95em; color: var(--md-text-2); padding: 0.6em 0 0.18em; }
+/* 引用：左线 + 微底（整行 class，多行连续自然连成一块）。
+ * 权重需高于后面统一给的 .md-scope .cm-line 基础 padding（同为 0,2,0 且更靠后），
+ * 否则左侧 14px 缩进被抹成 2px，文字会紧贴竖线。 */
+.md-scope .md-line.md-quote {
   border-left: 3px solid var(--md-border);
   background: var(--md-quote-bg);
   color: var(--md-text-2);
   padding-left: 14px;
   margin: 0;
 }
-.md-scope .md-quote:first-of-type { border-top-left-radius: 4px; border-top-right-radius: var(--md-radius); }
+.md-scope .md-line.md-quote:first-of-type { border-top-left-radius: 4px; border-top-right-radius: var(--md-radius); }
 /* 列表：标记隐藏后靠 padding 保持缩进（圆点由 .md-bullet 伪元素补） */
-.md-scope .md-list { padding-left: 1.15em; margin: 0; }
+.md-scope .md-line.md-list { padding-left: 1.15em; margin: 0; }
 /* 无序列表项：补一个圆点占位（与隐藏的 "- " 视觉等宽） */
-.md-scope .md-list.md-list-bullet::before {
+.md-scope .md-line.md-list.md-list-bullet::before {
   content: '•';
   display: inline-block;
   width: 0.62em;
@@ -147,8 +156,14 @@ const CONTENT_CSS = `
   border-radius: 5px; padding: 1px 4px;
 }
 .md-scope .md-link { color: var(--md-link); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--md-link) 30%, transparent); }
-/* 原子块（代码/表格/公式/HTML 渲染态） */
-.md-scope .md-atomic { margin: 0.6em 0; cursor: text; }
+/* 原子块（代码/表格/公式/HTML 渲染态）
+ * 同理只用 padding：这是块 widget 的外层元素，CM 直接量它的 box height，margin 不计入。
+ * 内层渲染内容（p/pre/figure…）的 margin 本身会撑大这个盒子、从而被正确量到；
+ * 但内层 margin 可能向外塌陷出 widget 边界（那样就不被量了），flow-root 给渲染根建 BFC
+ * 把内层 margin 关在盒内。 */
+.md-scope .cm-content .md-atomic { margin: 0; padding: 0.6em 0; cursor: text; }
+.md-scope .md-atomic > .md-block-render { display: flow-root; }
+.md-scope .md-atomic > .md-block-render > .md-inline-render { display: flow-root; }
 
 /* ================= 渲染态（导出 / 原子块内部 / 预览） ================= */
 .md-scope .md-line + .md-line { margin-top: 0; }
@@ -310,11 +325,13 @@ const CONTENT_CSS = `
 .md-scope li.md-task-list-item input[type="checkbox"] { accent-color: var(--md-link); margin-top: 0.45em; }
 /* hr */
 .md-scope hr { border: none; border-top: 1px solid var(--md-border); margin: 2em 0; }
-/* \u56FE\u7247 */
+/* 图片 */
 /* 全局尺寸由设置写入根元素变量；单张可在源码里用 HTML <img width height> 或
    ![](url){width=300 height=180} 覆盖（渲染层会把它转成内联样式）。
-   注意：这里不写 width/height:auto，否则会盖掉 HTML 的 width/height 属性。 */
-.md-scope img {
+   注意：这里不写 width/height:auto，否则会盖掉 HTML 的 width/height 属性。
+   必须排除 CM 的内部辅助 <img>（.cm-widgetBuffer 等）：它们是行内占位元素，
+   被套上 display:block + 外边距会把行盒撑高，表现为光标上下溢出、盖住文字。 */
+.md-scope img:not(.cm-widgetBuffer):not(.cm-selectionBackground) {
   max-width: var(--md-img-max-w, 100%);
   max-height: var(--md-img-max-h, none);
   object-fit: contain;
@@ -322,6 +339,9 @@ const CONTENT_CSS = `
   display: block;
   margin: 0.4em auto;
 }
+/* 渲染态图片常在外层包了 span/label 等，保持原有的居中块级行为 */
+.md-scope .md-live-block img:not(.cm-widgetBuffer),
+.md-scope .md-block-render img:not(.cm-widgetBuffer) { display: block; margin: 0.4em auto; }
 .md-scope span.md-image { display: inline-block; }
 /* 编辑态图片预览（行内 widget）：尺寸跟随设置变量，单张覆盖写内联样式 */
 .md-scope .md-image-widget {
@@ -387,8 +407,11 @@ const CONTENT_CSS = `
 .md-scope .md-html-block > img,
 .md-scope .md-html-block img { max-width: 100%; height: auto; }
 .md-scope pre.md-html-raw { font-family: var(--md-font-mono); font-size: 0.84em; color: var(--md-text-2); background: var(--md-quote-bg); border-radius: var(--md-radius); padding: 10px 14px; white-space: pre-wrap; }
-/* \u6E90\u7801\u6001\uFF08\u5149\u6807\u6240\u5728\u5757\uFF09\u878D\u5165 */
-.md-scope .cm-line { padding: 0 2px; }
+/* 源码态（光标所在块）融入。
+ * 只补两侧 2px 呼吸，不写纵向 padding —— 纵向间距由 .md-p / .md-h* / .md-quote 各自给，
+ * 这里若用列简写会把它们的纵向值一起清零（同权重、靠后者胜），
+ * 标题的上下留白与引用左缩进都会被抹掉。 */
+.md-scope .cm-line { padding-left: 2px; padding-right: 2px; }
 .md-scope .cm-content { caret-color: var(--md-link); }
 /* 选中背景统一由 drawSelection 的 .cm-selectionBackground 层绘制（贴合文本盒）；
    原生 ::selection 保持透明，否则全选时行 padding 与折叠空行会画出重叠方块。 */

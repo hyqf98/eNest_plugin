@@ -1,30 +1,22 @@
-/** 监控页：30s 轮询 overview，指标 sparkline 趋势；采样存 api.session；quick 模式禁自动轮询 */
-import { fmt, chip, el, sparkline, escapeHtml, simpleGrid } from '@mw/components.js'
+/** 监控页：30s 轮询 overview，指标卡从 metricsSpec 描述符渲染；采样存 api.session；quick 模式禁自动轮询 */
+import { fmt, chip, el, sparkline, escapeHtml, simpleGrid, fmtMetricValue } from '@mw/components.js'
+import { metricsSpecOf } from '@mw/kinds.js'
 
 const POLL_MS = 30_000
 const MAX_SAMPLES = 12
-/* 与 overview.js 保持同一套指标语义 */
-const LABELS = {
-  topics: 'Topic', queues: '队列', exchanges: '交换机', bindings: '绑定',
-  consumerGroups: '消费组', groups: '消费组', consumers: '消费者',
-  brokers: 'Broker', controllers: 'Controller', partitions: '分区',
-  underReplicated: '未同步分区', underReplicatedPartitions: '未同步分区',
-  offlinePartitions: '离线分区', messageCount: '消息总数',
-  messagesInPerSec: '写入速率', bytesInPerSec: '写入吞吐', bytesOutPerSec: '读出吞吐',
-  totalLag: '消费堆积', connections: '连接数', subscriptions: '订阅数',
-  retained: 'Retained 消息', clients: '客户端',
-  uptime: '运行时长', version: '版本', clusterName: '集群名',
-  readyMessages: '就绪消息', unackedMessages: '未确认消息', channels: 'Channel'
-}
+/* 描述符未覆盖的动态键（EMQX $SYS）回落猜单位 */
 const BYTES_KEYS = /(bytes|size|disk|storage)/i
 const MS_KEYS = /(latency|duration|ms\b|time)/i
 
-function labelOf(key) {
-  if (LABELS[key]) return LABELS[key]
+function labelOf(specEntry, key) {
+  if (specEntry?.label) return specEntry.label
   const pretty = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2')
   return pretty.charAt(0).toUpperCase() + pretty.slice(1)
 }
-function fmtMetric(key, value) {
+function fmtMetric(specMap, key, value) {
+  const spec = specMap.get(key)
+  if (spec) return fmtMetricValue(spec, value)
+  // 兜底：动态键猜单位
   if (typeof value === 'boolean') return value ? '是' : '否'
   if (typeof value === 'string') return escapeHtml(value)
   const n = Number(value)
@@ -158,7 +150,13 @@ export default {
       if (destroyed) return
       body.innerHTML = ''
       const metrics = ov?.metrics && typeof ov.metrics === 'object' ? ov.metrics : {}
-      const entries = Object.entries(metrics)
+      // 指标描述：运行时 metricSpecs 优先（EMQX 探测后），缺省用 kinds 描述符 metricsSpec
+      const specList = ov?.metricSpecs?.length ? ov.metricSpecs : (metricsSpecOf(conn?.kind) ?? [])
+      const specMap = new Map(specList.map(s => [s.key, s]))
+      const entries = specList.length
+        // 描述符有声明：按声明顺序渲染（未出现在 metrics 的跳过）
+        ? specList.map(s => [s.key, metrics[s.key]]).filter(([, v]) => v !== undefined)
+        : Object.entries(metrics)
       if (!entries.length && !Object.keys(series).length) {
         body.appendChild(el('div', { class: 'empty-cap' }, [
           el('div', { class: 'big' }, '📈'),
@@ -170,9 +168,11 @@ export default {
       if (entries.length) {
         const grid = el('div', { class: 'metric-grid' })
         for (const [key, value] of entries) {
-          const card = el('div', { class: 'metric-card' }, [
-            el('div', { class: 'k', title: key }, labelOf(key)),
-            el('div', { class: 'v' }, fmtMetric(key, value))
+          const spec = specMap.get(key)
+          const warn = spec?.warnThreshold !== undefined && Number(value) > spec.warnThreshold
+          const card = el('div', { class: `metric-card${warn ? ' metric-warn' : ''}` }, [
+            el('div', { class: 'k', title: key }, labelOf(spec, key)),
+            el('div', { class: 'v' }, fmtMetric(specMap, key, value))
           ])
           const spark = sparkline(series[key] ?? [])
           if (spark) card.appendChild(el('div', { class: 'spark', html: spark }))
@@ -187,9 +187,10 @@ export default {
         const grid = el('div', { class: 'metric-grid' })
         for (const [key, values] of Object.entries(series)) {
           if (!values.length) continue
+          const spec = specMap.get(key)
           const card = el('div', { class: 'metric-card' }, [
-            el('div', { class: 'k', title: key }, labelOf(key)),
-            el('div', { class: 'v' }, fmtMetric(key, values[values.length - 1]))
+            el('div', { class: 'k', title: key }, labelOf(spec, key)),
+            el('div', { class: 'v' }, fmtMetric(specMap, key, values[values.length - 1]))
           ])
           const spark = sparkline(values)
           if (spark) card.appendChild(el('div', { class: 'spark', html: spark }))

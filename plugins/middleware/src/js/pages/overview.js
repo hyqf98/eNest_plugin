@@ -1,45 +1,18 @@
-/** 概览页：overview action → 指标卡片 + broker 列表 + 能力说明（手动刷新，不轮询） */
-import { fmt, chip, el, simpleGrid, escapeHtml } from '@mw/components.js'
+/** 概览页：overview action → 指标卡（metricsSpec 描述符） + broker 列表 + 能力说明（手动刷新，不轮询） */
+import { fmt, chip, el, simpleGrid, escapeHtml, fmtMetricValue } from '@mw/components.js'
+import { metricsSpecOf } from '@mw/kinds.js'
 
-/* 指标值智能格式化：key 名提示单位，数值大小决定 num/bytes/ms */
-const NUM_KEYS = /(count|total|topics|queues|groups|consumers|messages|messagesIn|bytesIn|connections|subscriptions|retained|znodes|brokers|partitions|replicas|underReplicated|active|pending|size|depth|lag|rate|tps|qps|latency|duration|uptime|since)/i
-const BYTES_KEYS = /(bytes|size|disk|storage)/i
-const MS_KEYS = /(latency|duration|ms|time)\b|latency/i
-
-function fmtMetric(key, value) {
+function fmtMetric(specMap, key, value) {
+  const spec = specMap.get(key)
+  if (spec) return fmtMetricValue(spec, value)
+  // 兜底：动态键（$SYS 等）猜单位
   if (typeof value === 'boolean') return value ? '是' : '否'
   if (typeof value === 'string') return escapeHtml(value)
   const n = Number(value)
   if (!Number.isFinite(n)) return escapeHtml(String(value ?? '—'))
-  const k = String(key)
-  if (BYTES_KEYS.test(k) && !/rate/i.test(k)) return fmt.bytes(n)
-  if (MS_KEYS.test(k)) return fmt.ms(n)
-  if (Number.isInteger(n) || NUM_KEYS.test(k)) return fmt.compact(n)
-  // 比率/分数保留原值
-  return String(value)
-}
-
-/* 指标 key → 中文可读标签（未命中直接展示原 key，避免瞎翻译） */
-const LABELS = {
-  topics: 'Topic', queues: '队列', exchanges: '交换机', bindings: '绑定',
-  consumerGroups: '消费组', groups: '消费组', consumers: '消费者',
-  brokers: 'Broker', controllers: 'Controller', partitions: '分区',
-  underReplicated: '未同步分区', underReplicatedPartitions: '未同步分区',
-  offlinePartitions: '离线分区', activeController: '活跃 Controller',
-  messageCount: '消息总数', messagesInPerSec: '写入速率', bytesInPerSec: '写入吞吐',
-  bytesOutPerSec: '读出吞吐', totalLag: '消费堆积', connections: '连接数',
-  subscriptions: '订阅数', retained: 'Retained 消息', clients: '客户端',
-  messagePublishRate: '发布速率', messageReceivedRate: '接收速率',
-  publishRate: '发布速率', receivedRate: '接收速率',
-  uptime: '运行时长', version: '版本', clusterName: '集群名', nodeCount: '节点数',
-  queueCount: '队列', readyMessages: '就绪消息', unackedMessages: '未确认消息',
-  channels: 'Channel', listeners: '监听器', objectTotals: '对象统计'
-}
-
-function labelOf(key) {
-  if (LABELS[key]) return LABELS[key]
-  const pretty = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-  return pretty.charAt(0).toUpperCase() + pretty.slice(1)
+  if (/(bytes|size|disk|storage)/i.test(key) && !/rate/i.test(key)) return fmt.bytes(n)
+  if (/(latency|duration|ms|time)\b/i.test(key)) return fmt.ms(n)
+  return fmt.compact(n)
 }
 
 export default {
@@ -79,15 +52,19 @@ export default {
 
     function renderOverview(ov) {
       body.innerHTML = ''
-      // —— 指标卡片 ——
+      // —— 指标卡片（描述符顺序；未声明回落 metrics 原始键序） ——
       const metrics = ov?.metrics && typeof ov.metrics === 'object' ? ov.metrics : {}
-      const entries = Object.entries(metrics)
+      const specList = ov?.metricSpecs?.length ? ov.metricSpecs : (metricsSpecOf(conn?.kind) ?? [])
+      const specMap = new Map(specList.map(s => [s.key, s]))
+      const entries = specList.length
+        ? specList.map(s => [s.key, metrics[s.key]]).filter(([, v]) => v !== undefined)
+        : Object.entries(metrics)
       if (entries.length) {
         const grid = el('div', { class: 'metric-grid' })
         for (const [key, value] of entries) {
           grid.appendChild(el('div', { class: 'metric-card' }, [
-            el('div', { class: 'k', title: key }, labelOf(key)),
-            el('div', { class: 'v' }, fmtMetric(key, value))
+            el('div', { class: 'k', title: key }, specMap.get(key)?.label ?? key),
+            el('div', { class: 'v' }, fmtMetric(specMap, key, value))
           ]))
         }
         body.appendChild(grid)

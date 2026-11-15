@@ -1,10 +1,9 @@
-/** 发消息工具：按 kind 自适应字段，payload 可格式化预览，Mod+Enter 快捷发送 */
+/** 发消息工具：kind 特有字段从驱动 sendFields 描述符渲染，payload 可格式化预览，Mod+Enter 快捷发送 */
 import { el, payloadHighlight } from '@mw/components.js'
 import { attachJsonEditor, attachSuggestions } from '@mw/editorAssist.js'
 import { commands, displayShortcut } from '@mw/commands.js'
 import { namedSuggestions } from '@mw/completionRules.js'
-
-const TOPIC_LABEL = { kafka: 'Topic', rabbitmq: '队列', mqtt: 'Topic', rocketmq: 'Topic' }
+import { sendFieldsOf, TOPIC_LABELS } from '@mw/kinds.js'
 
 export default {
   id: 'publish',
@@ -12,6 +11,8 @@ export default {
   render(root, ctx) {
     const { api, conn } = ctx
     const kind = conn.kind
+    const sendFields = sendFieldsOf(kind)
+    const topicWord = TOPIC_LABELS[kind] ?? 'Topic'
     const getPreferences = () => ctx.store.ui.productivity.completion
 
     /* —— Topic（datalist 下拉候选 + 手输）—— */
@@ -19,13 +20,42 @@ export default {
     const assistants = []
     let sending = false
     const topicIn = el('input', { type: 'text', 'aria-label': '发布目标', placeholder: '如 order-events', autocomplete: 'off' })
-    const keyIn = el('input', { type: 'text', placeholder: '分区按 key 哈希', autocomplete: 'off' })
-    const partIn = el('input', { type: 'number', placeholder: '缺省自动', min: '0' })
-    const rkIn = el('input', { type: 'text', placeholder: '默认交换机按队列名路由', autocomplete: 'off' })
-    const qosSel = el('select', {}, [0, 1, 2].map((q) => el('option', { value: String(q) }, `QoS ${q}`)))
-    const retainSwitch = el('button', { class: 'switch', role: 'switch', onclick: () => retainSwitch.classList.toggle('on') })
 
-    /* —— headers KV 行编辑器 —— */
+    /* —— 描述符驱动的 kind 特有字段控件（key → { field, get }） —— */
+    const specControls = {}
+    const specRows = []
+    let pendingHalf = null
+    for (const spec of sendFields) {
+      let control
+      let getValue
+      if (spec.type === 'select') {
+        control = el('select', {}, (spec.options ?? []).map(o => el('option', { value: o.value }, o.label)))
+        if (spec.default !== undefined) control.value = String(spec.default)
+        getValue = () => (/^-?\d+(\.\d+)?$/.test(control.value) ? Number(control.value) : control.value)
+      } else if (spec.type === 'switch') {
+        control = el('button', { class: `switch ${spec.default === true || spec.default === 'true' ? 'on' : ''}`, role: 'switch', onclick: () => control.classList.toggle('on') })
+        getValue = () => control.classList.contains('on')
+      } else if (spec.type === 'number') {
+        control = el('input', { type: 'number', placeholder: spec.placeholder ?? '', autocomplete: 'off', ...(spec.min !== undefined ? { min: String(spec.min) } : {}) })
+        getValue = () => (control.value === '' ? undefined : Number(control.value))
+      } else {
+        control = el('input', { type: 'text', placeholder: spec.placeholder ?? '', autocomplete: 'off' })
+        getValue = () => control.value.trim() || undefined
+      }
+      if (spec.tip) control.title = spec.tip
+      specControls[spec.key] = getValue
+      const row = el('div', { class: 'form-row' }, [el('label', {}, spec.label), control])
+      if (spec.half && !pendingHalf) pendingHalf = row
+      else {
+        specRows.push(pendingHalf
+          ? el('div', { class: 'form-cols' }, [pendingHalf, row])
+          : row)
+        pendingHalf = null
+      }
+    }
+    if (pendingHalf) specRows.push(pendingHalf)
+
+    /* —— headers KV 行编辑器（mqtt 无 headers 通道则隐藏） —— */
     const kvBody = el('div', { style: 'display:flex;flex-direction:column;gap:6px' })
     function addKvRow(k = '', v = '') {
       const ki = el('input', { type: 'text', placeholder: 'header 名', autocomplete: 'off', value: k, style: 'flex:1' })
@@ -41,6 +71,8 @@ export default {
       assistants.push(attachSuggestions(ki, { label: 'Header 名称建议', isActive: ctx.isActive, getPreferences, getItems: (value, caret) => namedSuggestions(value, caret, { kind: 'header', names: ['content-type', 'correlation-id', 'traceparent', 'message-id'], connection: conn, preferences: getPreferences() }) }))
     }
     addKvRow()
+    const headersSupported = !['mqtt'].includes(kind) && !specRows.length ? true : !['mqtt'].includes(kind)
+    void headersSupported
 
     /* —— payload：编辑 / 预览双态 —— */
     const payloadIn = el('textarea', {
@@ -74,29 +106,15 @@ export default {
       }
     }, '预览')
 
-    /* —— kind 自适应字段组 —— */
+    /* —— kind 自适应字段组（sendFields 描述符 + headers/payload 统一段） —— */
+    const showHeaders = kind !== 'mqtt'
     const form = el('div', { class: 'publish-form' }, [
       el('div', { class: 'form-cols' }, [
         el('div', { class: 'form-row' }, [
-          el('label', {}, [TOPIC_LABEL[kind] + ' ', el('span', { style: 'color:var(--accent)' }, '*')]), topicIn
-        ]),
-        ...(kind === 'kafka' ? [
-          el('div', { class: 'form-row' }, [el('label', {}, 'Key（可选）'), keyIn])
-        ] : [])
-      ]),
-      kind === 'kafka' ? el('div', { class: 'form-cols' }, [
-        el('div', { class: 'form-row' }, [el('label', {}, '分区（可选）'), partIn])
-      ]) : null,
-      kind === 'rabbitmq' ? el('div', { class: 'form-cols' }, [
-        el('div', { class: 'form-row' }, [el('label', {}, 'Routing Key（可选）'), rkIn])
-      ]) : null,
-      kind === 'mqtt' ? el('div', { class: 'form-cols' }, [
-        el('div', { class: 'form-row' }, [el('label', {}, 'QoS'), qosSel]),
-        el('div', { class: 'form-row' }, [
-          el('label', {}, 'Retained'),
-          el('div', { class: 'switch-row publish-retain-row' }, [retainSwitch, el('span', { class: 'sl' }, '保留消息（新订阅者立即收到）')])
+          el('label', {}, [topicWord + ' ', el('span', { style: 'color:var(--accent)' }, '*')]), topicIn
         ])
-      ]) : null,
+      ]),
+      ...specRows,
       kind === 'mqtt' ? el('div', { class: 'editor-status' }, '当前 MQTT 驱动支持 Topic、QoS 与 Retained，不转发自定义发布属性。') : el('div', { class: 'form-row', style: 'margin-bottom:8px' }, [
         el('label', {}, 'Headers'),
         kvBody,
@@ -148,16 +166,12 @@ export default {
       if (conn.readOnly || ctx.mode === 'quick') { api.toast('只读连接（或 quick 模式）禁止发送', 'error'); return }
       if (previewing) formatBtn.click() // 回到编辑态，确保 payloadIn 最新
       const topic = topicIn.value.trim()
-      if (!topic) { api.toast(`请填写 ${TOPIC_LABEL[kind]}`, 'warn'); topicIn.focus(); return }
-      const input = { topic, payload: payloadIn.value, ...(kind !== 'mqtt' ? { headers: collectHeaders() } : {}) }
-      if (kind === 'kafka') {
-        if (keyIn.value.trim()) input.key = keyIn.value.trim()
-        if (partIn.value !== '') input.partition = Number(partIn.value)
-      }
-      if (kind === 'rabbitmq' && rkIn.value.trim()) input.routingKey = rkIn.value.trim()
-      if (kind === 'mqtt') {
-        input.qos = Number(qosSel.value) || 0
-        input.retain = retainSwitch.classList.contains('on')
+      if (!topic) { api.toast(`请填写 ${topicWord}`, 'warn'); topicIn.focus(); return }
+      const input = { topic, payload: payloadIn.value, ...(showHeaders ? { headers: collectHeaders() } : {}) }
+      // kind 特有字段（sendFields 描述符 key 与 MwMessageSendInput 同名）
+      for (const [key, getValue] of Object.entries(specControls)) {
+        const value = getValue()
+        if (value !== undefined && value !== false) input[key] = value
       }
       sending = true
       sendBtn.disabled = true

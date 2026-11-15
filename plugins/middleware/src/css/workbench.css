@@ -4,13 +4,24 @@
 body { font-family: var(--font); }
 .app { height: 100dvh; }
 [hidden], .page[hidden] { display: none !important; }
-.workbench-head { height: 38px; min-height: 38px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--surface); font-size: calc(var(--font-size-base, 13px) * 0.923077); font-weight: 600; }
-.workbench-head-hint { font-weight: 400; color: var(--text-3); margin-left: auto; }
+/* ☰ 浮钮：常驻 .app-body 左上角，叠在树头左侧（树隐藏/quick 抽屉态时仍浮在内容区左上角） */
+.nav-float {
+  position: absolute; z-index: 90; top: 5px; left: 5px;
+  width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center;
+  color: var(--text-2); background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid transparent;
+}
+.nav-float:hover { color: var(--text); background: var(--surface-2); }
+/* 「在桌面打开」quick 专属：右上角浮钮 */
+.shell-float {
+  position: absolute; z-index: 90; top: 5px; right: 10px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
 .icon-button { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; color: var(--text-2); }
 .icon-button:hover { color: var(--text); background: var(--surface-2); }
 .app-body { flex-direction: row; overflow: hidden; position: relative; }
-.tree { width: 240px; max-height: none; flex: none; border-right: none; background: color-mix(in srgb, var(--surface) 95%, transparent); }
-.tree-head { min-height: 38px; padding: 8px 12px; letter-spacing: 0; font-size: calc(var(--font-size-base, 13px) * 0.923077); color: var(--text-2); font-weight: 600; }
+.tree { width: 278px; max-height: none; flex: none; border-right: none; background: color-mix(in srgb, var(--surface) 95%, transparent); }
+.tree-head { min-height: 38px; padding: 8px 10px 8px 38px; letter-spacing: 0; font-size: calc(var(--font-size-base, 13px) * 0.923077); color: var(--text-2); font-weight: 600; }
 /* 与树头同一条左基线（12px），搜索框内边距与全局 .pk-input 一致。 */
 .connection-search { margin: 0 12px 6px; width: calc(100% - 24px); min-height: 28px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: calc(var(--font-size-base, 13px) * 0.923077); }
 .connection-search:focus { outline: none; border-color: color-mix(in srgb, var(--text) 55%, var(--border)); }
@@ -100,7 +111,7 @@ table.grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
 body[data-mode=quick] .msg-viewer { display: flex; }
 body[data-mode=quick] .form-row { margin-bottom: 10px; }
 @media (max-width: 1000px) { .msg-split { flex-direction: column; } .msg-table { min-height: 160px; } .msg-viewer { width: 100%; max-height: 40%; min-height: 120px; } }
-@media (max-width: 719px) { .context-connection, .workbench-head-hint { display: none; } .subnav { padding: 0 7px; } .subnav .subnav-right { margin-left: 5px; } .conn-tab { max-width: 240px; } .filter-bar .fld { max-width: 100%; } .filter-bar input { max-width: 100%; } .form-cols { grid-template-columns: minmax(0,1fr); } .table-wrap { padding-right: 8px; padding-left: 8px; } }
+@media (max-width: 719px) { .context-connection { display: none; } .subnav { padding: 0 7px; } .subnav .subnav-right { margin-left: 5px; } .conn-tab { max-width: 240px; } .filter-bar .fld { max-width: 100%; } .filter-bar input { max-width: 100%; } .form-cols { grid-template-columns: minmax(0,1fr); } .table-wrap { padding-right: 8px; padding-left: 8px; } }
 :root[data-anim=low] .navigation-compact .tree { transition: none; }
 :root[data-anim=medium] .navigation-compact .tree { transition-duration: 130ms; }
 :root[data-anim=high] .navigation-compact .tree { transition-duration: 190ms; }
@@ -124,7 +135,6 @@ body[data-mode=quick] .form-row { margin-bottom: 10px; }
 .query-primary > .btn { flex: none; }
 .query-options { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
 .msg-split { position: relative; }
-body[data-mode=quick] .workbench-head { min-height: 30px; height: 30px; }
 body[data-mode=quick] .conn-tabs { min-height: 30px; }
 body[data-mode=quick] .conn-tab { min-height: 29px; padding-top: 4px; padding-bottom: 4px; }
 body[data-mode=quick] .subnav { min-height: 30px; }
@@ -136,7 +146,6 @@ body[data-mode=quick] .request-status { padding: 0 8px 3px; font-size: calc(var(
 body[data-mode=quick] .query-primary > span:last-child { display: none; }
 body[data-mode=quick] .status-bar { min-height: 20px; font-size: calc(var(--font-size-base, 13px) * 0.769231); }
 @media (max-height: 420px) {
-  .workbench-head { min-height: 30px; height: 30px; }
   .conn-tabs { min-height: 30px; }
   .conn-tab { min-height: 29px; padding-top: 4px; padding-bottom: 4px; }
   .subnav { min-height: 30px; }

@@ -12,14 +12,6 @@ const MSG = {
   perm: '权限不足：请在插件设置→权限管理授权本机 Node 后端与所需 mw.* 能力'
 }
 
-/** kinds.list 失败时的静态兜底描述符（capabilities 为空对象 = gate 视为可用，页面再按数据降级） */
-const FALLBACK_KINDS = [
-  { kind: 'kafka', label: 'Kafka', transport: 'native', defaultPort: 9092, messageQueryModes: ['offset', 'time', 'key'], capabilities: {} },
-  { kind: 'rabbitmq', label: 'RabbitMQ', transport: 'http', defaultPort: 15672, messageQueryModes: ['time', 'key'], capabilities: {} },
-  { kind: 'mqtt', label: 'MQTT', transport: 'native', defaultPort: 1883, messageQueryModes: [], capabilities: {} },
-  { kind: 'rocketmq', label: 'RocketMQ', transport: 'http', defaultPort: 8080, messageQueryModes: ['time', 'key', 'id'], capabilities: {} }
-]
-
 function host() {
   return globalThis.enest || globalThis.window?.enest || null
 }
@@ -82,6 +74,27 @@ function clean(obj) {
   return out
 }
 
+/** kind 专属字段 → MwConnectionConfig（schema 驱动：按 kinds 注册表 connectionFields 映射；
+ *  注册表缺失时兜底拷贝既有连接字段，保证旧数据可用） */
+function getPath(obj, path) {
+  let cur = obj
+  for (const seg of path.split('.')) {
+    if (!cur || typeof cur !== 'object') return undefined
+    cur = cur[seg]
+  }
+  return cur
+}
+
+function setPath(obj, path, value) {
+  const segs = path.split('.')
+  let cur = obj
+  for (let i = 0; i < segs.length - 1; i++) {
+    if (!cur[segs[i]] || typeof cur[segs[i]] !== 'object') cur[segs[i]] = {}
+    cur = cur[segs[i]]
+  }
+  cur[segs[segs.length - 1]] = value
+}
+
 export function toMwConfig(conn, overrides = {}) {
   const config = clean({
     kind: conn.kind,
@@ -91,47 +104,48 @@ export function toMwConfig(conn, overrides = {}) {
     note: conn.note,
     secretRef: conn.secretRef
   })
-  if (conn.kind === 'kafka') {
-    config.bootstrapServers = conn.bootstrapServers
-    config.saslMechanism = conn.saslMechanism || 'none'
-    config.tls = conn.tls !== false
-  } else if (conn.kind === 'rabbitmq') {
-    config.managementUrl = conn.managementUrl
-    config.vhost = conn.vhost
-    config.username = conn.username
-  } else if (conn.kind === 'mqtt') {
-    config.brokerUrl = conn.brokerUrl
-    config.clientId = conn.clientId
-    config.username = conn.username
-    if (conn.emqx && typeof conn.emqx === 'object') {
-      config.emqx = clean({
-        enabled: !!conn.emqx.enabled,
-        version: conn.emqx.version || 'auto',
-        apiUrl: conn.emqx.apiUrl,
-        apiKey: conn.emqx.apiKey,
-        apiSecretRef: conn.emqx.apiSecretRef
-      })
+  const fields = descriptorFieldsOf(conn.kind)
+  if (!fields.length) {
+    // 描述符未就绪：全量拷贝 kind 专属字段（排除前端管理字段），老连接仍可打开
+    const reserved = new Set(['id', 'kind', 'name', 'env', 'readOnly', 'note', 'secretRef'])
+    for (const [k, v] of Object.entries(conn)) {
+      if (!reserved.has(k) && v !== undefined && v !== null && v !== '') config[k] = v
     }
-  } else if (conn.kind === 'rocketmq') {
-    config.dashboardUrl = conn.dashboardUrl
-    config.username = conn.username
+  } else {
+    for (const field of fields) {
+      const source = field.path ? getPath(conn, field.path) : conn[field.key]
+      if (source === undefined || source === null || source === '') continue
+      if (field.path) setPath(config, field.path, source)
+      else config[field.key] = source
+    }
   }
   if (conn.options && typeof conn.options === 'object') config.options = conn.options
   return { ...config, ...overrides }
+}
+
+/* —— kinds 注册表桥（kinds.js 延迟回填，避免与 api.js 循环 import） —— */
+
+let kindsBridge = null
+/** kinds.js 启动时注入自身（initKinds 调用）；未注入时 connectionFieldsOf 返回 [] */
+export function bindKindsBridge(module) {
+  kindsBridge = module
+}
+function descriptorFieldsOf(kind) {
+  return kindsBridge?.connectionFieldsOf?.(kind) ?? []
 }
 
 /* —— 高层封装 —— */
 
 let kindsPromise = null
 
-/** kinds.list → 描述符数组；宿主失败时回落静态描述符（mw 层已 toast 过一次） */
+/** kinds.list → 描述符数组；宿主失败时回落静态描述符（经 kinds.js FALLBACK） */
 export async function kinds() {
   if (!kindsPromise) {
     kindsPromise = mw('kinds.list', {})
-      .then((list) => (Array.isArray(list) ? list : list?.kinds || FALLBACK_KINDS))
+      .then((list) => (Array.isArray(list) ? list : list?.kinds || []))
       .catch((e) => {
         if (e?.code === 'PERM') throw e
-        return FALLBACK_KINDS
+        return []
       })
   }
   return kindsPromise

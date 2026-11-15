@@ -32,7 +32,9 @@
       "cmds": [
         "时间戳",
         "ts",
-        "timestamp"
+        "timestamp",
+        "sjc",
+        "shijianchuo"
       ]
     }
   ],

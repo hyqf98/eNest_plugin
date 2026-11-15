@@ -26,7 +26,7 @@ export function restoreTasks(ui, connections) {
 
 /** Bound API prevents callbacks and late responses from following another active tab. */
 export function bindTaskApi(api, sessionKey, { isAlive = () => true, mode = 'shell', readOnly = false, kind } = {}) {
-  const writeActions = /^(messages\.(send|resend)|topic\.(create|update|delete|purge)|exchange\.(create|delete)|binding\.(create|delete)|partitions\.grow|configs\.alter|group\.resetOffsets|client\.kick|retained\.delete)$/
+  const writeActions = /^(messages\.(send|resend)|topic\.(create|update|delete|purge)|exchange\.(create|delete)|binding\.(create|delete)|partitions\.grow|configs\.alter|group\.resetOffsets|client\.kick|retained\.delete|queue\.template)$/
   return {
     ...api,
     async mw(action, input = {}) {

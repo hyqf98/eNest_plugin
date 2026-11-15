@@ -5,14 +5,18 @@ import type { MqttClient } from 'mqtt'
 import type {
   MwClient,
   MwConnectionConfig,
+  MwConnectionField,
   MwConsumerGroup,
   MwConsumerGroupDetail,
   MwMessage,
   MwMessageQueryInput,
   MwMessageSendInput,
   MwOverview,
+  MwMetricSpec,
+  MwPageColumns,
   MwTopic,
   MwTrace,
+  MwSendField,
   MwBindingCreateInput,
   MwTopicCreateInput,
   MwCapability
@@ -46,6 +50,45 @@ function baseCaps(): Record<string, MwCapability> {
     dlqBrowse: { state: 'unsupported', reason: 'MQTT 无死信概念' }
   }
 }
+
+const CONNECTION_FIELDS: MwConnectionField[] = [
+  { key: 'brokerUrl', label: 'Broker URL', type: 'text', required: true, pattern: 'mqtt-url', placeholder: 'mqtt://10.2.1.31:1883 或 mqtts:// wss://', tip: '默认端口 1883；EMQX 管理面默认 18083（v4 为 8081）' },
+  { key: 'username', label: '用户名', type: 'text', half: true },
+  { key: 'secret', label: '密码', type: 'password', vaultSlot: 'primary', half: true },
+  { key: 'clientId', label: 'ClientId（缺省自动生成）', type: 'text', placeholder: 'enest-mw-…' },
+  { key: 'emqx', label: 'EMQX 管理适配：启用客户端/订阅/retained 管理与完整监控', type: 'switch', path: 'emqx.enabled', default: false },
+  { key: 'emqxApiUrl', label: 'EMQX 管理端点', type: 'text', path: 'emqx.apiUrl', placeholder: 'http://10.2.1.31:18083（v4 填 8081）', visibleWhen: { field: 'emqx' } },
+  { key: 'emqxApiKey', label: 'API Key', type: 'text', path: 'emqx.apiKey', half: true, visibleWhen: { field: 'emqx' } },
+  { key: 'emqxApiSecret', label: 'API Secret', type: 'password', path: 'emqx.apiSecret', vaultSlot: 'emqx', half: true, visibleWhen: { field: 'emqx' } }
+]
+
+const PAGE_COLUMNS: MwPageColumns[] = [
+  { page: 'subscriptions', columns: [
+    { key: 'name', title: '主题 Filter', format: 'mono', width: '38%' },
+    { key: 'qos', title: 'QoS', format: 'num', from: 'extras' },
+    { key: 'clientId', title: '客户端', format: 'mono', from: 'extras' }
+  ] },
+  { page: 'clients', columns: [
+    { key: 'clientId', title: 'Client ID', format: 'mono', width: '30%' },
+    { key: 'host', title: '来源地址', format: 'mono' },
+    { key: 'connectedAt', title: '连接时间', format: 'datetime' },
+    { key: 'subscriptionsCount', title: '订阅数', format: 'num' }
+  ] }
+]
+
+const METRICS_SPEC: MwMetricSpec[] = [
+  { key: 'version', label: '版本', unit: 'text' },
+  { key: 'connections', label: '连接', unit: 'count' },
+  { key: 'topics', label: 'Topic', unit: 'count' },
+  { key: 'subscriptions', label: '订阅', unit: 'count' },
+  { key: 'retained', label: 'Retained 消息', unit: 'count' },
+  { key: 'messagesReceived', label: '接收消息', unit: 'count' }
+]
+
+const SEND_FIELDS: MwSendField[] = [
+  { key: 'qos', label: 'QoS', type: 'select', default: '0', options: [{ value: '0', label: 'QoS 0' }, { value: '1', label: 'QoS 1' }, { value: '2', label: 'QoS 2' }], half: true },
+  { key: 'retain', label: 'Retained（保留消息，新订阅者立即收到）', type: 'switch', default: false }
+]
 
 interface EmqxMgmt {
   version: 'v4' | 'v5'
@@ -208,6 +251,10 @@ export const mqttDriver: MwDriver = {
   defaultPort: 1883,
   capabilities: baseCaps(),
   messageQueryModes: [],
+  connectionFields: CONNECTION_FIELDS,
+  pageColumns: PAGE_COLUMNS,
+  metricsSpec: METRICS_SPEC,
+  sendFields: SEND_FIELDS,
 
   async test(config, password) {
     const started = Date.now()
@@ -446,6 +493,8 @@ export const mqttDriver: MwDriver = {
     if (!r.mgmt) unsupported('retained 管理')
     await emqxDelete(r.mgmt, `/mqtt/retainer/message/${encodeURIComponent(topic)}`)
   },
+
+  queueTemplate: async () => unsupported('死信/延迟模板'),
 
   async tailStart(h, input, sink) {
     const client = rt(h).client

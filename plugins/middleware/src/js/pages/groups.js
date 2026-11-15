@@ -1,8 +1,9 @@
-/** 消费组·订阅·客户端页：kafka/rocketmq=消费组+offsets；rabbitmq=队列伪分组+connections；mqtt=EMQX 客户端 */
+/** 消费组·订阅·客户端页：列定义从驱动 pageColumns 描述符渲染 */
 import {
-  fmt, chip, el, gate, lagBar, escapeHtml,
+  fmt, chip, el, gate, lagBar, escapeHtml, columnsFromSpec,
   simpleGrid, confirmDanger, infoDialog, showContextMenu
 } from '@mw/components.js'
+import { pageColumnsOf } from '@mw/kinds.js'
 
 /* —— 表单原子（与 topics.js 同风格）—— */
 function fieldRow(label, input, tip) {
@@ -90,57 +91,20 @@ export default {
     }
 
     function buildGrid() {
-      if (isKafkaLike) {
-        rebuild([
-          { key: 'groupId', title: '消费组', mono: true, width: '28%' },
-          { key: 'state', title: '状态', render: (r) => stateChip(r.state) },
-          { key: 'members', title: '成员', num: true, render: (r) => r.members != null ? fmt.num(r.members) : '—' },
-          { key: 'totalLag', title: '总堆积', render: (r) => lagBar(r.totalLag) },
-          { key: 'topics', title: '订阅 Topic', num: true, render: (r) => r.topics != null ? fmt.num(r.topics.length ?? r.topics) : '—' }
-        ], {
-          onRowClick: (row) => openGroupDetail(row),
-          onRowCtx: groupCtx,
-          emptyText: '暂无消费组'
+      const spec = pageColumnsOf(kind, viewSegment === 'clients' ? 'clients' : 'groups')
+      if (spec && spec.length) {
+        rebuild(columnsFromSpec(spec), {
+          onRowClick: viewSegment === 'clients' ? undefined : (row) => openGroupDetail(row),
+          onRowCtx: viewSegment === 'clients' ? clientCtx : groupCtx,
+          emptyText: viewSegment === 'clients' ? (isRmq ? '暂无连接' : '暂无客户端') : (isKafkaLike ? '暂无消费组' : '暂无消费者分组')
         })
         return
       }
-      if (isRmq && viewSegment === 'clients') {
-        rebuild([
-          { key: 'clientId', title: '连接（Client ID）', mono: true, width: '30%', render: (r) => escapeHtml(String(r.clientId ?? r.name ?? '—')) },
-          { key: 'host', title: '来源地址', mono: true, render: (r) => escapeHtml(String(r.host ?? r.extras?.peerHost ?? '—')) },
-          { key: 'connectedAt', title: '连接时间', render: (r) => fmt.datetime(r.connectedAt) },
-          { key: 'subscriptionsCount', title: 'Channel/订阅', num: true, render: (r) => fmt.num(r.subscriptionsCount ?? r.extras?.channels) },
-          { key: 'state', title: '状态', render: (r) => stateChip(r.state ?? r.extras?.state) }
-        ], {
-          onRowCtx: clientCtx,
-          emptyText: '暂无连接'
-        })
-        return
-      }
-      if (isRmq) {
-        // 伪分组（按队列聚合的消费者）
-        rebuild([
-          { key: 'groupId', title: '队列（伪分组）', mono: true, width: '28%', render: (r) => escapeHtml(String(r.groupId ?? r.name ?? '—')) },
-          { key: 'consumerCount', title: '消费者', num: true, render: (r) => fmt.num(r.consumerCount ?? r.members ?? 0) },
-          { key: 'messageCount', title: '消息数', num: true, render: (r) => fmt.compact(r.messageCount) },
-          { key: 'ready', title: '就绪', num: true, render: (r) => fmt.num(r.extras?.ready) },
-          { key: 'ack', title: '未确认', num: true, render: (r) => fmt.num(r.extras?.unacked ?? r.extras?.messagesUnacknowledged) }
-        ], {
-          onRowCtx: rmqGroupCtx,
-          emptyText: '暂无消费者分组'
-        })
-        return
-      }
-      // mqtt 客户端
+      // 兜底（描述符未就绪）
       rebuild([
-        { key: 'clientId', title: 'Client ID', mono: true, width: '30%' },
-        { key: 'host', title: '来源地址', mono: true, render: (r) => escapeHtml(String(r.host ?? '—')) },
-        { key: 'connectedAt', title: '连接时间', render: (r) => fmt.datetime(r.connectedAt) },
-        { key: 'subscriptionsCount', title: '订阅数', num: true, render: (r) => fmt.num(r.subscriptionsCount) }
-      ], {
-        onRowCtx: clientCtx,
-        emptyText: '暂无客户端'
-      })
+        { key: viewSegment === 'clients' ? 'clientId' : 'groupId', title: viewSegment === 'clients' ? '客户端' : '消费组', mono: true, width: '30%' },
+        { key: 'members', title: '成员', num: true, render: (r) => fmt.num(r.members) }
+      ], { emptyText: '暂无数据' })
     }
 
     /* —— 数据加载 —— */
@@ -224,16 +188,6 @@ export default {
         item('重置 Offset…', '↺', {
           capKey: 'offsetReset',
           onClick: () => resetOffsets(row)
-        })
-      ])
-    }
-
-    function rmqGroupCtx(e, row) {
-      showContextMenu(e.clientX, e.clientY, [
-        item('重置 Offset…', '↺', {
-          disabled: true,
-          reason: 'AMQP 模型无 offset',
-          onClick: () => {}
         })
       ])
     }

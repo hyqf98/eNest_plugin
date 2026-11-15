@@ -102,6 +102,9 @@ export function App() {
   const sidebarRef = useRef(null)
   const sidebarHandleRef = useRef(null)
   const sidebarBindingRef = useRef(null)
+  const sidebarPeekRef = useRef(null)
+  const sidebarPeekHostRef = useRef(null)
+  const sidebarPeekBindingRef = useRef(null)
   const sidebarWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH)
   const imageDirRef = useRef(null)
   const resizingRef = useRef(false)
@@ -187,18 +190,24 @@ export function App() {
 
   useEffect(() => {
     if (mode !== 'shell' || page !== 'editor') return
-    const binding = PluginKit.bindHoverPanel(sidebarHandleRef.current, sidebarRef.current, {
+    // 收起态：左上角悬浮钮悬停 → 快捷 peek 面板（只读快览，移开自动隐藏）。
+    // 原左缘把手贴 x≈0 与壳 orb 圆轨（14px 宽原生视图）重叠会误触轨道，已移除。
+    const anchor = sidebarPeekHostRef.current
+    const panel = sidebarPeekRef.current
+    if (!anchor || !panel) return
+    const binding = PluginKit.bindHoverPanel(anchor, panel, {
       enabled: () => !sidebarOpen,
       onOpenChange: setSidebarPeek,
-      delay: 120,
-      hideDelay: 300,
+      delay: 140,
+      hideDelay: 260,
       handleClick: false,
     })
-    sidebarBindingRef.current = binding
-    return () => { binding.destroy(); sidebarBindingRef.current = null }
+    sidebarPeekBindingRef.current = binding
+    return () => { binding.destroy(); sidebarPeekBindingRef.current = null }
   }, [mode, page, sidebarOpen])
 
   const toggleSidebar = () => {
+    sidebarPeekBindingRef.current?.hide()
     sidebarBindingRef.current?.hide()
     setSidebarOpen((open) => !open)
   }
@@ -938,6 +947,32 @@ export function App() {
         </div>
       )}
       <div className="md-body">
+        {/* 收起态快览面板：挂在 body 层，悬停左上角悬浮钮弹出；内容复用 Sidebar 的 compact 渲染 */}
+        {!sidebarOpen && (
+          <div ref={sidebarPeekRef} className="md-sidebar-peek" id="md-sidebar-peek">
+            <button type="button" className="md-sidebar-peek-expand" onClick={toggleSidebar} title="展开侧栏（常驻）" aria-label="展开侧栏">
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M3 9 9 3M9 3H4.8M9 3v4.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+            </button>
+            <Sidebar
+              panelRef={sidebarPeekHostRef}
+              tab={sidebarTab}
+              onTab={setSidebarTab}
+              outline={outline}
+              docPath={docPath}
+              textRef={textRef}
+              docVersion={docVersion}
+              recentFiles={recentFiles}
+              onOpenFile={(p) => { void openFile(p) }}
+              onJump={(pos) => viewRef.current?.dispatch({ selection: { anchor: pos }, scrollIntoView: true })}
+              toast={toast}
+              viewRef={viewRef}
+              imageDir={imageDir?.path || ''}
+              compact
+            />
+          </div>
+        )}
         <Sidebar
           panelRef={sidebarRef}
           tab={sidebarTab}
@@ -953,7 +988,9 @@ export function App() {
           viewRef={viewRef}
           imageDir={imageDir?.path || ''}
         />
-        {/* 侧栏右边缘把手：单击切换，横向拖动调宽，双击恢复默认宽度 */}
+        {/* 侧栏右边缘把手（仅展开态）：单击收起，横向拖动调宽，双击恢复默认宽度。
+            收起态不再渲染——左缘竖条与壳 orb 圆轨重叠会误触轨道，展开入口交给编辑区左上角悬浮钮。 */}
+        {sidebarOpen && (
         <button
           ref={sidebarHandleRef}
           type="button"
@@ -997,8 +1034,29 @@ export function App() {
             resetSidebarWidth()
           }}
         />
+        )}
         <section className="md-editor-pane" onDrop={(e) => void onDrop(e.nativeEvent)} onDragOver={(e) => e.preventDefault()} onContextMenu={onEditorContextMenu} onClick={onEditorClick}>
           <div ref={editorHostRef} className="md-editor-host" />
+          {/* 收起态左上角悬浮钮：悬停弹出快捷 peek 面板，点击常驻展开侧栏；peek 打开时淡出让位 */}
+          {!sidebarOpen && (
+            <button
+              ref={sidebarPeekHostRef}
+              type="button"
+              className="md-sidebar-fab"
+              data-peek={sidebarPeek ? 'true' : undefined}
+              aria-controls="md-sidebar-peek"
+              aria-expanded={sidebarPeek}
+              aria-label="快速查看侧栏（悬停预览，点击展开）"
+              title="悬停快速查看大纲与文件 · 点击展开侧栏"
+              onClick={toggleSidebar}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                <line x1="5.5" y1="2.5" x2="5.5" y2="13.5" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              <span>侧栏</span>
+            </button>
+          )}
           {/* 右上角浮动菜单：不占布局行高，悬停才完全显形 */}
           <div className="md-float-menu md-more-wrap" ref={moreRef}>
             <button className="md-more-btn" onClick={() => setMoreOpen((v) => !v)} title="菜单">⋯</button>

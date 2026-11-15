@@ -254,6 +254,7 @@ async function mwWorkbenchService(pluginId: string, request: MwWorkbenchRequest)
     case 'messages.resend': return s.driver.messageResend(h, { message: request.input.message, targetTopic: request.input.targetTopic })
     case 'configs.alter': return s.driver.configsAlter(h, { topic: request.input.topic, configs: request.input.configs })
     case 'retained.delete': return s.driver.retainedDelete(h, request.input.topic)
+    case 'queue.template': return s.driver.queueTemplate(h, request.input)
     default: throw new Error(`Unknown middleware workbench action: ${String(action)}`)
   }
 }

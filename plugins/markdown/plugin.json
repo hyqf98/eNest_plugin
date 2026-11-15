@@ -35,7 +35,10 @@
       "cmds": [
         "笔记",
         "md",
-        "bj"
+        "bj",
+        "biji",
+        "markdown笔记",
+        "md笔记"
       ]
     },
     {
@@ -43,7 +46,8 @@
       "explain": "速记到收件箱",
       "cmds": [
         "速记",
-        "inbox"
+        "inbox",
+        "suji"
       ]
     },
     {

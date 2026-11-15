@@ -41,14 +41,18 @@
       "cmds": [
         "剪贴板",
         "clipboard",
-        "粘贴板"
+        "粘贴板",
+        "jtb",
+        "jiantieban"
       ]
     },
     {
       "code": "manage",
       "explain": "管理剪贴板历史",
       "cmds": [
-        "剪贴板管理"
+        "剪贴板管理",
+        "剪贴板历史",
+        "jtgl"
       ]
     }
   ],

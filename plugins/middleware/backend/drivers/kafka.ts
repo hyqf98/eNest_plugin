@@ -4,14 +4,18 @@ import type { Kafka as KafkaClient, Admin, Consumer, Producer, KafkaMessage, SAS
 import type {
   MwClient,
   MwConnectionConfig,
+  MwConnectionField,
   MwConsumerGroup,
   MwConsumerGroupDetail,
   MwMessage,
   MwMessageQueryInput,
   MwMessageSendInput,
   MwOverview,
+  MwMetricSpec,
+  MwPageColumns,
   MwTopic,
   MwTrace,
+  MwSendField,
   MwBindingCreateInput,
   MwTopicCreateInput
 } from '@backend/contracts/mw-workbench'
@@ -41,6 +45,48 @@ const CAPS: Record<string, { state: 'available' | 'unsupported'; reason?: string
   monitor: { state: 'available' },
   dlqBrowse: { state: 'available', reason: 'Kafka 无原生 DLQ：浏览 __/%DLQ% 内部 topic 人工重放' }
 }
+
+const CONNECTION_FIELDS: MwConnectionField[] = [
+  { key: 'bootstrapServers', label: 'Bootstrap Servers', type: 'text', required: true, pattern: 'host-ports', placeholder: '10.2.1.11:9092,10.2.1.12:9092', tip: '逗号分隔多个 broker 地址 · 默认端口 9092' },
+  { key: 'saslMechanism', label: 'SASL 机制', type: 'select', default: 'none', options: [
+    { value: 'none', label: '无' },
+    { value: 'scram-sha-512', label: 'SCRAM-SHA-512' },
+    { value: 'scram-sha-256', label: 'SCRAM-SHA-256' },
+    { value: 'plain', label: 'PLAIN' }
+  ], half: true },
+  { key: 'username', label: '用户名', type: 'text', placeholder: 'SASL 用户', half: true, visibleWhen: { field: 'saslMechanism', equals: 'none', not: true } },
+  { key: 'secret', label: '密码', type: 'password', vaultSlot: 'primary', visibleWhen: { field: 'saslMechanism', equals: 'none', not: true } },
+  { key: 'tls', label: 'TLS 加密（自签证书可关闭）', type: 'switch', default: true }
+]
+
+const PAGE_COLUMNS: MwPageColumns[] = [
+  { page: 'topics', columns: [
+    { key: 'name', title: 'TOPIC', format: 'mono', width: '30%' },
+    { key: 'type', title: '类型', format: 'type' },
+    { key: 'partitions', title: '分区', format: 'num' },
+    { key: 'messageCount', title: '消息数', format: 'compact' },
+    { key: 'totalSizeBytes', title: '大小', format: 'bytes' },
+    { key: 'lag', title: '堆积', format: 'lag' },
+    { key: 'lag', title: '健康', format: 'health' }
+  ] },
+  { page: 'groups', columns: [
+    { key: 'groupId', title: '消费组', format: 'mono', width: '28%' },
+    { key: 'state', title: '状态', format: 'chip' },
+    { key: 'members', title: '成员', format: 'num' },
+    { key: 'totalLag', title: '总堆积', format: 'lag' },
+    { key: 'topics', title: '订阅 Topic', format: 'num' }
+  ] }
+]
+
+const METRICS_SPEC: MwMetricSpec[] = [
+  { key: 'brokers', label: 'Broker', unit: 'count' },
+  { key: 'topics', label: 'Topic', unit: 'count' }
+]
+
+const SEND_FIELDS: MwSendField[] = [
+  { key: 'key', label: 'Key（可选）', type: 'text', placeholder: '分区按 key 哈希', half: true },
+  { key: 'partition', label: '分区（可选）', type: 'number', placeholder: '缺省自动', min: 0, half: true }
+]
 
 /** 惰性资源池：admin 常驻，producer/query consumer 按需 */
 interface KafkaRuntime {
@@ -196,6 +242,10 @@ export const kafkaDriver: MwDriver = {
   defaultPort: 9092,
   capabilities: CAPS,
   messageQueryModes: ['offset', 'time', 'key'],
+  connectionFields: CONNECTION_FIELDS,
+  pageColumns: PAGE_COLUMNS,
+  metricsSpec: METRICS_SPEC,
+  sendFields: SEND_FIELDS,
 
   async test(config, password) {
     const started = Date.now()
@@ -496,6 +546,7 @@ export const kafkaDriver: MwDriver = {
   traceMessage: async (): Promise<MwTrace> => unsupported('消息轨迹'),
   retainedList: async () => unsupported('retained 管理'),
   retainedDelete: async () => unsupported('retained 管理'),
+  queueTemplate: async () => unsupported('死信/延迟模板'),
 
   async tailStart(h, input, sink) {
     const rt = runtimeOf(h)
