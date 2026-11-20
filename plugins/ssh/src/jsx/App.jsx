@@ -56,7 +56,11 @@ function AppSkeleton() {
 
           <div className="side-body" id="side-body">
             <div className="side-tools">
-              <input id="search-input" type="search" placeholder="搜索" aria-label="搜索连接" />
+              {/* 新建连接的常驻入口：工作台里 FAB 与 rail 都被接管，这里是唯一显性入口。 */}
+              <div className="side-search-row">
+                <input id="search-input" type="search" placeholder="搜索" aria-label="搜索连接" />
+                <button type="button" className="icon-btn" id="btn-new-connection" title="新建连接" aria-label="新建连接">＋</button>
+              </div>
               <div className="filter-row" id="filter-row"></div>
             </div>
             <div className="sel-bar" id="sel-bar" hidden></div>
@@ -220,12 +224,27 @@ function AppSkeleton() {
               </div>
               <div className="field">
                 <span className="field-lbl">颜色</span>
+                {/* 色卡不再平铺在表单里（16 个色块把两列网格挤变形）：
+                    平时只显示当前色 + 色值，点击才弹出面板——大色轮 + 预设 + 手填。 */}
                 <div className="color-pick">
-                  <div className="color-swatches" id="f-color-swatches"></div>
-                  <div className="color-custom">
-                    <input id="f-color" type="text" className="color-hex" placeholder="#5b8cff" maxlength="9" spellcheck="false" />
-                    <input id="f-color-native" type="color" className="color-native" value="#5b8cff" title="自定义颜色" aria-label="自定义颜色" />
-                    <button type="button" className="btn sm ghost" id="btn-color-clear" title="清除颜色">清除</button>
+                  <button type="button" className="color-trigger" id="f-color-trigger" aria-haspopup="dialog" aria-expanded="false">
+                    <span className="color-chip" id="f-color-chip" data-empty="true"></span>
+                    <span className="color-value" id="f-color-value">未设置</span>
+                    <span className="cs-caret">▾</span>
+                  </button>
+                  <div className="color-pop" id="f-color-pop" role="dialog" aria-label="选择颜色" hidden>
+                    <div className="color-wheel">
+                      <canvas id="f-color-wheel" width="176" height="176" role="application" aria-label="色轮，点击取色" />
+                    </div>
+                    <label className="color-brightness">
+                      <span>明度</span>
+                      <input id="f-color-brightness" type="range" min="0" max="100" defaultValue="100" aria-label="明度" />
+                    </label>
+                    <div className="color-swatches" id="f-color-swatches"></div>
+                    <div className="color-custom">
+                      <input id="f-color" type="text" className="color-hex" placeholder="#5b8cff" maxLength={9} spellCheck="false" />
+                      <button type="button" className="btn sm ghost" id="btn-color-clear" title="清除颜色">清除</button>
+                    </div>
                   </div>
                 </div>
               </div>

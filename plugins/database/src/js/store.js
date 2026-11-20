@@ -32,7 +32,12 @@ export const state = {
     exportBom: true,
     autoAliasAfterTable: false,
     paper: 'auto', // auto | paper | cream | dark | board（纸感手绘主题；替代旧 workbenchTheme 材质变体）
-    leftTab: 'sessions' // sessions | connections | tree | history
+    leftTab: 'sessions', // sessions | connections | tree | history
+    // AI 助手偏好（随 db.ui 一并持久化）
+    aiConfirmWrites: true, // AI 写操作执行前弹确认卡
+    aiPanelCollapsed: true, // 悬浮面板默认收起（只显示悬浮球）
+    aiFabPos: undefined, // { x, y } 悬浮球位置记忆
+    aiPanelPos: undefined // { x, y } 面板位置记忆
   },
   // runtime
   runtime: {

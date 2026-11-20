@@ -6,9 +6,8 @@
   "author": "eNest Labs",
   "main": "index.html",
   "views": {
-    "layouts": ["quick", "shell", "panel"],
-    "default": "shell",
-    "panel": { "size": { "width": 320, "height": 260 } }
+    "layouts": ["quick", "shell"],
+    "default": "shell"
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",

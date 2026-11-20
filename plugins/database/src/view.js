@@ -28,5 +28,8 @@ flushSync(() => createRoot(document.getElementById('root')).render(createElement
 // 等 React 渲染出静态外壳后再启动，保证 main.js 的 boot() 能查到全部容器。
 import('./js/main.js').catch(error => databaseIndexedView.fail(error))
 import './ui/pk-ui.css'
+// AI 助手 DSH 色板层：pk-ui 之后、纸面令牌桥之前——纸面 !important 桥可继续接管宿主 token，
+// 本层只定义 --dbai-* 私有变量与组件样式，不参与宿主 token 级联。
+import './css/ai/dsh.css'
 // 纸感手绘主题层最后加载：令牌桥用 !important 接管宿主内联 token。
 import './css/paper-theme.css'

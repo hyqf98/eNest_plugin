@@ -175,6 +175,38 @@ function imageParts(source) {
   return { alt: match[1], src }
 }
 
+/* ---------------- 引用标记：隐藏时保持等宽 ---------------- */
+
+/**
+ * `>` 的隐藏占位。
+ *
+ * 为什么不用 `Decoration.replace({})` 空替换：空替换把这两个字符的宽度变成 0，
+ * 光标停在行首（col 0）时，`>` 因 touched 显形 → 行内文字整体右移，
+ * 而光标视觉位置留在原来的内容区起点，看起来就"压在引用竖线上"。
+ * 显形/隐藏交替时行内几何反复变化，光标也跟着左右跳。
+ *
+ * 用等宽 widget 占位（宽度对齐 `> ` 两个字符），隐藏态与显形态占同样宽度，
+ * 行内几何恒定，光标不跳。颜色/字重随行内引用色，视觉上仍是"标记被藏起来"。
+ */
+class QuoteMarkWidget extends WidgetType {
+  constructor(text) {
+    super()
+    this.text = text
+  }
+  text
+  /** 文案相同才复用，避免每次选区变化重建 DOM */
+  eq(other) { return other.text === this.text }
+  toDOM() {
+    const span = document.createElement('span')
+    span.className = 'md-quote-mark-placeholder'
+    span.setAttribute('aria-hidden', 'true')
+    // 用不换行空格保持宽度与原文一致（`>` 后通常跟一个空格）。
+    span.textContent = this.text.replace(/ /g, '\u00a0')
+    return span
+  }
+  ignoreEvent() { return true }
+}
+
 class InlineImageWidget extends WidgetType {
   constructor(source, opts) {
     super()
@@ -457,7 +489,17 @@ function buildInlineDecorations(view) {
         }
 
         if (HIDDEN_MARK_NODES.has(name)) {
-          if (!touched) ranges.push(Decoration.replace({}).range(from, to));
+          if (!touched) {
+            // 引用标记用等宽占位而不是空替换：空替换会让 `>` 显形时行内文字右移、
+            // 光标留在原处看起来压在竖线上（见 QuoteMarkWidget 注释）。
+            if (name === "QuoteMark") {
+              ranges.push(Decoration.replace({
+                widget: new QuoteMarkWidget(state.sliceDoc(from, to)),
+              }).range(from, to))
+            } else {
+              ranges.push(Decoration.replace({}).range(from, to))
+            }
+          }
           return false;
         }
         if (name === "URL") {

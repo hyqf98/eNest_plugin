@@ -1,0 +1,40 @@
+{
+  "id": "com.github.eNest.tvbox",
+  "name": "影视仓",
+  "version": "0.0.1",
+  "description": "导入 TVBox/影视仓格式影视配置源：多仓多线路站点管理、分类筛选浏览、跨站聚合搜索、多线路选集播放（hls.js）、直播源、收藏与观看历史。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "layouts": ["shell"],
+    "default": "shell"
+  },
+  "category": "媒体",
+  "icon": "assets/market/icon.svg",
+  "engines": { "enest": ">=0.0.1" },
+  "permissions": ["backend.node"],
+  "window": { "width": 1200, "height": 760, "minWidth": 480, "minHeight": 320 },
+  "features": [
+    {
+      "code": "main",
+      "explain": "影视仓：导入配置源，聚合搜索与多线路播放",
+      "cmds": [
+        "影视",
+        "影视仓",
+        "tvbox",
+        "ysc",
+        "电影",
+        "追剧",
+        "看剧"
+      ]
+    }
+  ],
+  "ui": { "chrome": "none", "themeAware": true, "background": "opaque", "preferredColorScheme": "auto" },
+  "market": {
+    "tags": ["影视", "TVBox", "直播", "聚合", "数据源"],
+    "readme": "assets/market/README.md",
+    "screenshots": ["assets/market/screenshots/01-main.png"]
+  },
+  "development": { "main": "http://127.0.0.1:5219/" },
+  "backend": { "entry": "backend/index.cjs" }
+}

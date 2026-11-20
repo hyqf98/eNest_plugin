@@ -84,6 +84,7 @@ import {
 } from './importExport.js'
 import { detectDangerousSql } from './tokenizer.js'
 import { databaseIndexedView, databaseLaunchIndex, savedConnectionId } from './launch-index.js'
+import { registerDatabaseMcp } from './mcp.mjs'
 import { openCtxMenu, closeCtxMenu } from './ctxMenu.js'
 import { bindIconTips } from './tips.js'
 
@@ -565,6 +566,15 @@ async function boot() {
   })
   await workbench.initialize()
   await registerPluginSettings()
+  // loadAll 已完成、业务初始化后注册一次 MCP 工具面（MCP 冷启动页面隐藏，不能等 onEnter）
+  void registerDatabaseMcp().catch(() => { /* 宿主不支持 MCP 或注册握手失败：静默降级为纯手操作 */ })
+  // AI 助手悬浮球：store 就绪后初始化（冷启动页面隐藏也可挂载；交互需页面可见）
+  try {
+    const { initAiPanel } = await import('./ai/panel.mjs')
+    await initAiPanel()
+  } catch (error) {
+    showLocalToast('AI 助手初始化失败：' + (error?.message || error), 'warn')
+  }
 
   applySidebarCollapsed(!!state.ui.sidebarCollapsed)
   dom.rightPanel.style.width = `${state.ui.rightWidth || 280}px`
@@ -575,6 +585,27 @@ async function boot() {
 
   renderAll()
   side.render()
+
+  // AI 助手 → 工作台：SQL 回填 monaco 并聚焦（面板同时收起）
+  document.addEventListener('database-ai-open-sql', (event) => {
+    const sql = String(event.detail?.sql || '')
+    if (!sql.trim()) return
+    const session = currentSession()
+    if (!session) { void newSession(); showLocalToast('请先创建控制台再打开 SQL', 'warn'); return }
+    const document_ = currentEditor() || createEditorTab(session)
+    if (!document_) return
+    updateSessionEditorSql(document_, sql, { line: 1, ch: 0 })
+    openCurrentQuery()
+    renderAll()
+    editor?.focus()
+  })
+  // AI 助手 → 设置页：跳到 AI 助手区并滚动到位
+  document.addEventListener('database-open-settings', () => {
+    workbench?.navigate('settings')
+    requestAnimationFrame(() => {
+      workbench?.pageHost?.querySelector('#settings-ai')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
+  })
 
   api?.onEnter?.((event) => {
     if (event?.code === 'settings') workbench.navigate('settings')

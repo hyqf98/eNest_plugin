@@ -7,48 +7,184 @@ html, body, #root { background: transparent !important; }
 /*
  * 工具窗口配色跟随壳主题（宿主对 themeAware 辅助窗口注入 --surface/--text/--accent/--border）。
  * 画纸主题只保留给「墨色/画笔默认色」，不再决定 chrome 底色；未注入 token 时回落浅色默认。
+ *
+ * 两种形态都是**无底板**的：
+ *   收起 = 一颗球；展开 = 环心一颗球 + 一圈花瓣。
+ * 窗口本身是一块透明的正方形（BLOOM_SIZE），所以不能再给容器铺背景——
+ * 之前那块灰底就是容器的 `background: var(--surface)` 在方形窗口里露出来的。
  */
 .db-desktop-tools {
-  height: 100%; overflow: hidden; padding: 10px 14px; box-sizing: border-box;
+  position: relative; width: 100%; height: 100%;
+  /* absolute 子元素以整个窗口为定位框：不加内边距，球与环都按窗口坐标算。 */
+  box-sizing: border-box;
   font-family: var(--ui); font-size: 12.5px;
-  --surface: var(--surface, #ffffff); --text: var(--text, #253044);
-  color: var(--text, #253044);
-}
-.db-desktop-tools.db-desktop-expanded {
-  border: 1px solid var(--border, #dfe3e8); border-radius: 15px;
-  background: var(--surface, #ffffff);
-  box-shadow: 0 10px 34px color-mix(in srgb, var(--text, #253044) 16%, transparent);
+  /* 宿主注入的 --surface/--text 是白名单 token；这里给的是自包含兜底值。
+     注意不要再写 `--surface: var(--surface, #fff)` 这种自我引用——它会循环解析成空值，
+     球面、色点描边、花瓣底色会一起失效。 */
+  --tool-surface: var(--surface, #ffffff);
+  --tool-border: var(--border, #dfe3e8);
+  --tool-text: var(--text, #253044);
+  color: var(--tool-text);
+  background: transparent;
 }
 
-/* —— 收起态：悬浮球（毛玻璃小圆，右下角带当前画笔色点） —— */
-.db-desktop-ball {
-  position: absolute; right: 6px; bottom: 6px; width: 52px; height: 52px;
-  display: grid; place-items: center; padding: 0; cursor: pointer;
-  border: 1px solid var(--border, #dfe3e8); border-radius: 50%;
-  background: var(--surface, #ffffff);
-  color: var(--text, #253044);
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--text, #253044) 18%, transparent);
+/* —— 球（两种形态共用同一个元素、同一位置）——
+   球本身就是拖拽把手：按下后由 JS 按指针位移发 move 消息平移窗口。
+   不能用 `-webkit-app-region: drag`：那是系统拖窗区，Electron 会把指针事件
+   全部交给原生，pointerdown/click 永远不触发——这正是「点了没反应」的老根因。
+
+   位置用 `calc(50% - 26px)` 而不是 left/top + 负 margin：
+   两者等价，但 calc 只算一次偏移，窗口尺寸切换时不会因为 margin 与百分比
+   分两步解析而抖一帧。球心恒定落在窗口正中，视觉上就是原地开花。 */
+.db-bloom-core {
+  position: absolute; left: calc(50% - 26px); top: calc(50% - 26px);
+  width: 52px; height: 52px; z-index: 3;
+  display: grid; place-items: center; padding: 0; cursor: grab;
+  border: 1px solid var(--tool-border); border-radius: 50%;
+  background: var(--tool-surface); color: var(--tool-text);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--tool-text) 20%, transparent);
   transition: transform 0.16s ease, box-shadow 0.16s ease;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
+  touch-action: none;
 }
-.db-desktop-ball svg { width: 24px; height: 24px; }
-.db-desktop-ball:hover { transform: scale(1.08); box-shadow: 0 8px 26px color-mix(in srgb, var(--accent, #3579dd) 26%, transparent); }
-.db-desktop-ball:active { transform: scale(0.96); }
+.db-bloom-core:active { cursor: grabbing; }
+.db-bloom-core svg { width: 24px; height: 24px; pointer-events: none; }
+.db-bloom-core:hover { transform: scale(1.06); box-shadow: 0 8px 26px color-mix(in srgb, var(--accent, #3579dd) 30%, transparent); }
+.db-bloom-core.is-open { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #3579dd) 42%, transparent), 0 6px 22px color-mix(in srgb, var(--accent, #3579dd) 26%, transparent); }
+
 .db-desktop-ball-dot {
   position: absolute; right: 4px; bottom: 4px; width: 12px; height: 12px;
-  border-radius: 50%; border: 2px solid var(--surface, #ffffff);
+  border-radius: 50%; border: 2px solid var(--tool-surface); pointer-events: none;
 }
 
-/* —— 展开态：面板（右下角与球锚定，视觉原地铺开） —— */
-.db-desktop-drag { display: flex; align-items: center; gap: 12px; height: 25px; -webkit-app-region: drag; user-select: none; }
-.db-desktop-drag strong { font-size: 14px; font-weight: 600; }
-.db-desktop-drag span { flex: 1; font-size: 11px; opacity: .65; }
-.db-desktop-drag button { -webkit-app-region: no-drag; }
-.db-desktop-toolset { display: flex; gap: 3px; margin: 6px 0; }
-.db-desktop-toolset button { flex: 1; padding-inline: 5px; min-width: 0; white-space: nowrap; }
-.db-desktop-options { display: flex; align-items: center; gap: 8px; }
+/* 收起态的关闭入口：只有它一个额外徽标，挂在球右上角。
+   展开后关闭已经在外环上，这颗就淡出且不接事件，避免两个 × 重影。 */
+.db-desktop-ball-close {
+  position: absolute; left: calc(50% + 14px); top: calc(50% - 38px); z-index: 4;
+  width: 18px; height: 18px; padding: 0; cursor: pointer;
+  display: grid; place-items: center;
+  border: 1px solid var(--tool-border); border-radius: 50%;
+  background: var(--tool-surface); color: var(--tool-text);
+  font-size: 12px; line-height: 1;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--tool-text) 22%, transparent);
+  opacity: 0.55; transition: opacity 0.18s ease, transform 0.14s ease;
+  -webkit-app-region: no-drag;
+}
+.db-desktop-tools:not(.db-desktop-bloom):hover .db-desktop-ball-close,
+.db-desktop-ball-close:hover,
+.db-desktop-ball-close:focus-visible { opacity: 1; transform: scale(1.08); }
+/* 展开态隐藏收起态这颗 ×（环上已经有一个）。 */
+.db-desktop-bloom .db-desktop-ball-close { opacity: 0; pointer-events: none; transform: scale(0.6); }
+
+/* 首次就绪的一次性高亮：从 Quick 启动桌面画布时宿主不建 Tab，屏幕上唯一的变化
+   就是这个球；没有这一下闪动，用户会把「启动成功」误判成「缩写没生效」。 */
+@keyframes db-ball-announce {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent, #3579dd) 62%, transparent); }
+  55%  { box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent, #3579dd) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent, #3579dd) 0%, transparent); }
+}
+.db-desktop-announce .db-bloom-core { animation: db-ball-announce 1.25s ease-out 2; }
+@media (prefers-reduced-motion: reduce) {
+  .db-desktop-announce .db-bloom-core { animation: none; outline: 2px solid var(--accent, #3579dd); outline-offset: 3px; }
+}
+
+/* ========== 展开态：花瓣环 ==========
+ * 球留在窗口正中作为环心（单击收起），12 个动作沿圆周弹出成花瓣。
+ * 每片花瓣用 --petal-x/-y 定位（JS 按角度算），自己的 transition-delay 形成
+ * 依次绽放的次序；收起时反向收拢回环心。
+ * 整块区域没有矩形底板：窗口是 252×252 的透明正方形，只有圆与环可见。
+ */
+.db-desktop-bloom { display: grid; place-items: center; }
+
+/* 环层：本身不占位、不吃事件，只是花瓣的定位参照。 */
+.db-bloom-ring { position: absolute; left: calc(50% - 0px); top: calc(50% - 0px); width: 0; height: 0; }
+
+.db-petal {
+  position: absolute; left: 0; top: 0;
+  width: 42px; height: 42px; margin: -21px 0 0 -21px;
+  display: grid; place-items: center; padding: 0; cursor: pointer;
+  border: 1px solid var(--tool-border); border-radius: 50%;
+  background: var(--tool-surface); color: var(--tool-text);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--tool-text) 16%, transparent);
+  /* 起始态：缩在环心、稍微自转，像花苞里还没展开的瓣。
+     位移/缩放/旋转三者同时过渡，花瓣是"从中心长出去"而不是"整体平移"。 */
+  transform: translate(0, 0) scale(0.12) rotate(var(--petal-tilt, 0deg));
+  opacity: 0;
+  transition:
+    transform 0.42s cubic-bezier(0.18, 1.5, 0.42, 1),
+    opacity 0.24s ease,
+    background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition-delay: 0s;
+  -webkit-app-region: no-drag;
+}
+.db-desktop-bloom .db-petal {
+  transform: translate(var(--petal-x), var(--petal-y)) scale(1) rotate(0deg);
+  opacity: 1;
+  transition-delay: var(--petal-delay, 0ms);
+}
+.db-petal svg { width: 20px; height: 20px; pointer-events: none; }
+.db-petal:hover { box-shadow: 0 6px 20px color-mix(in srgb, var(--accent, #3579dd) 32%, transparent); }
+.db-petal.is-active {
+  background: var(--accent, #3579dd); color: #fff;
+  border-color: var(--accent, #3579dd);
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--accent, #3579dd) 45%, transparent);
+}
+/* 未就绪只做轻微降权提示，不拦截点击（拦截会让用户以为点不动）。 */
+.db-petal[aria-disabled='true'] { opacity: 0.55; }
+/* 名称贴在花瓣内侧，默认隐藏，hover/focus 时淡入——环本身要干净，不堆文字。 */
+.db-petal-label {
+  position: absolute; top: calc(100% + 3px); left: 50%; transform: translateX(-50%);
+  padding: 1px 6px; border-radius: 6px; white-space: nowrap; pointer-events: none;
+  background: color-mix(in srgb, var(--tool-text) 88%, transparent); color: #fff;
+  font-size: 10.5px; line-height: 15px; opacity: 0; transition: opacity 0.14s ease;
+}
+.db-petal:hover .db-petal-label,
+.db-petal:focus-visible .db-petal-label { opacity: 1; }
+
+/* 文字花瓣（操作桌面 / 关闭）：与图形花瓣同尺寸同动效，用字代替图标。
+   字号要接近 22px 的图标视觉重量，否则 46px 圆里那个字会显得又小又虚。 */
+.db-petal-text, .db-petal-close { font-size: 13px; }
+.db-petal-glyph { font-size: 20px; line-height: 1; font-weight: 600; }
+.db-petal-close .db-petal-glyph { font-size: 24px; font-weight: 300; }
+.db-petal-text.is-active {
+  background: var(--accent, #3579dd); border-color: var(--accent, #3579dd); color: #fff;
+}
+
+/* 环心球外的小设置钮：点开颜色/粗细浮层，不占环上位置。
+   放在环心与环之间的空档（对角 45°、距环心 ~40px）：球半径 26、钮半径 10，
+   两者不重叠；再往外就压到花瓣了（花瓣内缘 61）。
+   只在展开态出现——收起时点它没有浮层可开，留着只是噪点。 */
+.db-bloom-settings {
+  position: absolute; left: calc(50% + 18px); top: calc(50% + 18px); z-index: 4;
+  width: 20px; height: 20px; padding: 0; cursor: pointer;
+  display: grid; place-items: center;
+  border: 1px solid var(--tool-border); border-radius: 50%;
+  background: var(--tool-surface);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--tool-text) 22%, transparent);
+  -webkit-app-region: no-drag;
+  opacity: 0; pointer-events: none; transform: scale(0.7);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.db-desktop-bloom .db-bloom-settings { opacity: 1; pointer-events: auto; transform: scale(1); transition-delay: 260ms; }
+.db-bloom-settings span { width: 10px; height: 10px; border-radius: 50%; }
+.db-bloom-settings:hover { transform: scale(1.12); }
+
+/* 颜色/粗细浮层：唯一带底板的元素，展开态覆盖在环心区域上方，不额外撑大窗口。 */
+.db-bloom-options {
+  position: absolute; left: 50%; top: 50%; z-index: 5;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  border-radius: 10px; border: 1px solid var(--tool-border);
+  background: var(--tool-surface);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--tool-text) 20%, transparent);
+  -webkit-app-region: no-drag;
+}
 .db-desktop-color { display: flex; align-items: center; gap: 5px; }
-.db-desktop-color input { width: 26px; height: 24px; border: none; padding: 0; background: transparent; cursor: pointer; }
-.db-desktop-options .pk-slider { width: 90px; flex: 1; }
-.db-desktop-error { font-size: 11px; color: var(--danger, #b04135); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.db-desktop-color input { width: 22px; height: 22px; border: none; padding: 0; background: transparent; cursor: pointer; }
+.db-bloom-options .pk-slider { width: 96px; }
+.db-desktop-error {
+  position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
+  max-width: 92%; font-size: 11px; color: var(--danger, #b04135);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .db-settings-desktop-note { font-size: 12px; color: var(--muted); line-height: 1.6; margin: 5px 0 0; }

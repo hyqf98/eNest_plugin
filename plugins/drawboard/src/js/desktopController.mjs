@@ -2,9 +2,15 @@ import { createDesktopTransport } from './desktopTransport.mjs'
 
 export const DESKTOP_SETTING = 'desktopFloatingTools'
 const POSITION_KEY = 'drawboard.desktop.position'
-/** 悬浮球形态的工具窗口尺寸（收起态）；面板右下角与球右下角锚定，展开视觉上原地铺开。 */
+/** 悬浮球形态的工具窗口尺寸（收起态）；展开时以球为圆心呈花瓣环铺开，窗口比环略大。 */
 const BALL_SIZE = { width: 64, height: 64 }
-const PANEL_SIZE = { width: 610, height: 144 }
+/**
+ * 花瓣环直径：12 个动作沿圆周均分（每 30°），环半径 82px。
+ * 窗口取环的外接方形，四周只留阴影余量（比之前的 312 收紧一圈，
+ * 中间空白更少）；球心在两种形态下都落在窗口中心。
+ */
+const BLOOM_SIZE = { width: 252, height: 252 }
+export const BLOOM_RADIUS = 82
 export const DESKTOP_TOOLS = [
   ['select', '选择'], ['pen', '钢笔'], ['highlighter', '荧光笔'], ['eraser', '橡皮'],
   ['rect', '矩形'], ['ellipse', '椭圆'], ['line', '直线'], ['arrow', '箭头'], ['text', '文字'], ['image', '贴图'],
@@ -55,19 +61,34 @@ export function createDesktopController(api, model) {
     await send(toolsId, toolsState())
     status()
   }
-  /** 悬浮球 ↔ 完整面板：右下角锚定换算窗口 bounds，展开在视觉上原地铺开。 */
+  /**
+   * 悬浮球 ↔ 花瓣环：窗口以**球心为不动点**扩缩。
+   *
+   * 两种形态下球心都必须落在同一个屏幕坐标：
+   *   收起 64×64 → 球心 = 窗口左上 + 32
+   *   展开 252×252 → 球心 = 窗口左上 + 126
+   * 所以扩缩时窗口左上角要反向平移 (252-64)/2 = 94px，球在屏幕上才不动。
+   *
+   * 顺序也很重要：**先把窗口改到位，再让渲染层开始播花开动画**。
+   * 反过来的话花瓣会先画在 64×64 的窗口里被裁掉，等原生 resize 到达时
+   * 再"啪"地一下整块跳出来——这就是之前看到的跳变。
+   */
   const setExpanded = async value => {
     if (!toolsId || expanded === Boolean(value)) return
-    expanded = Boolean(value)
-    const size = expanded ? PANEL_SIZE : BALL_SIZE
-    if (!toolsBounds) toolsBounds = { width: size.width, height: size.height, x: 40, y: 40 }
-    const next = {
+    const next = Boolean(value)
+    const size = next ? BLOOM_SIZE : BALL_SIZE
+    if (!toolsBounds) toolsBounds = { width: BALL_SIZE.width, height: BALL_SIZE.height, x: 94, y: 94 }
+    // 当前窗口中心（= 球心）在屏幕上的位置，扩缩后仍要落在这里。
+    const centerX = toolsBounds.x + toolsBounds.width / 2
+    const centerY = toolsBounds.y + toolsBounds.height / 2
+    const bounds = {
       width: size.width, height: size.height,
-      x: toolsBounds.x + toolsBounds.width - size.width,
-      y: toolsBounds.y + toolsBounds.height - size.height,
+      x: Math.round(centerX - size.width / 2), y: Math.round(centerY - size.height / 2),
     }
-    toolsBounds = next
-    await api.auxiliary.send(toolsId, { type: 'expand-ack', value: expanded }, { bounds: next })
+    expanded = next
+    toolsBounds = bounds
+    // 先落窗口，再放动画：ack 到达渲染层时视图已经是最终大小，花瓣在完整画布里盛开。
+    await api.auxiliary.send(toolsId, { type: 'expand-ack', value: next }, { bounds })
   }
   const stop = async () => {
     generation++
@@ -95,6 +116,17 @@ export function createDesktopController(api, model) {
     }
     if (data.type === 'operate') { await setDrawing(false); return }
     if (data.type === 'expand' && id === toolsId) { await setExpanded(data.value === true); return }
+    if (data.type === 'move' && id === toolsId) {
+      // 拖动：按指针位移平移工具窗口。只接受有限的小增量——不接受绝对值，
+      // 也不接受把窗口甩到屏幕外的请求（宿主 boundedWindowBounds 会再夹一次）。
+      const dx = Number(data.dx), dy = Number(data.dy)
+      if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.abs(dx) > 4000 || Math.abs(dy) > 4000) return
+      if (!toolsBounds) return
+      const next = { ...toolsBounds, x: Math.round(toolsBounds.x + dx), y: Math.round(toolsBounds.y + dy) }
+      toolsBounds = next
+      await api.auxiliary.send(toolsId, { type: 'moved' }, { bounds: next })
+      return
+    }
     if (data.type === 'tool-current' && id === canvasId && DESKTOP_TOOLS.some(([key]) => key === data.tool)) {
       tool = data.tool; await send(toolsId, toolsState()); return
     }
@@ -177,11 +209,11 @@ export function createDesktopController(api, model) {
       const canvas = await api.auxiliary.open({ entry: 'assets/vendor/drawboard-desktop/canvas.html', placement: 'display',
         transparent: true, alwaysOnTop: true, focus: false, interaction: 'passthrough', data: {} })
       canvasId = canvas.windowId; addSurface(canvasId); valid()
-      // 存储的位置是「完整面板」的左上角；收起球以右下角锚定换算，展开时原地铺开。
+      // 持久化的是球窗口左上角（球心 = 该点 + BALL_SIZE/2），两种形态共用同一锚点。
       const anchor = position && typeof position === 'object' ? position : null
       const ballBounds = {
         width: BALL_SIZE.width, height: BALL_SIZE.height,
-        ...(anchor ? { x: anchor.x + (anchor.width ?? PANEL_SIZE.width) - BALL_SIZE.width, y: anchor.y + (anchor.height ?? PANEL_SIZE.height) - BALL_SIZE.height } : {}),
+        ...(anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y) ? { x: anchor.x, y: anchor.y } : {}),
       }
       const tools = await api.auxiliary.open({ entry: 'assets/vendor/drawboard-desktop/tools.html', title: '画板工具',
         transparent: true, alwaysOnTop: true, focus: false, parentWindowId: canvasId,
@@ -198,14 +230,34 @@ export function createDesktopController(api, model) {
   const onClosed = event => {
     if (!closing && surfaces.has(event.windowId)) void stop().then(() => api.settings.set(DESKTOP_SETTING, false)).catch(fail)
   }
+  /** 主页面重载（MCP 调度、热重载）会重建控制器，而宿主侧悬浮球/画布窗口仍存活。
+      按 entry 收养既有窗口并重新握手，否则点击球的消息落入空 surfaces 表被静默丢弃。 */
+  const adopt = async () => {
+    if (disposed || toolsId) return
+    try {
+      const existing = await api.auxiliary.list()
+      if (disposed || toolsId || !Array.isArray(existing)) return
+      const canvas = existing.find(item => item.entry.endsWith('/canvas.html'))
+      const tools = existing.find(item => item.entry.endsWith('/tools.html'))
+      if (!canvas || !tools) return
+      canvasId = canvas.windowId; addSurface(canvasId)
+      toolsId = tools.windowId; addSurface(toolsId)
+      // 收养后窗口端可能已停止 hello 轮询：主动补发状态并请求 ready 回执。
+      await send(canvasId, { type: 'resync' })
+      await send(toolsId, toolsState())
+      status()
+    } catch { /* 无辅助窗口或宿主不支持：保持未开状态 */ }
+  }
+  void adopt()
   const onChanged = event => {
     if (event.windowId === toolsId) {
       toolsBounds = { ...event.state.bounds }
-      // 只持久化「完整面板」形态的位置：收起球换算回面板左上角，下次展开仍在原位。
-      const panel = expanded || !toolsBounds.width
-        ? toolsBounds
-        : { ...toolsBounds, x: toolsBounds.x + toolsBounds.width - PANEL_SIZE.width, y: toolsBounds.y + toolsBounds.height - PANEL_SIZE.height, width: PANEL_SIZE.width, height: PANEL_SIZE.height }
-      void api.storage.set(POSITION_KEY, panel).then(() => api.storage.flush()).catch(fail)
+      // 只持久化「收起球」形态：球心在扩缩时保持不动，存球左上角即可还原位置，
+      // 不再需要把花瓣环的几何换算回面板尺寸。
+      const ball = expanded
+        ? { ...toolsBounds, x: Math.round(toolsBounds.x + toolsBounds.width / 2 - BALL_SIZE.width / 2), y: Math.round(toolsBounds.y + toolsBounds.height / 2 - BALL_SIZE.height / 2), width: BALL_SIZE.width, height: BALL_SIZE.height }
+        : { ...toolsBounds }
+      void api.storage.set(POSITION_KEY, ball).then(() => api.storage.flush()).catch(fail)
     }
     if (event.windowId === canvasId && event.state.interaction === 'passthrough' && drawing) {
       drawing = false; void send(toolsId, toolsState()).catch(fail); status()

@@ -7,8 +7,7 @@
   "main": "index.html",
   "views": {
     "default": "shell",
-    "layouts": ["quick", "shell", "panel"],
-    "panel": { "size": { "width": 360, "height": 320 } }
+    "layouts": ["quick", "shell"]
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",
@@ -21,6 +20,194 @@
     "clipboard.write",
     "shell.openExternal"
   ],
+  "contributes": {
+    "mcpTools": [
+      {
+        "id": "search",
+        "title": "Search files by name",
+        "description": "Search the whole disk by file name using the Spotlight (macOS) or Everything HTTP (Windows) engine. Supports multiple keywords, \"exact phrases\", -excluded words and * wildcards. Returns FileInfo rows (path/name/dir/ext/isDirectory/size/mtimeMs) plus provider, total and truncated; page with offset when truncated.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Search expression: keywords, \"phrases\", -exclusions, * wildcards."
+            },
+            "directory": {
+              "type": "string",
+              "maxLength": 1024,
+              "description": "Restrict the search to one absolute directory."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "description": "Max results returned, default 100."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "description": "Skip this many hits for paging, default 0."
+            },
+            "sort": {
+              "type": "string",
+              "enum": ["relevance", "name", "mtime", "size"],
+              "description": "Result ordering, default relevance."
+            }
+          },
+          "required": ["query"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "stat",
+        "title": "Inspect one file",
+        "description": "Return name, directory, extension, isDirectory, size in bytes and mtimeMs for one absolute path. Throws a readable error when the path does not exist.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "description": "Absolute file or directory path."
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "readText",
+        "title": "Read file text",
+        "description": "Read a text file as decoded content (UTF-8/UTF-16/GB18030/Latin-1 auto-detected, BOM handled). The MCP result must stay under 1 MiB, so maxBytes is capped at 700 KiB (default 128 KiB); check the truncated flag and raise maxBytes for larger files. Binary files are rejected.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "description": "Absolute file path."
+            },
+            "maxBytes": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 716800,
+              "description": "Bytes to read, default 131072, hard cap 700 KiB to respect the 1 MiB MCP result limit."
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "readImage",
+        "title": "Read image as MCP content",
+        "description": "Read a local image (png/jpg/jpeg/gif/webp/bmp/svg/avif/ico) and return it as MCP image content the AI can see. Because the base64 payload inflates by 4/3, the read is capped at 700 KiB of raw bytes so the result stays under the 1 MiB MCP limit; larger images are rejected — point the user to open them instead. HEIC/TIFF are rejected (not renderable).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "description": "Absolute image file path."
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "open",
+        "title": "Open file with system handler",
+        "description": "Open a file or directory with the system default application. No confirmation dialog is shown; the caller (AI) is expected to act on an explicit user request.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "description": "Absolute path from search/stat results."
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "reveal",
+        "title": "Reveal in file manager",
+        "description": "Reveal a file in Finder / Explorer (select it) or open the containing folder on Linux.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "description": "Absolute path to locate."
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "trash",
+        "title": "Move to system trash",
+        "description": "Move a file or directory to the OS trash (Finder/Recycle Bin/gio). Recoverable from the trash, but the item leaves its original location — use only on an explicit user request.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "description": "Absolute path to trash."
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true
+        }
+      }
+    ]
+  },
   "window": {
     "width": 860,
     "height": 560,

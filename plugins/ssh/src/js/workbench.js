@@ -35,27 +35,29 @@ async function boot() {
     return host.ssh.workbench({ action, sessionId: bridge.activeSession()?.sessionId, ...values })
   }
   const connected = () => !!bridge.activeSession()?.sessionId
-  const sideActions = document.createElement('span'); sideActions.className = 'wb-connection-actions'
-  sideActions.innerHTML = '<button data-create title="新建连接" aria-label="新建连接">＋</button><button data-import title="导入 OpenSSH config" aria-label="导入 OpenSSH config">↓</button>'
-  // 骨架侧栏早已改为 side-rail + side-body（side-head 在 807e50b 后的重构中被移除）：
-  // 新建/导入动作挂到侧栏搜索工具区下方，找不到锚点时静默跳过（rail 里仍有 ＋ 兜底）。
-  const sideTools = document.querySelector('.side-tools')
-  sideTools?.after(sideActions)
-  sideActions.querySelector('[data-create]').onclick = () => bridge.openProfileForm(null)
-  sideActions.querySelector('[data-import]').onclick = safe(() => importConfig())
-
-  const header = document.createElement('header'); header.className = 'wb-header'
-  header.innerHTML = `<div class="wb-brand"><strong>SSH</strong><span class="wb-mode-label"></span></div><nav aria-label="工作区"><button data-view="terminal">终端</button><button data-view="files">文件</button><button data-view="resources">资源</button></nav><div class="wb-header-end"><button data-command="palette" title="快捷命令">命令 <kbd>${mac ? '⌘⇧P' : 'Ctrl⇧P'}</kbd></button><button class="wb-open-shell" data-command="desktop">在桌面展开 ↗</button></div>`
+  const header = document.createElement('header'); header.className = 'wb-header'  // 顶部只保留身份与全局命令；「终端 / 文件 / 资源」切换已删除——三者各归其位：
+  // 终端占中列，文件与资源在连接后出现的右侧工作列里同时可见。
+  header.innerHTML = `<div class="wb-brand"><strong>SSH</strong><span class="wb-mode-label"></span></div><div class="wb-header-end"><button data-side-toggle title="显示或隐藏右侧工作列" aria-pressed="true">右侧面板</button><button data-command="palette" title="快捷命令">命令 <kbd>${mac ? '⌘⇧P' : 'Ctrl⇧P'}</kbd></button><button class="wb-open-shell" data-command="desktop">在桌面展开 ↗</button></div>`
   app.before(header)
-  const summary = document.createElement('div'); summary.className = 'wb-resource-strip'; summary.innerHTML = '<span>连接后显示服务器资源</span>'
-  main.querySelector('.topbar').replaceWith(summary)
-  const context = document.createElement('div'); context.className = 'wb-session-context'; context.innerHTML = '<span class="status-dot"></span><strong>SSH 工作区</strong><span class="wb-session-target">选择连接后开始</span><span class="wb-session-status"></span><button data-connect>连接</button><button data-hints>命令提示</button>'
+  main.querySelector('.topbar')?.remove()
+  const context = document.createElement('div'); context.className = 'wb-session-context'; context.innerHTML = '<span class="status-dot"></span><strong>SSH 工作区</strong><span class="wb-session-target">从左侧选择连接</span><span class="wb-session-status"></span><button data-connect>连接</button>'
   main.querySelector('.session-tabs').after(context)
-  context.querySelector('[data-connect]').onclick = safe(async () => { const session = bridge.activeSession(); const profile = store.findProfile(session?.profileId || store.state.ui.selectedProfileId); if (profile) await bridge.connectProfile(profile); else navigation.revealConnections() })
-  context.querySelector('[data-hints]').onclick = () => { void settings('completion') }
+  // 「连接」在未选中任何连接时列出已保存连接供挑选；没有连接则直接开新建表单，
+  // 绝不把焦点甩到左侧搜索框（旧行为让人误以为点错了按钮）。
+  context.querySelector('[data-connect]').onclick = safe(async () => {
+    const session = bridge.activeSession(), profile = store.findProfile(session?.profileId || store.state.ui.selectedProfileId)
+    if (profile) return bridge.connectProfile(profile)
+    if (!store.state.profiles.length) return bridge.openProfileForm(null)
+    const button = context.querySelector('[data-connect]'), rect = button.getBoundingClientRect()
+    bridge.showContextMenu(rect.left, rect.bottom + 4, [
+      ...store.state.profiles.slice(0, 12).map(item => ({ label: `${item.name || item.host} · ${item.username || ''}@${item.host}`, onAct: () => { store.setUi({ selectedProfileId: item.id }); bridge.renderLeft(); return bridge.connectProfile(item) } })),
+      { sep: true },
+      { label: '新建连接', onAct: () => bridge.openProfileForm(null) },
+    ])
+  })
   const selectionActions = document.createElement('span'); selectionActions.className = 'wb-selection-actions'; selectionActions.hidden = true
   selectionActions.innerHTML = '<button data-insert-selection title="选中单行命令后填入，保留当前输入">填入选中</button><button data-execute-selection title="执行选中的单行命令">执行选中</button>'
-  context.querySelector('[data-hints]').before(selectionActions)
+  context.append(selectionActions)
   const selectedCommand = () => bridge.activeSession()?.term?.getSelection?.() || ''
   const selectionState = () => { selectionActions.hidden = !selectedCommand().trim() }
   window.addEventListener('ssh-selection-change', selectionState)
@@ -75,23 +77,43 @@ async function boot() {
     ])
   })
   document.querySelectorAll('#panel-metrics,#panel-sftp,#view-chip').forEach(el => el.classList.add('wb-legacy-hidden'))
-  const filesElement = document.createElement('aside'); filesElement.className = 'wb-files'; workspace.append(filesElement)
-  const fileResize = document.createElement('div'); fileResize.className = 'wb-file-resize'; workspace.append(fileResize)
-  fileResize.setAttribute('aria-label', '远程文件面板宽度')
-  bindDockResize(fileResize, filesElement, { axis: 'x', min: 250, max: 720, invert: true, onChange: width => { store.setUi({ filesWidth: width }); workspace.style.setProperty('--ssh-files-width', width + 'px'); editorPane.style.right = width + 'px'; fileResize.style.right = (width - 3) + 'px' } })
-  filesElement.style.width = `${store.state.ui.filesWidth || 300}px`
-  workspace.style.setProperty('--ssh-files-width', `${store.state.ui.filesWidth || 300}px`)
+  // 右侧工作列：连接成功后自动出现，自上而下＝资源概览 / 远程文件 / 工具坞。
+  // 顶部「终端 / 文件 / 资源」切换随之取消——三者不再互斥，终端常驻中列，
+  // 文件与资源同屏可见。quick 小窗仍走整屏视图（空间不够，列放不下）。
+  const right = document.createElement('aside'); right.className = 'wb-right'; right.setAttribute('aria-label', '服务器工作列'); right.hidden = true
+  app.append(right)
+  const summary = document.createElement('div'); summary.className = 'wb-resource-strip'; summary.innerHTML = '<span>连接后显示服务器资源</span>'
+  right.append(summary)
+  const filesElement = document.createElement('aside'); filesElement.className = 'wb-files'; right.append(filesElement)
+  const dock = document.createElement('section'); dock.className = 'wb-dock open'; right.append(dock)
+  dock.innerHTML = `<div class="wb-dock-resize"></div><div class="wb-tool-tabs"><nav>${[['processes','进程'],['ports','端口'],['services','服务'],['docker','Docker'],['tunnels','隧道'],['transfers','传输'],['history','历史']].map(([id,label]) => `<button data-tool="${id}">${label}</button>`).join('')}</nav><button data-tool-close title="收起工具坞">⌄</button></div><div class="wb-tool-toolbar"><input type="search" placeholder="过滤当前列表" aria-label="过滤当前列表"><span class="wb-tool-status"></span><button data-tool-refresh>刷新</button></div><div class="wb-tool-body"></div>`
+  bindDockResize(dock.querySelector('.wb-dock-resize'), dock, { axis: 'y', min: 120, max: 520, invert: true, onChange: height => store.setUi({ dockHeight: height }) })
+  dock.style.height = `${store.state.ui.dockHeight || 260}px`
+  const rightResize = document.createElement('div'); rightResize.className = 'wb-right-resize'; right.append(rightResize)
+  rightResize.setAttribute('aria-label', '右侧工作列宽度')
+  const rightWidth = Math.min(560, Math.max(260, Number(store.state.ui.filesWidth) || 320))
+  bindDockResize(rightResize, right, { axis: 'x', min: 260, max: 560, invert: true, onChange: width => { store.setUi({ filesWidth: width }); requestAnimationFrame(() => { bridge.activeSession()?.term?.fit(); for (const doc of editors.values()) doc.editor?.layout?.() }) } })
+  right.style.width = `${rightWidth}px`
   const editorPane = document.createElement('section'); editorPane.className = 'wb-editor-pane'; workspace.append(editorPane)
-  fileResize.style.right = ((store.state.ui.filesWidth || 300) - 3) + 'px'
-  const fileObserver = new ResizeObserver(() => { fileResize.style.right = (filesElement.clientWidth - 3) + 'px'; editorPane.style.right = mode === 'quick' ? '0px' : filesElement.clientWidth + 'px' }); fileObserver.observe(filesElement)
-  const dock = document.createElement('section'); dock.className = 'wb-dock'; main.append(dock)
-  dock.innerHTML = `<div class="wb-dock-resize"></div><div class="wb-tool-tabs"><nav>${[['processes','进程'],['ports','端口'],['services','服务'],['docker','Docker'],['tunnels','隧道'],['transfers','传输'],['history','历史']].map(([id,label]) => `<button data-tool="${id}">${label}</button>`).join('')}</nav><button data-tool-close title="收起面板">⌄</button></div><div class="wb-tool-toolbar"><input type="search" placeholder="过滤当前列表" aria-label="过滤当前列表"><span class="wb-tool-status"></span><button data-tool-refresh>刷新</button></div><div class="wb-tool-body"></div>`
-  bindDockResize(dock.querySelector('.wb-dock-resize'), dock, { axis: 'y', min: 150, max: 540, invert: true, onChange: height => store.setUi({ dockHeight: height }) })
-  dock.style.height = `${store.state.ui.dockHeight || 240}px`
-  const statusbar = document.createElement('footer'); statusbar.className = 'wb-statusbar'; statusbar.innerHTML = '<span class="wb-connection-state">未连接</span><button data-command="transfers">传输任务</button>'; main.append(statusbar)
+  const statusbar = document.createElement('footer'); statusbar.className = 'wb-statusbar'; statusbar.innerHTML = '<span class="wb-connection-state">未连接</span>'; main.append(statusbar)
 
   const files = new RemoteFiles(filesElement, { session: bridge.activeSession, request, error, message: toast, prompt: bridge.promptDialog, confirm: bridge.confirmDialog, menu: bridge.showContextMenu, copy: bridge.api.copyText, edit: path => safe(openFile)(path), inspect, transfers: () => openTool('transfers') })
   const navigation = createWorkspaceNavigation({ app, bridge, changeView, openSettings: () => void settings(), onLayout: () => requestAnimationFrame(() => bridge.activeSession()?.term?.fit()) })
+
+  /* 右侧工作列：只有进入服务器后才出现（未连接时列里全是空态，纯噪音）。
+     用户的显隐偏好记在 ui.rightOpen；quick 小窗放不下并列，改整屏接管。 */
+  let rightOpen = store.state.ui.rightOpen !== false
+  function paintRight() {
+    const shellMode = mode !== 'quick', visible = shellMode && rightOpen && connected()
+    app.dataset.rightOpen = String(visible)
+    right.hidden = !visible
+    const toggle = header.querySelector('[data-side-toggle]')
+    toggle.hidden = !shellMode || !connected()
+    toggle.setAttribute('aria-pressed', String(visible))
+    toggle.textContent = visible ? '收起右侧' : '右侧面板'
+  }
+  function setRightOpen(open) { rightOpen = !!open; store.setUi({ rightOpen }); paintRight(); requestAnimationFrame(() => { bridge.activeSession()?.term?.fit(); for (const doc of editors.values()) doc.editor?.layout?.() }) }
+  header.querySelector('[data-side-toggle]').onclick = () => setRightOpen(!rightOpen)
 
   function changeView(next) {
     if (mode === 'panel') return
@@ -99,9 +121,12 @@ async function boot() {
     const settingsPage = main.querySelector('.wb-settings-page'); if (settingsPage) settingsPage.hidden = true
     view = next; app.dataset.view = view; document.documentElement.dataset.sshView = view
     navigation.setView(view)
-    header.querySelectorAll('[data-view]').forEach(button => { button.classList.toggle('active', button.dataset.view === view); button.setAttribute('aria-current', button.dataset.view === view ? 'page' : 'false') })
-    if (next === 'files') { if (!files.state.entries.length) void files.refresh(); else files.render(); if (activeEditor) void renderEditor() }
-    if (next === 'resources') openTool(tool)
+    if (next === 'files') {
+      if (mode === 'quick') { if (!files.state.entries.length) void files.refresh(); else files.render() }
+      else { if (!rightOpen) setRightOpen(true); if (!files.state.entries.length) void files.refresh(); else files.render(); filesElement.scrollIntoView({ block: 'nearest' }) }
+      if (activeEditor) void renderEditor()
+    }
+    if (next === 'resources') { if (mode === 'quick') openTool(tool); else { if (!rightOpen) setRightOpen(true); if (!dock.classList.contains('open')) { dock.classList.add('open'); void loadTool() } dock.scrollIntoView({ block: 'nearest' }) } }
     if (next === 'terminal') { editorPane.classList.remove('open'); document.querySelector('#panel-term').classList.add('active'); requestAnimationFrame(() => { bridge.activeSession()?.term?.fit(); bridge.termFocus(); void host?.ui?.focus?.() }) }
   }
   function setMode(next) {
@@ -110,6 +135,7 @@ async function boot() {
     if (mode === 'panel') return
     header.querySelector('.wb-mode-label').textContent = mode === 'quick' ? '快速连接' : '工作台'
     if (mode === 'quick') void host?.ui?.resize?.({ width: 720, height: 420 })
+    paintRight()
     changeView(view)
     if (!connected() && mode === 'quick') navigation.revealConnections()
     bridge.mountActiveTerminal()
@@ -117,11 +143,9 @@ async function boot() {
   }
   host?.onModeChange?.(setMode)
   setMode(host?.getLaunchMode?.() || mode)
-  header.querySelectorAll('[data-view]').forEach(button => button.onclick = () => changeView(button.dataset.view))
   header.querySelectorAll('[data-command]').forEach(button => button.onclick = () => safe(() => registry.run(button.dataset.command))())
-  statusbar.querySelector('[data-command]').onclick = () => openTool('transfers')
   dock.querySelectorAll('[data-tool]').forEach(button => button.onclick = () => openTool(button.dataset.tool))
-  dock.querySelector('[data-tool-close]').onclick = () => { dock.classList.remove('open'); if (view === 'resources') changeView('terminal'); bridge.activeSession()?.term?.fit() }
+  dock.querySelector('[data-tool-close]').onclick = () => { dock.classList.remove('open'); bridge.activeSession()?.term?.fit() }
   dock.querySelector('[data-tool-refresh]').onclick = safe(() => loadTool())
   dock.querySelector('input').oninput = () => renderTool()
 
@@ -268,7 +292,14 @@ async function boot() {
     })
   }
 
-  function openTool(next) { tool = next; dock.classList.add('open'); dock.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool)); if (mode === 'quick' && !['history', 'transfers'].includes(tool) && view !== 'resources') { changeView('resources'); return }; void loadTool(); bridge.activeSession()?.term?.fit() }
+  function openTool(next) {
+    tool = next; dock.classList.add('open')
+    dock.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool))
+    // 壳模式：工具坞常驻右列，直接就地切换；quick 小窗空间不足，非历史/传输类工具转整屏。
+    if (mode === 'quick' && !['history', 'transfers'].includes(tool) && view !== 'resources') { changeView('resources'); return }
+    if (mode !== 'quick' && !rightOpen) setRightOpen(true)
+    void loadTool(); bridge.activeSession()?.term?.fit()
+  }
   const transferStatuses = new Map()
   async function loadTool(silent = false) {
     const revision = ++toolRevision, selectedTool = tool, sessionId = bridge.activeSession()?.sessionId, body = dock.querySelector('.wb-tool-body'), scroll = body.scrollTop
@@ -351,12 +382,13 @@ async function boot() {
       lastSample = value
       publishResourceState({ sample: value, sampledAt: value.ts || Date.now(), loading: false, error: '' })
       const network = value.net.reduce((sum,x) => sum + x.rxKbps + x.txKbps, 0)
-      summary.innerHTML = `<button data-resource="processes"><span>CPU</span><strong>${percentage(value.cpuPercent)}</strong></button><button data-resource="processes"><span>内存</span><strong>${percentage(value.memPercent)}</strong><small>${formatBytes(value.memUsed)} / ${formatBytes(value.memTotal)}</small></button><button data-resource="disks"><span>磁盘</span><strong>${percentage(value.disks[0]?.usedPercent)}</strong></button><button data-resource="ports"><span>网络</span><strong>${network.toFixed(1)} KB/s</strong></button><span class="wb-platform">${({ linux:'Linux',darwin:'macOS',win32:'Windows' })[value.platform]}</span><button data-resource="ports">端口</button><button data-resource="processes">进程</button><button data-resource="integration">启用提示</button>`
-      summary.querySelectorAll('[data-resource]').forEach(button => button.onclick = () => { const resource = button.dataset.resource; if (resource === 'integration') void registry.run('integration'); else if (resource === 'disks') inspect('磁盘使用', value.disks.map(d => `${d.mount} · ${percentage(d.usedPercent)} · ${formatBytes(d.used)} / ${formatBytes(d.total)}`).join('\n')); else openTool(resource) })
+      // 右列是窄列：四个指标排成 2×2 小卡，点卡片进对应工具页。
+      summary.innerHTML = `<button data-resource="processes"><span>CPU</span><strong>${percentage(value.cpuPercent)}</strong><small>${({ linux:'Linux',darwin:'macOS',win32:'Windows' })[value.platform] || ''}</small></button><button data-resource="processes"><span>内存</span><strong>${percentage(value.memPercent)}</strong><small>${formatBytes(value.memUsed)} / ${formatBytes(value.memTotal)}</small></button><button data-resource="disks"><span>磁盘</span><strong>${percentage(value.disks[0]?.usedPercent)}</strong><small>${esc(value.disks[0]?.mount || '')}</small></button><button data-resource="ports"><span>网络</span><strong>${network.toFixed(1)} KB/s</strong><small>收发合计</small></button>`
+      summary.querySelectorAll('[data-resource]').forEach(button => button.onclick = () => { const resource = button.dataset.resource; if (resource === 'disks') inspect('磁盘使用', value.disks.map(d => `${d.mount} · ${percentage(d.usedPercent)} · ${formatBytes(d.used)} / ${formatBytes(d.total)}`).join('\n')); else openTool(resource) })
     } catch (e) {
       if (disposed || bridge.activeSession()?.sessionId !== sessionId) return
       publishResourceState({ loading: false, error: e?.message || '资源采集暂不可用' })
-      summary.innerHTML = `<span class="wb-inline-error" title="${esc(e.message)}">资源采集暂不可用</span><button data-retry>重试</button><button data-integration>启用提示</button>`; summary.querySelector('[data-retry]').onclick = sample; summary.querySelector('[data-integration]').onclick = () => registry.run('integration')
+      summary.innerHTML = `<span class="wb-inline-error" title="${esc(e.message)}">资源采集暂不可用</span><button data-retry>重试</button>`; summary.querySelector('[data-retry]').onclick = sample
     } finally {
       sampleBusy = false
       if (!disposed && connected() && bridge.activeSession()?.sessionId !== sessionId) void sample()
@@ -371,7 +403,6 @@ async function boot() {
     context.querySelector('.status-dot').className = `status-dot ${session?.status || ''}`
     context.querySelector('.wb-session-status').textContent = ({ connected: '已连接', connecting: '连接中', disconnected: '尚未重新连接', exited: '已退出' })[session?.status] || ''
     context.querySelector('[data-connect]').hidden = !!session?.sessionId || session?.status === 'connecting'
-    context.querySelector('[data-hints]').disabled = !session?.sessionId
     statusbar.querySelector('.wb-connection-state').textContent = session ? `${store.findProfile(session.profileId)?.name || session.profileId} · ${session.status === 'connected' ? '已连接' : session.status === 'connecting' ? '连接中' : '未连接'}` : '未连接'
     statusbar.querySelector('.wb-connection-state').title = statusbar.querySelector('.wb-connection-state').textContent
     const changed = key !== activeKey
@@ -382,6 +413,8 @@ async function boot() {
       status: session?.status || 'idle',
       ...(changed ? { sample: null, sampledAt: 0, loading: connected(), error: '' } : {}),
     })
+    // 右侧工作列随会话出现：连上即显示；断开时收起（列内全是空态没有意义）。
+    paintRight()
     if (changed) {
       activeKey = key; lastSample = null; toolRevision++; summary.innerHTML = connected() ? '<span>正在读取服务器资源…</span>' : '<span>连接后显示服务器资源</span>'
       if (mode !== 'panel') void files.refresh()
@@ -397,7 +430,7 @@ async function boot() {
   let sampleTimer = setInterval(() => void sample(), Math.max(2000, Number(prefs.monitorInterval) || 5000))
   transferTimer = setInterval(() => { if (mode !== 'panel' && dock.classList.contains('open') && tool === 'transfers') void loadTool(true) }, 1000)
   host?.onOut?.(() => { /* Remote sessions and tasks remain alive; only visible work pauses. */ })
-  host?.onDestroy?.(() => { disposed = true; delete bridge.refreshResources; clearInterval(sampleTimer); clearInterval(transferTimer); navigation.dispose(); fileObserver.disconnect(); for (const doc of editors.values()) doc.editor?.dispose?.() })
+  host?.onDestroy?.(() => { disposed = true; delete bridge.refreshResources; clearInterval(sampleTimer); clearInterval(transferTimer); navigation.dispose(); for (const doc of editors.values()) doc.editor?.dispose?.() })
   host?.onEnter?.(event => { if (mode === 'panel') onWorkspaceChange(); else if (event.code === 'settings') void settings(); else if (event.code === 'files') changeView('files'); else onWorkspaceChange() })
 
   async function openFile(path) {

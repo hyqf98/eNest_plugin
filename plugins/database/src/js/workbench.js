@@ -13,6 +13,8 @@ import { openCtxMenu } from './ctxMenu.js'
 import { svg as navIcon } from './schemaTree.js'
 import { getCompletionCatalog, warmCompletionCatalog, ensureCompletionColumns, previewSqlCompletion, completionContextKey, captureCompletionMetadataRead, validateCompletionMetadataRead } from './completion.js'
 import { PAPER_OPTIONS, applyPaper, normalizePaper } from './paper-theme.js'
+import { listProviders, saveProvider, removeProvider, setDefaultProvider, fetchModels, normalizeBaseUrl } from './ai/models.mjs'
+import { getAiPanel } from './ai/registry.mjs'
 
 // Modified Option keys can produce non-letter glyphs on macOS; bindings use the physical letter.
 export function normalizeShortcut(event) {
@@ -479,7 +481,7 @@ export class DatabaseWorkbench {
   renderSettings() {
     this.settingsObserver?.disconnect(); this.settingsObserver = null
     const paper = normalizePaper(state.ui.paper)
-    this.pageRoot.innerHTML = `<div class="wb-settings"><div class="wb-page-title"><div><p class="wb-eyebrow">PLUGIN PREFERENCES</p><h1>数据库设置</h1><p class="muted">仅影响数据库插件的界面主题。字号与全局动画继续跟随 eNest，主题偏好在这里单独保存。</p></div><button class="btn" data-back>返回查询</button></div><div class="wb-settings-body"><section class="wb-settings-section" id="settings-appearance"><h2>界面主题</h2><div class="wb-setting-row"><div class="wb-setting-label">纸面主题</div><div class="wb-setting-control"><div class="wb-theme-options" role="group" aria-label="纸面界面主题">${PAPER_OPTIONS.map((item) => `<button type="button" class="wb-theme-option" data-paper-option="${item.id}" aria-pressed="${paper === item.id}"><span class="wb-theme-swatch" aria-hidden="true">${item.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span><span class="wb-theme-copy"><strong>${item.label}</strong><small>${item.desc}</small></span></button>`).join('')}</div></div></div><div class="wb-setting-row"><div class="wb-setting-label">跟随壳子主题</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-follow-theme ${getFollowShellTheme() ? 'checked' : ''}> 使用 eNest 壳主题配色（关闭后使用纸面色板）</label></div></div><p class="wb-setting-note">「跟随明暗」在浅色环境用白纸、深色环境用墨纸；手选纸面立即生效。只保存在数据库插件设置中，不修改 eNest 全局主题或其它插件。</p></section><section class="wb-settings-section" id="settings-editor"><h2>编辑器与查询</h2><div class="wb-setting-row"><div class="wb-setting-label">工作台最大返回行数</div><div class="wb-setting-control"><input type="number" min="200" max="10000" step="200" data-pref="maxRows" value="${state.ui.maxRows || 1000}"></div></div><div class="wb-setting-row"><div class="wb-setting-label">编辑器字号</div><div class="wb-setting-control"><input type="number" min="11" max="24" data-pref="editorFontSize" value="${state.ui.editorFontSize || 13}"></div></div><div class="wb-setting-row"><div class="wb-setting-label">资源中心自动刷新</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-pref="resourceAutoRefresh" ${state.ui.resourceAutoRefresh ? 'checked' : ''}> 可见时每 5 秒刷新</label></div></div><p class="wb-setting-note">Quick 固定最多 200 行，只读查询。服务器不支持的指标会显示原因。</p></section><section class="wb-settings-section" id="settings-layout"><h2>布局与数据</h2><div class="wb-setting-row"><div class="wb-setting-label">结果区域位置</div><div class="wb-setting-control"><select data-pref="resultDock"><option value="bottom" ${state.ui.resultDock !== 'right' ? 'selected' : ''}>编辑器下方</option><option value="right" ${state.ui.resultDock === 'right' ? 'selected' : ''}>编辑器右侧</option></select></div></div><div class="wb-setting-row"><div class="wb-setting-label">恢复默认布局</div><div class="wb-setting-control"><button class="btn" data-reset-layout>重置侧栏与结果区</button></div></div><div class="wb-setting-row"><div class="wb-setting-label">清空查询历史</div><div class="wb-setting-control"><button class="btn" data-clear-history>清空本插件历史</button></div></div><p class="wb-setting-note">查询包含的文本会保存在本机。不要在查询或连接附加参数中保存明文密码。</p></section><section class="wb-settings-section wb-shortcuts" id="settings-shortcuts"><div class="wb-section-heading"><h2>快捷键</h2><button class="btn" data-reset-keys>恢复全部默认</button></div><p class="wb-setting-note">点击快捷键后按组合键，Backspace 停用，Escape 退出录制。Mod 在 macOS 为 Command，在 Windows/Linux 为 Ctrl。</p><div class="db-shortcut-filters"><input type="search" class="wb-search" data-shortcut-search aria-label="搜索快捷键" placeholder="搜索命令、按键或作用域"><select data-shortcut-group aria-label="快捷键分组"><option value="">全部分组</option>${['查询', '编辑器', '结果', '工作台'].map(group => `<option>${group}</option>`).join('')}</select></div><p class="db-shortcut-status" data-shortcut-status role="status" aria-live="polite">普通输入框保留系统编辑快捷键；结果命令仅在表格内生效。</p><div data-shortcut-list></div><p class="wb-setting-note">编辑器内 Enter 自动缩进；Tab / Shift+Tab 调整选中行缩进。表格方向键导航，F2 / Enter 编辑，Mod+C 复制，Mod+Z 撤销。查找框、连接表单和单元格输入保留原生按键。</p></section><section class="wb-settings-section" id="settings-completion"><h2>SQL 补全</h2><div data-completion-settings></div></section></div></div>`
+    this.pageRoot.innerHTML = `<div class="wb-settings"><div class="wb-page-title"><div><p class="wb-eyebrow">PLUGIN PREFERENCES</p><h1>数据库设置</h1><p class="muted">仅影响数据库插件的界面主题。字号与全局动画继续跟随 eNest，主题偏好在这里单独保存。</p></div><button class="btn" data-back>返回查询</button></div><div class="wb-settings-body"><section class="wb-settings-section" id="settings-appearance"><h2>界面主题</h2><div class="wb-setting-row"><div class="wb-setting-label">纸面主题</div><div class="wb-setting-control"><div class="wb-theme-options" role="group" aria-label="纸面界面主题">${PAPER_OPTIONS.map((item) => `<button type="button" class="wb-theme-option" data-paper-option="${item.id}" aria-pressed="${paper === item.id}"><span class="wb-theme-swatch" aria-hidden="true">${item.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span><span class="wb-theme-copy"><strong>${item.label}</strong><small>${item.desc}</small></span></button>`).join('')}</div></div></div><div class="wb-setting-row"><div class="wb-setting-label">跟随壳子主题</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-follow-theme ${getFollowShellTheme() ? 'checked' : ''}> 使用 eNest 壳主题配色（关闭后使用纸面色板）</label></div></div><p class="wb-setting-note">「跟随明暗」在浅色环境用白纸、深色环境用墨纸；手选纸面立即生效。只保存在数据库插件设置中，不修改 eNest 全局主题或其它插件。</p></section><section class="wb-settings-section" id="settings-editor"><h2>编辑器与查询</h2><div class="wb-setting-row"><div class="wb-setting-label">工作台最大返回行数</div><div class="wb-setting-control"><input type="number" min="200" max="10000" step="200" data-pref="maxRows" value="${state.ui.maxRows || 1000}"></div></div><div class="wb-setting-row"><div class="wb-setting-label">编辑器字号</div><div class="wb-setting-control"><input type="number" min="11" max="24" data-pref="editorFontSize" value="${state.ui.editorFontSize || 13}"></div></div><div class="wb-setting-row"><div class="wb-setting-label">资源中心自动刷新</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-pref="resourceAutoRefresh" ${state.ui.resourceAutoRefresh ? 'checked' : ''}> 可见时每 5 秒刷新</label></div></div><p class="wb-setting-note">Quick 固定最多 200 行，只读查询。服务器不支持的指标会显示原因。</p></section><section class="wb-settings-section" id="settings-layout"><h2>布局与数据</h2><div class="wb-setting-row"><div class="wb-setting-label">结果区域位置</div><div class="wb-setting-control"><select data-pref="resultDock"><option value="bottom" ${state.ui.resultDock !== 'right' ? 'selected' : ''}>编辑器下方</option><option value="right" ${state.ui.resultDock === 'right' ? 'selected' : ''}>编辑器右侧</option></select></div></div><div class="wb-setting-row"><div class="wb-setting-label">恢复默认布局</div><div class="wb-setting-control"><button class="btn" data-reset-layout>重置侧栏与结果区</button></div></div><div class="wb-setting-row"><div class="wb-setting-label">清空查询历史</div><div class="wb-setting-control"><button class="btn" data-clear-history>清空本插件历史</button></div></div><p class="wb-setting-note">查询包含的文本会保存在本机。不要在查询或连接附加参数中保存明文密码。</p></section><section class="wb-settings-section wb-shortcuts" id="settings-shortcuts"><div class="wb-section-heading"><h2>快捷键</h2><button class="btn" data-reset-keys>恢复全部默认</button></div><p class="wb-setting-note">点击快捷键后按组合键，Backspace 停用，Escape 退出录制。Mod 在 macOS 为 Command，在 Windows/Linux 为 Ctrl。</p><div class="db-shortcut-filters"><input type="search" class="wb-search" data-shortcut-search aria-label="搜索快捷键" placeholder="搜索命令、按键或作用域"><select data-shortcut-group aria-label="快捷键分组"><option value="">全部分组</option>${['查询', '编辑器', '结果', '工作台'].map(group => `<option>${group}</option>`).join('')}</select></div><p class="db-shortcut-status" data-shortcut-status role="status" aria-live="polite">普通输入框保留系统编辑快捷键；结果命令仅在表格内生效。</p><div data-shortcut-list></div><p class="wb-setting-note">编辑器内 Enter 自动缩进；Tab / Shift+Tab 调整选中行缩进。表格方向键导航，F2 / Enter 编辑，Mod+C 复制，Mod+Z 撤销。查找框、连接表单和单元格输入保留原生按键。</p></section><section class="wb-settings-section" id="settings-ai"><h2>AI 助手</h2><p class="wb-setting-note">供应商需兼容 OpenAI chat/completions 接口；密钥只存本机凭据库（vault），请求经宿主 net.fetch 注入鉴权。缺少 net.fetch 权限时助手无法联网。</p><div data-ai-settings></div></section><section class="wb-settings-section" id="settings-completion"><h2>SQL 补全</h2><div data-completion-settings></div></section></div></div>`
     this.pageRoot.querySelector('[data-back]').onclick = () => this.navigate('query')
     this.pageRoot.querySelectorAll('[data-pref]').forEach((input) => input.onchange = () => {
       const value = input.type === 'checkbox' ? input.checked : input.type === 'number' ? Math.max(Number(input.min), Math.min(Number(input.max), Number(input.value) || Number(input.min))) : input.value
@@ -497,6 +499,7 @@ export class DatabaseWorkbench {
       try { await storageSet(StorageKeys.followShellTheme, followBox.checked); await applyShellTheme() } catch (error) { this.ctx.message(error.message, 'error') }
     }
     this.bindShortcutSettings()
+    void this.bindAiSettings().catch(error => this.ctx.message(error.message, 'error'))
     void this.bindCompletionSettings().catch(error => this.ctx.message(error.message, 'error'))
     this.pageRoot.querySelector('[data-reset-layout]').onclick = () => { for (const [key, value] of Object.entries({ leftWidth: 240, rightWidth: 280, bottomHeight: 300, resultDock: 'bottom', sidebarCollapsed: false })) setUiPref(key, value); this.root.dataset.resultDock = 'bottom'; this.ctx.resetLayout(); this.ctx.message('默认布局已恢复', 'success') }
     this.pageRoot.querySelector('[data-clear-history]').onclick = async () => { try { await storageSet(StorageKeys.queryHistory, []); state.queryHistory = []; this.ctx.message('查询历史已清空', 'success') } catch (error) { this.ctx.message(error.message, 'error') } }
@@ -586,6 +589,90 @@ export class DatabaseWorkbench {
         this.ctx.editor().scheduleDiagnostics?.()
       }
     })
+  }
+  /** AI 助手设置：供应商 CRUD（名称/地址/模型/密钥/默认）+ 写操作确认开关 + 面板位置复位 */
+  async bindAiSettings() {
+    const root = this.pageRoot.querySelector('[data-ai-settings]')
+    if (!root) return
+    const message = (text, type = 'info') => this.ctx.message(text, type)
+    const render = async () => {
+      const providers = await listProviders()
+      root.innerHTML = `
+        <div data-ai-provider-list>
+          ${providers.length ? providers.map((p) => `
+            <div class="wb-setting-row" data-ai-provider="${esc(p.id)}">
+              <div class="wb-setting-label"><strong>${esc(p.name)}</strong>${p.isDefault ? ' <span class="badge xs">默认</span>' : ''}<br><small class="muted">${esc(p.model)} · ${esc(normalizeBaseUrl(p.baseUrl))}${p.secretRef ? ' · 已存密钥' : ' · 无密钥'}</small></div>
+              <div class="wb-setting-control">
+                ${p.isDefault ? '' : `<button class="btn" data-ai-default="${esc(p.id)}">设为默认</button>`}
+                <button class="btn" data-ai-edit="${esc(p.id)}">编辑</button>
+                <button class="btn" data-ai-remove="${esc(p.id)}">删除</button>
+              </div>
+            </div>`).join('') : '<p class="muted">还没有配置供应商，点击下方添加。</p>'}
+        </div>
+        <div class="wb-setting-row"><div class="wb-setting-label">添加供应商</div><div class="wb-setting-control"><button class="btn" data-ai-add>添加模型供应商</button></div></div>
+        <div class="wb-setting-row"><div class="wb-setting-label">写操作需确认</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-ai-confirm-writes ${state.ui.aiConfirmWrites !== false ? 'checked' : ''}> AI 执行 INSERT/UPDATE/DELETE 等写操作前弹出确认卡</label></div></div>
+        <div class="wb-setting-row"><div class="wb-setting-label">悬浮助手位置</div><div class="wb-setting-control"><button class="btn" data-ai-reset-panel>重置面板位置</button></div></div>
+      `
+      const providerForm = (provider = {}) => {
+        const modal = createDialog({
+          title: provider.id ? '编辑供应商' : '添加供应商',
+          content: `<div class="form-grid">
+            <label class="span2">名称<input data-k="name" value="${esc(provider.name || '')}" placeholder="例如：DeepSeek / 本地网关"></label>
+            <label class="span2">服务地址 Base URL<input data-k="baseUrl" value="${esc(provider.baseUrl || '')}" placeholder="https://api.example.com（自动补 https 与 /v1）"><small class="muted">${provider.baseUrl ? `生效地址：${esc(normalizeBaseUrl(provider.baseUrl))}` : ''}</small></label>
+            <label class="span2">模型<input data-k="model" value="${esc(provider.model || '')}" placeholder="手动填写，或点右侧拉取"></label>
+            <label class="span2">API Key（只写不读，存本机凭据库）<input data-k="secret" type="password" autocomplete="new-password" placeholder="${provider.secretRef ? '已保存，留空保留' : 'sk-…'}"></label>
+            <div class="form-check-row span2"><label><input data-k="isDefault" type="checkbox" ${provider.isDefault !== false ? 'checked' : ''}> 设为默认供应商</label></div>
+          </div><p class="hint" data-el="ai-hint" role="status"></p><div class="form-actions"><button class="btn" data-act="fetch-models">拉取模型列表</button><span class="spacer"></span><button class="btn" data-act="cancel">取消</button><button class="btn primary" data-act="save">保存</button></div>`
+        })
+        const body = modal.body
+        const hint = body.querySelector('[data-el=ai-hint]')
+        const get = (k) => body.querySelector(`[data-k=${k}]`)
+        const draft = () => ({
+          id: provider.id,
+          name: get('name').value.trim(),
+          baseUrl: get('baseUrl').value.trim(),
+          model: get('model').value.trim(),
+          secret: get('secret').value,
+          isDefault: get('isDefault').checked
+        })
+        body.querySelector('[data-act=cancel]').onclick = modal.close
+        body.querySelector('[data-act=fetch-models]').onclick = async (event) => {
+          const button = event.target
+          button.disabled = true; hint.textContent = '正在拉取模型…'
+          try {
+            const models = await fetchModels(draft())
+            const model = get('model')
+            model.setAttribute('list', 'ai-model-options')
+            let list = body.querySelector('#ai-model-options')
+            if (!list) { list = document.createElement('datalist'); list.id = 'ai-model-options'; body.append(list) }
+            list.innerHTML = models.map((m) => `<option value="${esc(m)}"></option>`).join('')
+            hint.textContent = models.length ? `拉取到 ${models.length} 个模型，输入框可选择` : '网关未返回模型列表'
+          } catch (error) { hint.textContent = `拉取失败：${error.message}` }
+          button.disabled = false
+        }
+        body.querySelector('[data-act=save]').onclick = async (event) => {
+          const button = event.target
+          button.disabled = true
+          try {
+            await saveProvider(draft())
+            modal.close(); message('供应商已保存', 'success'); await render()
+          } catch (error) { hint.textContent = error.message; button.disabled = false }
+        }
+        get('name').focus()
+      }
+      root.querySelector('[data-ai-add]').onclick = () => providerForm()
+      for (const button of root.querySelectorAll('[data-ai-edit]')) button.onclick = () => providerForm(providers.find((p) => p.id === button.dataset.aiEdit))
+      for (const button of root.querySelectorAll('[data-ai-remove]')) button.onclick = async () => {
+        if (!window.confirm('删除该供应商配置？（不会影响已保存密钥以外的数据）')) return
+        await removeProvider(button.dataset.aiRemove)
+        await render()
+      }
+      for (const button of root.querySelectorAll('[data-ai-default]')) button.onclick = async () => { await setDefaultProvider(button.dataset.aiDefault); await render() }
+      const confirmBox = root.querySelector('[data-ai-confirm-writes]')
+      if (confirmBox) confirmBox.onchange = () => setUiPref('aiConfirmWrites', confirmBox.checked)
+      root.querySelector('[data-ai-reset-panel]').onclick = () => { getAiPanel()?.resetPositions(); message('AI 面板位置已重置', 'success') }
+    }
+    await render().catch((error) => message(error.message, 'error'))
   }
   bindShortcutSettings() {
     const root = this.pageRoot.querySelector('.wb-shortcuts'), search = root.querySelector('[data-shortcut-search]'), group = root.querySelector('[data-shortcut-group]'), status = root.querySelector('[data-shortcut-status]')

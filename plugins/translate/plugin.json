@@ -22,7 +22,7 @@
   "features": [
     {
       "code": "main",
-      "explain": "翻译文本",
+      "explain": "多引擎文本翻译，可粘贴内容直接译",
       "cmds": [
         "翻译",
         "translate",

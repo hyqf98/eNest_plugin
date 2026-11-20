@@ -62,24 +62,26 @@ export async function renderGallery(body, kit, { onNavigate }) {
         <input id="g-q" type="search" placeholder="搜索宠物（名称 / 描述 / 作者 / 标签）" value="${escapeHtml(state.query)}" aria-label="搜索宠物" />
         <button type="submit" class="cp-btn">查找</button>
       </form>
-      <div class="cp-sorts" role="tablist" aria-label="排序">
-        ${GALLERY_SORTS.map(s => `<button type="button" role="tab" class="cp-sort${s.id === state.sort ? ' is-active' : ''}" data-sort="${s.id}" aria-selected="${s.id === state.sort}">${s.label}</button>`).join('')}
+      <!-- 排序与筛选移到搜索框**下方**独立一行。
+           原来 7 个排序 + 查找 + 筛选挤在一行，搜索框被压到只剩六成宽。 -->
+      <div class="cp-filters-row">
+        <div class="cp-sorts" role="tablist" aria-label="排序">
+          ${GALLERY_SORTS.map(s => `<button type="button" role="tab" class="cp-sort${s.id === state.sort ? ' is-active' : ''}" data-sort="${s.id}" aria-selected="${s.id === state.sort}">${s.label}</button>`).join('')}
+        </div>
+        <button type="button" class="cp-btn ghost" id="g-filters">筛选${state.tags.length ? `（${state.tags.length}）` : ''}</button>
       </div>
-      <button type="button" class="cp-btn ghost" id="g-filters">筛选${state.tags.length ? `（${state.tags.length}）` : ''}</button>
     </div>
     <div class="cp-meta">
       <span id="g-count">加载中…</span>
-      <span id="g-page"></span>
     </div>
     <div class="cp-grid" id="g-grid"></div>
-    <nav class="cp-pager" id="g-pager" aria-label="分页"></nav>
     <dialog id="g-filters-dlg" class="cp-filters-dlg"><div class="cp-filters-body"></div></dialog>
   `
 
   const grid = body.querySelector('#g-grid')
   const countEl = body.querySelector('#g-count')
-  const pageEl = body.querySelector('#g-page')
-  const pager = body.querySelector('#g-pager')
+  // 分页容器在底栏（App.jsx 的 footer 内），不随视图重建。
+  const pager = document.querySelector('#g-pager')
 
   // 搜索
   body.querySelector('#g-search').addEventListener('submit', event => {
@@ -109,7 +111,6 @@ export async function renderGallery(body, kit, { onNavigate }) {
   const totalPages = Math.max(1, data.totalPages ?? 1)
   const total = data.total ?? pets.length
   countEl.textContent = `${Number(total).toLocaleString()} 只宠物`
-  pageEl.textContent = `第 ${data.page ?? state.page} / ${totalPages} 页`
 
   if (pets.length === 0) {
     grid.innerHTML = '<div class="cp-empty">没有找到宠物</div>'
@@ -221,17 +222,25 @@ async function loadPoster(img) {
   }
 }
 
+/**
+ * 分页控件（渲染进底栏的 #g-pager）。
+ *
+ * 底栏只有一行、左右还各有状态与原站链接，所以用「‹ 第 N / M 页 ›」的紧凑形态，
+ * 不用「上一页 / 跳转 / 下一页」三个按钮——那会把底栏撑高、挤掉中间空间。
+ * 页码输入保留（大页数时直接跳），但收窄成 3.2em 宽。
+ */
 function renderPager(pager, page, totalPages, go) {
   pager.innerHTML = `
-    <button type="button" class="cp-btn ghost" data-prev ${page <= 1 ? 'disabled' : ''}>上一页</button>
-    <span class="cp-pager-num">第 <input type="number" min="1" max="${totalPages}" value="${page}" aria-label="页码" /> / ${totalPages} 页
-      <button type="button" class="cp-btn ghost" data-go>跳转</button></span>
-    <button type="button" class="cp-btn ghost" data-next ${page >= totalPages ? 'disabled' : ''}>下一页</button>
+    <button type="button" class="cp-pager-btn" data-prev ${page <= 1 ? 'disabled' : ''} aria-label="上一页" title="上一页">‹</button>
+    <span class="cp-pager-num">第 <input type="number" min="1" max="${totalPages}" value="${page}" aria-label="页码" /> / ${totalPages} 页</span>
+    <button type="button" class="cp-pager-btn" data-next ${page >= totalPages ? 'disabled' : ''} aria-label="下一页" title="下一页">›</button>
   `
   pager.querySelector('[data-prev]').addEventListener('click', () => { if (page > 1) go(page - 1) })
   pager.querySelector('[data-next]').addEventListener('click', () => { if (page < totalPages) go(page + 1) })
-  pager.querySelector('[data-go]').addEventListener('click', () => {
-    const value = Number(pager.querySelector('input').value)
+  // 输入页码后回车即跳转（底栏空间紧，不放"跳转"按钮）
+  pager.querySelector('input').addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return
+    const value = Number(event.currentTarget.value)
     if (Number.isInteger(value) && value >= 1 && value <= totalPages) go(value)
   })
 }

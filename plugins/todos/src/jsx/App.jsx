@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
 import { PanelView } from './PanelView.jsx'
 import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
+import { registerTodosMcp } from '../js/mcp.mjs'
 
 const KEY = 'todos_v2'
 const LABELS = { all: '全部', today: '今天', important: '重要', done: '已完成', archived: '归档' }
@@ -637,6 +638,149 @@ export function App() {
       saveNow(undefined, next)
     }
   }
+
+  // —— MCP 工具面：复用现有 mutation + persist 路径（checkpoint / saveNow / patchTask），
+  // 不绕过撤销快照机制；结构变更走立即保存，字段编辑走详情面板同款防抖保存。 ——
+  const setListState = setList
+  const mcpApiRef = useRef(null)
+  if (!mcpApiRef.current) {
+    mcpApiRef.current = {
+      listTasks({ list, done, tags, keyword, includeArchived, limit }) {
+        const { tasks } = stateRef.current
+        const kw = String(keyword || '').toLowerCase()
+        const tagSet = tags?.length ? new Set(tags.map((tag) => String(tag).toLowerCase())) : null
+        const filtered = tasks
+          .filter(
+            (t) =>
+              (!list || t.list === list) &&
+              (done === undefined || t.done === done) &&
+              (includeArchived || !t.archived) &&
+              (!tagSet || t.tags.some((tag) => tagSet.has(String(tag).toLowerCase()))) &&
+              (!kw || `${t.text} ${t.note} ${t.tags.join(' ')}`.toLowerCase().includes(kw)),
+          )
+          .sort((a, b) => {
+            if (Number(a.done) !== Number(b.done)) return Number(a.done) - Number(b.done)
+            const ao = a.order ?? Number.MAX_SAFE_INTEGER
+            const bo = b.order ?? Number.MAX_SAFE_INTEGER
+            if (ao !== bo) return ao - bo
+            return (
+              Number(b.pinned) - Number(a.pinned) ||
+              Number(b.priority === 'high') - Number(a.priority === 'high') ||
+              (a.due || '9999').localeCompare(b.due || '9999') ||
+              b.createdAt - a.createdAt
+            )
+          })
+        const cap = Math.max(1, Math.min(Number(limit) || 200, 1000))
+        return { tasks: filtered.slice(0, cap), total: filtered.length, truncated: filtered.length > cap }
+      },
+      addTask(patch) {
+        if (!stateRef.current.ready) throw new Error('数据尚未就绪')
+        const text = String(patch.text || '').trim()
+        if (!text) throw new Error('text 不能为空')
+        const t = normalize({
+          id: uid(),
+          text: text.slice(0, 500),
+          due: patch.due || '',
+          priority: patch.priority || 'normal',
+          list: patch.list || '收件箱',
+          tags: Array.isArray(patch.tags) ? patch.tags : [],
+          note: String(patch.note || ''),
+        })
+        checkpoint()
+        setTasks((prev) => [t, ...prev])
+        saveNow([t, ...stateRef.current.tasks])
+        return t
+      },
+      updateTask(id, patch) {
+        const t = stateRef.current.tasks.find((row) => row.id === id)
+        if (!t) throw new Error(`未找到 id 为 ${id} 的任务`)
+        const { pinned, archived, ...fields } = patch
+        const structural = {}
+        if (pinned !== undefined) structural.pinned = Boolean(pinned)
+        if (archived !== undefined) structural.archived = Boolean(archived)
+        if (Object.keys(structural).length) {
+          // 置顶/归档与 UI 右键菜单同路径：快照 + 立即保存
+          checkpoint()
+          const now = Date.now()
+          const next = stateRef.current.tasks.map((row) => (row.id === id ? { ...row, ...structural, updatedAt: now } : row))
+          setTasks(next)
+          saveNow(next)
+        }
+        if (Object.keys(fields).length) patchTask(id, fields)
+        return { ...t, ...structural, ...(Object.keys(fields).length ? fields : {}), updatedAt: Date.now() }
+      },
+      toggleTask(id, done) {
+        const t = stateRef.current.tasks.find((row) => row.id === id)
+        if (!t) throw new Error(`未找到 id 为 ${id} 的任务`)
+        const target = done === undefined ? !t.done : Boolean(done)
+        if (t.done === target) return { ...t, changed: false }
+        checkpoint()
+        const now = Date.now()
+        const next = stateRef.current.tasks.map((row) => (row.id === id ? { ...row, done: target, updatedAt: now } : row))
+        setTasks(next)
+        saveNow(next)
+        return { ...t, done: target, updatedAt: now, changed: true }
+      },
+      deleteTask(id) {
+        const t = stateRef.current.tasks.find((row) => row.id === id)
+        if (!t) throw new Error(`未找到 id 为 ${id} 的任务`)
+        removeTask(id)
+        return t
+      },
+      listLists() {
+        const { tasks, lists } = stateRef.current
+        return {
+          lists: lists.map((name) => ({
+            name,
+            open: tasks.filter((t) => t.list === name && !t.done && !t.archived).length,
+            done: tasks.filter((t) => t.list === name && t.done && !t.archived).length,
+            archived: tasks.filter((t) => t.list === name && t.archived).length,
+          })),
+        }
+      },
+      addList(name) {
+        const { lists } = stateRef.current
+        if (lists.includes(name)) return { name, existed: true }
+        const next = [...lists, name]
+        setLists(next)
+        saveNow(undefined, next)
+        return { name, existed: false }
+      },
+      renameList(from, to) {
+        const { tasks, lists } = stateRef.current
+        if (!lists.includes(from)) throw new Error(`未找到清单「${from}」`)
+        if (lists.includes(to)) throw new Error(`清单「${to}」已存在`)
+        checkpoint()
+        const moved = tasks.filter((t) => t.list === from).length
+        const nextTasks = tasks.map((t) => (t.list === from ? { ...t, list: to } : t))
+        const nextLists = lists.map((name) => (name === from ? to : name))
+        setTasks(nextTasks)
+        setLists(nextLists)
+        if (stateRef.current.list === from) setListState('全部清单')
+        saveNow(nextTasks, nextLists)
+        return { from, to, moved }
+      },
+      deleteList(name) {
+        const { tasks, lists } = stateRef.current
+        if (name === '收件箱') throw new Error('收件箱是默认清单，不能删除')
+        if (!lists.includes(name)) throw new Error(`未找到清单「${name}」`)
+        checkpoint()
+        const moved = tasks.filter((t) => t.list === name).length
+        const nextTasks = tasks.map((t) => (t.list === name ? { ...t, list: '收件箱' } : t))
+        const nextLists = lists.filter((l) => l !== name)
+        setTasks(nextTasks)
+        setLists(nextLists)
+        if (stateRef.current.list === name) setListState('全部清单')
+        saveNow(nextTasks, nextLists)
+        return { deleted: name, moved }
+      },
+    }
+  }
+  useEffect(() => {
+    if (!ready) return
+    // 数据就绪后注册一次、不等页面可见（MCP 冷启动页面是隐藏的）；宿主不支持或握手失败静默降级
+    registerTodosMcp(mcpApiRef.current).catch(() => {})
+  }, [ready])
 
   const importTasks = async () => {
     const kit = kitRef.current

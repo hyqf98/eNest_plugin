@@ -300,6 +300,18 @@
 /* 文件视图右缘 / 工具坞顶缘分界换墨线。 */
 :root[data-paper] .app .wb-files { border-left: 1.4px dashed var(--ink-line); background: transparent; }
 :root[data-paper] .app .wb-dock { border-top: 1.5px dashed var(--ink-line); background: transparent; }
+/* 右侧工作列：与侧栏/主区同级的第三张纸片（连接后出现）。 */
+:root[data-paper] .app .wb-right {
+  background: color-mix(in srgb, var(--surface) 82%, var(--bg));
+  border: 1.5px dashed var(--ink-line);
+  border-radius: var(--appearance-panel-radius, 10px);
+  box-shadow: 2px 3px 0 var(--ac-shadow);
+}
+/* 资源概览在列内是 2×2 网格，1px 网格线走墨色而非边框色。 */
+:root[data-paper] .app .wb-right > .wb-resource-strip { border-bottom-color: var(--ink-line-soft); background: var(--ink-line-soft); }
+:root[data-paper] .app .wb-right > .wb-resource-strip > button,
+:root[data-paper] .app .wb-right > .wb-resource-strip > span { background: color-mix(in srgb, var(--surface) 82%, var(--bg)); }
+:root[data-paper] .app .wb-right > .wb-dock { border-top-color: var(--ink-line); }
 :root[data-paper] .app .wb-pane-title,
 :root[data-paper] .app .wb-file-path,
 :root[data-paper] .app .wb-file-actions,
@@ -369,11 +381,18 @@
   filter: url(#ink-rough); opacity: .8;
 }
 body:has(.app[data-paper]) dialog::backdrop { backdrop-filter: none !important; }
+/* kit 弹窗：overflow:hidden 会把 ::before 墨边（inset:-3px）连同圆角一起裁掉，
+   改为可见；滚动交给 .wb-dialog-body，头部与按钮区固定不动。 */
 body:has(.app[data-paper]) :is(.wb-dialog, .modal) {
   position: relative; border: 0 !important;
   border-radius: var(--ink-radius-card) !important;
   box-shadow: 3px 4px 0 var(--ac-shadow) !important;
 }
+body:has(.app[data-paper]) .wb-dialog {
+  overflow: visible;
+  display: flex; flex-direction: column;
+}
+body:has(.app[data-paper]) .wb-dialog-body { min-height: 0; }
 body:has(.app[data-paper]) :is(.wb-dialog, .modal)::before {
   content: ''; position: absolute; inset: -3px; pointer-events: none; z-index: 3;
   border: 1.6px solid var(--text); border-radius: var(--ink-radius-card);

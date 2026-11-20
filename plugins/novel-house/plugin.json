@@ -1,0 +1,65 @@
+{
+  "id": "com.github.eNest.novel-house",
+  "name": "小说屋",
+  "version": "0.0.1",
+  "description": "聚合小说阅读：导入多格式 JS 书源（Legado/阅读3 兼容），多源管理、跨源搜索、最热排行、舒适排版阅读器（字号/间距/主题、浮动侧栏）、整本缓存与阅读历史。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "layouts": ["shell"],
+    "default": "shell"
+  },
+  "category": "媒体",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.0.1"
+  },
+  "permissions": [
+    "backend.node"
+  ],
+  "window": {
+    "width": 1120,
+    "height": 720,
+    "minWidth": 480,
+    "minHeight": 320
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "小说屋：多源小说搜索、排行与舒适阅读",
+      "cmds": [
+        "小说",
+        "小说屋",
+        "novel",
+        "book",
+        "xs",
+        "read"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "小说",
+      "阅读",
+      "书源",
+      "聚合",
+      "缓存"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5220/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
+  }
+}

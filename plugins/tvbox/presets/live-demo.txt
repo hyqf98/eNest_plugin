@@ -1,0 +1,10 @@
+央视频道,#genre#
+CCTV1,https://node1.olelive.com:7777/hls/cctv1/index.m3u8
+CCTV2,https://node1.olelive.com:7777/hls/cctv2/index.m3u8
+CCTV3,https://node1.olelive.com:7777/hls/cctv3/index.m3u8
+CCTV5,https://node1.olelive.com:7777/hls/cctv5/index.m3u8
+CCTV6,https://node1.olelive.com:7777/hls/cctv6/index.m3u8
+卫视频道,#genre#
+湖南卫视,https://node1.olelive.com:7777/hls/hnwsm3u8/index.m3u8
+浙江卫视,https://node1.olelive.com:7777/hls/zjwsm3u8/index.m3u8
+东方卫视,https://node1.olelive.com:7777/hls/dfwsm3u8/index.m3u8

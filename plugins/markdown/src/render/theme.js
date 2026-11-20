@@ -72,11 +72,14 @@ const CONTENT_CSS = `
 .md-scope .cm-editor { background: transparent; }
 /* 滚动容器全宽：滚动条贴窗口边缘，不被内容栏限宽裹窄 */
 .md-scope .cm-scroller { overflow: auto; }
-/* Typora 惯例：内容根 #write 居中限宽（挂在 CM 的 .cm-content 上，不是滚动容器） */
+/* Typora 惯例：内容根 #write 居中限宽（挂在 CM 的 .cm-content 上，不是滚动容器）。
+ * max-width 从 860 → 960：原值在 1200px 宽的窗口里两侧各空 170px，加上 20px padding
+ * 视觉上"内容离边太远"。960 让正文更贴近可视边缘，同时保持约 60-70 字/行的可读上限。
+ * padding 左右收到 12px：滚动条已经贴边，不需要再留一层厚呼吸。 */
 .md-scope #write, .md-scope .md-doc {
-  max-width: 860px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 20px 20px 96px;
+  padding: 20px 12px 96px;
   box-sizing: content-box;
 }
 /* 空行折叠：CM 空行默认整行高 → 收成细缝（回车不再"多一行"） */
@@ -114,12 +117,18 @@ const CONTENT_CSS = `
 .md-scope .cm-content .md-h5, .md-scope .cm-content .md-h6 { font-size: 0.95em; color: var(--md-text-2); padding: 0.6em 0 0.18em; }
 /* 引用：左线 + 微底（整行 class，多行连续自然连成一块）。
  * 权重需高于后面统一给的 .md-scope .cm-line 基础 padding（同为 0,2,0 且更靠后），
- * 否则左侧 14px 缩进被抹成 2px，文字会紧贴竖线。 */
+ * 否则左侧 14px 缩进被抹成 2px，文字会紧贴竖线。
+ *
+ * padding-left 取 20px：引用标记被隐藏后，光标落在内容区起点（= border + padding），
+ * 14px 时这个落点离 3px 竖线只有 11px 空隙，视觉上像压在竖线上；
+ * 20px 让光标与竖线之间留出明确的呼吸区。
+ * 用 padding 而不是 margin-left：光标定位依赖行内部盒模型，margin 会让
+ * posAtCoords / coordsAtPos 的换算落到边界外。 */
 .md-scope .md-line.md-quote {
   border-left: 3px solid var(--md-border);
   background: var(--md-quote-bg);
   color: var(--md-text-2);
-  padding-left: 14px;
+  padding-left: 20px;
   margin: 0;
 }
 .md-scope .md-line.md-quote:first-of-type { border-top-left-radius: 4px; border-top-right-radius: var(--md-radius); }
@@ -146,6 +155,14 @@ const CONTENT_CSS = `
   border-radius: var(--md-radius); padding-left: 12px; padding-right: 12px;
 }
 .md-scope .md-hrline { color: var(--md-text-2); }
+/* 引用标记的隐藏占位：宽度必须与原文严格一致（继承行内字体即可），
+   否则隐藏/显形切换时行内文字左右移动，光标看起来压在引用竖线上。
+   视觉上完全透明，只保留宽度。 */
+.md-scope .md-quote-mark-placeholder {
+  color: transparent;
+  user-select: none;
+  pointer-events: none;
+}
 /* 行内语义样式（mark decoration） */
 .md-scope .md-strong { font-weight: 650; color: var(--md-text); }
 .md-scope .md-em { font-style: italic; }

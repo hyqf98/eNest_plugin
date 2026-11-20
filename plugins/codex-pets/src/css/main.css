@@ -44,16 +44,22 @@ html, body {
   min-width: 0;
 }
 
-/* ---------- 页面切换（画廊 / 已安装） ---------- */
-/* 标题与图标由壳标题栏统一显示；这里只保留视图切换，作为内容区顶部的细条。 */
-.cp-nav {
+/* ---------- 顶部条（视图切换靠右） ---------- */
+/* 标题与图标由壳标题栏统一显示；这里只保留视图切换并推到右侧——
+   原来它独占一整行且靠左，离用户看列表时的视线末端太远。 */
+.cp-topbar {
   display: flex;
-  gap: 4px;
-  flex: none;
+  justify-content: flex-end;
   align-items: center;
+  flex: none;
   padding: 6px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+}
+.cp-nav {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 .cp-nav-btn {
   border: 0; background: transparent; color: var(--text-2);
@@ -66,26 +72,41 @@ html, body {
 
 /* ---------- 主体 ---------- */
 .cp-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; }
+/* 底栏三等分：状态 / 分页 / 原站。分页居中，翻页时视线不用找。
+   中间的「数据来自 codex-pets.net 社区 · 安装目录 …」已移除（用户反馈占位置）。 */
 .cp-foot {
-  display: flex; justify-content: space-between; gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
   padding: 5px 14px; border-top: 1px solid var(--border);
   color: var(--text-3); font-size: 11px; background: var(--surface);
   flex: none;
 }
+.cp-foot > #foot-status { justify-self: start; }
+.cp-foot > .cp-pager { justify-self: center; }
+.cp-foot > .cp-origin { justify-self: end; }
 
 /* ---------- 工具栏 ---------- */
 .cp-toolbar {
-  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  display: flex; flex-direction: column; gap: 8px;
   margin-bottom: 10px;
 }
-.cp-search { display: flex; gap: 6px; flex: 1 1 240px; min-width: 0; }
+/* 搜索框独占一行并限制最大宽度：原来与 7 个排序按钮同行，被压到只剩六成宽。
+   720px 上限在宽窗口下够长，又不会横跨整个可视区。 */
+.cp-search { display: flex; gap: 6px; width: 100%; max-width: 720px; min-width: 0; }
 .cp-search input {
   flex: 1; min-width: 0;
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
   border-radius: 8px; padding: 6px 10px; font-size: 13px; outline: none;
 }
 .cp-search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+/* 排序 + 筛选在搜索框下方一行：排序靠左，「筛选」推到右端。 */
+.cp-filters-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
 .cp-sorts { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; }
+.cp-filters-row .cp-btn { margin-left: auto; }
 .cp-sort {
   border: 0; background: transparent; color: var(--text-2);
   padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
@@ -217,17 +238,33 @@ html, body {
 /* 缩放容器：卡片动画显示半尺寸 */
 .cp-card-sprite .sprite { transform: scale(0.5); }
 
-/* ---------- 分页 ---------- */
+/* ---------- 分页（底栏内，不再占正文高度） ---------- */
 .cp-pager {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  padding: 16px 0 4px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0;
 }
-.cp-pager-num { color: var(--text-2); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
-.cp-pager input {
-  width: 56px; text-align: center;
-  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
-  border-radius: 6px; padding: 4px 6px; font-size: 12px;
+.cp-pager-btn {
+  width: 20px; height: 20px; padding: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text-2);
+  cursor: pointer; font-size: 13px; line-height: 1;
+  transition: color .14s ease, border-color .14s ease, background-color .14s ease;
 }
+.cp-pager-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.cp-pager-btn:disabled { opacity: .38; cursor: default; }
+.cp-pager-num {
+  color: var(--text-3); font-size: 11px;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.cp-pager-num input {
+  width: 3.2em; text-align: center;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--surface); color: var(--text);
+  font: inherit; font-size: 11px; padding: 1px 2px; outline: none;
+}
+.cp-pager-num input:focus { border-color: var(--accent); }
 
 /* ---------- 筛选对话框 ---------- */
 .cp-filters-dlg {
@@ -350,9 +387,11 @@ html, body {
   .cp-stage-frame { width: 100%; max-width: 288px; }
   .cp-detail { padding: 0; }
 }
-:root[data-mode="quick"] .cp-nav { padding: 5px 12px; }
+/* quick 模式：顶部条与底栏更紧凑，原站链接隐藏；分页保留（列表仍可翻页）。 */
+:root[data-mode="quick"] .cp-topbar { padding: 4px 12px; }
 :root[data-mode="quick"] .cp-origin { display: none; }
-:root[data-mode="quick"] .cp-foot-hint { display: none; }
+:root[data-mode="quick"] .cp-foot { grid-template-columns: auto 1fr; }
+:root[data-mode="quick"] .cp-foot > .cp-pager { justify-self: end; }
 
 /* 动画档位：低档关闭装饰性动画（sprite 帧动画保留——它是内容本身） */
 :root[data-anim="low"] .cp-card { transition: none; }

@@ -434,16 +434,12 @@ label.field,
   border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border));
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-/* modal / dialog 自身 overflow:auto 会裁切 absolute 菜单：打开时放开裁切。
-   菜单为 absolute（top:calc(100% + 6px); left:0 挂 .pk-select），kit 打开时会按视口
-   剩余空间设置 maxHeight 并自动上翻，滚动容器 overflow 恢复 visible 后菜单可溢出显示；
-   弹层关闭（menu[hidden]）时恢复裁切，避免表单滚动时内容穿出圆角 */
-.modal:has(.pk-select-menu:not([hidden])),
-dialog:has(.pk-select-menu:not([hidden])) {
+/* 下拉菜单是 absolute 挂在 .pk-select 上，会被滚动容器裁切：
+   打开期间把滚动权交回整框（内容高度已由菜单 maxHeight 约束），关闭后恢复。 */
+.modal:has(.pk-select-menu:not([hidden])) .modal-body,
+dialog:has(.pk-select-menu:not([hidden])) .wb-dialog-body {
   overflow: visible;
 }
-/* 放开 modal 裁切后，modal 的 sticky 头/脚与圆角依赖 overflow —— 打开下拉期间
-   modal 高度已由菜单 maxHeight 约束，sticky 失效可接受；menu 自身提升层级 */
 .modal .pk-select-menu { z-index: 400; }
 /* 高级折叠区与动态 wb 弹窗里的 select：宽度跟随原生契约 */
 .wb-settings-form .pk-select {
@@ -572,8 +568,66 @@ dialog .pk-select.wb-split-target {
   cursor: default;
 }
 
-/* 颜色色卡 */
-.color-pick { display: grid; gap: 6px; }
+/* 颜色选择：触发器（当前色 + 色值）+ 点击弹出的面板 */
+.color-pick { position: relative; display: grid; gap: 6px; }
+.color-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.color-trigger:hover { border-color: color-mix(in srgb, var(--brand, var(--accent)) 40%, var(--border)); }
+.color-trigger .cs-caret { margin-left: auto; color: var(--text-3); }
+.color-chip {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  flex: none;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+}
+.color-chip[data-empty="true"] { border-style: dashed; }
+.color-value { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
+.color-pop {
+  /* fixed 定位：弹框的 .modal-body 是滚动容器，absolute 面板会被它裁掉。
+     坐标由 app.js 按触发器位置与视口空间计算（下方放不下就上翻）。 */
+  position: fixed;
+  z-index: 200;
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px 12px;
+  width: 320px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+.color-pop[hidden] { display: none !important; }
+.color-wheel { grid-column: 1; grid-row: 1 / -1; display: grid; place-items: center; align-content: center; }
+.color-wheel canvas {
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+.color-pop > .color-swatches { grid-column: 2; grid-row: 1; align-content: start; }
+.color-pop > .color-brightness { grid-column: 2; grid-row: 2; }
+.color-pop > .color-custom { grid-column: 2; grid-row: 3; align-self: end; }
+.color-brightness { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-2); }
+.color-brightness input { flex: 1; min-width: 0; }
 .color-swatches {
   display: flex;
   flex-wrap: wrap;
@@ -602,16 +656,6 @@ dialog .pk-select.wb-split-target {
   flex: 1;
   min-width: 0;
   font-family: var(--mono);
-}
-.color-native {
-  width: 34px;
-  height: 30px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  cursor: pointer;
-  flex: none;
 }
 
 /* 统一按钮层级：参数对齐 pk-btn（28px / sm 24px），ghost 5% wash 不裸文本 */
@@ -1365,20 +1409,15 @@ dialog .pk-select.wb-split-target {
 .modal {
   width: min(640px, 100%);
   max-height: min(88vh, 760px);
-  overflow: auto;
-  /* 滚动停止时吸附最近的字段边界（proximity：仅在贴近时吸附，不打断自由滚动），
-     修正小窗下标签在滚动口底缘被拦腰截断；scroll-margin 无法约束滚轮自由滚动 */
-  scroll-snap-type: y proximity;
+  /* 三段式：只有 .modal-body 滚动。整框 overflow:auto 会同时裁掉
+     paper-theme 的 ::before 手绘墨边（inset:-3px），并让头/脚跟着内容滚走。 */
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: var(--shadow-float);
-}
-/* 字段底缘对齐滚动口底缘：要么整字段可见，要么整体落在折叠线下方 */
-.modal label.field,
-.modal .field,
-.modal .adv-block {
-  scroll-snap-align: end;
 }
 .modal.small { width: min(400px, 100%); }
 .modal-head {
@@ -1387,8 +1426,7 @@ dialog .pk-select.wb-split-target {
   justify-content: space-between;
   gap: 8px;
   padding: 14px 16px 8px;
-  position: sticky;
-  top: 0;
+  flex: none;
   background: var(--surface);
   z-index: 1;
 }
@@ -1398,27 +1436,28 @@ dialog .pk-select.wb-split-target {
   font-weight: 650;
   letter-spacing: -0.02em;
 }
-.modal-body { padding: 4px 16px 12px; display: grid; gap: 8px; }
+/* 唯一滚动容器：字段底缘吸附保留，避免标签被滚动口拦腰截断。 */
+.modal-body {
+  padding: 4px 16px 12px;
+  display: grid;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scroll-snap-type: y proximity;
+}
+.modal-body > .form-grid,
+.modal-body > .adv-block { scroll-snap-align: start; }
 .modal-foot {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-  padding: 6px 16px 14px;
-  position: sticky;
-  bottom: 0;
+  padding: 10px 16px 14px;
+  flex: none;
   background: var(--surface);
   z-index: 1;
-}
-/* 滚动内容在 foot 上缘渐隐，替代滚动口底缘的硬截断（sticky 生效即说明可滚动） */
-.modal-foot::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: 10px;
-  background: linear-gradient(to bottom, transparent, var(--surface));
-  pointer-events: none;
 }
 .form-grid {
   display: grid;

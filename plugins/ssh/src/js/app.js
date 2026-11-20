@@ -2698,6 +2698,7 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     $('f-fp').value = p.fingerprintPolicy || 'tofu'
     $('f-form-error').classList.remove('show')
     $('form-test-status').textContent = ''
+    setColorPopOpen(false)
     const adv = $('adv-block')
     if (adv) adv.open = false
 
@@ -2856,9 +2857,113 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     if (!input) return
     const norm = normalizeHexColor(hex)
     input.value = hex || norm || ''
-    const native = $('f-color-native')
-    if (native && norm) native.value = norm
     renderColorSwatches()
+  }
+
+  /** 触发器上的当前色预览：色块 + 色值文本（空值显示「未设置」并留虚线空块）。 */
+  function renderColorTrigger() {
+    const chip = $('f-color-chip'), label = $('f-color-value')
+    if (!chip || !label) return
+    const cur = normalizeHexColor($('f-color')?.value)
+    chip.dataset.empty = cur ? 'false' : 'true'
+    chip.style.background = cur || ''
+    label.textContent = cur || '未设置'
+  }
+
+  /* —— 色轮：HSV 圆盘（色相=角度，饱和度=半径）+ 明度滑杆 ——
+     自绘 canvas 而不用 <input type=color>：系统色轮在 mac/win 都是原生弹层，
+     与纸面主题无关且关不掉；这里只保留「点哪里取哪色」的最小交互。 */
+  let wheelHue = 0, wheelSat = 1, wheelVal = 1, wheelPainted = false
+
+  function hsvToHex(h, s, v) {
+    const f = (n) => {
+      const k = (n + h / 60) % 6
+      const value = v - v * s * Math.max(0, Math.min(k, 4 - k, 1))
+      return Math.round(value * 255).toString(16).padStart(2, '0')
+    }
+    return '#' + f(5) + f(3) + f(1)
+  }
+
+  function hexToHsv(hex) {
+    const norm = normalizeHexColor(hex)
+    if (!norm) return null
+    const r = parseInt(norm.slice(1, 3), 16) / 255, g = parseInt(norm.slice(3, 5), 16) / 255, b = parseInt(norm.slice(5, 7), 16) / 255
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min
+    let h = 0
+    if (d) {
+      if (max === r) h = 60 * (((g - b) / d) % 6)
+      else if (max === g) h = 60 * ((b - r) / d + 2)
+      else h = 60 * ((r - g) / d + 4)
+    }
+    return { h: (h + 360) % 360, s: max ? d / max : 0, v: max }
+  }
+
+  function paintColorWheel() {
+    const canvas = $('f-color-wheel')
+    if (!canvas) return
+    const ctx = canvas.getContext('2d'), size = canvas.width, radius = size / 2 - 1
+    ctx.clearRect(0, 0, size, size)
+    // 色相环：逐角度扇形填充（1° 步长在小尺寸下已看不出接缝）
+    for (let angle = 0; angle < 360; angle++) {
+      ctx.beginPath()
+      ctx.moveTo(radius + 1, radius + 1)
+      ctx.arc(radius + 1, radius + 1, radius, (angle - 0.7) * Math.PI / 180, (angle + 1) * Math.PI / 180)
+      ctx.closePath()
+      ctx.fillStyle = hsvToHex(angle, 1, wheelVal)
+      ctx.fill()
+    }
+    // 饱和度渐变：中心白 → 边缘透明黑，叠出「越外越纯」的观感
+    const gradient = ctx.createRadialGradient(radius + 1, radius + 1, 0, radius + 1, radius + 1, radius)
+    gradient.addColorStop(0, 'rgba(255,255,255,1)')
+    gradient.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = gradient
+    ctx.beginPath(); ctx.arc(radius + 1, radius + 1, radius, 0, Math.PI * 2); ctx.fill()
+    // 当前选中点
+    if (wheelSat > 0) {
+      const rad = wheelHue * Math.PI / 180, dist = wheelSat * radius
+      const x = radius + 1 + Math.cos(rad) * dist, y = radius + 1 + Math.sin(rad) * dist
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2)
+      ctx.strokeStyle = wheelVal > 0.6 ? 'rgba(20,20,20,.8)' : 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; ctx.stroke()
+    }
+    wheelPainted = true
+  }
+
+  function syncWheelFromValue() {
+    const hsv = hexToHsv($('f-color')?.value)
+    if (hsv) { wheelHue = hsv.h; wheelSat = hsv.s; wheelVal = Math.max(0.05, hsv.v) }
+    const brightness = $('f-color-brightness')
+    if (brightness) brightness.value = String(Math.round(wheelVal * 100))
+    paintColorWheel()
+  }
+
+  function pickFromWheel(event) {
+    const canvas = $('f-color-wheel')
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect(), radius = canvas.width / 2 - 1
+    const dx = (event.clientX - rect.left) * (canvas.width / rect.width) - (radius + 1)
+    const dy = (event.clientY - rect.top) * (canvas.height / rect.height) - (radius + 1)
+    const dist = Math.hypot(dx, dy)
+    if (dist > radius) return
+    wheelHue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360
+    wheelSat = Math.min(1, dist / radius)
+    setColorValue(hsvToHex(wheelHue, wheelSat, wheelVal))
+  }
+
+  function bindColorWheel() {
+    const canvas = $('f-color-wheel')
+    if (canvas && !canvas.dataset.bound) {
+      canvas.dataset.bound = '1'
+      let dragging = false
+      canvas.addEventListener('pointerdown', (event) => { dragging = true; canvas.setPointerCapture(event.pointerId); pickFromWheel(event) })
+      canvas.addEventListener('pointermove', (event) => { if (dragging) pickFromWheel(event) })
+      canvas.addEventListener('pointerup', (event) => { dragging = false; if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId) })
+      canvas.addEventListener('pointercancel', () => { dragging = false })
+    }
+    const brightness = $('f-color-brightness')
+    if (brightness && !brightness.dataset.bound) {
+      brightness.dataset.bound = '1'
+      brightness.addEventListener('input', () => { wheelVal = Math.max(0.05, Number(brightness.value) / 100); paintColorWheel(); if (wheelSat > 0) setColorValue(hsvToHex(wheelHue, wheelSat, wheelVal)) })
+    }
   }
 
   function renderColorSwatches() {
@@ -2887,7 +2992,61 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
       const next = btn.dataset.color
       const curNow = normalizeHexColor($('f-color')?.value)
       setColorValue(curNow === next ? '' : next)
+      syncWheelFromValue()
+      renderColorTrigger()
     }
+    renderColorTrigger()
+  }
+
+  /* 颜色面板：点击触发器展开，点外部/Esc 收起。原先色卡常驻表单里，
+     16 个色块把两列网格撑得高低不齐，也挤掉了「清除」的呼吸空间。
+     面板用 fixed 定位：表单本身是滚动容器，absolute 弹层会被裁掉。 */
+  let colorPopBound = false
+  function placeColorPop() {
+    const pop = $('f-color-pop'), trigger = $('f-color-trigger')
+    if (!pop || !trigger || pop.hidden) return
+    const rect = trigger.getBoundingClientRect(), margin = 8
+    const width = pop.offsetWidth, height = pop.offsetHeight
+    const left = Math.max(margin, Math.min(window.innerWidth - width - margin, rect.left))
+    // 触发器在视口下半部分时优先上翻：向下会盖住弹框底部的保存/取消按钮。
+    const below = window.innerHeight - rect.bottom - margin, above = rect.top - margin
+    const up = above >= height || (rect.top > window.innerHeight * 0.55 && above > below)
+    const top = up ? Math.max(margin, rect.top - height - 6) : Math.min(window.innerHeight - height - margin, rect.bottom + 6)
+    pop.style.left = `${left}px`
+    pop.style.top = `${Math.max(margin, top)}px`
+    pop.style.maxHeight = `${Math.max(200, window.innerHeight - margin * 2)}px`
+    pop.style.overflow = 'auto'
+  }
+  function setColorPopOpen(open) {
+    const pop = $('f-color-pop'), trigger = $('f-color-trigger')
+    if (!pop || !trigger) return
+    pop.hidden = !open
+    trigger.setAttribute('aria-expanded', String(!!open))
+    if (!open) return
+    bindColorWheel()
+    renderColorSwatches()
+    syncWheelFromValue()
+    placeColorPop()
+  }
+  function bindColorPop() {
+    if (colorPopBound) return
+    colorPopBound = true
+    $('f-color-trigger')?.addEventListener('click', (ev) => {
+      ev.preventDefault()
+      setColorPopOpen($('f-color-pop')?.hidden !== false)
+    })
+    document.addEventListener('pointerdown', (ev) => {
+      if ($('f-color-pop')?.hidden !== false) return
+      if (ev.target.closest('#f-color-pop,#f-color-trigger')) return
+      setColorPopOpen(false)
+    })
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && $('f-color-pop')?.hidden === false) { ev.stopPropagation(); setColorPopOpen(false) }
+    })
+    // 表单滚动或窗口尺寸变化时跟随触发器，避免面板与触发器错位。
+    const reposition = () => placeColorPop()
+    window.addEventListener('resize', reposition)
+    document.querySelector('.modal-body')?.addEventListener('scroll', reposition, { passive: true })
   }
 
   /* ========== 自定义下拉（挂 body，避免 modal overflow 裁切原生 select） ========== */
@@ -3587,14 +3746,18 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
   /* ========== bind UI ========== */
   function bindUi() {
     // 原生 select 的升级由 plugin-kit（entry.js 引入）自动完成，这里无需再增强
-    $('btn-toggle-side').onclick = () => toggleSidebar()
-    $('rail-new').onclick = () => openProfileForm(null)
-    $('rail-search').onclick = () => {
+    // rail 由 workspaceNavigation 接管重建（连接/文件/资源/历史/设置/更多），
+    // 骨架里的旧 rail 按钮只在工作台未接管时存在，故一律空值安全。
+    const on = (id, handler) => { const el = $(id); if (el) el.onclick = handler }
+    on('btn-toggle-side', () => toggleSidebar())
+    on('rail-new', () => openProfileForm(null))
+    on('rail-search', () => {
       setSidebarCollapsed(false)
       setTimeout(() => $('search-input')?.focus(), 50)
-    }
-    $('rail-drawer').onclick = () => toggleDrawer()
-    $('rail-more').onclick = (ev) => showMenuFromEl(ev.currentTarget, sideMoreItems())
+    })
+    on('rail-drawer', () => toggleDrawer())
+    on('rail-more', (ev) => showMenuFromEl(ev.currentTarget, sideMoreItems()))
+    on('btn-new-connection', () => openProfileForm(null))
 
     $('btn-drawer-close').onclick = () => setDrawerOpen(false)
     $('drawer-scrim').onclick = () => setDrawerOpen(false)
@@ -3644,19 +3807,18 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     }
 
     const colorHex = $('f-color')
-    const colorNative = $('f-color-native')
     const colorClear = $('btn-color-clear')
+    bindColorPop()
     if (colorHex) {
-      colorHex.addEventListener('change', () => setColorValue(colorHex.value))
-      colorHex.addEventListener('input', () => renderColorSwatches())
-    }
-    if (colorNative) {
-      colorNative.addEventListener('input', () => setColorValue(colorNative.value))
+      colorHex.addEventListener('change', () => { setColorValue(colorHex.value); syncWheelFromValue() })
+      colorHex.addEventListener('input', () => { renderColorSwatches(); renderColorTrigger() })
     }
     if (colorClear) {
       colorClear.addEventListener('click', (ev) => {
         ev.preventDefault()
         setColorValue('')
+        syncWheelFromValue()
+        setColorPopOpen(false)
       })
     }
 
@@ -3856,6 +4018,15 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     }
     mountPaper(() => store.state.ui.paper)
     watchPaperChanges(() => store.state.ui.paper)
+
+    // MCP 工具面：profiles 已加载即注册（不等页面可见——MCP 冷启动页面是隐藏的）。
+    // mcp.js 与本文件同为 IIFE 挂 window；宿主不支持 MCP 或握手失败时静默降级为纯 UI 插件。
+    try {
+      await import('./mcp.js')
+      void window.SshMcp?.registerSshMcp?.().catch(() => {})
+    } catch {
+      /* 静默降级 */
+    }
 
     setSidebarCollapsed(!!store.state.ui.sidebarCollapsed, false)
     setDrawerOpen(!!store.state.ui.drawerOpen, false)

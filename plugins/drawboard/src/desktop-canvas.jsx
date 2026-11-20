@@ -25,7 +25,16 @@ function DesktopCanvas() {
   const [space, setSpace] = useState(false), latest = useRef({})
   const theme = THEMES[settings.theme] || THEMES.paper
   const changed = () => setTick(value => value + 1)
-  const post = data => bridge.current?.post(data).catch(error => setError(error.message))
+  const post = data => bridge.current?.post(data).catch(error => {
+    const message = String(error?.message ?? error)
+    // 通道失效（插件重载让运行代次换代）时宿主会拒收一切 post，这块画布属于上一代
+    // 运行时，重连无意义：自己关掉，让下次启动重建，也不要把英文异常抛到提示条上。
+    if (/Retired or foreign auxiliary sender|Auxiliary window not owned|Auxiliary owner/i.test(message)) {
+      void window.enestAux?.close?.().catch(() => {})
+      return
+    }
+    setError(message)
+  })
   const cancelGesture = () => {
     gesture.current = false; latest.current.editing = null; setEditing(null); setSpace(false); setSelection([])
     if (!pending.current && baseline.current) objects.current = clone(baseline.current.objects)

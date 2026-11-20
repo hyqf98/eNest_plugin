@@ -6,9 +6,8 @@
   "author": "eNest Labs",
   "main": "index.html",
   "views": {
-    "layouts": ["quick", "shell", "panel"],
-    "default": "shell",
-    "panel": { "size": { "width": 300, "height": 240 } }
+    "layouts": ["quick", "shell"],
+    "default": "shell"
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",
@@ -37,7 +36,7 @@
   "features": [
     {
       "code": "main",
-      "explain": "剪贴板历史",
+      "explain": "查看历史记录，点选即复制回剪贴板",
       "cmds": [
         "剪贴板",
         "clipboard",

@@ -15,12 +15,712 @@
     "net.database",
     "net.database.query",
     "net.database.schema",
+    "net.fetch",
     "notify",
     "clipboard.write",
     "shell.openExternal",
     "backend.node"
   ],
   "contributes": {
+    "mcpTools": [
+      {
+        "id": "connections.list",
+        "title": "List saved connections",
+        "description": "List saved database connections with id, name, driver, host, port, database, username, env, readOnly and favorite. Never returns credentials; secrets stay in the host vault as secretRef. Use connection.open with the id before querying.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "connection.open",
+        "title": "Open a database connection",
+        "description": "Open a saved connection by id and return a sessionKey. Later tools (query, explain, schema.*, applyChanges, importCsv, cancel) can omit sessionKey and just pass connectionId; this tool caches the mapping. Read-only connections reject write statements. Local sqlite/duckdb files need a host-authorized file handle; if missing, the error is returned for the user to authorize in the plugin UI.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Connection id from connections.list."
+            },
+            "database": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "Override the initial database for this session."
+            }
+          },
+          "required": [
+            "connectionId"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "connection.close",
+        "title": "Close a database session",
+        "description": "Close a database session opened by connection.open (or any live sessionKey from sessions.list). Other sessions on the same connection are not affected. The saved connection itself is kept.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Connection whose cached MCP session should be closed."
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Explicit session key; takes precedence over connectionId."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "sessions.list",
+        "title": "List live database sessions",
+        "description": "List all live database sessions of this plugin with sessionKey, driver, database, readOnly and transactionActive. Any listed sessionKey can be passed to query/schema tools.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "connection.test",
+        "title": "Test a saved connection",
+        "description": "Test connectivity of a saved connection without opening a session. Returns ok, message and server version. Secrets are resolved from the host vault, never returned.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Connection id from connections.list."
+            }
+          },
+          "required": [
+            "connectionId"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "query",
+        "title": "Execute SQL",
+        "description": "Execute SQL on an open session. Read-only connections reject write statements; write statements on prod or requireConfirm connections require confirmed:true (the backend rejects otherwise and the error is returned verbatim). Sessions run one query at a time. Result rows are capped (default backend maxRows, per-result tool cap 400 rows) and overlong cells are truncated to stay within the 1MiB limit; check the truncated flag. Use cancel to stop a long query.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sql": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512000,
+              "description": "SQL text; multiple statements allowed on SQL drivers."
+            },
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Uses the session cached by connection.open for this connection."
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256,
+              "description": "Explicit session key; takes precedence over connectionId."
+            },
+            "database": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "maxRows": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000,
+              "description": "Row limit requested from the backend."
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 600000,
+              "description": "Query timeout in milliseconds, default 30000."
+            },
+            "confirmed": {
+              "type": "boolean",
+              "description": "Explicit confirmation for write statements on prod/protected connections."
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "explain",
+        "title": "Show execution plan",
+        "description": "Run EXPLAIN for a single read-only statement and return the plan rows. Write statements are rejected by the backend.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sql": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512000,
+              "description": "Single read-only statement."
+            },
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "id": "cancel",
+        "title": "Cancel running query",
+        "description": "Cancel the running query on a session. Safe to call when nothing is running.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "applyChanges",
+        "title": "Apply row changes",
+        "description": "Apply row-level insert/update/delete changes in one batch (what the result grid commits). Destructive. Read-only connections reject it; prod/requireConfirm connections require confirmed:true. mode stop-on-error rolls the whole batch back on failure (default), continue keeps going.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "changes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2000,
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "const": "insert"
+                      },
+                      "table": {
+                        "$ref": "#/$defs/tableRef"
+                      },
+                      "values": {
+                        "type": "object",
+                        "description": "Column -> value for the new row."
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "table",
+                      "values"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "const": "update"
+                      },
+                      "table": {
+                        "$ref": "#/$defs/tableRef"
+                      },
+                      "key": {
+                        "type": "object",
+                        "description": "Column -> value identifying the row (primary key)."
+                      },
+                      "set": {
+                        "type": "object",
+                        "description": "Column -> new value."
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "table",
+                      "key",
+                      "set"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "const": "delete"
+                      },
+                      "table": {
+                        "$ref": "#/$defs/tableRef"
+                      },
+                      "key": {
+                        "type": "object",
+                        "description": "Column -> value identifying the row to delete."
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "table",
+                      "key"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "stop-on-error",
+                "continue"
+              ],
+              "description": "Default stop-on-error."
+            },
+            "confirmed": {
+              "type": "boolean",
+              "description": "Required true for writes on prod/protected connections."
+            }
+          },
+          "required": [
+            "changes"
+          ],
+          "additionalProperties": false,
+          "$defs": {
+            "tableRef": {
+              "type": "object",
+              "properties": {
+                "database": {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                "schema": {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                "table": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "required": [
+                "table"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "importCsv",
+        "title": "Import CSV text into a table",
+        "description": "Import CSV text (no file pickers under MCP). Default run:false returns a preview only (columns, sample rows, estimated total, generated SQL); call again with run:true to execute. Run is destructive: it inserts rows into the target table; read-only connections are rejected and prod/requireConfirm connections additionally need confirmed:true. Only insert conflict policy is currently supported.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "csvText": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512000,
+              "description": "CSV content; keep each call under 512KB and split large imports."
+            },
+            "table": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 384,
+                  "description": "\"table\", \"schema.table\" or \"db.schema.table\"."
+                },
+                {
+                  "$ref": "#/$defs/tableRef"
+                }
+              ]
+            },
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "delimiter": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1,
+              "description": "Single-character delimiter, default ','."
+            },
+            "hasHeader": {
+              "type": "boolean",
+              "description": "First row is the header, default true."
+            },
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "maxItems": 512,
+              "description": "Target column names, in CSV order; defaults to the header."
+            },
+            "conflict": {
+              "type": "string",
+              "enum": [
+                "insert"
+              ],
+              "description": "Only insert is supported."
+            },
+            "run": {
+              "type": "boolean",
+              "description": "false (default) previews, true executes the import."
+            },
+            "confirmed": {
+              "type": "boolean",
+              "description": "Required true when run:true on prod/protected connections."
+            }
+          },
+          "required": [
+            "csvText",
+            "table"
+          ],
+          "additionalProperties": false,
+          "$defs": {
+            "tableRef": {
+              "type": "object",
+              "properties": {
+                "database": {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                "schema": {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                "table": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              },
+              "required": [
+                "table"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "schema.tree",
+        "title": "Browse schema tree",
+        "description": "List schema objects level by level: omit parent for databases (or tables for single-db drivers), parent=database for schemas/tables, parent=schema for tables, parent=table plus table name for columns. Optional filter matches names.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "parent": {
+              "type": "string",
+              "enum": [
+                "root",
+                "database",
+                "schema",
+                "table"
+              ]
+            },
+            "table": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "Table name required when parent=table."
+            },
+            "database": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "filter": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "Case-insensitive name substring filter."
+            },
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "id": "schema.describe",
+        "title": "Describe a table",
+        "description": "Return full column metadata (types, nullability, defaults, keys, comments) for a table or view.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Table name; qualify as schema.table when needed."
+            },
+            "database": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "table"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "id": "schema.ddl",
+        "title": "Get DDL of a table",
+        "description": "Return the CREATE statement of a table when the driver supports DDL inspection.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "database": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "sessionKey": {
+              "type": "string",
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "table"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "id": "dialects.list",
+        "title": "List supported drivers",
+        "description": "List supported database drivers with id, label, language and transport; use the id as driver in connection.save.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "connection.save",
+        "title": "Create or update a connection",
+        "description": "Create a connection or update an existing one by id (omitted fields keep their current value). Credentials are never accepted in plaintext: optionally pass secretRef (a host vault reference name); passwords must be entered in the plugin UI. Local file drivers (sqlite/duckdb) require a host-authorized file handle and can only be created from the plugin UI. Updating closes this connection's MCP session and is rejected while a transaction is open.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Existing connection id to update; omit or pass a new id to create."
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Display name; required for new connections."
+            },
+            "driver": {
+              "type": "string",
+              "maxLength": 32,
+              "description": "Driver id from dialects.list; required for new connections."
+            },
+            "host": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "database": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "username": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "env": {
+              "type": "string",
+              "enum": [
+                "dev",
+                "test",
+                "staging",
+                "prod"
+              ],
+              "description": "prod connections require confirmed:true for writes."
+            },
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "org": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "InfluxDB org."
+            },
+            "bucket": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "InfluxDB bucket."
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "secretRef": {
+              "type": "string",
+              "maxLength": 128,
+              "description": "Existing host vault reference name; plaintext passwords are rejected here."
+            },
+            "readOnly": {
+              "type": "boolean",
+              "description": "Open sessions read-only."
+            },
+            "favorite": {
+              "type": "boolean"
+            },
+            "options": {
+              "type": "object",
+              "description": "Extra driver options (uri, endpoint, authSource, ssl, ...). Password/token/secret/api-key and local file path keys are rejected.",
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "connection.delete",
+        "title": "Delete a saved connection",
+        "description": "Delete a saved connection configuration and its stored credential reference. Destructive to the saved config only: the database itself is never touched. Rejected while a transaction is open; closes the connection's MCP session first.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connectionId": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "connectionId"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      }
+    ],
     "openWith": [
       {
         "id": "sqlite-files",

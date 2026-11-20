@@ -8,7 +8,7 @@
     "build": "node ../../scripts/build-plugin.mjs com.github.eNest.anything",
     "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.anything",
     "typecheck:backend": "tsc -p backend/tsconfig.json",
-    "test:backend": "node --test backend/*.test.mjs",
+    "test:backend": "node --test tests/backend/*.test.mjs",
     "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.anything"
   },
   "dependencies": {

@@ -156,6 +156,11 @@
   flex: 1; min-width: 0; border: none; outline: none; background: none;
   font-size: 12px; padding: 5px 0; color: var(--text, #333);
 }
+/* kit 的全局 input:focus-visible 会画 2px accent 外环，与外层 :focus-within 的
+   边框 + 光晕叠成"双层高亮"（截图里那个粗双圈）。聚焦反馈统一由外层容器给，
+   这里把内层 input 的 outline 彻底去掉（含 focus-visible）。 */
+.md-outline-search input:focus,
+.md-outline-search input:focus-visible { outline: none; outline-offset: 0; box-shadow: none; }
 @media (forced-colors: active) {
   .md-outline-search:focus-within { outline: 2px solid Highlight; outline-offset: 1px; }
 }
@@ -181,7 +186,26 @@
 }
 .md-outline-item .md-outline-text:hover { color: var(--accent, #3b82f6); }
 .md-outline-l1 .md-outline-text { font-weight: 650; }
-.md-outline-fold { background: none; border: none; color: var(--text-2, #999); cursor: pointer; padding: 2px 4px; font-size: 10px; }
+/* 折叠按钮在标题**左侧**（箭头最左，与文件树/常见大纲一致）。
+   固定宽高 + 居中，保证有子级和无子级的行文字左缘对齐。 */
+.md-outline-fold,
+.md-outline-fold-space {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 14px;
+  height: 18px;
+  padding: 0;
+  font-size: 9px;
+  line-height: 1;
+}
+.md-outline-fold {
+  background: none; border: none; color: var(--text-3, #b0b0b0);
+  cursor: pointer; border-radius: 4px;
+  transition: color .14s ease, background-color .14s ease;
+}
+.md-outline-fold:hover { color: var(--text-2, #777); background: var(--surface-2, #f0f0f0); }
+.md-outline-fold.is-collapsed { color: var(--text-2, #888); }
 
 /* 文件树 */
 .md-files-head { display: flex; gap: 4px; padding: 8px 8px; }

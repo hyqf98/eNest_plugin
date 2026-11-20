@@ -21,7 +21,11 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
   let overlayPosition = -1, overlayVelocity = 0, overlayTarget = -1, overlayFrame = 0, overlayTime = 0
   let width = sidebarWidth(store.state.ui.sidebarWidth)
   rail.setAttribute('aria-label', 'SSH 工作区导航')
-  rail.innerHTML = [['connections','连接'],['terminal','终端'],['files','文件'],['resources','资源']].map(([id,label]) => `<button type="button" class="rail-btn" data-navigation="${id}" aria-label="${label}" data-tip="${label}">${icon(id)}</button>`).join('') + '<div class="rail-spacer"></div>' + [['history','历史'],['snippets','常用命令'],['settings','设置']].map(([id,label]) => `<button type="button" class="rail-btn" data-navigation="${id}" aria-label="${label}" data-tip="${label}">${icon(id)}</button>`).join('') + '<button type="button" class="rail-btn" id="rail-more" data-more aria-label="更多操作" data-tip="更多操作">⋯</button>'
+  // rail 只留「切到某处」的真实入口，不做同义重复：
+  // - 终端/文件/资源不再是互斥视图（文件与资源常驻右侧工作列），保留为「聚焦到那一列」；
+  // - 历史与常用是同一个抽屉的两个标签，合并成一个入口，标签在抽屉里切换；
+  // - 新建连接在侧栏搜索行已有 ＋，不在这里重复。
+  rail.innerHTML = [['connections','连接'],['files','文件'],['resources','资源']].map(([id,label]) => `<button type="button" class="rail-btn" data-navigation="${id}" aria-label="${label}" data-tip="${label}">${icon(id)}</button>`).join('') + '<div class="rail-spacer"></div>' + [['history','历史与常用'],['settings','设置']].map(([id,label]) => `<button type="button" class="rail-btn" data-navigation="${id}" aria-label="${label}" data-tip="${label}">${icon(id)}</button>`).join('') + '<button type="button" class="rail-btn" id="rail-more" data-more aria-label="更多操作" data-tip="更多操作">⋯</button>'
   // 全插件唯一的「更多」入口：rail 在侧栏展开与收起两种状态下都存在，
   // 顶栏不再重复放 ⋯（会话级动作另有会话标签右键菜单）。
   rail.querySelector('[data-more]').onclick = event => bridge.showMoreMenu(event.currentTarget)
@@ -96,7 +100,7 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     if (target === 'connections') return revealConnections()
     if (compact()) closeConnections(false)
     if (target === 'settings') return openSettings()
-    if (target === 'history' || target === 'snippets') return bridge.openCollection(target)
+    if (target === 'history') return bridge.openCollection('history')
     return changeView(target)
   }
   for (const button of rail.querySelectorAll('[data-navigation]')) button.onclick = () => {
@@ -108,12 +112,10 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     const drawerOpen = app.querySelector('#drawer')?.classList.contains('open')
     const items = [
       { key: 'connections', label: '连接与搜索', hint: `${store.state.profiles.length} 个连接` },
-      { key: 'terminal', label: '终端', checked: currentView === 'terminal' },
-      { key: 'files', label: '文件', checked: currentView === 'files' },
-      { key: 'resources', label: '资源', checked: currentView === 'resources' },
+      { key: 'files', label: '文件（右侧工作列）', checked: currentView === 'files' },
+      { key: 'resources', label: '资源（右侧工作列）', checked: currentView === 'resources' },
       'sep',
-      { key: 'history', label: '命令历史', checked: drawerOpen && store.state.ui.rightTab === 'history' },
-      { key: 'snippets', label: '常用命令', checked: drawerOpen && store.state.ui.rightTab === 'snippets' },
+      { key: 'history', label: '历史与常用', checked: drawerOpen },
       { key: 'settings', label: '设置', checked: currentView === 'settings' },
       'sep',
       { key: 'new', label: '新建连接' }

@@ -323,15 +323,20 @@ export function App() {
   const route = useCallback(async () => {
     const body = bodyRef.current
     const statusEl = document.getElementById('foot-status')
+    // 底栏分页是常驻容器：非市场视图必须主动清空，否则切到「已安装」后
+    // 上一次的页码会留在底栏（容器不随 body.innerHTML 重建）。
+    const pagerEl = document.getElementById('g-pager')
     if (!body) return
     const hash = location.hash || '#/'
     syncNav(hash)
     try {
       if (hash.startsWith('#/pets/')) {
         const petId = decodeURIComponent(hash.slice('#/pets/'.length).split('?')[0])
+        if (pagerEl) pagerEl.innerHTML = ''
         statusEl.textContent = `宠物详情 · ${petId}`
         await renderDetailInto(body, petId)
       } else if (hash.startsWith('#/installed')) {
+        if (pagerEl) pagerEl.innerHTML = ''
         statusEl.textContent = '已安装管理'
         await renderInstalledInto(body)
       } else {
@@ -372,33 +377,39 @@ export function App() {
   return (
     <>
       <main className="cp" id="app">
-        {/* 页面切换跟随内容滚动区，不占壳标题栏：宠物市场 / 已安装两张视图共用。 */}
-        <nav className="cp-nav" id="nav" aria-label="页面">
-          <button
-            type="button"
-            className={`cp-nav-btn${navActive === '#/' ? ' is-active' : ''}`}
-            data-route="#/"
-            title="宠物市场"
-            onClick={() => onNavigate('#/')}
-          >
-            宠物市场
-          </button>
-          <button
-            type="button"
-            className={`cp-nav-btn${navActive === '#/installed' ? ' is-active' : ''}`}
-            data-route="#/installed"
-            title="已安装到本机 Codex"
-            onClick={() => onNavigate('#/installed')}
-          >
-            已安装
-          </button>
-        </nav>
+        {/* 顶部条：左侧只留壳标题栏（插件名由壳显示），视图切换按钮靠右。
+            原来导航独占一整行压在内容之上，"宠物市场/已安装"离视线中心太远；
+            收到右上角后内容区顶部直接是搜索框。 */}
+        <header className="cp-topbar">
+          <nav className="cp-nav" id="nav" aria-label="页面">
+            <button
+              type="button"
+              className={`cp-nav-btn${navActive === '#/' ? ' is-active' : ''}`}
+              data-route="#/"
+              title="宠物市场"
+              onClick={() => onNavigate('#/')}
+            >
+              宠物市场
+            </button>
+            <button
+              type="button"
+              className={`cp-nav-btn${navActive === '#/installed' ? ' is-active' : ''}`}
+              data-route="#/installed"
+              title="已安装到本机 Codex"
+              onClick={() => onNavigate('#/installed')}
+            >
+              已安装
+            </button>
+          </nav>
+        </header>
 
         <section className="cp-body" id="body" ref={bodyRef}>{/* 路由视图渲染 */}</section>
 
+        {/* 底栏：左=状态 / 中=分页（由 gallery.js 渲染进 #g-pager）/ 右=原站链接。
+            分页从内容区挪到这里，列表滚动时也能翻页，且不再占正文高度。 */}
         <footer className="cp-foot">
           <span id="foot-status">就绪</span>
-          <span className="cp-foot-hint">数据来自 codex-pets.net 社区 · 安装目录 ~/.codex/pets</span>
+          <nav className="cp-pager" id="g-pager" aria-label="分页"></nav>
           <a className="cp-origin" id="origin-link" href="https://codex-pets.net/" title="在浏览器打开原站" onClick={openOrigin}>codex-pets.net ↗</a>
         </footer>
       </main>

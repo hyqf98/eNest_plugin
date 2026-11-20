@@ -5,7 +5,10 @@ html, body { background: transparent !important; }
 :root[data-mode="panel"] body::before, :root[data-mode="panel"] body::after,
 :root[data-mode="panel"] #root::before, :root[data-mode="panel"] #root::after { content: none !important; display: none !important; animation: none !important; }
 
-.ssh-workbench-surface { height: 100%; min-width: 0; min-height: 0; }
+/* 必须是纵向 flex 容器：#root 留白后 .app[data-workbench] 靠 flex:1 吃剩余高度；
+   表面层若保持 display:block，flex:1 在块级父级里失效，工作台会塌成内容高度
+   （症状：面板只占上半屏、下面整片点阵纸底）。 */
+.ssh-workbench-surface { display: flex; flex-direction: column; height: 100%; min-width: 0; min-height: 0; }
 .ssh-workbench-surface[hidden] { display: none !important; }
 .ssh-widget { gap: 6px; }
 .ssh-widget-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; flex: 0 0 auto; }

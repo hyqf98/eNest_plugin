@@ -12,6 +12,7 @@ import { backend, backendReady } from '../js/backend.js'
 import { fileIcon } from '../js/icons.js'
 import { formatSize, formatWhen, highlightName, parseQuery } from '../js/query.js'
 import { createPreview } from '../js/preview.js'
+import { registerAnythingMcp } from '../js/mcp.mjs'
 import { PanelView } from './PanelView.jsx'
 
 const api = () => window.enest || window.zapi
@@ -462,6 +463,9 @@ export function App() {
       if (!alive) return
       setBooted(true)
       registerProvider()
+      // MCP 工具注册：业务初始化完成后一次，不等页面可见（MCP 冷启动页面隐藏）；
+      // 复用 backend.call 通道，不依赖首搜结果。宿主不支持或握手失败时静默降级。
+      registerAnythingMcp().catch(() => {})
     })()
     return () => { alive = false; clearTimeout(timerRef.current); seqRef.current++; kit.destroy?.() }
   }, [idleRef, moveRef, probeRef, registerProvider, renderIdle, searchRef])

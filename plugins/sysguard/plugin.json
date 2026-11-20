@@ -8,7 +8,8 @@
   "views": {
     "default": "shell",
     "layouts": ["quick", "shell", "panel"],
-    "panel": { "size": { "width": 320, "height": 248 } }
+    "panel": {
+      "preview": "assets/market/screenshots/panel.png", "size": { "width": 320, "height": 248 } }
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",

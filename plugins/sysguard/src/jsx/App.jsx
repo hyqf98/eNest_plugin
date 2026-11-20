@@ -514,10 +514,13 @@ export function App() {
     kitRef.current = kit
     modeRef.current = kit.mode
     setModeState(kit.mode)
+    // 必须在使用前声明：下面立刻要 push onSettings 的清理函数，
+    // 声明写在 push 之后会触发 TDZ（ReferenceError: Cannot access 'disposers' before initialization），
+    // 整个挂载流程中断，panel/quick 模式直接白屏。
+    const disposers = []
     disposers.push(kit.onSettings((next) => setSettings({ ...next })))
 
     document.addEventListener('visibilitychange', onVis)
-    const disposers = []
     disposers.push(api?.onOut?.(() => stopSamplerRef.current()))
     disposers.push(api?.onEnter?.(() => {
       void refreshRef.current({ silent: true })

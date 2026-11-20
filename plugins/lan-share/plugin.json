@@ -7,8 +7,7 @@
   "main": "index.html",
   "views": {
     "default": "shell",
-    "layouts": ["quick", "shell", "panel"],
-    "panel": { "size": { "width": 320, "height": 240 } }
+    "layouts": ["quick", "shell"]
   },
   "category": "其它",
   "icon": "assets/market/icon.svg",

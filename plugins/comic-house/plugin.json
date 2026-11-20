@@ -1,0 +1,64 @@
+{
+  "id": "com.github.eNest.comic-house",
+  "name": "漫画屋",
+  "version": "0.0.1",
+  "description": "聚合漫画阅读：导入多格式 JS 数据源，多源管理、跨源搜索、最热排行、沉浸式竖向阅读（滚轮缩放、浮动侧栏）、整部缓存与阅读历史。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "layouts": ["shell"],
+    "default": "shell"
+  },
+  "category": "媒体",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.0.1"
+  },
+  "permissions": [
+    "backend.node"
+  ],
+  "window": {
+    "width": 1120,
+    "height": 720,
+    "minWidth": 480,
+    "minHeight": 320
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "漫画屋：多源漫画搜索、排行与沉浸阅读",
+      "cmds": [
+        "漫画",
+        "漫画屋",
+        "comic",
+        "manhua",
+        "mh"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "漫画",
+      "阅读",
+      "数据源",
+      "聚合",
+      "缓存"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5218/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
+  }
+}

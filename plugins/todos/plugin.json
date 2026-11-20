@@ -8,7 +8,8 @@
   "views": {
     "layouts": ["quick", "shell", "panel"],
     "default": "shell",
-    "panel": { "size": { "width": 280, "height": 260 } }
+    "panel": {
+      "preview": "assets/market/screenshots/panel.png", "size": { "width": 280, "height": 260 } }
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",
@@ -45,6 +46,271 @@
         "color": "#3ddc97",
         "explain": "添加、勾选、置顶待办，自动保存",
         "openCode": "main"
+      }
+    ],
+    "mcpTools": [
+      {
+        "id": "tasks.list",
+        "title": "List todo tasks",
+        "description": "List tasks with optional filters: list name, done state, tags and a keyword matched against text/note/tags. By default excludes archived tasks; set includeArchived to see them. Returns full task fields (id/text/done/pinned/due/priority/list/tags/note/subtask progress/order/timestamps), capped by limit with a truncated flag.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "list": {
+              "type": "string",
+              "maxLength": 50,
+              "description": "Only tasks in this list."
+            },
+            "done": {
+              "type": "boolean",
+              "description": "Filter by completion state."
+            },
+            "tags": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 64 },
+              "maxItems": 16,
+              "description": "Tasks carrying any of these tags."
+            },
+            "keyword": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Substring match on text, note and tags."
+            },
+            "includeArchived": {
+              "type": "boolean",
+              "description": "Include archived tasks, default false."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "description": "Max tasks returned, default 200."
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "task.add",
+        "title": "Add todo task",
+        "description": "Create a task at the top of the inbox (or the given list). Text up to 500 chars; optional due date (YYYY-MM-DD), priority (normal/high/low), list, tags and note. The change goes through the app's own mutation path with undo support and immediate persistence.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "due": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Due date YYYY-MM-DD."
+            },
+            "priority": {
+              "type": "string",
+              "enum": ["normal", "high", "low"],
+              "description": "Default normal."
+            },
+            "list": {
+              "type": "string",
+              "maxLength": 50,
+              "description": "Target list, default 收件箱."
+            },
+            "tags": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 64 },
+              "maxItems": 16
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "required": ["text"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": false
+        }
+      },
+      {
+        "id": "task.update",
+        "title": "Update todo task",
+        "description": "Update mutable fields of one task by id: text, due (empty string clears it), priority, list, tags, note, pinned, archived. Only provided fields change; updatedAt refreshes automatically.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Task id from tasks.list."
+            },
+            "text": { "type": "string", "minLength": 1, "maxLength": 500 },
+            "due": {
+              "type": "string",
+              "maxLength": 10,
+              "description": "Due date YYYY-MM-DD, empty string clears."
+            },
+            "priority": { "type": "string", "enum": ["normal", "high", "low"] },
+            "list": { "type": "string", "maxLength": 50 },
+            "tags": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 64 },
+              "maxItems": 16
+            },
+            "note": { "type": "string", "maxLength": 2000 },
+            "pinned": { "type": "boolean" },
+            "archived": { "type": "boolean" }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "task.toggle",
+        "title": "Toggle task completion",
+        "description": "Toggle (or explicitly set) the done state of one task by id. Omit done to flip the current state; pass done: true/false to set it explicitly (setting the same state is a no-op).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Task id from tasks.list."
+            },
+            "done": {
+              "type": "boolean",
+              "description": "Explicit target state; omit to toggle."
+            }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "task.delete",
+        "title": "Delete todo task",
+        "description": "Delete one task by id. The deletion enters the app's undo history (recoverable via the in-app undo button until the next action) and persists immediately.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Task id from tasks.list."
+            }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "lists.list",
+        "title": "List todo lists",
+        "description": "List all task lists with per-list open/done/archived counts.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "list.add",
+        "title": "Create todo list",
+        "description": "Create a new task list by name (max 50 chars). Creating an existing name is reported as existed without changes.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "list.rename",
+        "title": "Rename todo list",
+        "description": "Rename a list; all its tasks move along, task data stays untouched.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
+              "description": "Current list name."
+            },
+            "to": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
+              "description": "New list name; must not already exist."
+            }
+          },
+          "required": ["from", "to"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "list.delete",
+        "title": "Delete todo list",
+        "description": "Delete a list by name; its tasks are moved to 收件箱 rather than lost. The built-in 收件箱 list cannot be deleted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
+              "description": "List name to delete."
+            }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true
+        }
       }
     ]
   },

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- AI 生图：画框 + 星尘生成 -->
+  <rect x="3.5" y="5" width="25" height="22" rx="3" fill="#ffffff" stroke="#3d2f1e" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M7 21.5 l4.5-6 3.5 4.2 3-3.4 4 5.2" fill="none" stroke="#1d5c8a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="11" cy="10.8" r="1.8" fill="none" stroke="#e8a13a" stroke-width="1.4"/>
+  <path d="M21.5 8.2 l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8 Z" fill="#e8a13a" stroke="#3d2f1e" stroke-width=".8" stroke-linejoin="round"/>
+</svg>

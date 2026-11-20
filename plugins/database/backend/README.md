@@ -13,8 +13,8 @@ SQL 执行边界的唯一源码是本插件 `backend/sqlScript.ts`；本地 `scr
 验证入口：
 
 - `tsc -p backend/tsconfig.json`：独立后端类型检查。
-- `node --test backend/database-backend-contract.test.mjs`：本轮迁移专项，使用模拟 driver/host，不连接任何真实数据库。
-- `node --test backend/*.test.mjs`：协议、生命周期、SQL adapter、CSV、原生文件访问边界。
-- `tsx --tsconfig backend/tsconfig.json --test backend/*.test.ts`：脚本解析、SQLite/DuckDB 与可选服务集成。
+- `node --test tests/backend/database-backend-contract.test.mjs`：使用模拟 driver/host，不连接任何真实数据库。
+- `npm run test:backend`：协议、生命周期、SQL adapter、CSV、原生文件访问边界。
+- `npm run test:backend:integration`：脚本解析、SQLite/DuckDB 与可选服务集成。
 
 SQLite 安全测试需要与产品一致、支持 `DatabaseSync.setAuthorizer` 的 Node 运行时；推荐通过 Electron 的 `ELECTRON_RUN_AS_NODE=1` 执行测试。不能为了适配较旧的系统 Node 去掉 authorizer。外部服务集成测试仅在对应测试环境变量存在时运行。

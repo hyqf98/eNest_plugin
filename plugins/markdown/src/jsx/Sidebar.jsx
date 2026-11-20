@@ -196,16 +196,28 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
             {visibleOutline.map(({ level, text, from, idx, hidden }) => hidden ? null : (
               <div key={idx} className={`md-outline-item md-outline-l${Math.min(level, 6)}`}
                 role="treeitem">
+                {/* 折叠按钮放在标题**前面**（与文件树/常见大纲一致：箭头在最左），
+                    没有直接子级时不渲染按钮，但保留等宽占位让同级标题对齐。 */}
+                {!outlineQuery && (() => {
+                  // 只认"当前项之后、下一个同级或更浅标题之前"这一段里是否还有更深层级。
+                  // 原判断扫到文档末尾任意更深的标题，会让 4.1/4.2 这类后面紧跟同级、
+                  // 更远处才出现三级标题的项误显示折叠箭头（点开什么都没有）。
+                  const nextSame = outline.findIndex((node, i2) => i2 > idx && node.level <= level)
+                  const segmentEnd = nextSame < 0 ? outline.length : nextSame
+                  const hasChild = outline.slice(idx + 1, segmentEnd).some((node) => node.level > level)
+                  if (!hasChild) return <span className="md-outline-fold-space" aria-hidden="true" />
+                  return (
+                    <button className={`md-outline-fold ${collapsedOutline.has(idx) ? 'is-collapsed' : ''}`}
+                      onClick={() => setCollapsedOutline((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(idx)) next.delete(idx); else next.add(idx)
+                        return next
+                      })}
+                      aria-expanded={!collapsedOutline.has(idx)}
+                      title={collapsedOutline.has(idx) ? '展开子级' : '折叠子级'}>{collapsedOutline.has(idx) ? '▸' : '▾'}</button>
+                  )
+                })()}
                 <button className="md-outline-text" onClick={() => onJump(from)} title={text}>{text}</button>
-                {!outlineQuery && outline.some((n, i2) => i2 > idx && n.level > level) && (
-                  <button className={`md-outline-fold ${collapsedOutline.has(idx) ? 'is-collapsed' : ''}`}
-                    onClick={() => setCollapsedOutline((prev) => {
-                      const next = new Set(prev)
-                      if (next.has(idx)) next.delete(idx); else next.add(idx)
-                      return next
-                    })}
-                    title={collapsedOutline.has(idx) ? '展开子级' : '折叠子级'}>{collapsedOutline.has(idx) ? '▸' : '▾'}</button>
-                )}
               </div>
             ))}
           </div>

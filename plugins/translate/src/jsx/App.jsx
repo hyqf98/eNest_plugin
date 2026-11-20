@@ -97,6 +97,16 @@ async function translate(q, src, tgt, engine) {
   }
 }
 
+/* —— 智能目标语言：auto 检测出源语言与目标相同时，翻向对向语言（中↔英、其他→中）—— */
+const OPPOSITE = {
+  'zh-CN': 'en',
+  en: 'zh-CN',
+}
+function pickTarget(detected, tgt) {
+  if (!detected || detected !== tgt) return tgt
+  return OPPOSITE[tgt] || 'zh-CN'
+}
+
 /* —— 空结果对象（等价原 result 为 null 的展示态） —— */
 const IDLE = {
   text: '译文会显示在这里',
@@ -217,10 +227,17 @@ export function App() {
     setOutput({ text: '', cls: 'placeholder busy', engineTag: '', detected: '' })
     const stateText = engineV === 'mymemory' ? 'MyMemory 正在翻译…' : '正在获取译文…'
     try {
-      const translated =
+      let translated =
         srcV === tgtV
           ? { text: source, detected: srcV, engine: 'local' }
           : await translate(source, srcV, tgtV, engineV)
+      /* auto 检测到源语言与目标相同（如目标默认中文、输入的也是中文）时，
+         自动改译对向语言；手动选定源语言时尊重用户选择，原样返回。 */
+      let effectiveTgt = tgtV
+      if (srcV === 'auto' && translated.detected && translated.detected === tgtV) {
+        effectiveTgt = pickTarget(translated.detected, tgtV)
+        translated = await translate(source, srcV, effectiveTgt, engineV)
+      }
       if (id !== requestRef.current) return
       detectedRef.current = translated.detected
       const prev = historyRef.current.find(
@@ -231,7 +248,7 @@ export function App() {
         source,
         text: translated.text,
         src: srcV,
-        tgt: tgtV,
+        tgt: effectiveTgt,
         detected: translated.detected,
         engine: translated.engine,
         ts: Date.now(),
@@ -242,6 +259,8 @@ export function App() {
       rows = rows.filter((h) => h.starred || ++unstarred <= 300)
       setHistory(rows)
       setResult(entry)
+      /* 换向后同步 UI 上的目标语言选择，让「识别为 X → Y」与实际翻译方向一致 */
+      if (effectiveTgt !== tgtV) setTgt(effectiveTgt)
       setOutput({
         text: entry.text,
         cls: '',

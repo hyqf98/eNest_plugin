@@ -1,0 +1,777 @@
+/**
+ * dsh.css — AI 助手样式（DSH 设计平台 token 复刻 + 组件层）
+ * 色板拷贝自 deepseek-harness packages/client/ui-theme/src/styles/design-platform.css
+ * （neutral-bluish static 阶 + DeepSeek 蓝阶 + 状态色），全部挂 --dbai-* 前缀，
+ * 不污染插件现有变量；:root 浅色 / :root[data-theme=dark]、html[data-scheme=dark] 深色
+ * （跟随插件纸面主题；paper dark/board 同步走深色）。
+ * 所有过渡尊重 prefers-reduced-motion。
+ */
+
+/* ── static 色板（浅深同源，alias 分层切换）── */
+:root {
+  --dbai-neutral-00: rgb(255, 255, 255);
+  --dbai-neutral-50: rgb(249, 250, 251);
+  --dbai-neutral-75: rgb(241, 243, 245);
+  --dbai-neutral-100: rgb(235, 238, 242);
+  --dbai-neutral-200: rgb(225, 229, 238);
+  --dbai-neutral-400: rgb(173, 178, 184);
+  --dbai-neutral-500: rgb(151, 157, 166);
+  --dbai-neutral-600: rgb(129, 133, 140);
+  --dbai-neutral-700: rgb(97, 102, 107);
+  --dbai-neutral-750: rgb(67, 69, 74);
+  --dbai-neutral-800: rgb(53, 54, 56);
+  --dbai-neutral-850: rgb(44, 44, 46);
+  --dbai-neutral-875: rgb(35, 35, 36);
+  --dbai-neutral-900: rgb(27, 27, 28);
+  --dbai-neutral-950: rgb(21, 21, 23);
+  --dbai-deepseek-50: rgb(237, 243, 254);
+  --dbai-deepseek-100: rgb(228, 237, 253);
+  --dbai-deepseek-200: rgb(211, 226, 255);
+  --dbai-deepseek-300: rgb(183, 200, 254);
+  --dbai-deepseek-400: rgb(122, 170, 255);
+  --dbai-deepseek-450: rgb(86, 134, 254);
+  --dbai-deepseek-500: rgb(65, 118, 230);
+  --dbai-deepseek-600: rgb(72, 104, 178);
+  --dbai-green-400: rgb(78, 209, 126);
+  --dbai-green-500: rgb(34, 197, 94);
+  --dbai-red-400: rgb(242, 90, 90);
+  --dbai-red-500: rgb(239, 68, 68);
+  --dbai-amber-100: rgb(254, 245, 231);
+  --dbai-amber-400: rgb(247, 173, 49);
+  --dbai-amber-500: rgb(245, 158, 11);
+  --dbai-amber-600: rgb(221, 134, 41);
+  --dbai-amber-900: rgb(39, 36, 31);
+  --dbai-violet-400: rgb(167, 139, 250);
+
+  /* 圆角 8 / 12 / 16 / 28 */
+  --dbai-r-sm: 8px;
+  --dbai-r-md: 12px;
+  --dbai-r-lg: 16px;
+  --dbai-r-xl: 28px;
+
+  /* alias（浅色） */
+  --dbai-bg: var(--dbai-neutral-00);
+  --dbai-bg-2: var(--dbai-neutral-50);
+  --dbai-bg-3: var(--dbai-neutral-75);
+  --dbai-border: rgba(0, 0, 0, 0.1);
+  --dbai-border-strong: rgba(0, 0, 0, 0.16);
+  --dbai-text: var(--dbai-neutral-950);
+  --dbai-text-2: var(--dbai-neutral-700);
+  --dbai-text-3: var(--dbai-neutral-500);
+  --dbai-brand: var(--dbai-deepseek-500);
+  --dbai-brand-hover: var(--dbai-deepseek-450);
+  --dbai-brand-soft: var(--dbai-deepseek-50);
+  --dbai-on-brand: rgb(255, 255, 255);
+  --dbai-bubble: var(--dbai-deepseek-50);
+  --dbai-code-bg: var(--dbai-neutral-50);
+  --dbai-hover: rgba(38, 49, 72, 0.06);
+  --dbai-active: rgba(38, 49, 72, 0.1);
+  --dbai-ok: var(--dbai-green-500);
+  --dbai-danger: rgb(223, 42, 42);
+  --dbai-warn: var(--dbai-amber-600);
+  --dbai-warn-bg: var(--dbai-amber-100);
+  --dbai-warn-border: var(--dbai-amber-400);
+  --dbai-shadow: 0 8px 28px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06);
+  --dbai-menu: rgba(252, 253, 254, 0.86);
+}
+
+:root[data-theme='dark'],
+html[data-scheme='dark'],
+:root[data-paper='dark'],
+:root[data-paper='board'] {
+  --dbai-bg: var(--dbai-neutral-875);
+  --dbai-bg-2: var(--dbai-neutral-850);
+  --dbai-bg-3: var(--dbai-neutral-800);
+  --dbai-border: rgba(255, 255, 255, 0.12);
+  --dbai-border-strong: rgba(255, 255, 255, 0.2);
+  --dbai-text: var(--dbai-neutral-50);
+  --dbai-text-2: var(--dbai-neutral-300);
+  --dbai-text-3: var(--dbai-neutral-400);
+  --dbai-brand: var(--dbai-deepseek-400);
+  --dbai-brand-hover: var(--dbai-deepseek-500);
+  --dbai-brand-soft: rgba(122, 170, 255, 0.14);
+  --dbai-on-brand: var(--dbai-neutral-950);
+  --dbai-bubble: var(--dbai-neutral-850);
+  --dbai-code-bg: var(--dbai-neutral-900);
+  --dbai-hover: rgba(255, 255, 255, 0.08);
+  --dbai-active: rgba(255, 255, 255, 0.14);
+  --dbai-ok: var(--dbai-green-400);
+  --dbai-danger: var(--dbai-red-400);
+  --dbai-warn: var(--dbai-amber-400);
+  --dbai-warn-bg: rgba(245, 158, 11, 0.12);
+  --dbai-warn-border: rgba(247, 173, 49, 0.5);
+  --dbai-shadow: 0 10px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --dbai-menu: rgba(48, 49, 54, 0.86);
+}
+
+/* ── 悬浮球 ── */
+.dbai-fab {
+  position: fixed;
+  z-index: 60;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dbai-on-brand);
+  background: var(--dbai-brand);
+  box-shadow: var(--dbai-shadow);
+  transition: transform 0.18s ease, background 0.18s ease;
+  touch-action: none;
+}
+.dbai-fab svg { width: 20px; height: 20px; }
+.dbai-fab:hover { background: var(--dbai-brand-hover); transform: translateY(-1px); }
+.dbai-fab:active { transform: scale(0.96); }
+.dbai-fab.dragging { cursor: grabbing; opacity: 0.95; user-select: none; transition: none; }
+.dbai-fab.running { animation: dbai-breathe 1.8s ease-in-out infinite; }
+
+@keyframes dbai-breathe {
+  0%, 100% { box-shadow: var(--dbai-shadow), 0 0 0 0 color-mix(in srgb, var(--dbai-brand) 40%, transparent); }
+  50% { box-shadow: var(--dbai-shadow), 0 0 0 7px color-mix(in srgb, var(--dbai-brand) 0%, transparent); }
+}
+
+/* ── 面板 ── */
+.dbai-panel {
+  position: fixed;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dbai-border);
+  border-radius: var(--dbai-r-lg) 0 0 var(--dbai-r-lg);
+  background: var(--dbai-bg);
+  box-shadow: var(--dbai-shadow);
+  overflow: hidden;
+  min-width: 280px;
+}
+.dbai-panel.narrow {
+  border-radius: 0;
+  width: 100vw;
+  height: 100vh;
+}
+.dbai-panel.dragging { opacity: 0.95; user-select: none; }
+
+/* 头部：毛玻璃 */
+.dbai-header {
+  flex: none;
+  background: transparent;
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  background: color-mix(in srgb, var(--dbai-bg) 72%, transparent);
+  border-bottom: 1px solid var(--dbai-border);
+}
+.dbai-panel.dragging .dbai-header { background: var(--dbai-bg); }
+.dbai-grip {
+  cursor: grab;
+  padding: 6px 10px 6px 8px;
+  touch-action: none;
+}
+.dbai-grip:active { cursor: grabbing; }
+.dbai-head-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.dbai-head-row::before {
+  content: '⠿';
+  color: var(--dbai-text-3);
+  font-size: 12px;
+  flex: none;
+  opacity: 0.7;
+}
+.dbai-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: none;
+  color: var(--dbai-text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: var(--dbai-r-sm);
+  cursor: text;
+  max-width: 34%;
+}
+.dbai-title:hover { background: var(--dbai-hover); }
+
+.dbai-sessions-btn,
+.dbai-model-chip,
+.dbai-conn-chip {
+  flex: none;
+  max-width: 30%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--dbai-border);
+  background: var(--dbai-bg-2);
+  color: var(--dbai-text-2);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.dbai-sessions-btn::before { content: '☰ '; opacity: 0.6; }
+.dbai-model-chip::before { content: '◈ '; opacity: 0.6; }
+.dbai-conn-chip::before { content: '◉ '; color: var(--dbai-ok); }
+.dbai-model-chip.empty, .dbai-conn-chip.empty { color: var(--dbai-text-3); border-style: dashed; }
+.dbai-sessions-btn:hover, .dbai-model-chip:hover, .dbai-conn-chip:hover { background: var(--dbai-hover); }
+
+.dbai-collapse {
+  flex: none;
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--dbai-r-sm);
+  background: none;
+  color: var(--dbai-text-2);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.dbai-collapse:hover { background: var(--dbai-hover); }
+
+/* ── 消息区 ── */
+.dbai-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overscroll-behavior: contain;
+  background: var(--dbai-bg);
+}
+
+.dbai-msg { display: flex; flex-direction: column; max-width: 100%; }
+.dbai-msg.user { align-items: flex-end; }
+.dbai-bubble {
+  max-width: 86%;
+  background: var(--dbai-bubble);
+  color: var(--dbai-text);
+  border-radius: 12px 12px 4px 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 助手 markdown（无框） */
+.dbai-md {
+  color: var(--dbai-text);
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.dbai-md p { margin: 0 0 8px; }
+.dbai-md p:last-child { margin-bottom: 0; }
+.dbai-md h3, .dbai-md h4, .dbai-md h5, .dbai-md h6 { margin: 12px 0 6px; font-size: 14px; }
+.dbai-md ul, .dbai-md ol { margin: 4px 0 8px; padding-left: 20px; }
+.dbai-md li { margin: 2px 0; }
+.dbai-md blockquote {
+  margin: 6px 0;
+  padding: 2px 10px;
+  border-left: 3px solid var(--dbai-brand);
+  color: var(--dbai-text-2);
+}
+.dbai-md code {
+  background: var(--dbai-bg-3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.dbai-md a { color: var(--dbai-brand); }
+.dbai-md hr { border: none; border-top: 1px solid var(--dbai-border); margin: 10px 0; }
+
+/* 流式文本 + 光标 */
+.dbai-stream-text { white-space: pre-wrap; }
+.dbai-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--dbai-brand);
+  border-radius: 1.5px;
+  animation: dbai-blink 0.9s steps(2) infinite;
+}
+@keyframes dbai-blink { 50% { opacity: 0; } }
+
+/* ── 代码块 ── */
+.dbai-codeblock {
+  border: 1px solid var(--dbai-border);
+  border-radius: var(--dbai-r-sm);
+  overflow: hidden;
+  margin: 8px 0;
+}
+.dbai-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--dbai-bg-2);
+  border-bottom: 1px solid var(--dbai-border);
+  padding: 3px 8px;
+}
+.dbai-code-lang {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dbai-text-3);
+}
+.dbai-code-actions { display: flex; gap: 4px; }
+.dbai-iconbtn {
+  border: none;
+  background: none;
+  color: var(--dbai-text-2);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dbai-iconbtn:hover { background: var(--dbai-hover); color: var(--dbai-text); }
+.dbai-code-body {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--dbai-code-bg);
+  color: var(--dbai-text);
+  font-size: 12px;
+  font-family: var(--mono, ui-monospace, monospace);
+  overflow-x: auto;
+  max-height: 280px;
+  line-height: 1.5;
+}
+
+/* ── 工具轮次块 ── */
+.dbai-turn {
+  border: 1px solid var(--dbai-border);
+  border-radius: var(--dbai-r-sm);
+  background: var(--dbai-bg-2);
+  overflow: hidden;
+}
+.dbai-turn-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 33px;
+  border: none;
+  background: none;
+  color: var(--dbai-text-2);
+  font-size: 12px;
+  padding: 0 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.dbai-turn-head:hover { background: var(--dbai-hover); }
+.dbai-turn-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbai-turn-chevron { transition: transform 0.15s ease; color: var(--dbai-text-3); }
+.dbai-turn.open .dbai-turn-chevron { transform: rotate(180deg); }
+.dbai-turn.running .dbai-turn-label { color: var(--dbai-brand); }
+.dbai-turn-tree {
+  border-top: 1px solid var(--dbai-border);
+  padding: 4px 0;
+}
+
+.dbai-tool-row { border-bottom: 1px solid color-mix(in srgb, var(--dbai-border) 50%, transparent); }
+.dbai-tool-row:last-child { border-bottom: none; }
+.dbai-tool-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  min-height: 28px;
+}
+.dbai-tool-head:hover { background: var(--dbai-hover); }
+.dbai-tool-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dbai-text-3);
+}
+.dbai-tool-dot.ok { background: var(--dbai-ok); }
+.dbai-tool-dot.error { background: var(--dbai-danger); }
+.dbai-tool-dot.running {
+  background: var(--dbai-brand);
+  animation: dbai-spin 0.8s linear infinite;
+  border-radius: 999px;
+  background: transparent;
+  border: 1.5px solid var(--dbai-brand);
+  border-top-color: transparent;
+  width: 9px;
+  height: 9px;
+}
+@keyframes dbai-spin { to { transform: rotate(360deg); } }
+.dbai-tool-name {
+  flex: none;
+  font-size: 11px;
+  color: var(--dbai-brand);
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.dbai-tool-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--dbai-text-2);
+}
+.dbai-tool-ms { flex: none; font-size: 10px; color: var(--dbai-text-3); }
+.dbai-tool-detail { padding: 6px 12px 8px 26px; }
+.dbai-tool-args, .dbai-tool-result {
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  background: var(--dbai-code-bg);
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--mono, ui-monospace, monospace);
+  overflow-x: auto;
+  max-height: 160px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--dbai-text-2);
+}
+.dbai-tool-result { color: var(--dbai-text); }
+
+/* query 迷你表格 */
+.dbai-mini-wrap { margin-top: 4px; }
+.dbai-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  table-layout: auto;
+}
+.dbai-mini-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--dbai-text-2);
+  background: var(--dbai-bg-3);
+  padding: 3px 8px;
+  border: 1px solid var(--dbai-border);
+  white-space: nowrap;
+}
+.dbai-mini-table td {
+  padding: 3px 8px;
+  border: 1px solid var(--dbai-border);
+  color: var(--dbai-text);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dbai-mini-foot { font-size: 10px; color: var(--dbai-text-3); margin-top: 4px; }
+
+/* ── 确认卡（amber）── */
+.dbai-confirm {
+  border: 1px solid var(--dbai-warn-border);
+  border-radius: var(--dbai-r-sm);
+  background: var(--dbai-warn-bg);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dbai-confirm-head { display: flex; align-items: center; gap: 8px; }
+.dbai-confirm-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--dbai-warn);
+  border: 1px solid var(--dbai-warn-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.dbai-confirm-tool {
+  font-size: 11px;
+  color: var(--dbai-text-2);
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.dbai-confirm-summary {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dbai-text);
+  word-break: break-all;
+}
+.dbai-confirm-sql {
+  margin: 0;
+  padding: 8px;
+  background: var(--dbai-code-bg);
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: var(--mono, ui-monospace, monospace);
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--dbai-text);
+}
+.dbai-confirm-actions { display: flex; align-items: center; gap: 6px; }
+.dbai-confirm-spacer { flex: 1; }
+.dbai-confirm.done { opacity: 0.75; }
+.dbai-confirm.done .dbai-confirm-badge { color: var(--dbai-ok); border-color: color-mix(in srgb, var(--dbai-ok) 50%, transparent); }
+.dbai-confirm.cancelled { opacity: 0.55; filter: grayscale(0.4); }
+
+/* ── 按钮 ── */
+.dbai-btn {
+  border: 1px solid var(--dbai-border);
+  background: var(--dbai-bg);
+  color: var(--dbai-text);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--dbai-r-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.dbai-btn:hover { background: var(--dbai-hover); }
+.dbai-btn:active { transform: translateY(1px); }
+.dbai-btn.primary {
+  background: var(--dbai-brand);
+  border-color: var(--dbai-brand);
+  color: var(--dbai-on-brand);
+}
+.dbai-btn.primary:hover { background: var(--dbai-brand-hover); }
+.dbai-btn.ghost { background: none; border-style: dashed; }
+.dbai-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ── 输入区 ── */
+.dbai-composer {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 10px;
+  border-top: 1px solid var(--dbai-border);
+  background: color-mix(in srgb, var(--dbai-bg) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+}
+.dbai-input {
+  flex: 1;
+  resize: none;
+  border: 1px solid var(--dbai-border-strong);
+  border-radius: var(--dbai-r-sm);
+  background: var(--dbai-bg);
+  color: var(--dbai-text);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 6px 10px;
+  min-height: 32px;
+  max-height: 140px;
+  font-family: inherit;
+}
+.dbai-input:focus {
+  outline: none;
+  border-color: var(--dbai-brand);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dbai-brand) 18%, transparent);
+}
+.dbai-input::placeholder { color: var(--dbai-text-3); }
+.dbai-send, .dbai-stop {
+  flex: none;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--dbai-r-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+.dbai-send { background: var(--dbai-brand); color: var(--dbai-on-brand); }
+.dbai-send:hover { background: var(--dbai-brand-hover); }
+.dbai-stop { background: var(--dbai-bg-3); color: var(--dbai-text); border: 1px solid var(--dbai-border-strong); }
+
+/* ── 下拉浮层 ── */
+.dbai-dropdown {
+  position: fixed;
+  z-index: 62;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--dbai-menu);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  border: 1px solid var(--dbai-border);
+  border-radius: var(--dbai-r-md);
+  box-shadow: var(--dbai-shadow);
+  padding: 6px;
+}
+.dbai-dropdown-empty { margin: 8px 10px; font-size: 12px; color: var(--dbai-text-3); }
+.dbai-session-item, .dbai-model-item, .dbai-session-new, .dbai-model-config {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: var(--dbai-text);
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: var(--dbai-r-sm);
+  cursor: pointer;
+  text-align: left;
+}
+.dbai-session-item, .dbai-model-item { justify-content: space-between; }
+.dbai-session-item strong, .dbai-model-item strong { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbai-session-item small, .dbai-model-item small { display: block; color: var(--dbai-text-3); font-size: 10px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbai-session-item > div, .dbai-model-item > div { min-width: 0; flex: 1; }
+.dbai-session-item > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dbai-session-item > strong, .dbai-model-item > strong { flex: 0 1 auto; }
+.dbai-session-item:hover, .dbai-model-item:hover, .dbai-session-new:hover, .dbai-model-config:hover { background: var(--dbai-hover); }
+.dbai-session-item.active, .dbai-model-item.active { background: var(--dbai-brand-soft); }
+.dbai-session-del {
+  flex: none;
+  color: var(--dbai-text-3);
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.dbai-session-del:hover { color: var(--dbai-danger); background: var(--dbai-hover); }
+.dbai-session-new, .dbai-model-config { color: var(--dbai-brand); justify-content: center; }
+.dbai-model-item { flex-direction: column; align-items: flex-start; gap: 2px; }
+
+/* ── 空态 ── */
+.dbai-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  color: var(--dbai-text-2);
+  font-size: 13px;
+  text-align: center;
+}
+.dbai-suggest { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.dbai-suggest-chip {
+  border: 1px solid var(--dbai-border);
+  background: var(--dbai-bg-2);
+  color: var(--dbai-text-2);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.dbai-suggest-chip:hover { background: var(--dbai-brand-soft); color: var(--dbai-brand); border-color: color-mix(in srgb, var(--dbai-brand) 40%, transparent); }
+
+/* ── 错误提示 ── */
+.dbai-error-notice {
+  border: 1px solid color-mix(in srgb, var(--dbai-danger) 36%, transparent);
+  background: color-mix(in srgb, var(--dbai-danger) 7%, transparent);
+  color: var(--dbai-danger);
+  font-size: 12px;
+  border-radius: var(--dbai-r-sm);
+  padding: 8px 10px;
+  word-break: break-all;
+}
+
+/* ── 图表容器 ── */
+/* A2UI React 适配层的 host 是自定义元素（a2ui-react-*），默认 inline 会让
+   width:100% 的子容器塌成 0 宽（echarts 零宽 init 会触发内部循环重试） */
+.dbai-surfaces a2ui-react-echart,
+.dbai-surfaces a2ui-react-mermaid,
+.dbai-surfaces a2ui-react-dbtable { display: block; width: 100%; }
+.dbai-echarts { width: 100%; height: 260px; }
+.dbai-mermaid {
+  min-height: 60px;
+  padding: 6px 0;
+  text-align: center;
+}
+.dbai-mermaid svg { max-width: 100%; }
+.dbai-chart-error-card {
+  text-align: left;
+  border: 1px dashed var(--dbai-border-strong);
+  border-radius: var(--dbai-r-sm);
+  padding: 8px 10px;
+  color: var(--dbai-text-3);
+  font-size: 11px;
+}
+.dbai-chart-error-title { display: block; color: var(--dbai-warn); margin-bottom: 4px; font-weight: 600; }
+.dbai-chart-error-card pre {
+  margin: 4px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 140px;
+  overflow: auto;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.dbai-chart-source { opacity: 0.8; }
+.dbai-chart-evicted { display: none; }
+
+/* ── A2UI surface 层（DSH 配色接管 --a2ui-* 变量）── */
+.dbai-panel {
+  --a2ui-color-primary: var(--dbai-brand);
+  --a2ui-color-on-primary: var(--dbai-on-brand);
+  --a2ui-color-surface: var(--dbai-bg-2);
+  --a2ui-color-surface-variant: var(--dbai-bg-3);
+  --a2ui-color-on-surface: var(--dbai-text);
+  --a2ui-color-on-surface-variant: var(--dbai-text-2);
+  --a2ui-color-outline: var(--dbai-border-strong);
+  --a2ui-color-outline-variant: var(--dbai-border);
+  --a2ui-color-error: var(--dbai-danger);
+  --a2ui-border-radius: var(--dbai-r-sm);
+  --a2ui-font-family: inherit;
+}
+.dbai-body-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+.dbai-surfaces {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dbai-surfaces > * {
+  border: 1px solid var(--dbai-border);
+  border-radius: var(--dbai-r-md);
+  background: var(--dbai-bg);
+  padding: 8px;
+  overflow: hidden;
+}
+
+/* DbTable（A2UI 自定义组件） */
+.dbai-dbtable { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dbai-dbtable-caption { font-size: 11px; color: var(--dbai-text-3); }
+.dbai-dbtable-scroll { overflow: auto; max-height: 300px; border: 1px solid var(--dbai-border); border-radius: var(--dbai-r-sm); }
+.dbai-dbtable-table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+.dbai-dbtable-table th {
+  position: sticky;
+  top: 0;
+  background: var(--dbai-bg-3);
+  color: var(--dbai-text-2);
+  font-weight: 600;
+  text-align: left;
+  padding: 5px 8px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--dbai-border);
+}
+.dbai-dbtable-arrow { margin-left: 3px; color: var(--dbai-brand); }
+.dbai-dbtable-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--dbai-border) 40%, transparent);
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dbai-text);
+}
+.dbai-dbtable-table tbody tr:hover { background: var(--dbai-hover); }
+.dbai-dbtable-foot { font-size: 10px; color: var(--dbai-text-3); }
+
+/* shimmer（流式生成中的面板头部微光，弱装饰） */
+.dbai-panel .dbai-header { position: relative; }
+
+/* ── 动画档位尊重 ── */
+@media (prefers-reduced-motion: reduce) {
+  .dbai-fab, .dbai-fab.running,
+  .dbai-cursor, .dbai-tool-dot.running, .dbai-turn-chevron { animation: none !important; transition: none !important; }
+  .dbai-fab:hover { transform: none; }
+}

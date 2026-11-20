@@ -28,7 +28,7 @@
   "features": [
     {
       "code": "capture",
-      "explain": "矩形截图",
+      "explain": "框选矩形区域截图",
       "cmds": [
         "截图",
         "screenshot",
@@ -39,7 +39,7 @@
     },
     {
       "code": "record",
-      "explain": "矩形录屏",
+      "explain": "框选矩形区域录屏",
       "cmds": [
         "录屏",
         "record",
@@ -49,7 +49,7 @@
     },
     {
       "code": "pin",
-      "explain": "贴图",
+      "explain": "把截图钉在桌面最上层",
       "cmds": [
         "贴图",
         "pin",

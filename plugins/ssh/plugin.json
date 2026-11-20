@@ -8,8 +8,366 @@
   "activation": { "indexSync": true },
   "views": {
     "default": "shell",
-    "layouts": ["quick", "shell", "panel"],
-    "panel": { "size": { "width": 320, "height": 248 } }
+    "layouts": ["quick", "shell"]
+  },
+  "contributes": {
+    "mcpTools": [
+      {
+        "id": "profiles.list",
+        "title": "List saved SSH profiles",
+        "description": "List saved SSH connection profiles (sanitized: secrets never returned, only a hasCredential boolean per profile and jump/proxy hops). Use profile ids with connect.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "profile.save",
+        "title": "Create or update an SSH profile",
+        "description": "Create or update a saved connection profile. No plaintext password is accepted or stored here: authType password/key requires a secretRef from the vault (saved via the plugin UI), authType agent needs no secret. Omitted optional fields keep their saved values on update.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Display name." },
+            "host": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Host or IP." },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "SSH port, default 22." },
+            "username": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "authType": { "type": "string", "enum": ["password", "key", "agent", "keyboard-interactive"], "description": "Authentication type. password/key expect secretRef from the vault; agent uses the system SSH agent." },
+            "secretRef": { "type": "string", "maxLength": 128, "description": "Existing vault secret reference for the password or key passphrase. Never a plaintext secret. If omitted, connect will fail until the user saves credentials in the plugin UI." },
+            "env": { "type": "string", "enum": ["prod", "staging", "dev", "test", "custom"] },
+            "tags": { "type": "array", "items": { "type": "string", "maxLength": 40 }, "maxItems": 20 },
+            "note": { "type": "string", "maxLength": 500 },
+            "keepAliveSec": { "type": "integer", "minimum": 0, "maximum": 600 },
+            "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000 },
+            "fingerprintPolicy": { "type": "string", "enum": ["tofu", "accept-new", "strict"] },
+            "groupId": { "type": "string", "maxLength": 64, "description": "Optional group id from the plugin UI." },
+            "profileId": { "type": "string", "maxLength": 64, "description": "Existing profile id to update; omit to create." }
+          },
+          "required": ["name", "host", "username"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "profile.delete",
+        "title": "Delete an SSH profile",
+        "description": "Delete a saved connection profile and remove its vault credential reference. Destructive: history entries stay but the connection and its saved secret are gone.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": { "type": "string", "minLength": 1, "maxLength": 64 }
+          },
+          "required": ["profileId"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "connect",
+        "title": "Connect to a server",
+        "description": "Open an SSH session using a saved profileId, or an inline host/port/username/authType/secretRef. For password auth the credential must already be in the vault (profile secretRef) or be passed as ephemeralSecret which is used once for this connection and never stored. No interactive prompt can appear: if credentials are missing the call fails and the user must save them in the plugin UI first. Returns sessionId for exec/sftp/workbench tools; the most recent connection becomes the default session.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "profileId": { "type": "string", "maxLength": 64, "description": "Saved profile to connect with (preferred)." },
+            "host": { "type": "string", "maxLength": 255, "description": "Inline host when no profileId is given." },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "username": { "type": "string", "maxLength": 64 },
+            "authType": { "type": "string", "enum": ["password", "key", "agent", "keyboard-interactive"] },
+            "secretRef": { "type": "string", "maxLength": 128, "description": "Vault secret reference for this connection (not a plaintext secret)." },
+            "ephemeralSecret": { "type": "string", "maxLength": 1024, "description": "One-time password/key passphrase for this single connection; never written to disk or the vault." }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "disconnect",
+        "title": "Close an SSH session",
+        "description": "Close an SSH session by sessionId, or the current default session when omitted.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128 }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "sessions.list",
+        "title": "List SSH sessions",
+        "description": "List currently open SSH sessions with sessionId, profileId, host, username and status.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "exec",
+        "title": "Run a command over SSH",
+        "description": "Execute a shell command on a connected server via a dedicated exec channel (not the interactive terminal) and return stdout/stderr/exitCode. Provide sessionId or use the most recent connection. timeoutMs caps the run; output beyond limits fails with an explicit error.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "command": { "type": "string", "minLength": 1, "maxLength": 65536 },
+            "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 600000, "description": "Execution timeout, default 30000; keep at or under 55000 to fit the host 60s MCP execution budget." }
+          },
+          "required": ["command"],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "sftp.list",
+        "title": "List a remote directory",
+        "description": "List a remote directory over SFTP: entries with name, path, type, size and mtime.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024, "description": "Remote directory, e.g. /var/log or ~." }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "sftp.mkdir",
+        "title": "Create a remote directory",
+        "description": "Create a remote directory over SFTP.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024 }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "sftp.rename",
+        "title": "Rename a remote file or directory",
+        "description": "Rename or move a remote path over SFTP.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "newPath": { "type": "string", "minLength": 1, "maxLength": 1024 }
+          },
+          "required": ["path", "newPath"],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "sftp.delete",
+        "title": "Delete a remote file or directory",
+        "description": "Delete a remote file, or a directory when recursive is true. Destructive and unrecoverable; there is no remote trash.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "recursive": { "type": "boolean", "description": "Required true to delete a non-empty directory." }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "sftp.chmod",
+        "title": "Change remote file permissions",
+        "description": "Change permissions of a remote path over SFTP.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "mode": { "type": "string", "pattern": "^0?[0-7]{3,4}$", "description": "Octal mode like 0644 or 755." }
+          },
+          "required": ["path", "mode"],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "system",
+        "title": "Inspect server resources",
+        "description": "Read server state over the current session: snapshot (cpu/memory/disk/net sample), processes, ports, services or docker containers. Provide sessionId or use the most recent connection.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "action": { "type": "string", "enum": ["snapshot", "processes", "ports", "services", "docker"], "description": "snapshot=resource sample; processes/ports=tables; services=service units; docker=containers." }
+          },
+          "required": ["action"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "files.read",
+        "title": "Read a remote text file",
+        "description": "Read a remote text file (max 2MB on the backend) with its sha256 and mtime. Large content is truncated to keep the MCP result under the 1MiB transport limit: truncated=true and omittedBytes tell the AI to narrow the read. Use exec with head/sed ranges for big files.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024, "description": "Absolute remote file path." }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "id": "files.write",
+        "title": "Write a remote text file",
+        "description": "Write a remote text file (max 2MB) with conflict safety: pass expectedHash from files.read for optimistic locking (fails if the server copy changed), or overwrite=true to replace an existing file without checking. Omit both only for new files. Returns the new sha256.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "content": { "type": "string", "minLength": 0, "maxLength": 2097152 },
+            "expectedHash": { "type": "string", "maxLength": 128, "description": "sha256 from a previous files.read; write fails if the file changed since." },
+            "overwrite": { "type": "boolean", "description": "Replace an existing file ignoring expectedHash." }
+          },
+          "required": ["path", "content"],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "process.signal",
+        "title": "Send a signal to a remote process",
+        "description": "Send TERM or KILL to a remote process. Destructive and not undoable. Requires confirmed=true plus pid and startTime from a fresh system processes listing (identity check: fails if the process restarted).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "pid": { "type": "integer", "minimum": 2 },
+            "startTime": { "type": "string", "maxLength": 64, "description": "Exact startTime string from the processes listing." },
+            "signal": { "type": "string", "enum": ["TERM", "KILL"] },
+            "confirmed": { "type": "boolean", "enum": [true], "description": "Must be explicitly true." }
+          },
+          "required": ["pid", "startTime", "confirmed"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "service.action",
+        "title": "Start/stop/restart a remote service",
+        "description": "Run start, stop or restart on a system service (systemd/launchd/Windows service). Destructive. Requires confirmed=true and the service name from a services listing.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "operation": { "type": "string", "enum": ["start", "stop", "restart"] },
+            "confirmed": { "type": "boolean", "enum": [true], "description": "Must be explicitly true." }
+          },
+          "required": ["name", "operation", "confirmed"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "docker.action",
+        "title": "Operate a Docker container",
+        "description": "start/stop/restart a container (destructive, needs confirmed=true) or read logs/inspect (read-only, no confirmation). Container id must be the 12-64 hex id from a docker listing.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "id": { "type": "string", "pattern": "^[a-f0-9]{12,64}$", "description": "Container id from the docker listing." },
+            "operation": { "type": "string", "enum": ["start", "stop", "restart", "logs", "inspect"] },
+            "confirmed": { "type": "boolean", "enum": [true], "description": "Required true for start/stop/restart; not needed for logs/inspect." }
+          },
+          "required": ["id", "operation"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "destructiveHint": true
+        }
+      },
+      {
+        "id": "tunnel.open",
+        "title": "Open an SSH tunnel",
+        "description": "Open an SSH port forward for a session. Local direction: localPort on 127.0.0.1 forwards to remoteHost:remotePort through the server. Remote direction: the server listens on remotePort (loopback only) and forwards back to localPort on this machine. All endpoints bind to loopback only; nothing is exposed publicly.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string", "maxLength": 128, "description": "Omit to use the most recent connection." },
+            "direction": { "type": "string", "enum": ["local", "remote"], "description": "local=forward a local port to the server side; remote=server loopback port forwards back to this machine." },
+            "localPort": { "type": "integer", "minimum": 0, "maximum": 65535, "description": "Local port; 0 auto-assigns an ephemeral port (local direction only)." },
+            "remoteHost": { "type": "string", "maxLength": 255, "description": "Target host as seen from the server, default 127.0.0.1." },
+            "remotePort": { "type": "integer", "minimum": 1, "maximum": 65535 }
+          },
+          "required": ["direction", "localPort", "remotePort"],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "tunnel.list",
+        "title": "List SSH tunnels",
+        "description": "List open tunnels for this plugin with id, direction, localPort and remote target.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true
+        }
+      },
+      {
+        "id": "tunnel.close",
+        "title": "Close an SSH tunnel",
+        "description": "Close a tunnel by its id from tunnel.list.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 128 }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        }
+      }
+    ]
   },
   "category": "开发",
   "icon": "assets/market/icon.svg",

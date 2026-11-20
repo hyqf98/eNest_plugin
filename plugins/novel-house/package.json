@@ -1,0 +1,28 @@
+{
+  "name": "novel-house",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5220 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.novel-house",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.novel-house",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.novel-house"
+  },
+  "dependencies": {
+    "@enest/plugin-kit": "0.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "undici": "^8.11.2"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  },
+  "enestBackend": {
+    "entry": "backend/index.ts",
+    "dependencies": ["undici"]
+  },
+  "enestBuild": {
+    "entry": "scripts/build-hooks.mjs"
+  }
+}
