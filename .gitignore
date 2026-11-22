@@ -11,3 +11,8 @@ logs/
 # configResolved 阶段写入各插件 public/；唯一副本保存在 packages/*/assets/。
 /plugins/*/public/assets/vendor/native-surfaces/
 /plugins/*/public/assets/vendor/fonts/
+# 壁纸插件按平台构建的原生 helper 与 SDK 缓存，不提交二进制
+/plugins/*/helper-cache/
+/plugins/*/native/**/.cache/
+/plugins/*/native/**/.build/
+/plugins/*/native/**/build/

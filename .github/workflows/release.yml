@@ -65,11 +65,21 @@ jobs:
           console.log(`Resolved ${ref} to ${head}`)
           NODE
 
-  release:
+  build-wallpaper-helpers:
     needs: resolve-source
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win32-x64
+          - os: macos-14
+            target: darwin-arm64
+          - os: macos-15-intel
+            target: darwin-x64
+          - os: ubuntu-24.04
+            target: linux-x64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,6 +88,62 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Install workspace dependencies for the SDK fetch helper
+        if: runner.os == 'Windows'
+        run: npm ci
+
+      - name: Install Linux helper build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libjson-glib-dev libgtk-layer-shell-dev
+
+      - name: Build Windows helper
+        if: runner.os == 'Windows'
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File native/windows/build-helper.ps1
+        working-directory: plugins/wallpaper-house
+
+      - name: Build macOS helper
+        if: runner.os == 'macOS'
+        shell: bash
+        run: bash native/macos/build-helper.sh
+        working-directory: plugins/wallpaper-house
+
+      - name: Build Linux helper
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash native/linux/build-helper.sh
+        working-directory: plugins/wallpaper-house
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wallpaper-helper-${{ matrix.target }}
+          path: plugins/wallpaper-house/helper-cache
+          if-no-files-found: error
+
+  release:
+    needs: [resolve-source, build-wallpaper-helpers]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      ENEST_REQUIRE_ALL_HELPERS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-source.outputs.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Download native wallpaper helpers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wallpaper-helper-*
+          path: plugins/wallpaper-house/helper-cache
+          merge-multiple: true
 
       - name: Install deps
         run: npm ci

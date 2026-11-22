@@ -1,15 +1,39 @@
 #!/usr/bin/env node
-import { mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { realpathSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { zipSync } from 'fflate'
 import { buildPlugin } from './build-plugin.mjs'
 import { repositoryRoot, pluginIds, resolvePluginSource, readManifest } from './plugin-contract.mjs'
 import { validateDistribution } from './validate-dist.mjs'
 import { distributionDirectory, normalizeTarget, platformPackagePlan, projectPlatformDistribution, readDistributionTarget } from './distribution-target.mjs'
 import { loadPluginBuildHooks } from './plugin-build-hooks.mjs'
+
+async function createArchive(directory, output) {
+  try {
+    execFileSync('zip', ['-r', '-q', resolve(output), '.'], { cwd: directory })
+    return
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+  // Windows development hosts often lack Info-ZIP; use the in-repo pure-JS fallback.
+  // Release CI still uses the platform zip binary, which preserves Unix modes.
+  const files = {}
+  async function walk(current, prefix = '') {
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      const absolute = join(current, entry.name)
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name
+      if (entry.isDirectory()) await walk(absolute, relative)
+      else if (entry.isFile()) files[relative] = new Uint8Array(await readFile(absolute))
+      else throw new Error(`Non-regular file cannot be archived: ${relative}`)
+    }
+  }
+  await walk(directory)
+  await writeFile(output, zipSync(files, { level: 6 }))
+}
 
 export async function packPlugin(id, { repositoryRoot: root = repositoryRoot, outDir = join(root, 'dist'), build = true, target = 'universal', project = false } = {}) {
   normalizeTarget(target)
@@ -35,7 +59,7 @@ export async function packPlugin(id, { repositoryRoot: root = repositoryRoot, ou
     const temporary = `${output}.${process.pid}.tmp.zip`
     try {
       await rm(temporary, { force: true })
-      execFileSync('zip', ['-r', '-q', resolve(temporary), '.'], { cwd: directory })
+      await createArchive(directory, temporary)
       await rename(temporary, output)
     } finally { await rm(temporary, { force: true }) }
     const data = await readFile(output)
