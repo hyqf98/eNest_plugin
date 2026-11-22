@@ -1,46 +1,136 @@
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/hyqf98/eNest/main/assets/icons/enest.svg" width="96" alt="eNest" />
+
 # eNest 官方插件仓库
 
-本仓库维护插件源码、共享 UI 工具、API 类型、开发文档和发布工具。所有插件使用同一套源码与发行目录契约；Vue、React、Vite 和原生前端都通过根目录的 `plugin.json` 与 `index.html` 接入壳子。
+[![Release](https://img.shields.io/github/v/release/hyqf98/eNest_plugin?label=Release&logo=github)](https://github.com/hyqf98/eNest_plugin/releases)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue)](https://github.com/hyqf98/eNest/blob/main/LICENSE)
+[![eNest Host](https://img.shields.io/badge/宿主-eNest%20%3E%3D0.0.1-6c5ce7?logo=electron&logoColor=white)](https://github.com/hyqf98/eNest/releases)
+[![Node](https://img.shields.io/badge/Node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Plugins](https://img.shields.io/badge/官方插件-42-ff7a1a)](#-插件目录)
 
-先读 [开发入门](docs/developer/getting-started.md)、[工程结构](docs/PLUGIN_STRUCTURE.md) 和 [manifest 参考](docs/manifest.md)。AI 开发入口是 [skills/enest-development/SKILL.md](skills/enest-development/SKILL.md)，完整导航在 [docs/README.md](docs/README.md)。
+**基于权限沙箱的插件化桌面壳 [eNest](https://github.com/hyqf98/eNest) 的官方插件市场。**
 
-## 下载与安装
+[安装市场](#-安装插件) ·
+[快速开始](#-快速开始) ·
+[插件目录](#-插件目录) ·
+[Skills 指南](#-ai-开发助手skills) ·
+[开发文档](docs/README.md) ·
+[发布流程](#-构建与发布)
 
-[官方插件 v0.0.1](https://github.com/hyqf98/eNest_plugin/releases/tag/v0.0.1) 提供 37 个插件，版本均为 `0.0.1`，需要 [eNest 宿主](https://github.com/hyqf98/eNest/releases/tag/v0.0.1) `>=0.0.1`。
+</div>
 
-建议在 eNest 插件目录中按需安装，也可以从发布页下载 `.enestplugin` 文件后拖入 eNest。GitHub 的 Source code 压缩包是源码，不能作为插件安装。
+---
 
-本次共 41 个插件包：37 个通用包，以及数据库插件的 4 个平台包。数据库请选择与本机系统和架构匹配的包；平台包不是额外增加的插件。DSH 运行时附件和已知限制见发布说明。
+## 💡 这是什么
 
-## 开发与验证
+本仓库维护 eNest 的官方插件源码、共享 UI 工具（`@enest/plugin-kit`）、API 类型（`@enest/plugin-sdk`）、开发文档和发布工具。
 
-在本仓库根目录执行：
+插件没有特殊待遇：**界面、算法、数据模型、协议处理都住在插件里**；宿主只提供窗口、权限、存储、网络和系统集成等通用原生能力。Vue、React 和原生前端通过同一份 `plugin.json` + `index.html` 契约接入壳子。
+
+## 📦 安装插件
+
+**方式一 · 应用内市场（推荐）**：在 eNest 的「插件市场」中浏览、搜索并一键安装，宿主从 [市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，经 SHA-256 校验后安装到数据根目录（默认 `~/.eNest/plugins/`）。
+
+**方式二 · 手动安装**：从 [Releases](https://github.com/hyqf98/eNest_plugin/releases) 下载 `.enestplugin` 文件（本质是 ZIP，根目录即 `dist/` 内容），拖入 eNest 窗口安装。
+
+> ⚠️ Releases 页的 Source code 压缩包是仓库源码，**不能**作为插件安装。
+> 数据库插件按平台分发（macOS arm64/x64、Windows x64、Linux x64），请选择匹配本机的平台包，平台包不是额外插件。
+
+## 🗂 插件目录
+
+已发布 37 个插件包 + 4 个数据库平台包；仓库现有 42 个插件源码目录。绿色 ✅ = 已随 v0.0.1 发布；未标注的为仓库新增、尚未随 Release 分发。
+
+### ⚡ 效率（13）
+
+| 插件 | 简介 |
+| --- | --- |
+| [<img src="plugins/anything/public/assets/market/icon.svg" width="20" alt=""> **Anything 文件搜索**](plugins/anything) ✅ | Spotlight / Everything 双引擎全盘即时搜索，关键词高亮、预览、定位、废纸篓 |
+| [<img src="plugins/calculator/public/assets/market/icon.svg" width="20" alt=""> **计算器**](plugins/calculator) ✅ | 科学计算、变量赋值、Ans 与内存寄存器、千分位与本地历史 |
+| [<img src="plugins/clipboard/public/assets/market/icon.svg" width="20" alt=""> **剪贴板**](plugins/clipboard) ✅ | 文本/图片/文件历史，快捷回贴、变换工具条与暂存片段 |
+| [<img src="plugins/gantt/public/assets/market/icon.svg" width="20" alt=""> **甘特图**](plugins/gantt) | 项目计划多计划管理、拖拽改期、依赖连线、里程碑，导出 Excel / HTML |
+| [<img src="plugins/markdown/public/assets/market/icon.svg" width="20" alt=""> **Markdown 编辑器**](plugins/markdown) ✅ | Typora 式所见即所得、手绘风 Mermaid、图床上传与本地文件工作台 |
+| [<img src="plugins/password-book/public/assets/market/icon.svg" width="20" alt=""> **密码本**](plugins/password-book) ✅ | 本地加密密码管理：分类、搜索、强度提示、过期提醒、MCP 安全读写 |
+| [<img src="plugins/password-kit/public/assets/market/icon.svg" width="20" alt=""> **密码工具箱**](plugins/password-kit) ✅ | 随机密码/密码短语/PIN 生成，熵与破解时间估算，UUID 批量生成 |
+| [<img src="plugins/pomodoro/public/assets/market/icon.svg" width="20" alt=""> **番茄钟**](plugins/pomodoro) ✅ | 主进程后台专注计时，长短休息、预设、完成提示音与统计 |
+| [<img src="plugins/sticky-notes/public/assets/market/icon.svg" width="20" alt=""> **备忘录**](plugins/sticky-notes) ✅ | 快速记录、Markdown 颜色筛选、标签整理、归档回收与备份 |
+| [<img src="plugins/sysguard/public/assets/market/icon.svg" width="20" alt=""> **进程与端口**](plugins/sysguard) ✅ | 进程/端口巡检仪表盘、双表联动、Top 进程与滚动趋势曲线 |
+| [<img src="plugins/todos/public/assets/market/icon.svg" width="20" alt=""> **待办清单**](plugins/todos) ✅ | 任务清单、拖拽排序、截止日期、子任务进度、标签与桌面整理 |
+| [<img src="plugins/translate/public/assets/market/icon.svg" width="20" alt=""> **翻译**](plugins/translate) ✅ | 多引擎翻译、对照即时翻译、语言快捷切换、历史与双语导出 |
+| [<img src="plugins/unit-convert/public/assets/market/icon.svg" width="20" alt=""> **单位与汇率**](plugins/unit-convert) ✅ | 12 类单位 + 汇率同屏联动换算，公式展示与常用单位置顶 |
+
+### 🛠 开发（17）
+
+| 插件 | 简介 |
+| --- | --- |
+| [<img src="plugins/ccswitch/public/assets/market/icon.svg" width="20" alt=""> **供应商切换**](plugins/ccswitch) ✅ | AI CLI 供应商切换台：10 应用配置、50+ 预设、切换历史、用量统计 |
+| [<img src="plugins/codec/public/assets/market/icon.svg" width="20" alt=""> **编解码**](plugins/codec) ✅ | Base64/URL/Hex/Unicode/HTML 编解码与 JWT 查看，批量与错误定位 |
+| [<img src="plugins/codex-pets/public/assets/market/icon.svg" width="20" alt=""> **Codex 宠物市场**](plugins/codex-pets) ✅ | 社区宠物画廊：搜索、sprite 预览、一键安装宠物包到本机 Codex |
+| [<img src="plugins/cron/public/assets/market/icon.svg" width="20" alt=""> **Cron 工具**](plugins/cron) ✅ | 五/六域可视化构建、中文人性化描述、执行预览与 crontab 导出 |
+| [<img src="plugins/database/public/assets/market/icon.svg" width="20" alt=""> **数据库**](plugins/database) ✅ | 多数据库工作台：查询编辑、结果编辑、结构关系、只读数据比较 |
+| [<img src="plugins/dev-env/public/assets/market/icon.svg" width="20" alt=""> **开发环境管理**](plugins/dev-env) ✅ | 9 家族构建环境探测、依赖与缓存管理、Homebrew / winget 接管 |
+| [<img src="plugins/diff/public/assets/market/icon.svg" width="20" alt=""> **文本对比**](plugins/diff) ✅ | 双栏 LCS 行级对比、行内字符细化、差异导航与 unified diff 导出 |
+| [<img src="plugins/dsh/public/assets/market/icon.svg" width="20" alt=""> **DSH 驾驶舱**](plugins/dsh) ✅ | DeepSeek Harness 会话驾驶舱：快速对话、内核按需安装、Profile 配置 |
+| [<img src="plugins/env-vars/public/assets/market/icon.svg" width="20" alt=""> **环境变量管理**](plugins/env-vars) ✅ | 跨平台用户/系统变量编辑，PATH 专用编辑器，写入前自动备份 |
+| [<img src="plugins/hash/public/assets/market/icon.svg" width="20" alt=""> **哈希与加密**](plugins/hash) ✅ | 多算法同屏哈希、文件哈希、HMAC、AES-GCM / RSA 加解密签名 |
+| [<img src="plugins/json-tools/public/assets/market/icon.svg" width="20" alt=""> **JSON 工具**](plugins/json-tools) ✅ | 无损数字格式化、路径查询、TS 类型生成、树浏览与差异比较 |
+| [<img src="plugins/middleware/public/assets/market/icon.svg" width="20" alt=""> **中间件控制台**](plugins/middleware) ✅ | Kafka / RabbitMQ / MQTT / RocketMQ 统一控制台与消息溯源 |
+| [<img src="plugins/net-kit/public/assets/market/icon.svg" width="20" alt=""> **网络调试台**](plugins/net-kit) ✅ | HTTP / TCP / WebSocket 调试：流式响应、hex 字节流、断言、curl 导入 |
+| [<img src="plugins/regex/public/assets/market/icon.svg" width="20" alt=""> **正则工作台**](plugins/regex) ✅ | 正则实时高亮、捕获分组、替换预览、片段库与元字符速查 |
+| [<img src="plugins/remote-desktop/public/assets/market/icon.svg" width="20" alt=""> **远程桌面**](plugins/remote-desktop) ✅ | VNC / RDP 资产管理、SSH 隧道、多会话画布与剪贴板互通 |
+| [<img src="plugins/ssh/public/assets/market/icon.svg" width="20" alt=""> **SSH管理**](plugins/ssh) ✅ | SSH 工作台：快速连接、终端、远程文件、资源进程、服务与隧道 |
+| [<img src="plugins/timestamp/public/assets/market/icon.svg" width="20" alt=""> **时间戳**](plugins/timestamp) ✅ | 时间戳/时区转换、多时区时钟、批量转换、日期加减与时间差 |
+
+### 🎨 设计（5）
+
+| 插件 | 简介 |
+| --- | --- |
+| [<img src="plugins/ai-canvas/public/assets/market/icon.svg" width="20" alt=""> **AI 画布**](plugins/ai-canvas) ✅ | 手绘风节点画布编排文生图/图生图工作流，生成图自动入画廊 |
+| [<img src="plugins/color-picker/public/assets/market/icon.svg" width="20" alt=""> **取色器**](plugins/color-picker) ✅ | 屏幕取色 HEX/RGB/HSL/OKLCH，和谐色生成与 WCAG 对比度检查 |
+| [<img src="plugins/drawboard/public/assets/market/icon.svg" width="20" alt=""> **画板**](plugins/drawboard) ✅ | 压感手绘与桌面标注：钢笔、图形、文字贴图，多页草稿与导出 |
+| [<img src="plugins/image-gen/public/assets/market/icon.svg" width="20" alt=""> **AI 生图**](plugins/image-gen) | 对话式生图：Images / Chat / Responses 三协议，会话流与预览库 |
+| [<img src="plugins/sketchbook/public/assets/market/icon.svg" width="20" alt=""> **素描本**](plugins/sketchbook) ✅ | 纸品手绘主题：桌面、索引卡、便签与牛皮纸，手抖描边与胶带拼贴 |
+
+### 🎬 媒体（5）
+
+| 插件 | 简介 |
+| --- | --- |
+| [<img src="plugins/comic-house/public/assets/market/icon.svg" width="20" alt=""> **漫画屋**](plugins/comic-house) | 聚合漫画阅读：多源管理、跨源搜索、沉浸式竖向阅读与整部缓存 |
+| [<img src="plugins/image-tools/public/assets/market/icon.svg" width="20" alt=""> **图片工具箱**](plugins/image-tools) ✅ | 压缩、格式转换、缩放裁剪、水印、EXIF、色板提取 |
+| [<img src="plugins/novel-house/public/assets/market/icon.svg" width="20" alt=""> **小说屋**](plugins/novel-house) | Legado 书源聚合阅读：多源搜索、舒适排版阅读器、整本缓存 |
+| [<img src="plugins/screen-assistant/public/assets/market/icon.svg" width="20" alt=""> **屏幕助手**](plugins/screen-assistant) ✅ | 截图标注、区域录屏、贴图管理与粘性工具头 |
+| [<img src="plugins/tvbox/public/assets/market/icon.svg" width="20" alt=""> **影视仓**](plugins/tvbox) | TVBox 配置源导入：多仓线路、聚合搜索、hls.js 选集播放 |
+
+### 🧩 其它（2）
+
+| 插件 | 简介 |
+| --- | --- |
+| [<img src="plugins/batch-rename/public/assets/market/icon.svg" width="20" alt=""> **批量重命名**](plugins/batch-rename) ✅ | 查找替换/序号/日期规则链实时预览，冲突检测与撤销 |
+| [<img src="plugins/lan-share/public/assets/market/icon.svg" width="20" alt=""> **局域网传件**](plugins/lan-share) ✅ | 同一 Wi-Fi 取件码 + 二维码向手机传文件，限时自动关闭 |
+
+> 未标注 ✅ 的插件（甘特图、AI 生图、漫画屋、小说屋、影视仓）已在仓库可用，将随下个 Release 分发。
+
+## 🚀 快速开始
+
+**前置**：[Node.js ≥ 22.12](https://nodejs.org)、eNest 宿主（开发模式运行中）。
 
 ```bash
+git clone https://github.com/hyqf98/eNest_plugin.git
+cd eNest_plugin
 npm install
 npm run dev --workspace calculator
-# 在 eNest 开发测试中选择 plugins/calculator 源码文件夹即可，
-# 开发服务未运行时壳子会自动执行 npm run dev 拉起（无需手动启动）。
 ```
 
-开发者可以选择仓库外的源码文件夹。壳子只读标准入口，不复制源码到已安装插件目录。`development.main` 声明的开发服务未运行时，壳子自动拉起并管理进程（忘记插件/退出时回收）；端口被其它进程占用时自动改用空闲端口。插件内 F12/⌘⌥I/Ctrl+Shift+I 开关 DevTools，⌘R 重载。跨机开发可用 `--host 0.0.0.0` 启动，并将 `development.main` 配为实际 IP、端口与入口路径。
+在 eNest 的「开发测试」中选择 `plugins/calculator` 源码文件夹即可加载。开发服务未运行时，壳子会自动执行 `npm run dev` 拉起并管理进程（忘关/退出时自动回收）；端口被占用时自动改用空闲端口。
 
-声明了 `development.main` 的插件，其端口应与 `package.json` 中的 `scripts.dev` 保持一致，避免与其他插件重复。
+- 插件内 `F12 / ⌘⌥I / Ctrl+Shift+I` 开关 DevTools，`⌘R` 重载。
+- 声明 `development.main` 的插件，端口须与 `package.json` 的 `scripts.dev` 一致，且不与其他插件重复。
+- 跨机开发可用 `--host 0.0.0.0` 启动，并把 `development.main` 配成实际 IP、端口与入口路径。
+- 可直接选择仓库外的源码文件夹；壳子只读标准入口，不复制源码到已安装目录。
 
-```bash
-npm run validate                 # 源码清单、包名/版本、市场资源
-npm test                         # 单元与包格式合同
-npm run build                    # 自动发现并构建所有 plugins/*
-npm run validate:dist            # 路径边界、入口与离线资源引用
-npm run capture:market -- --check # 全部发行页面：生产 CSP、资源与尺寸检查
-npm run test:ui                  # 关键交互流程，宿主能力使用隔离 fixture
-npm run pack -- --no-build       # 打包已验证的 dist 内容
-npm run registry                # 只从最终归档读取市场数据
-```
-
-首次新增插件还没有截图时，可用 `node scripts/capture-market.mjs <id> --build` 构建预览并生成真实页面截图，随后重新构建以把截图纳入发行包。截图脚本使用隔离演示数据，不能替代真实数据库、SSH、操作系统权限和硬件功能的集成测试。
-
-## 源码与发行包
+<details>
+<summary><b>📁 工程结构</b>（点开展开）</summary>
 
 ```text
 plugins/<id>/
@@ -59,36 +149,68 @@ plugins/<id>/
     assets/vendor/
 ```
 
-`.enestplugin` 是 ZIP，根目录直接是 `dist/` 的内容，不能再套一层插件目录。源码、测试、`node_modules`、软链接、隐藏路径、Source Map、TS/TSX/Vue 文件不进入包。DSH 的固定生产运行时是唯一显式 `runtime/` 例外，详见 [工程结构](docs/PLUGIN_STRUCTURE.md)。
+`.enestplugin` 是 ZIP，根目录直接是 `dist/` 的内容，不能再套一层插件目录。源码、测试、`node_modules`、软链接、隐藏路径、Source Map、TS/TSX/Vue 文件不进包（DSH 的固定生产运行时是唯一显式 `runtime/` 例外）。共享工具以 npm workspace `@enest/plugin-kit` 引用，由 Vite 编译进各自发行包；类型由 `@enest/plugin-sdk` 提供。
 
-共享工具以 npm workspace `@enest/plugin-kit` 引用，由 Vite 编译到各自发行包；不复制 `assets/shared`，不引用其他插件目录。类型由 `@enest/plugin-sdk` 提供，维护入口见 [API 类型](docs/developer/api-types.md)。
+</details>
 
-## 图标、说明与截图
+## 🤖 AI 开发助手（Skills）
 
-每个清单必须声明：
+仓库内置 [skills/enest-development](skills/enest-development/SKILL.md)，让 AI 助手（Claude Code、ZCode、Codex 等）按 eNest 契约开发，避免凭通用 Electron 经验乱写。
 
-```json
-{
-  "icon": "assets/market/icon.svg",
-  "market": {
-    "readme": "assets/market/README.md",
-    "screenshots": ["assets/market/screenshots/01-main.png"]
-  }
-}
-```
-
-以上路径指向发行包内的文件；源码对应位置在 `public/` 下。图标应表达插件功能，截图使用真实界面，发行必须包含 1–8 张 PNG/JPG/JPEG/WebP，第一张作为封面。README 上限 512 KiB，图片使用如 `./screenshots/01-main.png` 的包内相对路径。外部图片 URL、任意根目录图标和旧 `logo` 字段不属于新契约。
-
-`build-registry.mjs` 从最终 ZIP 提取 manifest 与市场资源，再生成 `dist/registry.json`，不会以源码中的截图冒充归档内容。索引含 `icon`、`readmeUrl`、`screenshots`、`asset.url/size/sha256`。`prepare-release.mjs` 生成 GitHub Release 扁平附件及 README 图片映射 `readmeImages`。
-
-## 发布
+**配置**：将本仓库克隆到宿主仓库旁边，在 AI 助手的技能目录放一个软链：
 
 ```bash
-node scripts/pack-plugin.mjs calculator
-# 全部插件已打包后，生成本地待发布材料；此命令不会上传
+git clone https://github.com/hyqf98/eNest_plugin.git ~/Work/eNest_plugin
+ln -s ~/Work/eNest_plugin/skills/enest-development ~/.agents/skills/enest-development
+```
+
+技能内按任务路由到对应权威文档：改壳窗口/IPC/安全 → `docs/developer/host-development.md`；新建插件 → `getting-started.md` + `structure.md`；UI → `ui-standard.md`；调试白屏/HMR → `debug.md`；构建发布 → `structure.md` + schema。类型签名以 `packages/plugin-sdk/index.d.ts` 为准。
+
+**人工开发**同样建议按此顺序入门：[开发入门](docs/developer/getting-started.md) → [工程结构](docs/developer/structure.md) → [manifest 参考](docs/developer/manifest.md) → [UI 标准](docs/developer/ui-standard.md)。
+
+<details>
+<summary><b>核心契约速览</b>（技能同款要点）</summary>
+
+- 源码目录 `plugins/<短名>`，目录名与 package.name 等于 manifest.id 末段；完整 `manifest.id` 才是权限、安装与数据归属身份。
+- 图标 `icon: assets/market/icon.svg`，详情 `market.readme`，截图在同一包 `assets/market/screenshots/`；发布必须有真实界面截图 1–8 张。
+- 页面没有 Node 权限，浏览器原生 API 不是权限失败后的备选通道；`window.enest` 的存储、UI、设置等基础能力直接用，敏感能力声明最小权限并由用户授权。
+- 业务放在插件，壳只提供通用能力——不为业务功能新增宿主特判。
+- `.enestplugin` 根直接是 dist 内容，文件名 `{短名}@{version}.enestplugin`；源码、测试、`.env`、根 node_modules、软链不进包。
+
+</details>
+
+## ✅ 构建与发布
+
+```bash
+npm run validate                  # 源码清单、包名/版本、市场资源
+npm test                          # 单元与包格式合同
+npm run build                     # 自动发现并构建所有 plugins/*
+npm run validate:dist             # 路径边界、入口与离线资源引用
+npm run capture:market -- --check # 发行页面：生产 CSP、资源与尺寸检查
+npm run test:ui                   # 关键交互流程（隔离 fixture）
+npm run pack -- --no-build        # 打包已验证的 dist 内容
+npm run registry                  # 从最终归档生成市场索引
+```
+
+首次新增插件还没有截图时，`node scripts/capture-market.mjs <id> --build` 构建预览并生成真实页面截图，随后重新构建纳入发行包。截图使用隔离演示数据，不能替代真实数据库、SSH、系统权限的集成测试。
+
+单个插件快速打包：
+
+```bash
+node scripts/build-plugin.mjs <id>
+node scripts/pack-plugin.mjs <id>
+# 全部打包后生成本地待发布材料（不上传）
 REPO=hyqf98/eNest_plugin TAG=plugins-local node scripts/prepare-release.mjs
 ```
 
-推送 `v*` / `plugins-*` 标签或手动触发已有标签的工作流才会创建正式 Release。CI 要求源码校验、全部构建、发行检查、生产 CSP 页面检查、打包和索引生成全部通过；普通分支推送不触发本发布工作流。仅 `v0.0.1` 首版将存量单元与包格式测试单独保留为非阻断报告，其它标签仍要求测试通过；发包成功不代表这些历史用例全部通过。
+推送 `v*` / `plugins-*` 标签或手动触发已带标签的工作流才创建正式 Release。CI 要求源码校验、全部构建、发行检查、生产 CSP 检查、打包和索引生成全部通过；普通分支推送不触发发布工作流。
 
-壳子从 [最新市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，通过 SHA-256 校验后安装到当前数据根目录的 `plugins/` 下，默认位置是 `~/.eNest/plugins/`。通用包命名为 `{id}@{version}.enestplugin`，平台包命名为 `{id}@{version}-{平台}.enestplugin`；分类为效率、开发、设计、媒体、其它。
+`build-registry.mjs` 从最终 ZIP 提取 manifest 与市场资源生成 `dist/registry.json`；壳子从 [市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，SHA-256 校验后安装。通用包命名 `{id}@{version}.enestplugin`，平台包 `{id}@{version}-{平台}.enestplugin`。
+
+## 🤝 参与贡献
+
+欢迎 Issue / PR。提交前请保证 `validate`、`build`、`validate:dist` 与生成一致性检查（`npm run api:check`、`npm run docs:check`）通过；新插件必须包含 icon、README 与真实截图。完整规范见 [开发文档](docs/README.md)。
+
+## ⚖️ 许可
+
+宿主 eNest 采用 [Apache-2.0](https://github.com/hyqf98/eNest/blob/main/LICENSE) 许可。本仓库自身未附带 LICENSE 文件，各插件的发行说明以其依赖的开源组件许可为准。
