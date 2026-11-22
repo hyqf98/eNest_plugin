@@ -4,26 +4,87 @@
  * 两条宿主路由：catalog（目录）、detail（详情）；已安装是目录的本地筛选。
  * 只读 controller 的公开状态，导航与安装都走宿主动作；全局设置入口由宿主持有。
  *
- * 视觉：螺旋装订的笔记本 + 手抖描边索引卡 + 拼贴。手绘感由 SVG 位移滤镜、
- * 手绘涂鸦、胶带与装订环承担，不靠 CSS 圆角。
+ * 视觉：桌面上的纸片陈列。手绘感由 SVG 位移滤镜、纸品分层（索引卡 / 方格 / 牛皮 /
+ * 相纸 / 便签）、胶带与折角承担，不靠 CSS 圆角，也不用等宽网格。
  *
  * 为什么不用框架：主题首页在 dev 源码态由宿主直接从磁盘读取并注入
  * `script-src 'self'` 的 CSP，没有 vite/JSX 转译例外。纯 JS 才能改完即刷新。
  */
-import { h, reconcileChildren, setAttribute, setProperty, setStyle, setText } from '../shared/dom.js'
-import { icon } from '../shared/icons.js'
-import { createSketchPaper, doodle, tape } from '../shared/sketchPrimitives.js'
+import { h, reconcileChildren, setAttribute, setProperty, setStyle, setText } from '../../lib/dom.js'
+import { icon } from '../../lib/icons.js'
+import { createSketchPaper, doodle, pin, tape } from '../../lib/sketchPrimitives.js'
 
 const CATEGORY_ORDER = ['效率', '开发', '设计', '媒体', '其它']
-const CATEGORY_INK = ['var(--ink-1)', 'var(--ink-2)', 'var(--ink-3)', 'var(--ink-4)', 'var(--ink-5)', 'var(--ink-6)']
+
+/**
+ * 分类墨色只取语义 token 的引用，不写死六色值。
+ * 分类只决定纸边缘那道墨条，不影响纸品。
+ */
+const INK_TOKENS = ['--accent', '--ok', '--link', '--danger', '--border-strong', '--accent']
 
 // 本页 dev 源码态由宿主直接从磁盘读取（零构建），不能用裸包名 import，快捷键符号就地判定平台
 const mac = /Mac/.test(navigator.platform)
 
 const inkFor = category => {
   const index = CATEGORY_ORDER.indexOf(category)
-  return CATEGORY_INK[(index < 0 ? 3 : index) % CATEGORY_INK.length]
+  return `var(${INK_TOKENS[(index < 0 ? 4 : index) % INK_TOKENS.length]})`
 }
+
+/**
+ * 版面：带式铺砖（band tiling）。
+ *
+ * 为什么不用固定节奏表：各组张数不是 6 的倍数时（设计组 1 张、媒体组 2 张），
+ * 固定跨度必然留下几列宽的空洞。改成按真实张数现算：
+ *
+ *   · 一条"带"横跨满宽，带内各纸列宽之和正好等于列数 → 带内无洞；
+ *   · 带与带首尾相接、各自等高 → 带间无洞；
+ *   · 于是无论多少张、几列，整块都严格铺满。
+ *
+ * 错落来自两处：带内宽度切分不同（3+1 / 2+2 / 1+3 / 2+1+1），
+ * 以及带高轮换（2–3 行）。每张纸最终拿到 (列跨度, 行跨度)。
+ */
+const BAND_SHAPES = {
+  6: [[[4, 2], 3], [[2, 2, 2], 2], [[3, 3], 3], [[2, 4], 2], [[1, 2, 3], 3], [[3, 2, 1], 2]],
+  5: [[[3, 2], 3], [[2, 2, 1], 2], [[2, 3], 3], [[4, 1], 2]],
+  4: [[[3, 1], 3], [[2, 2], 2], [[1, 3], 3], [[2, 1, 1], 2]],
+  3: [[[2, 1], 3], [[1, 2], 2], [[3], 2]],
+  2: [[[1, 1], 3], [[2], 2]],
+  1: [[[1], 3]],
+}
+
+/**
+ * 把 n 张纸铺进 cols 列：返回长度 n 的 [列跨度, 行跨度] 数组。
+ * 纯函数，无副作用；控制器对每组算一次再分给每张卡。
+ */
+export function layoutSpans(cols, n) {
+  const shapes = BAND_SHAPES[Math.min(6, Math.max(1, Math.round(cols)))] ?? BAND_SHAPES[4]
+  const out = []
+  let index = 0
+  let remain = n
+  while (remain > 0) {
+    const [rawCuts, rows] = shapes[index % shapes.length]
+    let cuts = [...rawCuts]
+    if (cuts.length > remain) {
+      // 余数不够这一带：按剩下的张数重切，仍然满宽
+      cuts = remain === 1 ? [cols] : [...Array(remain - 1).fill(1), cols - (remain - 1)]
+    }
+    for (const width of cuts) out.push([width, rows])
+    remain -= cuts.length
+    index += 1
+  }
+  return out.slice(0, n)
+}
+
+/** 由跨度推断纸片类型：宽窄与高矮共同决定放多少内容。 */
+function sizeForSpan([width, rows]) {
+  if (width >= 3) return 'wide'
+  if (width === 2) return 'stamp'
+  return rows >= 3 ? 'tall' : 'stub'
+}
+
+/** 纸品与旋转也按 6 张一组轮换：同一组里不会出现两张完全相同的纸。 */
+const PAPER_RHYTHM = ['card', 'grid', 'slip', 'kraft', 'photo', 'grid']
+const TILT_RHYTHM = [-0.7, 0.5, -0.35, 0.75, -0.5, 0.3]
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return ''
@@ -84,15 +145,6 @@ function createAvatar(item) {
   return { node, update, dispose: () => { releaseImage(); image = null } }
 }
 
-/** 装订独立于滚动内容，超出视口的环由自己的裁切层收住。 */
-function binding() {
-  const wrap = h('div', { class: 'sk-binding', 'aria-hidden': 'true' })
-  for (let index = 0; index < 64; index += 1) {
-    wrap.appendChild(h('span', null, h('i', { class: 'sk-ring' }), h('i', { class: 'sk-hole' })))
-  }
-  return wrap
-}
-
 function readmeBlocks(text) {
   const lines = String(text || '').split(/\r?\n/)
   const out = []
@@ -145,8 +197,25 @@ export function createMarketView(controller) {
   const headerSlot = h('div')
   const contentSlot = h('div', { class: 'sk-catalog-content' })
   scroll.appendChild(page)
-  // 环与 scroll 是同级；底部裁切留给宿主原生设置 dock，不制造替代入口。
-  root.append(paper, scroll, binding())
+  // 桌面层在滚动内容之外，长页面不会把背景一起带走。
+  root.append(paper, scroll)
+
+  /**
+   * 有效列数：以宿主设置（--appearance-columns）为准，再按视口宽度收窄到
+   * CSS 实际会用的列数。JS 与 CSS 必须用同一个数字，否则跨度算出来会对不上网格。
+   */
+  const columnsFor = () => {
+    const declared = Number.parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--appearance-columns') || '4', 10)
+    const base = Number.isFinite(declared) ? Math.min(6, Math.max(2, declared)) : 4
+    const width = window.innerWidth
+    if (width <= 560) return 1
+    if (width <= 860) return Math.min(2, base)
+    if (width <= 1180) return Math.min(3, base)
+    return base
+  }
+
+  setStyle(document.documentElement, '--sk-columns', String(columnsFor()))
 
   const seenPlugins = new Set()
   let lastCatalogKey = ''
@@ -186,6 +255,15 @@ export function createMarketView(controller) {
   }
   scroll.addEventListener('animationend', finishEntry)
   scroll.addEventListener('animationcancel', finishEntry)
+
+  // 视口变化会改变有效列数 → 铺法要跟着重算，所以让目录 key 也带上列数。
+  let columnsRevision = 0
+  const onResize = () => { columnsRevision += 1; if (!disposed) update(latestState) }
+  let resizeTimer
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer)
+    resizeTimer = setTimeout(onResize, 140)
+  })
 
   // 搜索节点只创建一次，异步结果、分类与外观变化都不能拆走输入节点/IME 会话。
   const searchInput = h('input', {
@@ -262,9 +340,17 @@ export function createMarketView(controller) {
         node.classList.remove('is-new')
       },
     }
+    // 入场动画结束后收起 is-new，让常驻浮动接管。判定要同时避开两类干扰：
+    //   · 卡片内的胶带 / 墨条 / 图标也在跑动画（伪元素或子元素冒泡上来）
+    //   · 直接按名字匹配会漏掉别名的关键帧，因此先按 pseudoElement 与 target 收窄，
+    //     再看 delay 是否已过 —— 迟到的兜底定时器保证即使事件丢失也不会卡在入场态。
+    const settle = () => entry.finishEntry()
     node.addEventListener('animationend', event => {
-      if (event.target === node) entry.finishEntry()
+      if (event.target === node && !event.pseudoElement) settle()
     }, { signal: events.signal })
+    // 兜底：入场最长 delay(10×24ms) + 时长(.3–.46s)，留足余量后强制收口
+    const entryTimer = setTimeout(settle, 1200)
+    events.signal.addEventListener('abort', () => clearTimeout(entryTimer), { once: true })
     return entry
   }
 
@@ -275,16 +361,23 @@ export function createMarketView(controller) {
     const name = h('strong')
     const description = h('span', { class: 'sk-feature-desc' })
     const tags = h('span', { class: 'sk-feature-tags' })
+    // 主推（第 0 张）走"剪报"版式：标题独占一行、剪贴画通栏、简介在底；
+    // 其余两张走"索引卡"版式：图标 + 文案竖排。两种结构共用一个 link 元素。
+    // 名字节点被两个位置复用：主推放在 headline 行，索引卡放在文案块首行。
+    // 用 update() 里的 lead 判定把同一个 name 元素搬到对应容器，避免两份 DOM。
+    const headline = h('span', { class: 'sk-feature-headline' })
+    const copyName = h('strong', { class: 'sk-feature-name' }, name)
+    const copy = h('span', { class: 'sk-feature-copy' }, description, tags,
+      h('span', { class: 'sk-feature-cue' }, '翻开这一页', icon('arrowLeft', 14)))
     const detail = h('button', { type: 'button', class: 'sk-feature-link', dataset: { focusKey: `feature:${item.pluginId}` } },
-      eyebrow, visual, h('span', { class: 'sk-feature-copy' }, name, description, tags,
-        h('span', { class: 'sk-feature-cue' }, '翻开这一页', icon('arrowLeft', 14))))
-    const open = h('button', { type: 'button', class: 'sk-btn sk-feature-open', dataset: { focusKey: `feature-open:${item.pluginId}` } }, '打开插件', icon('spark', 13))
+      eyebrow, headline, visual, copy)
+    const open = h('button', { type: 'button', class: 'sk-btn sk-btn--primary sk-feature-open', dataset: { focusKey: `feature-open:${item.pluginId}` } }, '打开插件', icon('spark', 13))
     const stickyTape = tape()
     const entry = cardEntry(h('article', { dataset: { entryPlugin: item.pluginId } }, stickyTape, detail), item)
     const options = { signal: entry.events.signal }
     detail.addEventListener('click', () => void controller.navigate({ page: 'detail', pluginId: entry.item.pluginId }), options)
     open.addEventListener('click', () => { if (entry.item.installed) void controller.openPlugin(entry.item.pluginId) }, options)
-    let lead
+    let lead = null
     let mark
     let source
     let image = null
@@ -296,6 +389,9 @@ export function createMarketView(controller) {
       if (lead !== nextLead) {
         lead = nextLead
         mark = doodle(lead ? 'star' : 'arrow', lead ? 44 : 26)
+        // 标题位置随版式切换：主推独占标题行，索引卡进文案块首行
+        if (lead) { headline.appendChild(name); copyName.remove() }
+        else { copy.prepend(copyName); copyName.appendChild(name); headline.replaceChildren() }
       }
       const shot = safeShots(next)[0]
       if (shot !== source) {
@@ -318,8 +414,9 @@ export function createMarketView(controller) {
       reconcileChildren(visual, [image, portrait.node, mark].filter(Boolean))
       setAttribute(visual, 'class', `sk-feature-visual ${image ? 'has-shot' : 'is-icon'}`)
       setAttribute(entry.node, 'class', `sk-feature ${lead ? 'is-lead' : 'is-index'}${entry.entering ? ' is-new' : ''}`)
-      setStyle(entry.node, '--i', index)
-      setStyle(entry.node, '--feat-ink', inkFor(next.category))
+      setStyle(entry.node, '--sk-i', index)
+      setStyle(entry.node, '--sk-feature-ink', inkFor(next.category))
+      setStyle(entry.node, '--sk-avatar-ink', inkFor(next.category))
       setAttribute(detail, 'aria-label', `查看 ${next.name} 详情`)
       setText(eyebrow, lead ? '本页主推荐' : `索引 / ${String(index + 1).padStart(2, '0')}`)
       setText(name, next.name)
@@ -333,17 +430,35 @@ export function createMarketView(controller) {
     return entry
   }
 
-  function createPluginCard(item) {
+  function createPluginCard(item, index, span) {
     const portrait = createAvatar(item)
     const name = h('h3')
     const meta = h('div', { class: 'sk-card-meta' })
     const description = h('p', { class: 'sk-card-desc' })
     const badge = h('span', { class: 'sk-badge' })
-    const detail = h('button', { type: 'button', class: 'sk-btn is-quiet', dataset: { focusKey: `detail:${item.pluginId}` } }, '详情')
-    const primary = h('button', { type: 'button', dataset: { focusKey: `primary:${item.pluginId}` } })
-    const node = h('article', { dataset: { entryPlugin: item.pluginId } }, tape(),
+    const detail = h('button', { type: 'button', class: 'sk-btn sk-btn--quiet', dataset: { focusKey: `detail:${item.pluginId}` } }, '详情')
+    const primary = h('button', { type: 'button', class: 'sk-btn', dataset: { focusKey: `primary:${item.pluginId}` } })
+    // 一部分纸用图钉而不是胶带：两种"被固定"的实物线索交替出现。
+    const fastener = index % 7 === 2 || index % 7 === 5 ? pin({ left: 16 + (index % 3) * 14 }) : tape()
+    // 高纸片（hero/tall/wide）有富余高度，必须有东西填：
+    //   1. 真实截图当剪贴画；
+    //   2. 一排手写标签；
+    //   3. 底部的铅笔小注（版本/大小/安装量），像剪贴簿边上的批注。
+    const shot = h('img', { class: 'sk-card-shot', alt: '', loading: 'lazy', draggable: 'false' })
+    const clip = h('div', { class: 'sk-card-clip', hidden: true }, shot)
+    const tagRow = h('div', { class: 'sk-card-tags' })
+    const noteRow = h('div', { class: 'sk-card-note' })
+    // 没有截图可贴时，用一张"速写页"填满纸面的下半部分：
+    // 手绘小图 + 三行占位笔迹，形状随纸品变化，不是同一块灰条。
+    const sketch = h('div', { class: 'sk-card-sketch', 'aria-hidden': 'true' },
+      h('span', { class: 'sk-card-sketch-figure' }),
+      h('i', null), h('i', null), h('i', null))
+    const node = h('article', { dataset: { entryPlugin: item.pluginId, stock: PAPER_RHYTHM[index % PAPER_RHYTHM.length] },
+      style: { '--sk-span-col': String(span[0]), '--sk-span-row': String(span[1]) } }, fastener,
       h('div', { class: 'sk-card-head' }, portrait.node, h('div', { class: 'sk-card-title' }, name, meta)), description,
-      h('div', { class: 'sk-card-foot' }, h('span', null, badge), h('span', { class: 'sk-actions' }, detail, primary)))
+      tagRow, clip, sketch, noteRow,
+      h('div', { class: 'sk-card-foot' }, h('span', null, badge), h('span', { class: 'sk-actions' }, detail, primary)),
+      h('span', { class: 'sk-dogear-hover', 'aria-hidden': 'true' }))
     const entry = cardEntry(node, item)
     const options = { signal: entry.events.signal }
     detail.addEventListener('click', () => void controller.navigate({ page: 'detail', pluginId: entry.item.pluginId }), options)
@@ -354,13 +469,53 @@ export function createMarketView(controller) {
     }, options)
     let metaKey = ''
     let badgeKey = ''
-    entry.update = (next, index, state) => {
+    let shotSource = null
+    let tagsKey = ''
+    let noteKeyCache = ''
+    // 这一组的铺法固定，卡片复用 DOM 时不重算
+    const ownSpan = span
+    entry.update = (next, order, state) => {
       entry.item = next
       const disabled = next.installed && next.enabled === false
       const hasUpdate = next.installed && next.latestVersion && next.latestVersion !== next.version
       setAttribute(node, 'class', `sk-card${state.busy.has(next.pluginId) ? ' is-busy' : ''}${disabled ? ' is-disabled' : ''}${entry.entering ? ' is-new' : ''}`)
-      setStyle(node, '--i', index)
-      setStyle(node, '--card-ink', inkFor(next.category))
+      const size = sizeForSpan(ownSpan)
+      setAttribute(node, 'data-size', size)
+      setStyle(node, '--sk-i', order)
+      // 旋转写进元素，让每张纸的角度与它的位置绑定，而不是纯 CSS nth-child 猜。
+      setStyle(node, '--sk-card-tilt', `${TILT_RHYTHM[order % TILT_RHYTHM.length]}deg`)
+      // 内容密度按"能放多少"分级，而不是按名字：
+      //   roomy 3 行以上 → 贴截图（吃剩余高度）
+      //   snug  2 行     → 只放标签 + 批注，不贴图（贴了会把页脚顶出去）
+      //   stub  2 行小方纸 → 只有标题与主操作
+      const roomy = size === 'wide' || size === 'tall'
+      const snug = size === 'stamp'
+      const big = roomy || snug
+      const shotSrc = roomy ? (next.screenshots ?? []).map(safeMedia).filter(Boolean)[0] ?? null : null
+      if (shotSrc !== shotSource) {
+        shotSource = shotSrc
+        if (shotSrc) { shot.src = shotSrc; clip.hidden = false }
+        else { shot.removeAttribute('src'); clip.hidden = true }
+      }
+      // 有截图就贴截图，没有就用速写页；stub 太小，两者都不放
+      sketch.hidden = !big || Boolean(shotSrc)
+      // 高纸片补标签与小注，矮纸片不留这两块（否则会被挤扁）
+      const tagKey = big ? JSON.stringify([next.tags, next.category]) : ''
+      if (tagKey !== tagsKey) {
+        tagsKey = tagKey
+        const tags = big ? [...new Set([...(next.tags ?? []), next.category].filter(Boolean))].slice(0, 3) : []
+        tagRow.replaceChildren(...tags.map(tag => h('i', null, tag)))
+        tagRow.hidden = !tags.length
+      }
+      const noteKey = big ? JSON.stringify([next.version, next.packageSize, next.installs]) : ''
+      if (noteKey !== noteKeyCache) {
+        noteKeyCache = noteKey
+        const parts = big ? [next.version ? `v${next.version}` : '', formatBytes(next.packageSize), next.installs ? `${next.installs} 次安装` : ''].filter(Boolean) : []
+        noteRow.textContent = parts.join('  ·  ')
+        noteRow.hidden = !parts.length
+      }
+      setStyle(node, '--sk-card-ink', inkFor(next.category))
+      setStyle(node, '--sk-avatar-ink', inkFor(next.category))
       portrait.update(next)
       setAttribute(name, 'title', next.name)
       setText(name, next.name)
@@ -380,10 +535,11 @@ export function createMarketView(controller) {
       const nextBadge = `${kind}:${label}`
       if (nextBadge !== badgeKey) {
         badgeKey = nextBadge
-        setAttribute(badge, 'class', `sk-badge${kind}`)
-        badge.replaceChildren(...(kind === ' is-installed' ? [icon('check', 10), label] : [label]))
+        const tone = disabled ? ' is-off' : hasUpdate ? ' is-update' : next.installed ? ' is-installed' : ''
+        setAttribute(badge, 'class', `sk-badge${tone}`)
+        badge.replaceChildren(...(next.installed && !disabled ? [icon('check', 10), label] : [label]))
       }
-      setAttribute(primary, 'class', `sk-btn${next.installed ? '' : ' is-primary'}`)
+      setAttribute(primary, 'class', `sk-btn${next.installed ? '' : ' sk-btn--primary'}`)
       setText(primary, next.installed ? '打开' : '安装')
     }
     entry.dispose = () => { entry.events.abort(); portrait.dispose(); node.remove() }
@@ -400,14 +556,14 @@ export function createMarketView(controller) {
     h('div', { class: 'sk-head-main' }, catalogTitle,
       h('p', { class: 'sk-head-sub' }, totalCount, ' 个插件，已装 ', installedCountNode, ' 个', emptyCount)), refresh))
   const noticeText = h('span')
-  const dismiss = h('button', { type: 'button', class: 'sk-btn is-quiet' }, '关闭')
+  const dismiss = h('button', { type: 'button', class: 'sk-btn sk-btn--quiet' }, '关闭')
   dismiss.addEventListener('click', () => controller.dismissNotice(), { signal: catalogEvents.signal })
   const notice = h('div', { class: 'sk-notice', role: 'status' }, noticeText, dismiss)
   const tabs = h('div', { class: 'sk-seg', role: 'tablist', 'aria-label': '目录视图' })
   const tabButtons = new Map()
   for (const [value, label] of [['catalog', '全部插件'], ['installed', '已安装']]) {
     const tab = h('button', { type: 'button', role: 'tab' }, label)
-    tab.addEventListener('click', () => controller.setBasePage(value), { signal: catalogEvents.signal })
+    tab.addEventListener('click', () => controller.setBasePage(value))
     tabButtons.set(value, tab)
     tabs.appendChild(tab)
   }
@@ -494,9 +650,18 @@ export function createMarketView(controller) {
         categoryGroups.set(group.name, entry)
       }
       setText(entry.count, String(group.items.length).padStart(2, '0'))
-      reconcileChildren(entry.grid, group.items.map(item => {
+      // 每组的张数决定铺法：带式切分保证满宽无洞，张数变化时整组重排。
+      const columns = columnsFor()
+      setStyle(document.documentElement, '--sk-columns', String(columns))
+      const spans = layoutSpans(columns, group.items.length)
+      reconcileChildren(entry.grid, group.items.map((item, inGroup) => {
         let card = catalogCards.get(item.pluginId)
-        if (!card) { card = createPluginCard(item); catalogCards.set(item.pluginId, card) }
+        if (!card || card.spanKey !== `${spans[inGroup][0]}x${spans[inGroup][1]}`) {
+          card?.dispose()
+          card = createPluginCard(item, cardIndex, spans[inGroup])
+          card.spanKey = `${spans[inGroup][0]}x${spans[inGroup][1]}`
+          catalogCards.set(item.pluginId, card)
+        }
         card.update(item, cardIndex++, state)
         return card.node
       }))
@@ -546,18 +711,18 @@ export function createMarketView(controller) {
     }
     const actions = h('div', { class: 'sk-detail-actions' })
     if (!detail.installed) {
-      actions.appendChild(actionButton([icon('download', 14), '安装插件'], 'is-primary',
+      actions.appendChild(actionButton([icon('download', 14), '安装插件'], 'sk-btn--primary',
         () => void controller.manage({ type: 'installPlugin', pluginId: detail.pluginId }, detail.pluginId)))
     } else {
-      actions.appendChild(actionButton([icon('spark', 14), disabled ? '已停用' : '打开插件'], 'is-primary',
+      actions.appendChild(actionButton([icon('spark', 14), disabled ? '已停用' : '打开插件'], 'sk-btn--primary',
         () => void controller.openPlugin(detail.pluginId), disabled))
       if (detail.latestVersion && detail.latestVersion !== detail.version) {
         actions.appendChild(actionButton([icon('download', 14), `更新到 ${detail.latestVersion}`], '',
           () => void controller.manage({ type: 'updatePlugin', pluginId: detail.pluginId }, detail.pluginId)))
       }
-      actions.appendChild(actionButton(disabled ? '启用' : '停用', 'is-quiet',
+      actions.appendChild(actionButton(disabled ? '启用' : '停用', 'sk-btn--quiet',
         () => void controller.manage({ type: 'setPluginEnabled', pluginId: detail.pluginId, enabled: disabled }, detail.pluginId)))
-      actions.appendChild(actionButton('卸载', 'is-quiet',
+      actions.appendChild(actionButton('卸载', 'sk-btn--quiet',
         () => void controller.manage({ type: 'uninstallPlugin', pluginId: detail.pluginId }, detail.pluginId)))
     }
 
@@ -712,7 +877,7 @@ export function createMarketView(controller) {
 
     // detail/readme/appearance/quickResults/refreshing 不属于 catalog key；弹框期间保留真实底层节点。
     const key = JSON.stringify([state.basePage, state.category, state.loading,
-      state.catalog?.revision, state.query, state.notice, [...state.busy].sort()])
+      state.catalog?.revision, state.query, state.notice, [...state.busy].sort(), columnsFor()])
     if ((!modal || state.route.page !== 'detail') && key !== lastCatalogKey) {
       lastCatalogKey = key
       const top = scroll.scrollTop

@@ -5,7 +5,7 @@
  * 不包含任何用户数据、真实凭据或远程请求；图标/截图用内联 SVG 生成，
  * 这样 npm run dev 直开浏览器也能看到完整的市场界面与详情页。
  */
-import { SKETCH_ICON_NAMES } from '../shared/icons.js'
+import { SKETCH_ICON_NAMES } from '../../lib/icons.js'
 import { createPreviewAppearance, loadPreviewTheme } from '../shared/previewTheme.js'
 import { normalizeWorkspaceRoute, WORKSPACE_ROUTES } from './workspaceRoute.js'
 

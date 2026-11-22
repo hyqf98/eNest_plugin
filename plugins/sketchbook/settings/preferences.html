@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>素描本 · 设置</title>
+    <link rel="stylesheet" href="./preferences.css" />
+    <script type="module" src="./preferences.js"></script>
+  </head>
+  <body>
+    <!-- 隔离设置面：只有 enestSettings 桥。原生安全入口始终由宿主保留。 -->
+    <div class="sk-desk" aria-hidden="true"><span class="sk-desk-paint"></span></div>
+    <div id="settings-root" class="sk-settings">
+      <p class="sk-settings-startup" role="status">正在铺开素描本设置…</p>
+    </div>
+    <noscript>设置页需要 JavaScript 才能读取宿主发布的字段。</noscript>
+  </body>
+</html>

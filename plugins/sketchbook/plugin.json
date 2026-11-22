@@ -1,8 +1,8 @@
 {
   "id": "com.github.eNest.sketchbook",
   "name": "素描本",
-  "version": "0.0.1",
-  "description": "手绘纸面主题：纸灰、灰蓝、鼠尾草三套浅深色板，保留手写字、抖动描边与胶带装订；整页低负载漂移，开屏由宿主统一呈现。",
+  "version": "1.2.0",
+  "description": "纸品手绘主题：桌面、索引卡、便签与牛皮纸各有纸色与投影高度，手抖描边与胶带拼贴；首页按不规则长宽陈列，设置页自带纸品与墨色调整。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "设计",
@@ -60,44 +60,50 @@
         "name": "素描本",
         "source": "com.github.eNest.sketchbook",
         "mode": "system",
-        "description": "柔和纸面、少量彩墨与抖动描边，配套整页漂移背景；手写标题、胶带与装订拼贴保留，纸页开屏交给宿主。",
+        "description": "纸品手绘主题：桌面、索引卡、便签与牛皮纸各有纸色与投影高度，手抖描边与胶带拼贴；首页按不规则长宽陈列，设置页自带纸品与墨色调整。",
         "tokens": {},
         "palettes": [
           {
-            "id": "markerStrokes",
-            "name": "纸灰",
-            "css": "radial-gradient(ellipse 78% 86% at 12% 26%, color-mix(in srgb, var(--bg) 74%, #88928b), transparent 78%), linear-gradient(152deg, var(--bg), color-mix(in srgb, var(--surface-2) 88%, #87938e))",
-            "swatch": "linear-gradient(135deg, color-mix(in srgb, var(--bg) 74%, #88928b), color-mix(in srgb, var(--surface-2) 88%, #87938e))"
+            "id": "warmSand",
+            "name": "暖沙日光",
+            "css": "radial-gradient(ellipse 54% 46% at 6% 8%, rgba(251,146,60,.30), transparent 66%), radial-gradient(ellipse 44% 40% at 94% 6%, rgba(253,224,71,.34), transparent 68%), radial-gradient(ellipse 64% 50% at 68% 99%, rgba(168,162,158,.34), transparent 74%), linear-gradient(152deg, #fffefb 0%, #f8f4ec 42%, #eee7db 100%)",
+            "swatch": "linear-gradient(135deg, #fffefb, #eee7db)"
           },
           {
-            "id": "sketchPaper",
-            "name": "灰蓝",
-            "css": "radial-gradient(ellipse 78% 86% at 12% 26%, color-mix(in srgb, var(--bg) 76%, #7c919c), transparent 78%), linear-gradient(152deg, var(--bg), color-mix(in srgb, var(--surface-2) 84%, #7d909a))",
-            "swatch": "linear-gradient(135deg, color-mix(in srgb, var(--bg) 76%, #7c919c), color-mix(in srgb, var(--surface-2) 84%, #7d909a))"
+            "id": "morningMist",
+            "name": "晨雾中性",
+            "css": "radial-gradient(ellipse 54% 44% at 14% 10%, rgba(168,162,158,.24), transparent 70%), radial-gradient(ellipse 48% 42% at 88% 86%, rgba(198,194,189,.40), transparent 72%), radial-gradient(ellipse 42% 36% at 52% 44%, rgba(255,255,255,.9), transparent 66%), linear-gradient(160deg, #fdfdfc 0%, #f1f0ed 50%, #e3e1dc 100%)",
+            "swatch": "linear-gradient(135deg, #fdfdfc, #e3e1dc)"
           },
           {
-            "id": "chalkBoard",
-            "name": "鼠尾草",
-            "css": "radial-gradient(ellipse 78% 86% at 12% 26%, color-mix(in srgb, var(--bg) 76%, #849789), transparent 78%), linear-gradient(152deg, var(--bg), color-mix(in srgb, var(--surface-2) 84%, #7e9487))",
-            "swatch": "linear-gradient(135deg, color-mix(in srgb, var(--bg) 76%, #849789), color-mix(in srgb, var(--surface-2) 84%, #7e9487))"
+            "id": "terracotta",
+            "name": "陶土纸感",
+            "css": "radial-gradient(ellipse 48% 44% at 8% 20%, rgba(234,88,12,.24), transparent 68%), radial-gradient(ellipse 50% 42% at 92% 12%, rgba(251,146,60,.28), transparent 70%), radial-gradient(ellipse 56% 44% at 60% 94%, rgba(253,230,138,.36), transparent 72%), linear-gradient(155deg, #fffaf4 0%, #f7ebda 46%, #eddbc4 100%)",
+            "swatch": "linear-gradient(135deg, #fffaf4, #eddbc4)"
+          },
+          {
+            "id": "coolMist",
+            "name": "冷雾青灰",
+            "css": "radial-gradient(ellipse 50% 44% at 10% 12%, rgba(125,211,252,.30), transparent 70%), radial-gradient(ellipse 48% 42% at 90% 16%, rgba(94,234,212,.24), transparent 70%), radial-gradient(ellipse 58% 46% at 64% 94%, rgba(148,163,184,.36), transparent 74%), linear-gradient(158deg, #fcfdfe 0%, #ecf0f4 50%, #dbe3ea 100%)",
+            "swatch": "linear-gradient(135deg, #fcfdfe, #dbe3ea)"
           }
         ],
         "variants": {
           "light": {
             "tokens": {
-              "--bg": "#e2e5e2",
-              "--surface": "#f0f1ec",
-              "--surface-2": "#d7dcd9",
-              "--surface-3": "#c8cfcc",
-              "--text": "#293330",
-              "--text-2": "#46544f",
-              "--text-3": "#495750",
-              "--accent": "#8d5f50",
-              "--ok": "#4e705b",
-              "--danger": "#a74f47",
-              "--border": "#bec8c2",
-              "--border-strong": "#8c9c93",
-              "--link": "#375864"
+              "--bg": "#f8f4ec",
+              "--surface": "#ffffff",
+              "--surface-2": "#f5f1e9",
+              "--surface-3": "#e8e1d5",
+              "--text": "#292524",
+              "--text-2": "#57534e",
+              "--text-3": "#78716c",
+              "--accent": "#c2410c",
+              "--ok": "#15803d",
+              "--danger": "#b91c1c",
+              "--border": "#d6d3d1",
+              "--border-strong": "#a8a29e",
+              "--link": "#1d4ed8"
             },
             "fonts": {
               "body": "\"Avenir Next\", \"PingFang SC\", \"Hiragino Sans GB\", system-ui, sans-serif",
@@ -108,27 +114,27 @@
               "cjk": ""
             },
             "components": {
-              "controlRadius": 12,
-              "cardRadius": 18,
-              "panelRadius": 24,
+              "controlRadius": 6,
+              "cardRadius": 3,
+              "panelRadius": 4,
               "borderWidth": 2
             },
             "background": {
               "media": null,
               "kind": "gradient",
-              "palette": "markerStrokes",
-              "color": "#e2e5e2",
-              "opacity": 0.76,
+              "palette": "warmSand",
+              "color": "#f4efe4",
+              "opacity": 1,
               "fit": "cover",
               "effect": "none",
               "texture": "paper",
-              "intensity": 0.46,
-              "speed": 0.65,
+              "intensity": 0.55,
+              "speed": 0.6,
               "direction": 24,
               "warmth": 0.2,
-              "grain": 0.12,
+              "grain": 0.14,
               "scale": 1,
-              "wash": 0.16
+              "wash": 0.18
             },
             "layout": {
               "variant": "sketchbook",
@@ -136,15 +142,15 @@
               "tabOpacity": 1,
               "tabAutoHide": false,
               "density": 1,
-              "gap": 18,
+              "gap": 16,
               "sidebarWidth": 280,
-              "contentWidth": 1440,
-              "columns": 3
+              "contentWidth": 1500,
+              "columns": 4
             },
             "notifications": {
               "layout": "card",
               "accent": "stripe",
-              "radius": 14,
+              "radius": 3,
               "borderWidth": 2,
               "density": 1,
               "shadow": "soft"
@@ -152,25 +158,25 @@
             "splash": {
               "type": "paper",
               "media": null,
-              "opacity": 0.55
+              "opacity": 0.6
             },
             "animation": "medium"
           },
           "dark": {
             "tokens": {
-              "--bg": "#22282a",
-              "--surface": "#2b3335",
-              "--surface-2": "#303a3c",
-              "--surface-3": "#3b4749",
-              "--text": "#e4e8e1",
-              "--text-2": "#b4bfb6",
-              "--text-3": "#abb7ae",
-              "--accent": "#c59a87",
-              "--ok": "#94ae98",
-              "--danger": "#d6a098",
-              "--border": "#475456",
-              "--border-strong": "#64716e",
-              "--link": "#9bbac4"
+              "--bg": "#1c1917",
+              "--surface": "#292524",
+              "--surface-2": "#332f2b",
+              "--surface-3": "#44403c",
+              "--text": "#fafaf9",
+              "--text-2": "#d6d3d1",
+              "--text-3": "#a8a29e",
+              "--accent": "#fb923c",
+              "--ok": "#4ade80",
+              "--danger": "#f87171",
+              "--border": "#44403c",
+              "--border-strong": "#78716c",
+              "--link": "#93c5fd"
             },
             "fonts": {
               "body": "\"Avenir Next\", \"PingFang SC\", \"Hiragino Sans GB\", system-ui, sans-serif",
@@ -181,27 +187,27 @@
               "cjk": ""
             },
             "components": {
-              "controlRadius": 12,
-              "cardRadius": 18,
-              "panelRadius": 24,
+              "controlRadius": 6,
+              "cardRadius": 3,
+              "panelRadius": 4,
               "borderWidth": 2
             },
             "background": {
               "media": null,
               "kind": "gradient",
-              "palette": "markerStrokes",
-              "color": "#22282a",
-              "opacity": 0.76,
+              "palette": "warmSand",
+              "color": "#1c1917",
+              "opacity": 1,
               "fit": "cover",
               "effect": "none",
               "texture": "paper",
-              "intensity": 0.46,
-              "speed": 0.65,
+              "intensity": 0.42,
+              "speed": 0.6,
               "direction": 24,
-              "warmth": 0.2,
-              "grain": 0.12,
+              "warmth": 0.34,
+              "grain": 0.14,
               "scale": 1,
-              "wash": 0.16
+              "wash": 0.18
             },
             "layout": {
               "variant": "sketchbook",
@@ -209,15 +215,15 @@
               "tabOpacity": 1,
               "tabAutoHide": false,
               "density": 1,
-              "gap": 18,
+              "gap": 16,
               "sidebarWidth": 280,
-              "contentWidth": 1440,
-              "columns": 3
+              "contentWidth": 1500,
+              "columns": 4
             },
             "notifications": {
               "layout": "card",
               "accent": "stripe",
-              "radius": 14,
+              "radius": 3,
               "borderWidth": 2,
               "density": 1,
               "shadow": "soft"
@@ -225,193 +231,71 @@
             "splash": {
               "type": "paper",
               "media": null,
-              "opacity": 0.55
+              "opacity": 0.6
             },
             "animation": "medium"
           }
         },
         "settings": {
-          "version": 1,
+          "version": 3,
           "groups": [
             {
-              "id": "colors",
-              "title": "纸张与墨色",
-              "description": "浅色与深色分别保存；透明边框会保留 Alpha。",
+              "id": "appearance",
+              "title": "外观",
+              "description": "先挑一套桌面，再按需微调；其余颜色跟随预设派生。",
               "fields": [
                 {
-                  "key": "colorBg",
-                  "label": "纸张底色",
-                  "type": "token",
-                  "default": "#e2e5e2",
-                  "binding": {
-                    "target": "token",
-                    "key": "--bg"
-                  }
-                },
-                {
-                  "key": "colorSurface",
-                  "label": "卡纸颜色",
-                  "type": "token",
-                  "default": "#f0f1ec",
-                  "binding": {
-                    "target": "token",
-                    "key": "--surface"
-                  }
-                },
-                {
-                  "key": "colorSurface2",
-                  "label": "次级卡纸",
-                  "type": "token",
-                  "default": "#d7dcd9",
-                  "binding": {
-                    "target": "token",
-                    "key": "--surface-2"
-                  }
-                },
-                {
-                  "key": "colorSurface3",
-                  "label": "叠层卡纸",
-                  "type": "token",
-                  "default": "#c8cfcc",
-                  "binding": {
-                    "target": "token",
-                    "key": "--surface-3"
-                  }
-                },
-                {
-                  "key": "colorText",
-                  "label": "墨色文字",
-                  "type": "token",
-                  "default": "#293330",
-                  "binding": {
-                    "target": "token",
-                    "key": "--text"
-                  }
-                },
-                {
-                  "key": "colorText2",
-                  "label": "次要文字",
-                  "type": "token",
-                  "default": "#46544f",
-                  "binding": {
-                    "target": "token",
-                    "key": "--text-2"
-                  }
-                },
-                {
-                  "key": "colorText3",
-                  "label": "弱化文字",
-                  "type": "token",
-                  "default": "#495750",
-                  "binding": {
-                    "target": "token",
-                    "key": "--text-3"
-                  }
-                },
-                {
-                  "key": "colorAccent",
-                  "label": "马克笔强调色",
-                  "type": "token",
-                  "default": "#8d5f50",
-                  "binding": {
-                    "target": "token",
-                    "key": "--accent"
-                  }
-                },
-                {
-                  "key": "colorOk",
-                  "label": "成功色",
-                  "type": "token",
-                  "default": "#4e705b",
-                  "binding": {
-                    "target": "token",
-                    "key": "--ok"
-                  }
-                },
-                {
-                  "key": "colorDanger",
-                  "label": "危险色",
-                  "type": "token",
-                  "default": "#a74f47",
-                  "binding": {
-                    "target": "token",
-                    "key": "--danger"
-                  }
-                },
-                {
-                  "key": "colorBorder",
-                  "label": "描边",
-                  "type": "token",
-                  "default": "#bec8c2",
-                  "binding": {
-                    "target": "token",
-                    "key": "--border"
-                  }
-                },
-                {
-                  "key": "colorBorderStrong",
-                  "label": "强描边",
-                  "type": "token",
-                  "default": "#8c9c93",
-                  "binding": {
-                    "target": "token",
-                    "key": "--border-strong"
-                  }
-                },
-                {
-                  "key": "colorLink",
-                  "label": "链接颜色",
-                  "type": "token",
-                  "default": "#375864",
-                  "binding": {
-                    "target": "token",
-                    "key": "--link"
-                  }
-                }
-              ]
-            },
-            {
-              "id": "background",
-              "title": "纸面背景与宿主开屏",
-              "description": "纸灰、灰蓝、鼠尾草随浅深模式变化。目录、已安装、详情和样式台自行绘制整页轻量漂移；真正开屏与全局设置入口由宿主管理。",
-              "fields": [
-                {
-                  "key": "backgroundPalette",
-                  "label": "纸面色板",
+                  "key": "deskPreset",
+                  "label": "桌面",
                   "type": "select",
-                  "default": "markerStrokes",
+                  "default": "warmSand",
                   "presentation": "cards",
                   "options": [
                     {
-                      "label": "纸灰",
-                      "value": "markerStrokes",
+                      "label": "暖沙日光",
+                      "value": "warmSand",
+                      "description": "奶油纸配落日暖光，默认。",
                       "preview": {
                         "kind": "swatch",
                         "stops": [
-                          "color-mix(in srgb, var(--bg) 74%, #88928b)",
-                          "color-mix(in srgb, var(--surface-2) 88%, #87938e)"
+                          "linear-gradient(135deg, #fdfcf9, #efe7d8)",
+                          "color-mix(in srgb, var(--accent) 34%, transparent)"
                         ]
                       }
                     },
                     {
-                      "label": "灰蓝",
-                      "value": "sketchPaper",
+                      "label": "晨雾中性",
+                      "value": "morningMist",
+                      "description": "极淡灰阶，最克制。",
                       "preview": {
                         "kind": "swatch",
                         "stops": [
-                          "color-mix(in srgb, var(--bg) 76%, #7c919c)",
-                          "color-mix(in srgb, var(--surface-2) 84%, #7d909a)"
+                          "linear-gradient(135deg, #fafaf9, #e5e3de)",
+                          "color-mix(in srgb, var(--accent) 34%, transparent)"
                         ]
                       }
                     },
                     {
-                      "label": "鼠尾草",
-                      "value": "chalkBoard",
+                      "label": "陶土纸感",
+                      "value": "terracotta",
+                      "description": "米白到陶土，最暖。",
                       "preview": {
                         "kind": "swatch",
                         "stops": [
-                          "color-mix(in srgb, var(--bg) 76%, #849789)",
-                          "color-mix(in srgb, var(--surface-2) 84%, #7e9487)"
+                          "linear-gradient(135deg, #fdf6ee, #efdcc6)",
+                          "color-mix(in srgb, var(--accent) 34%, transparent)"
+                        ]
+                      }
+                    },
+                    {
+                      "label": "冷雾青灰",
+                      "value": "coolMist",
+                      "description": "白到冷灰，带天光。",
+                      "preview": {
+                        "kind": "swatch",
+                        "stops": [
+                          "linear-gradient(135deg, #f8fafc, #e2e8ec)",
+                          "color-mix(in srgb, var(--accent) 34%, transparent)"
                         ]
                       }
                     }
@@ -420,206 +304,207 @@
                     "target": "background",
                     "key": "palette"
                   },
-                  "help": "三套低饱和纸面，浅色略压亮度、深色保留灰阶；彩条只作页边点缀。"
+                  "help": "四套桌面渐变，切换即时生效；深色模式各有对应版本。"
                 },
                 {
-                  "key": "backgroundEffect",
-                  "label": "宿主额外光效",
-                  "type": "select",
-                  "default": "none",
-                  "presentation": "segmented",
-                  "help": "仅控制壳层的额外光效，默认关闭。不透明主题页另绘轻量纸面漂移，受动画强度控制，不依赖壳背景。",
-                  "options": [
-                    {
-                      "label": "仅纸面漂移",
-                      "value": "none",
-                      "description": "关闭壳层额外光效；主题页保留随动画档位控制的柔和漂移。"
-                    },
-                    {
-                      "label": "极光绸缎",
-                      "value": "aurora",
-                      "description": "在壳层叠加绸带光效，不改变主题页的纸面。"
-                    },
-                    {
-                      "label": "液态波纹",
-                      "value": "ripple",
-                      "description": "在壳层叠加液态光效，不改变主题页的纸面。"
-                    },
-                    {
-                      "label": "空间折叠",
-                      "value": "fold",
-                      "description": "在壳层叠加折面光效，不改变主题页的纸面。"
-                    },
-                    {
-                      "label": "引力光环",
-                      "value": "orbit",
-                      "description": "在壳层叠加光环，不改变主题页的纸面。"
-                    }
-                  ],
+                  "key": "colorSurface",
+                  "label": "纸张",
+                  "type": "token",
+                  "default": "#ffffff",
+                  "help": "索引卡与活页的底色。",
                   "binding": {
-                    "target": "background",
-                    "key": "effect"
+                    "target": "token",
+                    "key": "--surface"
                   }
                 },
                 {
-                  "key": "backgroundOpacity",
-                  "label": "纸面铺色",
-                  "type": "slider",
-                  "default": 0.76,
-                  "min": 0,
-                  "max": 1,
-                  "step": 0.02,
-                  "help": "同步调整壳层与主题页面的色板铺色；横线纸纹、文字与卡纸不被调暗。",
+                  "key": "colorText",
+                  "label": "墨色",
+                  "type": "token",
+                  "default": "#292524",
+                  "help": "正文与标题。",
                   "binding": {
-                    "target": "background",
-                    "key": "opacity"
+                    "target": "token",
+                    "key": "--text"
                   }
                 },
                 {
-                  "key": "splashType",
-                  "label": "宿主开屏样式",
-                  "type": "select",
-                  "default": "paper",
-                  "options": [
-                    {
-                      "label": "纸页描线",
-                      "value": "paper",
-                      "description": "宿主用当前纸面与墨色播放纸页、铅笔描线的真实启动动画。"
-                    },
-                    {
-                      "label": "品牌动画",
-                      "value": "brand",
-                      "description": "使用宿主品牌开屏。"
-                    },
-                    {
-                      "label": "关闭",
-                      "value": "none",
-                      "description": "关闭装饰性开屏，仍等待宿主与首页就绪。"
-                    },
-                    {
-                      "label": "自定义图片",
-                      "value": "image",
-                      "description": "由宿主在真实开屏中展示本地图片，可单独调整透明度。"
-                    }
-                  ],
+                  "key": "colorAccent",
+                  "label": "马克笔",
+                  "type": "token",
+                  "default": "#c2410c",
+                  "help": "主操作、选中态与手绘记号只用这一支。",
                   "binding": {
-                    "target": "splash",
-                    "key": "type"
-                  },
-                  "help": "真实启动动画只由宿主播放一次；首页不再重复全屏开屏。"
-                },
-                {
-                  "key": "splashMedia",
-                  "label": "开屏图片",
-                  "type": "media",
-                  "default": null,
-                  "binding": {
-                    "target": "splash",
-                    "key": "media"
-                  },
-                  "visibleWhen": {
-                    "field": "splashType",
-                    "equals": "image"
+                    "target": "token",
+                    "key": "--accent"
                   }
                 },
                 {
-                  "key": "splashOpacity",
-                  "label": "开屏图片不透明度",
-                  "type": "slider",
-                  "default": 0.55,
-                  "min": 0,
-                  "max": 1,
-                  "step": 0.05,
+                  "key": "colorOk",
+                  "label": "盖章绿",
+                  "type": "token",
+                  "default": "#15803d",
                   "binding": {
-                    "target": "splash",
-                    "key": "opacity"
-                  },
-                  "visibleWhen": {
-                    "field": "splashType",
-                    "equals": "image"
+                    "target": "token",
+                    "key": "--ok"
+                  }
+                },
+                {
+                  "key": "colorDanger",
+                  "label": "盖章红",
+                  "type": "token",
+                  "default": "#b91c1c",
+                  "binding": {
+                    "target": "token",
+                    "key": "--danger"
                   }
                 }
               ]
             },
             {
-              "id": "typography",
-              "title": "手写与字号",
+              "id": "layout",
+              "title": "版面",
+              "description": "纸片的尺寸节奏与动效。",
+              "fields": [
+                {
+                  "key": "columns",
+                  "label": "列数",
+                  "type": "slider",
+                  "default": 4,
+                  "min": 2,
+                  "max": 6,
+                  "step": 1,
+                  "binding": {
+                    "target": "layout",
+                    "key": "columns"
+                  },
+                  "help": "列数决定纸片铺法；窗口变窄会自动减少。"
+                },
+                {
+                  "key": "gap",
+                  "label": "纸片间距",
+                  "type": "slider",
+                  "default": 16,
+                  "min": 0,
+                  "max": 32,
+                  "step": 1,
+                  "binding": {
+                    "target": "layout",
+                    "key": "gap"
+                  },
+                  "help": "越小越像摊满桌面，越大越像整理过的档案。"
+                },
+                {
+                  "key": "density",
+                  "label": "纸边距",
+                  "type": "slider",
+                  "default": 1,
+                  "min": 0.8,
+                  "max": 1.2,
+                  "step": 0.02,
+                  "binding": {
+                    "target": "layout",
+                    "key": "density"
+                  },
+                  "help": "纸片内边距与行距一起缩放。"
+                },
+                {
+                  "key": "motion",
+                  "label": "动效",
+                  "type": "select",
+                  "default": "medium",
+                  "presentation": "segmented",
+                  "options": [
+                    {
+                      "label": "静止",
+                      "value": "low"
+                    },
+                    {
+                      "label": "自然",
+                      "value": "medium"
+                    },
+                    {
+                      "label": "活泼",
+                      "value": "high"
+                    }
+                  ],
+                  "binding": {
+                    "target": "animation",
+                    "key": "level"
+                  },
+                  "help": "活泼档下所有纸片描边会轻微沸腾。"
+                }
+              ]
+            },
+            {
+              "id": "hand",
+              "title": "手写",
+              "description": "标题与正文可以分开选手写体。",
               "fields": [
                 {
                   "key": "fontLatin",
-                  "label": "英文字体",
+                  "label": "英文手写",
                   "type": "font",
                   "default": "",
-                  "binding": {
-                    "target": "font",
-                    "key": "latin"
-                  },
                   "options": [
                     {
-                      "label": "默认（Avenir Next）",
+                      "label": "系统默认",
                       "value": ""
                     },
                     {
-                      "label": "手札体 中文手写",
+                      "label": "手札体",
                       "value": "\"Hannotate SC\", \"HanziPen SC\", \"PingFang SC\", sans-serif"
                     },
                     {
-                      "label": "Marker Felt 马克笔",
+                      "label": "记号笔",
                       "value": "\"Marker Felt\", \"Bradley Hand\", \"Hannotate SC\", sans-serif"
                     },
                     {
-                      "label": "Bradley Hand 英文手写",
+                      "label": "粉笔手写",
                       "value": "\"Bradley Hand\", \"Chalkboard SE\", \"Hannotate SC\", cursive"
                     }
-                  ]
+                  ],
+                  "binding": {
+                    "target": "font",
+                    "key": "latin"
+                  }
                 },
                 {
                   "key": "fontCjk",
-                  "label": "中文字体",
+                  "label": "中文手写",
                   "type": "font",
                   "default": "",
-                  "binding": {
-                    "target": "font",
-                    "key": "cjk"
-                  },
                   "options": [
                     {
-                      "label": "默认（苹方）",
+                      "label": "系统默认",
                       "value": ""
                     },
                     {
-                      "label": "苹方",
+                      "label": "黑体",
                       "value": "\"PingFang SC\", \"Hiragino Sans GB\", sans-serif"
                     },
                     {
-                      "label": "楷体手写",
+                      "label": "楷体",
                       "value": "\"Kaiti SC\", \"STKaiti\", \"KaiTi\", serif"
                     },
                     {
-                      "label": "霞鹜文楷",
+                      "label": "文楷",
                       "value": "\"LXGW WenKai\", \"LXGW WenKai Screen\", \"Kaiti SC\", serif"
                     }
-                  ]
-                },
-                {
-                  "key": "fontMono",
-                  "label": "代码与数字",
-                  "type": "font",
-                  "default": "\"JetBrains Mono\", \"SF Mono\", ui-monospace, monospace",
+                  ],
                   "binding": {
                     "target": "font",
-                    "key": "mono"
+                    "key": "cjk"
                   }
                 },
                 {
                   "key": "fontScale",
-                  "label": "字号比例",
+                  "label": "字号",
                   "type": "slider",
                   "default": 1,
                   "min": 0.9,
                   "max": 1.3,
-                  "step": 0.05,
-                  "help": "整体缩放全壳字号，90%-130%",
+                  "step": 0.02,
                   "binding": {
                     "target": "font",
                     "key": "scale"
@@ -628,154 +513,47 @@
               ]
             },
             {
-              "id": "layout",
-              "title": "内容布局与动画",
+              "id": "detail",
+              "title": "细节",
+              "description": "手绘描边、纸角与通知外观。圆角按「纸角」理解，不是胶囊。",
               "fields": [
-                {
-                  "key": "contentWidth",
-                  "label": "内容宽度",
-                  "type": "slider",
-                  "default": 1440,
-                  "min": 640,
-                  "max": 1920,
-                  "step": 10,
-                  "binding": {
-                    "target": "layout",
-                    "key": "contentWidth"
-                  }
-                },
-                {
-                  "key": "density",
-                  "label": "内容密度",
-                  "type": "slider",
-                  "default": 1,
-                  "min": 0.8,
-                  "max": 1.2,
-                  "step": 0.01,
-                  "binding": {
-                    "target": "layout",
-                    "key": "density"
-                  }
-                },
-                {
-                  "key": "gap",
-                  "label": "卡片间距",
-                  "type": "slider",
-                  "default": 18,
-                  "min": 0,
-                  "max": 32,
-                  "step": 1,
-                  "binding": {
-                    "target": "layout",
-                    "key": "gap"
-                  }
-                },
-                {
-                  "key": "columns",
-                  "label": "目录列数",
-                  "type": "slider",
-                  "default": 3,
-                  "min": 1,
-                  "max": 6,
-                  "step": 1,
-                  "binding": {
-                    "target": "layout",
-                    "key": "columns"
-                  }
-                },
-                {
-                  "key": "motion",
-                  "label": "动画强度",
-                  "type": "select",
-                  "default": "medium",
-                  "help": "低档保留静态纸面，中档持续轻柔漂移，高档略增位移与内容入场；隐藏页面暂停，系统减少动态效果时静止。",
-                  "options": [
-                    {
-                      "label": "低",
-                      "value": "low"
-                    },
-                    {
-                      "label": "中",
-                      "value": "medium"
-                    },
-                    {
-                      "label": "高",
-                      "value": "high"
-                    }
-                  ],
-                  "binding": {
-                    "target": "animation",
-                    "key": "level"
-                  }
-                }
-              ],
-              "description": "仅调整主题内容布局。全局标签栏、圆轨和设置入口由宿主统一管理。"
-            },
-            {
-              "id": "surfaces",
-              "title": "描边、圆角与通知",
-              "description": "控件、卡纸与面板共用同一套手绘圆角与描边；通知沿用同一外观语言。",
-              "fields": [
-                {
-                  "key": "radius",
-                  "label": "控件圆角",
-                  "type": "slider",
-                  "default": 12,
-                  "min": 0,
-                  "max": 24,
-                  "step": 1,
-                  "binding": {
-                    "target": "component",
-                    "key": "controlRadius"
-                  }
-                },
-                {
-                  "key": "cardRadius",
-                  "label": "卡片圆角",
-                  "type": "slider",
-                  "default": 18,
-                  "min": 0,
-                  "max": 32,
-                  "step": 1,
-                  "binding": {
-                    "target": "component",
-                    "key": "cardRadius"
-                  }
-                },
-                {
-                  "key": "panelRadius",
-                  "label": "面板圆角",
-                  "type": "slider",
-                  "default": 24,
-                  "min": 0,
-                  "max": 40,
-                  "step": 1,
-                  "binding": {
-                    "target": "component",
-                    "key": "panelRadius"
-                  }
-                },
                 {
                   "key": "borderWidth",
-                  "label": "描边宽度",
+                  "label": "描边粗细",
                   "type": "slider",
                   "default": 2,
-                  "min": 0,
-                  "max": 6,
+                  "min": 1,
+                  "max": 5,
                   "step": 0.5,
                   "binding": {
                     "target": "component",
                     "key": "borderWidth"
-                  }
+                  },
+                  "help": "手绘描边的基准线宽；滤镜会把它推得不均匀。"
+                },
+                {
+                  "key": "cardRadius",
+                  "label": "纸角",
+                  "type": "slider",
+                  "default": 3,
+                  "min": 0,
+                  "max": 20,
+                  "step": 1,
+                  "binding": {
+                    "target": "component",
+                    "key": "cardRadius"
+                  },
+                  "help": "纸是直角物件；这里调的是纸角被磨圆的程度。"
                 },
                 {
                   "key": "notificationLayout",
-                  "label": "通知布局",
+                  "label": "通知版式",
                   "type": "select",
                   "default": "card",
+                  "presentation": "segmented",
                   "options": [
                     {
-                      "label": "标准卡片",
+                      "label": "纸卡",
                       "value": "card"
                     },
                     {
@@ -793,90 +571,28 @@
                   }
                 },
                 {
-                  "key": "notificationAccent",
-                  "label": "通知强调",
-                  "type": "select",
-                  "default": "stripe",
-                  "options": [
-                    {
-                      "label": "侧边色条",
-                      "value": "stripe"
-                    },
-                    {
-                      "label": "级别图标",
-                      "value": "icon"
-                    },
-                    {
-                      "label": "无",
-                      "value": "none"
-                    }
-                  ],
-                  "binding": {
-                    "target": "notification",
-                    "key": "accent"
-                  }
-                },
-                {
                   "key": "notificationShadow",
-                  "label": "通知阴影",
+                  "label": "通知投影",
                   "type": "select",
                   "default": "soft",
+                  "presentation": "segmented",
                   "options": [
                     {
                       "label": "无",
                       "value": "none"
                     },
                     {
-                      "label": "轻阴影",
+                      "label": "轻",
                       "value": "soft"
                     },
                     {
-                      "label": "浮起",
+                      "label": "实",
                       "value": "raised"
                     }
                   ],
                   "binding": {
                     "target": "notification",
                     "key": "shadow"
-                  }
-                },
-                {
-                  "key": "notificationRadius",
-                  "label": "通知圆角",
-                  "type": "slider",
-                  "default": 14,
-                  "min": 0,
-                  "max": 24,
-                  "step": 1,
-                  "binding": {
-                    "target": "notification",
-                    "key": "radius"
-                  }
-                },
-                {
-                  "key": "notificationBorderWidth",
-                  "label": "通知描边",
-                  "type": "slider",
-                  "default": 2,
-                  "min": 0,
-                  "max": 6,
-                  "step": 0.5,
-                  "binding": {
-                    "target": "notification",
-                    "key": "borderWidth"
-                  }
-                },
-                {
-                  "key": "notificationDensity",
-                  "label": "通知密度",
-                  "type": "slider",
-                  "default": 1,
-                  "min": 0.8,
-                  "max": 1.2,
-                  "step": 0.01,
-                  "binding": {
-                    "target": "notification",
-                    "key": "density"
                   }
                 }
               ]
@@ -891,6 +607,10 @@
         "quick": {
           "version": 1,
           "entry": "quick/sketchbook.html"
+        },
+        "settingsPage": {
+          "version": 1,
+          "entry": "settings/preferences.html"
         }
       }
     ],

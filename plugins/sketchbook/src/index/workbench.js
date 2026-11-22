@@ -4,9 +4,9 @@
  * 插件主窗口内容：把本主题的控件、图标、小窗与通知样式按真实尺寸排开，
  * 便于安装后核对。所有交互都是本地演示，不调用宿主能力。
  */
-import { h } from '../shared/dom.js'
-import { icon, SKETCH_ICON_NAMES } from '../shared/icons.js'
-import { createSketchPaper, mountSketchDefs } from '../shared/sketchPrimitives.js'
+import { h } from '../../lib/dom.js'
+import { icon, SKETCH_ICON_NAMES } from '../../lib/icons.js'
+import { createSketchPaper, mountSketchDefs } from '../../lib/sketchPrimitives.js'
 
 // 零构建页：快捷键符号就地判定平台，不用裸包名 import
 const mac = /Mac/.test(navigator.platform)
@@ -17,9 +17,10 @@ const THEME_TOKENS = [
   ['--ok', '成功'], ['--danger', '危险'], ['--border', '描边'], ['--border-strong', '强描边'],
 ]
 
+// 纸品派生出的四级"纸/墨"关系，全部来自语义 token，没有独立调色板。
 const INKS = [
-  ['--ink-1', '赭红'], ['--ink-2', '旧金'], ['--ink-3', '苔绿'],
-  ['--ink-4', '灰青'], ['--ink-5', '灰蓝'], ['--ink-6', '藕灰'],
+  ['--accent', '马克笔'], ['--ok', '盖章绿'], ['--link', '链接墨'], ['--danger', '盖章红'],
+  ['--border-strong', '重描边'], ['--surface-3', '叠纸'],
 ]
 
 function sheet(title, hint, ...children) {

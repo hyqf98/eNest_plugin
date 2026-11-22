@@ -1,31 +1,28 @@
 /*
- * 素描本 · 手绘彩条样式（重做版）
+ * 素描本 · 首页纸面陈列
  *
- * 旧版的问题：用不规则 border-radius 假装手绘，本质上还是圆角卡片贴了张皮。
- * 这一版换成三条真正的实物线索：
- *   1. 笔记本：左边螺旋装订环 + 横线纸 + 页边红线 + 打孔；
- *   2. 手抖描边：SVG feTurbulence 位移滤镜推歪的 2px 线（filter: url(#sk-rough)）；
- *   3. 拼贴：卡片带轻微旋转、胶带、图钉，像贴进本子里的索引卡，而不是网格里的圆角盒子。
+ * 核心改动：目录不再是等宽等高的网格。
+ * 每张纸片按"内容量 + 索引位置"分到四种版面尺寸 —— 大纸（2×2）、横纸（2×1）、
+ * 竖纸（1×2）、小纸（1×1）—— 再给每张纸一种纸品（索引卡 / 方格 / 牛皮 / 相纸 / 便签），
+ * 配不等的倾斜与投影高度。用 CSS Grid 的 span 实现，所以行仍是自动的，不会破格。
  *
- * 颜色仍只读语义 token；六色马克笔是"墨"，只做笔触与标记，不做大面积填充。
+ * 三种尺寸由 JS 写进 data-size，CSS 只负责每种尺寸的排版。
+ * 窄窗口退化为两列 / 单列，尺寸差异收窄但不消失。
  */
 
+/* ── 页面骨架 ── */
 .sk-market {
-  overflow-wrap: anywhere;
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
   isolation: isolate;
-  color: var(--ink);
-  background: var(--bg);
-  /* 手账字距：手写字天然偏松，正文略收，标题拉开 */
+  color: var(--sk-ink);
+  background: var(--sk-desk);
   font-feature-settings: 'liga' 0;
+  overflow-wrap: anywhere;
 }
 
-/* 纸面、彩墨与持续漂移共用 base.css，三条路由不重建背景。 */
-
-/* ── 滚动区：右侧给装订环留位，内容不压到环下 ── */
 .sk-scroll {
   position: relative;
   z-index: 1;
@@ -33,96 +30,37 @@
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: var(--edge-soft) transparent;
+  scrollbar-color: var(--sk-edge-faint) transparent;
 }
-
-.sk-scroll::-webkit-scrollbar { width: 11px; }
-.sk-scroll::-webkit-scrollbar-thumb {
-  background: var(--edge-soft);
-  border: 3px solid transparent;
-  background-clip: content-box;
-  border-radius: 999px;
-}
-.sk-scroll::-webkit-scrollbar-thumb:hover { background: var(--edge); background-clip: content-box; }
 
 .sk-page {
   position: relative;
-  max-width: var(--appearance-content-width, 1440px);
+  max-width: var(--appearance-content-width, 1500px);
   margin: 0 auto;
-  /* 左边留出装订环与页边线，底部留一页纸的呼吸空间。 */
-  padding: calc(24px * var(--density)) clamp(18px, 3vw, 40px) calc(44px * var(--density)) clamp(84px, 8vw, 96px);
+  padding: calc(22px * var(--appearance-density, 1)) clamp(16px, 2.6vw, 38px) calc(56px * var(--appearance-density, 1));
 }
 
-/* 独立的视口层，不在 scroll 内；底部留出宿主原生设置 dock 的净空。 */
-.sk-binding {
-  position: absolute;
-  z-index: 6;
-  left: clamp(18px, 2.2vw, 30px);
-  top: 0;
-  bottom: max(88px, env(safe-area-inset-bottom));
-  width: 44px;
-  overflow: hidden;
-  contain: paint;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 26px;
-  padding: 24px 0 0;
-}
-
-.sk-binding > span { position: relative; display: block; flex: none; height: 16px; }
-
-.sk-ring {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 30px;
-  height: 15px;
-  border: 2.5px solid var(--edge);
-  border-radius: 50%;
-  opacity: .8;
-  /* 只保留伸进纸面前的那一段，右侧埋进装订边 */
-  clip-path: polygon(0 0, 62% 0, 58% 100%, 0 100%);
-  filter: url(#sk-rough-fine);
-}
-
-/* 打孔：纸上的深色小孔，环从这里穿进去 */
-.sk-hole {
-  position: absolute;
-  left: 14px;
-  top: 3px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--ink) 46%, transparent);
-  box-shadow: inset 0 1px 1.5px color-mix(in srgb, #000 30%, transparent);
-}
-
-/* ── 页头：手写大标题 + 手绘下划线 + 贴纸信息 ── */
+/* ── 页头：手写大标题 + 手绘下划线 + 圈注计数 ── */
 .sk-head {
   position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
-  margin-bottom: calc(14px * var(--density));
-  padding-top: 4px;
+  gap: 16px;
+  margin-bottom: calc(10px * var(--appearance-density, 1));
 }
 
 .sk-head-main { position: relative; min-width: 0; }
 
 .sk-head h1 {
-  position: relative;
   display: inline-block;
   margin: 0;
-  font-family: var(--hand);
-  /* 手写体在大字号下笔画细，字重与字距一起加，才不会像正文放大 */
-  font-size: clamp(34px, 3.8vw, 50px);
+  font-family: var(--font-heading);
+  font-size: clamp(32px, 3.6vw, 48px);
   font-weight: 600;
-  line-height: 1.08;
+  line-height: 1.06;
   letter-spacing: .01em;
-  color: var(--ink);
+  color: var(--sk-ink);
 }
 
 /* 手绘波浪下划线：真 SVG 路径，不是 CSS 圆角条 */
@@ -130,182 +68,159 @@
   content: '';
   position: absolute;
   left: -2px;
-  right: -6px;
+  right: -8px;
   bottom: -.14em;
   height: 12px;
-  background: var(--marker);
+  background: var(--sk-marker);
   opacity: .9;
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8.4c24-3.6 48-4.8 72-3.6 22 1.1 44 1.6 66 .4 20-1 40-1.6 58-2.8' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8.4c24-3.6 48-4.8 72-3.6 22 1.1 44 1.6 66 .4 20-1 40-1.6 58-2.8' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8.4c24-3.6 48-4.8 72-3.6 22 1.1 44 1.6 66 .4 20-1 40-1.6 58-2.8' fill='none' stroke='%23000' stroke-width='3.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8.4c24-3.6 48-4.8 72-3.6 22 1.1 44 1.6 66 .4 20-1 40-1.6 58-2.8' fill='none' stroke='%23000' stroke-width='3.6' stroke-linecap='round'/%3E%3C/svg%3E");
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
+  pointer-events: none;
 }
 
 .sk-head-sub {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 16px 0 0;
+  margin: 17px 0 0;
   font-size: calc(12.5px * var(--appearance-font-scale, 1));
-  color: var(--ink-soft);
+  color: var(--sk-ink-soft);
   font-variant-numeric: tabular-nums;
 }
 
-/* 数字用马克笔圈一下，手账里"强调一个数"的常见做法 */
 .sk-head-sub b {
   position: relative;
-  padding: 0 4px;
+  padding: 0 3px;
   font-weight: 650;
-  color: var(--ink);
+  color: var(--sk-ink);
 }
+/* 数字被马克笔圈一下：手账里强调一个数的做法 */
 .sk-head-sub b::after {
   content: '';
   position: absolute;
   inset: -3px -4px -2px;
-  border: 2px solid var(--marker);
+  border: 2px solid var(--sk-marker);
   border-radius: 48% 52% 46% 54% / 56% 44% 56% 44%;
-  opacity: .55;
-  transform: rotate(-2deg);
-}
-
-/* 手绘圆形按钮：SVG 抖动描边，悬停时像被笔尖拨了一下 */
-.sk-round {
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  color: var(--ink-soft);
-  background: var(--paper);
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: color .18s var(--ease), transform .18s var(--ease);
-}
-.sk-round::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: var(--stroke) solid var(--edge);
-  border-radius: 50%;
-  filter: url(#sk-rough-fine);
+  opacity: .5;
+  rotate: -2deg;
   pointer-events: none;
 }
-.sk-round:hover:not(:disabled) { color: var(--marker); transform: rotate(-8deg) scale(1.06); }
-.sk-round:hover:not(:disabled)::before { border-color: var(--marker); }
-.sk-round:active:not(:disabled) { transform: scale(.94); }
-.sk-round:disabled { opacity: .45; cursor: default; }
-.sk-round[aria-busy='true'] svg { animation: sk-spin 1.05s linear infinite; }
-@keyframes sk-spin { to { transform: rotate(360deg); } }
 
-/* ── 搜索：便签条造型，左侧撕口，右侧斜切 ── */
+/* ── 搜索：贴在桌面上的便签条，左侧一道马克笔色带 ── */
 .sk-search {
   position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 48px;
-  margin-bottom: calc(18px * var(--density));
-  padding: 0 14px 0 16px;
-  background: var(--paper);
+  height: 46px;
+  margin: calc(16px * var(--appearance-density, 1)) 0 calc(14px * var(--appearance-density, 1));
+  padding: 0 14px 0 15px;
+  background: var(--sk-paper);
   border: 0;
-  border-radius: 3px;
-  /* 便签的撕口与斜切，用 clip-path 而非圆角 */
-  z-index: 10;
-  transition: transform .18s var(--ease);
+  border-radius: 1px;
+  box-shadow: var(--sk-shadow-slip);
+  transition: translate .18s var(--sk-ease), box-shadow .18s var(--sk-ease);
 }
 
-/* 抖动描边单独一层：clip-path 会裁掉 border，所以用内描边伪元素 */
 .sk-search::before {
   content: '';
   position: absolute;
   inset: 0;
-  border: var(--stroke) solid var(--edge);
-  filter: url(#sk-rough);
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge-soft);
+  filter: url(#sk-rough-fine);
   pointer-events: none;
 }
 
-/* 便签顶部的马克笔色带：让搜索条一眼看出是这个主题 */
+/* 左边缘马克笔色条：便签的书脊 */
 .sk-search::after {
   content: '';
   position: absolute;
   left: 0;
-  right: 0;
   top: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--ink-1), var(--ink-2), var(--ink-3), var(--ink-4), var(--ink-5), var(--ink-6));
-  opacity: .8;
+  bottom: 0;
+  width: 3.5px;
+  background: var(--sk-marker);
+  opacity: .85;
   pointer-events: none;
 }
 
-.sk-search:focus-within { transform: translateY(-1px); }
-.sk-search:focus-within::before { border-color: var(--marker); border-width: calc(var(--stroke) + 1px); }
-.sk-search > svg { flex: none; color: var(--ink-soft); }
+.sk-search:focus-within { translate: 0 -1px; box-shadow: var(--sk-shadow-card); }
+.sk-search:focus-within::before { border-color: var(--sk-marker); }
+.sk-search > svg { flex: none; color: var(--sk-ink-faint); }
 
 .sk-search input {
   flex: 1;
   min-width: 0;
   height: 100%;
+  padding: 0;
+  color: var(--sk-ink);
+  background: transparent;
   border: 0;
   outline: 0;
-  background: transparent;
-  color: var(--ink);
   font: inherit;
   font-size: calc(13.5px * var(--appearance-font-scale, 1));
   letter-spacing: .01em;
 }
-.sk-search input::placeholder { color: var(--ink-faint); }
+.sk-search input::placeholder { color: var(--sk-ink-faint); }
 .sk-search input::-webkit-search-cancel-button,
 .sk-search input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 
-/* 快捷键做成橡皮章样式 */
+/* 快捷键：橡皮章 */
 .sk-search kbd {
   flex: none;
-  padding: 2px 7px;
-  font-family: var(--font-mono, monospace);
+  padding: 1px 7px 2px;
+  font-family: var(--font-mono);
   font-size: 10.5px;
   letter-spacing: .04em;
-  color: var(--ink-soft);
-  background: color-mix(in srgb, var(--ink-4) 12%, var(--paper));
-  border: 1.5px solid color-mix(in srgb, var(--ink-4) 45%, transparent);
-  border-radius: 4px;
-  transform: rotate(-2deg);
+  color: var(--sk-ink-soft);
+  background: color-mix(in srgb, var(--sk-marker) 10%, var(--sk-paper));
+  border: 1.5px solid color-mix(in srgb, var(--sk-marker) 40%, transparent);
+  border-radius: 1px;
+  rotate: -2deg;
 }
 
 .sk-search-clear {
-  flex: none;
   display: grid;
   place-items: center;
+  flex: none;
   width: 26px;
   height: 26px;
   padding: 0;
-  color: var(--ink-soft);
+  color: var(--sk-ink-faint);
   background: transparent;
   border: 0;
   border-radius: 50%;
   cursor: pointer;
 }
-.sk-search-clear:hover { color: var(--ink); background: var(--paper-2); }
+.sk-search-clear:hover { color: var(--sk-ink); background: var(--sk-paper-shade); }
 
-/* 搜索结果：从便签下沿"翻"出来的一页 */
+/* 搜索结果：从便签下沿翻出来的一页 */
 .sk-results {
   position: absolute;
   z-index: 20;
   left: 0;
   right: 0;
-  top: calc(100% + 7px);
+  top: calc(100% + 8px);
+  max-height: 336px;
   padding: 6px;
-  background: var(--paper);
-  border: var(--stroke) solid var(--edge);
-  border-radius: 3px;
-  box-shadow: 0 14px 30px color-mix(in srgb, var(--ink) 16%, transparent);
-  max-height: 330px;
   overflow: auto;
+  background: var(--sk-paper);
+  border-radius: 1px;
+  box-shadow: var(--sk-shadow-paper);
   clip-path: polygon(0 0, 100% 0, 99.4% 100%, .4% 98.4%);
+}
+.sk-results::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge-soft);
+  filter: url(#sk-rough);
+  pointer-events: none;
 }
 
 .sk-result {
@@ -315,211 +230,135 @@
   width: 100%;
   padding: 9px 10px;
   text-align: left;
-  color: var(--ink);
+  color: var(--sk-ink);
   background: transparent;
   border: 0;
-  border-radius: 2px;
+  border-radius: 1px;
   cursor: pointer;
   font: inherit;
 }
-.sk-result:hover, .sk-result[aria-selected='true'] { background: color-mix(in srgb, var(--marker) 10%, var(--paper)); }
-.sk-result strong { display: block; font-family: var(--hand); font-size: calc(14px * var(--appearance-font-scale, 1)); font-weight: 600; }
-.sk-result span { display: block; font-size: 11.5px; color: var(--ink-soft); }
-.sk-result-icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  overflow: hidden;
-  color: #fff;
-  background: var(--avatar-ink, var(--ink-4));
-  font-size: 12px;
-  font-weight: 650;
-  border-radius: 5px 3px 6px 4px;
+.sk-result:hover, .sk-result[aria-selected='true'] {
+  background: color-mix(in srgb, var(--sk-marker) 10%, var(--sk-paper));
 }
-.sk-result-icon img { width: 100%; height: 100%; object-fit: cover; }
-.sk-results-empty { padding: 16px 12px; font-size: 12.5px; color: var(--ink-soft); text-align: center; }
+.sk-result strong {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: calc(14px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+}
+.sk-result span { display: block; font-size: 11.5px; color: var(--sk-ink-soft); }
+.sk-results-empty { padding: 16px 12px; text-align: center; font-size: 12.5px; color: var(--sk-ink-soft); }
 
-/* ── 工具栏：分类做成彩色标签贴，选中时被"圈起来" ── */
+/* 结果里的小图标：方角纸片 + 首字 */
+.sk-result-icon { width: 28px; height: 28px; font-size: 12px; border-radius: 1px; }
+
+/* ── 工具栏：手写页签 + 分类纸条 ── */
 .sk-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: calc(18px * var(--density));
+  margin-bottom: calc(16px * var(--appearance-density, 1));
 }
 
-.sk-seg {
-  display: inline-flex;
-  align-items: center;
-  gap: 18px;
-  padding: 0;
-  background: none;
-  border: 0;
-}
+.sk-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.sk-chip:nth-child(6n+1) { --sk-chip-ink: color-mix(in srgb, var(--sk-marker) 82%, var(--sk-ink)); }
+.sk-chip:nth-child(6n+2) { --sk-chip-ink: color-mix(in srgb, var(--ok) 82%, var(--sk-ink)); }
+.sk-chip:nth-child(6n+3) { --sk-chip-ink: color-mix(in srgb, var(--link) 78%, var(--sk-ink)); }
+.sk-chip:nth-child(6n+4) { --sk-chip-ink: color-mix(in srgb, var(--sk-marker) 58%, var(--ok)); }
+.sk-chip:nth-child(6n+5) { --sk-chip-ink: color-mix(in srgb, var(--link) 52%, var(--sk-marker)); }
+.sk-chip:nth-child(6n+6) { --sk-chip-ink: color-mix(in srgb, var(--danger) 72%, var(--sk-ink)); }
 
-/* 分段切换做成手写页签：文字 + 手绘下划线，不用胶囊按钮 */
-.sk-seg button {
-  position: relative;
-  padding: 3px 2px 7px;
-  font-family: var(--hand);
-  font-size: calc(15px * var(--appearance-font-scale, 1));
-  font-weight: 600;
-  color: var(--ink-faint);
-  background: none;
-  border: 0;
-  cursor: pointer;
-  transition: color .16s var(--ease);
-}
-.sk-seg button::after {
-  content: '';
-  position: absolute;
-  left: -1px;
-  right: -1px;
-  bottom: 0;
-  height: 3px;
-  background: var(--marker);
-  border-radius: 2px;
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform .22s var(--ease);
-}
-.sk-seg button:hover { color: var(--ink-soft); }
-.sk-seg button[aria-selected='true'] { color: var(--ink); }
-.sk-seg button[aria-selected='true']::after { transform: scaleX(1); }
-
-.sk-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-
-/* 分类贴：带一条自己的墨色，像贴纸标签 */
-.sk-chip {
-  --chip-ink: var(--ink-4);
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 11px 5px;
-  font-family: var(--hand);
-  font-size: calc(13px * var(--appearance-font-scale, 1));
-  font-weight: 600;
-  color: var(--ink-soft);
-  background: var(--paper);
-  border: 0;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: color .16s var(--ease), transform .16s var(--ease);
-}
-.sk-chip::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 1.5px solid color-mix(in srgb, var(--chip-ink) 55%, transparent);
-  filter: url(#sk-rough-fine);
-  pointer-events: none;
-}
-.sk-chip::after {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 1px;
-  background: var(--chip-ink);
-  transform: rotate(12deg);
-}
-.sk-chip:hover { color: var(--ink); transform: translateY(-2px) rotate(-1.2deg); }
-.sk-chip[aria-pressed='true'] {
-  color: var(--ink);
-  background: color-mix(in srgb, var(--chip-ink) 13%, var(--paper));
-  transform: rotate(-1deg);
-}
-.sk-chip[aria-pressed='true']::before { border-color: var(--chip-ink); border-width: 2.5px; }
-
-.sk-chip:nth-child(6n+1) { --chip-ink: var(--ink-1); }
-.sk-chip:nth-child(6n+2) { --chip-ink: var(--ink-2); }
-.sk-chip:nth-child(6n+3) { --chip-ink: var(--ink-3); }
-.sk-chip:nth-child(6n+4) { --chip-ink: var(--ink-4); }
-.sk-chip:nth-child(6n+5) { --chip-ink: var(--ink-5); }
-.sk-chip:nth-child(6n+6) { --chip-ink: var(--ink-6); }
-
-/* ── 精选：拼贴式不对称三格（第一格跨两行，像剪报头条） ── */
-.sk-featured { margin-bottom: calc(24px * var(--density)); }
+/* ── 精选：钉在桌面顶部的一张大剪报 + 两枚小纸片 ── */
+.sk-featured { margin-bottom: calc(22px * var(--appearance-density, 1)); }
 
 .sk-section-label {
   display: flex;
   align-items: baseline;
   gap: 9px;
   margin: 0 0 12px;
-  font-family: var(--hand);
+  font-family: var(--font-heading);
   font-size: calc(17px * var(--appearance-font-scale, 1));
   font-weight: 600;
-  color: var(--ink);
+  color: var(--sk-ink);
 }
 .sk-section-label span {
   font-family: var(--font);
   font-size: 11.5px;
   font-weight: 450;
-  color: var(--ink-faint);
+  color: var(--sk-ink-faint);
 }
 .sk-section-label::after {
   content: '';
   flex: 1;
   height: 1.5px;
   margin-left: 4px;
-  background: repeating-linear-gradient(90deg, var(--edge-soft) 0 7px, transparent 7px 13px);
+  background: repeating-linear-gradient(90deg, var(--sk-edge-soft) 0 7px, transparent 7px 13px);
 }
 
 .sk-featured-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: calc(var(--gap) * .9);
+  /* 三张并排：主推更宽（剪报头条），另两张等宽 */
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: calc(var(--appearance-gap, 16px) * .95);
   align-items: stretch;
-  perspective: 1200px;
-  /* 留出胶带、旋转与 hover 的裁切缓冲。 */
-  padding: 12px 8px 10px;
-  margin: -8px -8px -10px;
+  padding: 14px 10px 12px;
+  margin: -10px -10px -12px;
 }
 
+/* 精选大纸：跨两行，牛皮纸/相纸交替，钉一枚图钉 */
 .sk-feature {
-  --feature-turn: .65deg;
   position: relative;
   min-width: 0;
-  padding: 16px;
-  color: var(--ink);
-  background: var(--paper);
-  border-radius: 2px;
-  box-shadow: 2px 4px 0 color-mix(in srgb, var(--feat-ink) 15%, transparent);
-  transform: rotate(var(--feature-turn));
-  transform-origin: 12% 50%;
-  transition: transform .28s var(--ease);
+  padding: calc(16px * var(--appearance-density, 1));
+  color: var(--sk-ink);
+  background-color: var(--sk-card-stock);
+  background-image: var(--sk-paper-light);
+  border-radius: var(--appearance-card-radius, 3px);
+  box-shadow: var(--sk-shadow-card);
+  rotate: var(--sk-feature-tilt, -.5deg);
+  transition: rotate .28s var(--sk-ease), box-shadow .28s var(--sk-ease), translate .28s var(--sk-ease);
 }
-.sk-feature.is-lead { --feature-turn: -.65deg; grid-row: span 2; padding: 20px; }
-.sk-feature:nth-child(3) { --feature-turn: -.4deg; }
+
+.sk-feature.is-lead {
+  padding: calc(19px * var(--appearance-density, 1));
+  background-color: var(--sk-kraft-stock);
+  box-shadow: var(--sk-shadow-pad);
+  --sk-feature-tilt: .6deg;
+}
+.sk-feature:nth-child(3) { --sk-feature-tilt: -.35deg; }
+
 .sk-feature::before {
   content: '';
   position: absolute;
   inset: 0;
-  border: var(--stroke) solid var(--edge-soft);
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge);
   filter: url(#sk-rough);
   pointer-events: none;
 }
-.sk-feature::after {
+
+/* 大纸右下角折角 */
+.sk-feature.is-lead::after {
   content: '';
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 23px;
-  height: 23px;
-  background: linear-gradient(135deg, transparent 50%, color-mix(in srgb, var(--feat-ink) 25%, var(--paper)) 51%);
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(135deg, transparent 48%, rgb(var(--sk-shade-rgb) / .16) 50%, var(--sk-paper-shade) 52%);
   pointer-events: none;
 }
-.sk-feature > .sk-tape { display: block; top: -7px; width: 64px; height: 17px; background: color-mix(in srgb, var(--feat-ink) 36%, transparent); }
+
+.sk-feature > .sk-tape { width: 70px; height: 17px; }
+
 .sk-feature-link {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(70px, .65fr) minmax(0, 1.5fr);
-  gap: 10px 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 9px;
   width: 100%;
-  height: 100%;
   padding: 0;
   text-align: left;
   color: inherit;
@@ -527,63 +366,176 @@
   border: 0;
   cursor: pointer;
 }
-.sk-feature.is-lead .sk-feature-link { grid-template-columns: minmax(0, 1fr); }
-.sk-feature-eyebrow { grid-column: 1 / -1; font-family: var(--hand); font-size: 12px; letter-spacing: .08em; color: var(--feat-ink); }
+
+/* 主推做成"剪报"：顶部横贯一条大标题，下面是通栏剪贴画，
+ * 最后一行是简介与标签。这样纸面被填满，也不会出现孤零零的长条空白。 */
+.sk-feature.is-lead {
+  display: flex;
+  flex-direction: column;
+}
+.sk-feature.is-lead .sk-feature-link {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(120px, 1fr) auto;
+  align-content: stretch;
+  min-height: 0;
+  min-width: 0;
+}
+.sk-feature.is-lead .sk-feature-visual {
+  position: relative;
+  grid-column: 1;
+  grid-row: 3;
+  min-height: 120px;
+  overflow: hidden;
+}
+/* 主推文案块只放简介/标签/入口，标题由 .sk-feature-headline 承担 */
+.sk-feature.is-lead .sk-feature-copy { grid-column: 1; grid-row: 4; }
+/* 精选截图铺满它的框，和目录里的剪贴画同样处理 */
+.sk-feature.is-lead .sk-feature-shot,
+.sk-feature.is-lead .sk-feature-visual.has-shot .sk-feature-shot {
+  position: absolute;
+  inset: 6px 6px 16px;
+  width: calc(100% - 12px);
+  height: calc(100% - 22px);
+  max-height: none;
+  aspect-ratio: auto;
+  object-fit: cover;
+}
+/* 右侧两张小精选：内容压紧，避免各自留白 */
+.sk-feature.is-index .sk-feature-visual.is-icon { min-height: 84px; }
+.sk-feature.is-index .sk-feature-link {
+  grid-template-rows: auto auto auto;
+  align-content: start;
+}
+.sk-feature.is-index .sk-feature-title-slot { display: none; }
+
+.sk-feature-eyebrow {
+  font-family: var(--font-heading);
+  font-size: 11.5px;
+  letter-spacing: .09em;
+  color: color-mix(in srgb, var(--sk-marker) 80%, var(--sk-ink));
+}
+
+/* 精选视觉：相纸框里放真实截图，没有截图就是大字图标 */
 .sk-feature-visual {
   position: relative;
   display: grid;
   place-items: center;
   min-width: 0;
-  min-height: 92px;
-  align-self: center;
-  background: color-mix(in srgb, var(--feat-ink) 8%, var(--paper));
-  border: 1px solid var(--edge-soft);
-  transform: rotate(-2deg);
-  transition: transform .32s var(--ease);
+  min-height: 96px;
+  background: var(--sk-paper);
+  border: 1px solid var(--sk-edge-faint);
+  rotate: -1.4deg;
+  transition: rotate .32s var(--sk-ease);
 }
-.sk-feature.is-lead .sk-feature-visual { min-height: 166px; margin: 2px 8px 8px; }
-.sk-feature-visual.has-shot { padding: 5px 5px 15px; }
-.sk-feature-shot { display: block; width: 100%; max-height: 192px; aspect-ratio: 16 / 9; object-fit: cover; }
-.sk-feature-visual .sk-avatar { width: 52px; height: 52px; font-size: 28px; transform: rotate(5deg); }
-.sk-feature.is-lead .sk-feature-visual.is-icon .sk-avatar { width: 88px; height: 88px; font-size: 42px; }
-.sk-feature-visual.has-shot .sk-avatar { position: absolute; right: -6px; bottom: -9px; width: 40px; height: 40px; border: 3px solid var(--paper); }
-.sk-feature-visual .sk-doodle { position: absolute; top: -9px; right: -10px; fill: none; stroke: var(--feat-ink); stroke-width: 2; stroke-linecap: round; transform: rotate(12deg); }
+.sk-feature-visual.has-shot { padding: 6px 6px 16px; background: var(--sk-photo); }
+.sk-feature-shot { display: block; width: 100%; max-height: 200px; aspect-ratio: 16 / 9; object-fit: cover; }
+/* 次级精选卡里的截图压矮，两张才能与左侧大纸对齐 */
+.sk-feature.is-index .sk-feature-shot { max-height: 118px; aspect-ratio: 16 / 8; }
+.sk-feature-visual .sk-avatar { width: 54px; height: 54px; font-size: 28px; }
+.sk-feature.is-lead .sk-feature-visual.is-icon .sk-avatar { width: 68px; height: 68px; font-size: 34px; }
+.sk-feature-visual.has-shot .sk-avatar {
+  position: absolute;
+  right: -7px;
+  bottom: -10px;
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--sk-paper);
+}
+.sk-feature-visual .sk-doodle {
+  position: absolute;
+  top: -10px;
+  right: -11px;
+  color: color-mix(in srgb, var(--sk-marker) 84%, var(--sk-ink));
+  rotate: 12deg;
+}
+
 .sk-feature-copy { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.sk-feature strong { font-family: var(--hand); font-size: calc(21px * var(--appearance-font-scale, 1)); font-weight: 600; line-height: 1.2; }
-.sk-feature.is-lead strong { font-size: clamp(28px, 3vw, 38px); }
-.sk-feature-desc { font-size: 12px; line-height: 1.65; color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.sk-feature.is-lead .sk-feature-desc { -webkit-line-clamp: 3; }
-.sk-feature-tags { display: flex; gap: 5px; flex-wrap: wrap; }
-.sk-feature-tags i { padding: 1px 5px; font-style: normal; font-size: 10.5px; color: var(--ink-soft); background: color-mix(in srgb, var(--feat-ink) 12%, var(--paper)); }
-.sk-feature-cue { display: inline-flex; align-items: center; gap: 10px; margin-top: auto; font-family: var(--hand); font-size: 12px; color: var(--feat-ink); }
-.sk-feature-cue svg { transform: rotate(180deg); }
+
+/* 标题槽本身不承载内容：两种版式各自把名字节点挂到自己的容器里 */
+.sk-feature-title-slot { display: none; }
+
+/* 剪报标题：只在主推出现，独占第二行 */
+.sk-feature-headline {
+  display: block;
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  font-family: var(--font-heading);
+  font-size: clamp(21px, 2vw, 28px);
+  font-weight: 600;
+  line-height: 1.18;
+  letter-spacing: .01em;
+  overflow-wrap: normal;
+}
+
+/* 索引卡标题：文案块首行 */
+.sk-feature-name {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: calc(21px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+
+
+.sk-feature-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.66;
+  color: var(--sk-ink-soft);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.sk-feature.is-lead .sk-feature-desc { -webkit-line-clamp: 4; }
+
+.sk-feature-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.sk-feature-tags i {
+  padding: 1px 5px;
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--sk-ink-soft);
+  background: color-mix(in srgb, var(--sk-marker) 12%, transparent);
+}
+
+.sk-feature-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  font-family: var(--font-heading);
+  font-size: 12px;
+  color: color-mix(in srgb, var(--sk-marker) 84%, var(--sk-ink));
+}
+.sk-feature-cue svg { rotate: 180deg; }
+
 .sk-feature-open { margin-top: 12px; }
-.sk-feature-link:focus-visible { outline: 2px dashed var(--marker); outline-offset: 6px; }
-.sk-feature:is(:hover, :focus-within) { transform: translateY(-4px) rotate(0deg); }
-.sk-feature:is(:hover, :focus-within) .sk-feature-visual { transform: translateY(-2px) rotate(1deg); }
-:root[data-anim='high'] .sk-feature:is(:hover, :focus-within) { transform: translateY(-7px) rotateY(3deg) rotate(-.4deg); }
-:root[data-anim='low'] .sk-feature:is(:hover, :focus-within),
-:root[data-anim='low'] .sk-feature:is(:hover, :focus-within) .sk-feature-visual { transform: none; }
-.sk-search [hidden] { display: none; }
+.sk-feature-link:focus-visible { outline: 2.5px dashed var(--sk-marker); outline-offset: 6px; }
 
-/* ── 目录：索引卡拼贴，旋转差 + 胶带，不用整齐网格 ── */
-.sk-group { margin-bottom: calc(22px * var(--density)); }
+.sk-feature:is(:hover, :focus-within) { rotate: 0deg; translate: 0 -4px; box-shadow: var(--sk-shadow-paper); }
+.sk-feature:is(:hover, :focus-within) .sk-feature-visual { rotate: .8deg; }
+:root[data-anim='high'] .sk-feature:is(:hover, :focus-within) { translate: 0 -8px; }
 
-/* 分组头：手写分类名 + 手绘横线 + 数量橡皮章 */
+/* ── 分类分组头：手写分类名 + 手绘横线 + 数量章 ── */
+.sk-group { margin-bottom: calc(20px * var(--appearance-density, 1)); }
+
 .sk-group-head {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .sk-group-head h2 {
   position: relative;
   margin: 0;
   padding-bottom: 3px;
-  font-family: var(--hand);
+  font-family: var(--font-heading);
   font-size: calc(18px * var(--appearance-font-scale, 1));
   font-weight: 600;
-  color: var(--ink);
+  color: var(--sk-ink);
 }
 .sk-group-head h2::after {
   content: '';
@@ -592,163 +544,511 @@
   right: -3px;
   bottom: 0;
   height: 2.5px;
-  background: var(--group-ink, var(--ink-4));
-  opacity: .8;
+  background: var(--sk-group-ink, var(--sk-marker));
+  opacity: .82;
   clip-path: polygon(0 40%, 100% 0, 99% 100%, 1% 78%);
 }
-.sk-group:nth-of-type(3n+1) .sk-group-head { --group-ink: var(--ink-1); }
-.sk-group:nth-of-type(3n+2) .sk-group-head { --group-ink: var(--ink-3); }
-.sk-group:nth-of-type(3n+3) .sk-group-head { --group-ink: var(--ink-5); }
+.sk-group:nth-of-type(3n+1) .sk-group-head { --sk-group-ink: color-mix(in srgb, var(--sk-marker) 84%, var(--sk-ink)); }
+.sk-group:nth-of-type(3n+2) .sk-group-head { --sk-group-ink: color-mix(in srgb, var(--ok) 80%, var(--sk-ink)); }
+.sk-group:nth-of-type(3n+3) .sk-group-head { --sk-group-ink: color-mix(in srgb, var(--link) 76%, var(--sk-ink)); }
 
 .sk-group-head .sk-rule {
   flex: 1;
   height: 1.5px;
-  background: repeating-linear-gradient(90deg, var(--edge-soft) 0 8px, transparent 8px 14px);
+  background: repeating-linear-gradient(90deg, var(--sk-edge-soft) 0 8px, transparent 8px 14px);
 }
+
 .sk-count {
   flex: none;
   padding: 1px 6px;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 10.5px;
-  color: var(--ink-soft);
-  border: 1.5px solid var(--edge-soft);
-  border-radius: 3px;
-  transform: rotate(2deg);
+  color: var(--sk-ink-soft);
+  border: 1.5px solid var(--sk-edge-soft);
+  border-radius: 1px;
+  rotate: 2deg;
 }
 
+/* ── 纸片陈列：不规则长短。span 由 data-size 决定 ──
+ * 列宽变量是 --appearance-columns（宿主设置 → 设置页"列数"）。
+ * 行高用 auto-rows 的固定基准，跨行纸片才会有可见的"高矮"。 */
 .sk-grid {
   display: grid;
-  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
-  gap: calc(var(--gap) * 1.05);
+  /* 列数由 JS 按视口与宿主设置算好后写进 --sk-columns：
+   * 跨度也按同一个数字铺，两者必须同源，否则会出现空洞。 */
+  grid-template-columns: repeat(var(--sk-columns, 4), minmax(0, 1fr));
+  /* 行高下限给节奏、上限由内容决定：固定 px 会把"已安装/详情/打开"裁掉。
+   * 下限保证相邻纸片的边界仍有节奏感，auto 保证内容永远放得下。 */
+  grid-auto-rows: minmax(var(--sk-row-unit, 92px), auto);
+  align-items: stretch;
+  /* dense：余数张数不足一组时由后面的小纸回填前面的空档，不留破洞 */
+  grid-auto-flow: row dense;
+  gap: var(--appearance-gap, 16px);
 }
 
-/* 索引卡：纸片 + 抖动描边 + 胶带，卡片间旋转差制造拼贴感 */
+/* 六张一组的尺寸节奏。列宽合计 = 2+1+1+1+1+2 = 8 = 4 列 × 2 组，行高合计同构，
+ * 因此整组正好铺满，不会出现"两列宽的空白"。 */
+/* 跨度由 JS 的带式铺法算出，写进 --sk-span-col / --sk-span-row：
+ * 带内列宽之和 == 列数、带间首尾相接，因此任意张数都严格铺满。
+ * data-size 只表达内容密度（wide 横幅 / stamp 大纸 / tall 竖纸 / stub 小方纸）。 */
 .sk-card {
-  --card-ink: var(--ink-4);
+  grid-column: span var(--sk-span-col, 2);
+  grid-row: span var(--sk-span-row, 3);
+}
+
+/* ── 纸片本体：每种纸品有自己的底色、纹理与投影高度 ── */
+.sk-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: calc(15px * var(--density)) calc(14px * var(--density));
+  gap: 8px;
+  min-width: 0;
+  /* 内容不能被裁：宁可纸片长高，也不能把底部按钮切掉。
+   * 只用 clip-path/圆角裁视觉溢出，不裁内容流。 */
+  min-height: 0;
+  padding: calc(14px * var(--appearance-density, 1)) calc(13px * var(--appearance-density, 1));
   text-align: left;
-  color: var(--ink);
-  background: var(--paper);
+  color: var(--sk-ink);
   border: 0;
-  border-radius: 2px;
-  /* 索引卡：右下角斜切，左上角小撕口 */
-  clip-path: polygon(0 1.6%, 1.2% 0, 100% 0, 100% 96%, 97.4% 100%, 0 99.2%);
-  transition: transform .2s var(--ease);
+  border-radius: var(--appearance-card-radius, 3px);
+  rotate: var(--sk-card-tilt, 0deg);
+  transition: rotate .2s var(--sk-ease), box-shadow .2s var(--sk-ease), translate .2s var(--sk-ease);
+}
+
+/* 纸品轮换：索引卡 / 方格 / 牛皮 / 相纸 / 便签。视觉差异来自纸本身，不靠彩色描边。 */
+.sk-card {
+  background-color: var(--sk-card-stock);
+  background-image: var(--sk-paper-light);
+  box-shadow: var(--sk-shadow-card);
+}
+.sk-card[data-stock='grid'] {
+  background-color: var(--sk-paper);
+  background-image:
+    linear-gradient(var(--sk-paper), var(--sk-paper)),
+    repeating-linear-gradient(0deg, var(--sk-rule) 0 1px, transparent 1px 19px),
+    repeating-linear-gradient(90deg, var(--sk-rule) 0 1px, transparent 1px 19px);
+  background-blend-mode: normal, multiply, multiply;
+}
+.sk-card[data-stock='kraft'] {
+  background-color: var(--sk-kraft-stock);
+  box-shadow: var(--sk-shadow-pad);
+}
+.sk-card[data-stock='photo'] {
+  background-color: var(--sk-photo);
+  box-shadow: var(--sk-shadow-lift, var(--sk-shadow-card));
+}
+.sk-card[data-stock='slip'] {
+  background-color: color-mix(in srgb, var(--sk-marker) 7%, var(--sk-paper));
+  box-shadow: var(--sk-shadow-slip);
 }
 
 .sk-card::before {
   content: '';
   position: absolute;
   inset: 0;
-  border: var(--stroke) solid var(--edge-soft);
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge);
+  border-radius: inherit;
   filter: url(#sk-rough);
   pointer-events: none;
-  transition: border-color .2s var(--ease);
+  transition: border-color .2s var(--sk-ease);
 }
 
-/* 左侧墨色竖条：这张卡属于哪个分类 */
+/* 左侧墨条：这张纸属于哪个分类，用纸边缘的一道马克笔表示 */
 .sk-card::after {
   content: '';
   position: absolute;
   left: 0;
-  top: 14px;
-  bottom: 14px;
+  top: 13px;
+  bottom: 13px;
   width: 3.5px;
-  background: var(--card-ink);
-  opacity: .85;
+  background: var(--sk-card-ink, var(--sk-marker));
+  opacity: .82;
   clip-path: polygon(0 0, 100% 3%, 100% 97%, 0 100%);
-}
-
-/* 旋转差：每 4 张一组，模拟手工贴上去 */
-.sk-card:nth-child(4n+1) { transform: rotate(-.7deg); }
-.sk-card:nth-child(4n+2) { transform: rotate(.55deg); }
-.sk-card:nth-child(4n+3) { transform: rotate(-.3deg); }
-.sk-card:nth-child(4n+4) { transform: rotate(.8deg); }
-
-.sk-card:hover { transform: translate(-2px, -4px) rotate(0deg); }
-.sk-card:hover::before { border-color: var(--edge); }
-.sk-card:focus-within::before { border-color: var(--marker); }
-.sk-card.is-busy { opacity: .66; pointer-events: none; }
-.sk-card.is-disabled { filter: grayscale(.45); }
-
-/* 胶带：贴在卡片顶边，只给前两张，避免满屏胶带 */
-.sk-card:nth-child(7n+1) .sk-tape,
-.sk-card:nth-child(7n+4) .sk-tape { display: block; }
-
-.sk-tape {
-  position: absolute;
-  z-index: 2;
-  display: none;
-  top: 0;
-  left: 50%;
-  width: 52px;
-  height: 13px;
-  margin-left: -26px;
-  background: color-mix(in srgb, var(--ink-2) 44%, transparent);
-  clip-path: polygon(3% 0, 100% 10%, 96% 100%, 0 88%);
-  transform: rotate(-2.5deg) translateY(-1px);
   pointer-events: none;
 }
 
+/* 倾斜：每 5 张一组，模拟被随手贴上去 */
+.sk-card:nth-child(5n+1) { --sk-card-tilt: -.6deg; }
+.sk-card:nth-child(5n+2) { --sk-card-tilt: .5deg; }
+.sk-card:nth-child(5n+3) { --sk-card-tilt: -.28deg; }
+.sk-card:nth-child(5n+4) { --sk-card-tilt: .7deg; }
+.sk-card:nth-child(5n+5) { --sk-card-tilt: -.42deg; }
+
+.sk-card:hover { rotate: 0deg; translate: 0 -3px; box-shadow: var(--sk-shadow-paper); }
+.sk-card:hover::before { border-color: var(--sk-edge); }
+.sk-card:focus-within::before { border-color: var(--sk-marker); }
+.sk-card.is-busy { opacity: .66; pointer-events: none; }
+.sk-card.is-disabled { filter: grayscale(.45); }
+
+/* ── 特别效果 ①：线条沸腾 ──
+ * 手绘动画的经典做法：同一条线在三帧之间微变换，像真人反复描。
+ * 用三个同频不同 seed 的位移滤镜轮换，天然得到"抖动但不跳"的边。 */
+@keyframes sk-boil {
+  0%, 100% { filter: url(#sk-rough); }
+  33% { filter: url(#sk-rough-b); }
+  66% { filter: url(#sk-rough-c); }
+}
+:root[data-anim='high'] :is(.sk-card, .sk-feature, .sk-search, .sk-empty)::before {
+  animation: sk-boil .52s steps(1) infinite;
+}
+/* 中档只给主推大纸沸腾，避免整屏同时在抖 */
+:root[data-anim='medium'] .sk-feature.is-lead::before { animation: sk-boil .62s steps(1) infinite; }
+/* 低档与减少动效：保持静态手绘边 */
+
+/* ── 自动动效：精选与纸片自己会动，不需要悬停 ──
+ * 都用 transform / opacity / filter，不动布局；低档与减少动态效果下全部停掉。 */
+
+/* ① 精选纸片：极其缓慢的呼吸式浮动，四张相位错开，
+ *    看起来像被穿堂风吹着的纸，而不是整块一起缩放。 */
+@keyframes sk-feature-breathe {
+  0%, 100% { translate: 0 0; rotate: var(--sk-feature-tilt, -.5deg); }
+  50% { translate: 0 -3px; rotate: calc(var(--sk-feature-tilt, -.5deg) + .35deg); }
+}
+:is(.sk-feature) {
+  animation: sk-feature-breathe 7.2s ease-in-out infinite;
+  animation-delay: calc(var(--sk-i, 0) * -1.9s);
+  will-change: translate, rotate;
+}
+
+/* ② 精选截图：每张纸里的"剪贴画"轻微呼吸，进一步拉开层次 */
+@keyframes sk-clip-breathe {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.012; }
+}
+:is(.sk-feature-visual.has-shot, .sk-feature.is-lead .sk-feature-clip) {
+  animation: sk-clip-breathe 9.5s ease-in-out infinite;
+  animation-delay: calc(var(--sk-i, 0) * -2.6s);
+}
+
+/* ③ 纸片：入场之后进入"极慢浮动"，每张相位不同，桌面因此始终在动 */
+@keyframes sk-card-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -2px; }
+}
+:is(.sk-card) {
+  animation: sk-card-float calc(9s + var(--sk-i, 0) * .18s) ease-in-out infinite;
+  animation-delay: calc(min(var(--sk-i, 0), 24) * -.7s);
+}
+
+/* 入场期间动画叠加：入场管 opacity/scale/rotate，浮动管 translate */
+
+
+/* ④ 胶带：贴纸的胶带随时间轻微起伏，像纸边翘了一点 */
+@keyframes sk-tape-lift {
+  0%, 100% { rotate: var(--sk-tape-tilt, -2.4deg); }
+  50% { rotate: calc(var(--sk-tape-tilt, -2.4deg) + 1.4deg); }
+}
+.sk-card > .sk-tape,
+.sk-feature > .sk-tape { animation: sk-tape-lift 6.4s ease-in-out infinite; }
+
+/* ⑤ 墨条：每张纸左侧那道分类墨条缓慢呼吸，提示"这张卡还活着" */
+@keyframes sk-ink-breathe {
+  0%, 100% { opacity: .72; }
+  50% { opacity: .95; }
+}
+.sk-card::after { animation: sk-ink-breathe 5.6s ease-in-out infinite; }
+
+/* ⑥ 精选的涂鸦记号缓慢摆动，像有人刚画上去 */
+@keyframes sk-doodle-sway {
+  0%, 100% { rotate: 12deg; }
+  50% { rotate: 6deg; }
+}
+.sk-feature-visual .sk-doodle { animation: sk-doodle-sway 5.2s ease-in-out infinite; transform-origin: 50% 50%; }
+
+/* 低档 / 减少动态效果：全部静止，但保留静态纸面（不隐藏元素） */
+/* 低档：全部自动动效停止，但保留静态纸面（不隐藏元素） */
+:root[data-anim='low'] :is(.sk-card, .sk-feature, .sk-feature-visual, .sk-card > .sk-tape,
+  .sk-feature > .sk-tape, .sk-feature-visual .sk-doodle, .sk-doodle) {
+  animation: none !important;
+}
+/* 墨条是 ::after，不能用 :is() 包住整条选择器，必须单独声明 */
+:root[data-anim='low'] .sk-card::after,
+:root[data-anim='low'] :is(.sk-card, .sk-feature)::before {
+  animation: none !important;
+}
+/* 页面不可见时暂停自动动效，避免隐藏预热白烧 GPU */
+:root[data-home-visible='false'] :is(.sk-card, .sk-feature, .sk-feature-visual, .sk-tape, .sk-doodle),
+:root[data-sk-visible='false'] :is(.sk-card, .sk-feature, .sk-feature-visual, .sk-tape, .sk-doodle) {
+  animation-play-state: paused;
+}
+
+/* ── 特别效果 ②：纸片被"掀起" ──
+ * hover 时不只上浮：纸角真的翻起来（伪元素做一个三角翻面），
+ * 同时投影散开，像手把纸掀离桌面。 */
+.sk-card { transform-origin: 50% 100%; }
+.sk-card::after { transition: opacity .18s var(--sk-ease); }
+
+.sk-card:hover { box-shadow: 0 2px 3px rgb(var(--sk-shade-rgb) / calc(.13 * var(--sk-shadow-k))), 0 16px 28px -12px rgb(var(--sk-shade-rgb) / calc(.3 * var(--sk-shadow-k))); }
+.sk-card:hover .sk-card-shot { box-shadow: var(--sk-shadow-card); }
+
+/* 悬停时抬起的那一角：用 conic-gradient 画出卷起的纸背 */
+.sk-card:hover .sk-dogear-hover {
+  opacity: 1;
+  transform: scale(1);
+}
+.sk-dogear-hover {
+  position: absolute;
+  flex: none;
+  right: 0;
+  bottom: 0;
+  width: 34px;
+  height: 34px;
+  opacity: 0;
+  transform: scale(.6);
+  transform-origin: 100% 100%;
+  pointer-events: none;
+  transition: opacity .2s var(--sk-ease), transform .24s var(--sk-ease);
+  background:
+    linear-gradient(225deg, var(--sk-paper-shade) 0 49%, transparent 50%),
+    radial-gradient(circle at 0 100%, rgb(var(--sk-shade-rgb) / .2), transparent 68%);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+/* ── 特别效果 ③：胶带在悬停时被压实 ── */
+.sk-card:hover > .sk-tape { rotate: 0deg; opacity: 1; }
+.sk-card > .sk-tape { transition: rotate .26s var(--sk-ease), opacity .2s var(--sk-ease); opacity: .88; }
+
+/* 胶带只贴在部分纸上，避免满屏胶带 */
+.sk-card:nth-child(7n+1) > .sk-tape,
+.sk-card:nth-child(7n+4) > .sk-tape { display: block; }
+.sk-card > .sk-tape { display: none; }
+
+/* ── 纸片内部：图标、标题、简介、页脚 ── */
 .sk-card-head { display: flex; align-items: flex-start; gap: 10px; }
 
-/* 图标：手绘圆角方块（clip-path 斜切），带自己的墨色 */
+/* 图标：方角纸块，带自己的墨色；有真实图标就盖上去 */
 .sk-avatar {
   position: relative;
-  flex: none;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  flex: none;
+  width: 38px;
+  height: 38px;
   overflow: hidden;
   color: #fff;
-  font-family: var(--hand);
-  font-size: 19px;
+  font-family: var(--font-heading);
+  font-size: 18px;
   font-weight: 700;
-  background: var(--avatar-ink, var(--card-ink));
-  clip-path: polygon(4% 0, 100% 3%, 97% 100%, 0 96%);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #fff 24%, transparent);
+  background: var(--sk-avatar-ink, var(--sk-card-ink, var(--sk-marker)));
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #fff 22%, transparent);
 }
-.sk-avatar.has-image { background: var(--paper-2); }
-:root[data-theme='dark'] :is(.sk-avatar, .sk-result-icon) { color: var(--bg); }
+.sk-avatar.has-image { background: var(--sk-paper-shade); }
+:root[data-theme='dark'] :is(.sk-avatar, .sk-result-icon) { color: var(--sk-paper); }
 .sk-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-.sk-card-title { min-width: 0; flex: 1; }
+/* 大纸片的图标放大 */
+.sk-card[data-size='stamp'] .sk-avatar,
+.sk-card[data-size='wide'] .sk-avatar { width: 46px; height: 46px; font-size: 22px; }
+.sk-card[data-size='wide'] .sk-avatar { width: 54px; height: 54px; font-size: 26px; }
+
+.sk-card-title { flex: 1; min-width: 0; }
+
 .sk-card-title h3 {
   margin: 0 0 2px;
-  font-family: var(--hand);
-  font-size: calc(16.5px * var(--appearance-font-scale, 1));
+  overflow: hidden;
+  font-family: var(--font-heading);
+  font-size: calc(15.5px * var(--appearance-font-scale, 1));
   font-weight: 600;
   line-height: 1.24;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 大纸片允许标题换行，充分利用多出来的宽度 */
+.sk-card[data-size='stamp'] .sk-card-title h3,
+.sk-card[data-size='wide'] .sk-card-title h3 { white-space: normal; }
+
 .sk-card-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
-  flex-wrap: wrap;
   font-size: 10.5px;
-  color: var(--ink-faint);
+  color: var(--sk-ink-faint);
   font-variant-numeric: tabular-nums;
 }
 .sk-card-meta i { font-style: normal; opacity: .5; }
 
 .sk-card-desc {
+  display: -webkit-box;
+  flex: 0 0 auto;
+  overflow: hidden;
   margin: 0;
   font-size: calc(12px * var(--appearance-font-scale, 1));
   line-height: 1.62;
-  color: var(--ink-soft);
-  display: -webkit-box;
+  color: var(--sk-ink-soft);
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  overflow: hidden;
 }
+/* 小纸片只留一行半，大纸片多给两行 */
+.sk-card[data-size='wide'] .sk-card-desc { -webkit-line-clamp: 4; }
+.sk-card[data-size='stub'] .sk-card-desc { -webkit-line-clamp: 1; }
+.sk-card[data-size='stub'] .sk-card-tags,
+.sk-card[data-size='stub'] .sk-card-note,
+.sk-card[data-size='stub'] .sk-card-sketch { display: none; }
+/* 2 行的 stamp 不贴图，让标签与批注自然填充 */
+.sk-card[data-size='stamp'] .sk-card-sketch { display: none; }
+.sk-card[data-size='stamp'] .sk-card-note { margin-top: auto; }
+/* wide/tall：clip 吃掉剩余高度，页脚压到底 */
+.sk-card[data-size='wide'] .sk-card-note,
+.sk-card[data-size='tall'] .sk-card-note { margin-top: 0; }
+
+/* 纸片里的截图：相纸小样。flex:0 0 auto 保证它不会挤压文字，
+ * 富余高度改由 .sk-card-note 的 margin-top:auto 吃进纸的下半部分。 */
+/* 截图就是这张纸的"剪贴画"：容器吃掉剩余高度，图片绝对定位铺满。
+ * 关键是别让 <img> 的固有比例参与 flex 计算 —— 它会把纸片撑破。 */
+/* 剪贴画容器：高纸片（3 行以上）吃剩余高度；矮纸片（stamp 2 行）固定小高度。
+ * 关键是 min-height 不能超过格子给的高度，否则会顶出纸片。 */
+.sk-card-clip {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  /* 只有"剪贴画"这一块内部裁切图片，卡片本身不裁内容 */
+  overflow: hidden;
+  background: var(--sk-photo);
+  border: 1px solid var(--sk-edge-faint);
+  box-shadow: var(--sk-shadow-slip);
+}
+/* 只有 3 行及以上的纸片才让剪贴画拉伸填满 */
+.sk-card[data-size='wide'] .sk-card-clip,
+.sk-card[data-size='tall'] .sk-card-clip { flex: 1 1 auto; min-height: 0; }
+/* 2 行的 stamp：固定给一条横幅，正文与页脚按内容排 */
+.sk-card[data-size='stamp'] .sk-card-clip { display: none; }
+.sk-card-clip[hidden] { display: none; }
+.sk-card-shot {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 截图是剪贴画：等比裁切铺满，绝不留 letterbox 白边 */
+  object-fit: cover;
+  object-position: top center;
+}
+
+/* 速写页与截图互斥，同样吃掉剩余高度 */
+.sk-card-sketch { flex: 1 1 auto; }
+
+/* ── 速写页：没有截图可贴时，纸面下半部画一张"待填的速写" ──
+ * 它不是占位骨架：图形与笔迹行是装饰性手绘，尺寸随纸品变化，
+ * 让每张大纸看起来像本子里已经写过的某一页。 */
+.sk-card-sketch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  margin-top: 2px;
+  padding: 8px 9px 9px;
+  overflow: hidden;
+  background: var(--sk-paper);
+  box-shadow: inset 0 0 0 1px var(--sk-edge-faint);
+}
+.sk-card-sketch[hidden] { display: none !important; }
+
+/* 手绘小图：几个不闭合的圆圈与一道弧，像随手画的草图 */
+.sk-card-sketch-figure {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 44px;
+  border-radius: 46% 54% 48% 52% / 52% 46% 54% 48%;
+  border: 2px solid color-mix(in srgb, var(--sk-card-ink, var(--sk-marker)) 70%, transparent);
+  rotate: -1.4deg;
+}
+.sk-card-sketch-figure::before,
+.sk-card-sketch-figure::after {
+  content: '';
+  position: absolute;
+  border: 1.5px solid color-mix(in srgb, var(--sk-ink) 44%, transparent);
+}
+.sk-card-sketch-figure::before {
+  right: 12%;
+  top: 16%;
+  width: 34%;
+  height: 46%;
+  border-radius: 52% 48% 46% 54%;
+  rotate: 6deg;
+}
+.sk-card-sketch-figure::after {
+  left: 8%;
+  bottom: 10%;
+  width: 46%;
+  height: 1px;
+  border: 0;
+  border-top: 1.5px solid color-mix(in srgb, var(--sk-ink) 38%, transparent);
+}
+
+/* 笔迹行：长短不一的三行，最后一行更短，像写到一半 */
+.sk-card-sketch i {
+  flex: 0 0 auto;
+  height: 4px;
+  background: color-mix(in srgb, var(--sk-ink) 20%, transparent);
+}
+.sk-card-sketch i:nth-of-type(1) { width: 88%; }
+.sk-card-sketch i:nth-of-type(2) { width: 72%; }
+.sk-card-sketch i:nth-of-type(3) { width: 46%; }
+
+/* 纸质不同，速写页的纸也不同：牛皮纸上用更深的笔迹 */
+.sk-card[data-stock='kraft'] .sk-card-sketch { background: color-mix(in srgb, var(--sk-paper) 78%, var(--sk-kraft-stock)); }
+.sk-card[data-stock='slip'] .sk-card-sketch { background: color-mix(in srgb, var(--sk-marker) 6%, var(--sk-paper)); }
+
+/* photo 纸的速写页更高，stamp 稍矮 */
+.sk-card[data-size='wide'] .sk-card-sketch-figure { min-height: 52px; }
+
+/* 高纸片里，clip 之后的元素一律不参与拉伸，剩余高度全给剪贴画 */
+.sk-card[data-size='wide'] > .sk-card-note,
+.sk-card[data-size='tall'] > .sk-card-note,
+.sk-card[data-size='wide'] > .sk-card-foot,
+.sk-card[data-size='tall'] > .sk-card-foot { flex: 0 0 auto; }
+
+/* 高纸片紧凑化：标签与铅笔批注并成一行（信息不丢，只省版面） */
+.sk-card[data-size='wide'],
+.sk-card[data-size='tall'] { gap: 6px; }
+.sk-card[data-size='wide'] > .sk-card-tags,
+.sk-card[data-size='tall'] > .sk-card-tags { flex: 0 0 auto; padding: 0; }
+.sk-card[data-size='wide'] > .sk-card-note,
+.sk-card[data-size='tall'] > .sk-card-note { flex: 0 0 auto; padding-top: 0; }
+/* 省下来的高度全部给剪贴画 */
+.sk-card[data-size='wide'] > .sk-card-clip,
+.sk-card[data-size='tall'] > .sk-card-clip { flex: 1 1 auto; min-height: 0; }
+
+/* 标签：手写小贴纸，只出现在高纸片上 */
+.sk-card-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.sk-card-tags[hidden] { display: none; }
+.sk-card-tags i {
+  padding: 1px 6px 2px;
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--sk-ink-soft);
+  background: color-mix(in srgb, var(--sk-marker) 12%, transparent);
+  rotate: -.8deg;
+}
+.sk-card-tags i:nth-child(2n) { rotate: .9deg; background: color-mix(in srgb, var(--sk-ink) 7%, transparent); }
+
+/* 骨架分段：文本块与页脚固定，剪贴画吃剩余高度。
+ * 贴纸与折角是绝对定位的实物层，必须完全不参与流内计算。 */
+.sk-card > .sk-card-head,
+.sk-card > .sk-card-desc,
+.sk-card > .sk-card-tags,
+.sk-card > .sk-card-note,
+.sk-card > .sk-card-foot { flex: 0 0 auto; }
+.sk-card > .sk-tape,
+.sk-card > .sk-pin,
+.sk-card > .sk-dogear-hover { position: absolute; flex: 0 0 auto; }
+
+/* 铅笔小注：贴在纸的下半部，像剪贴簿边上的批注 */
+.sk-card-note {
+  flex: 0 0 auto;
+  padding-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .02em;
+  color: var(--sk-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.sk-card-note[hidden] { display: none; }
+
+/* 角上的手绘折角/胶带/图钉已由 JS 决定；高纸片描边略重，强化"这张纸更大" */
+.sk-card[data-size='wide']::before { border-width: calc(var(--sk-stroke, 1.7px) + .3px); }
 
 .sk-card-foot {
   display: flex;
@@ -756,158 +1056,107 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: auto;
+  margin-top: 2px;
   padding-top: 9px;
   /* 手账里的点线分隔，不用实线 */
-  background-image: radial-gradient(circle, var(--edge-soft) 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--sk-edge-soft) 1px, transparent 1px);
   background-size: 6px 2px;
   background-position: 0 0;
   background-repeat: repeat-x;
 }
 
-/* 状态章：橡皮章样式，微微歪着盖上去 */
-.sk-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 7px;
-  font-family: var(--hand);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ink-faint);
-  border: 1.5px solid var(--edge-soft);
-  border-radius: 2px;
-  transform: rotate(-1.5deg);
-}
-.sk-badge.is-installed {
-  color: color-mix(in srgb, var(--ok) 78%, var(--ink));
-  border-color: color-mix(in srgb, var(--ok) 55%, transparent);
-  background: color-mix(in srgb, var(--ok) 9%, transparent);
-}
-.sk-badge.is-update {
-  color: color-mix(in srgb, var(--ink-2) 62%, var(--ink));
-  border-color: color-mix(in srgb, var(--ink-2) 60%, transparent);
-  background: color-mix(in srgb, var(--ink-2) 12%, transparent);
-  transform: rotate(1.2deg);
-}
-
 .sk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 
-/* 按钮：手写贴纸按钮，抖动描边 */
-.sk-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-width: 0;
-  max-width: 100%;
-  min-height: 30px;
-  padding: 0 12px;
-  font-family: var(--hand);
-  font-size: calc(13px * var(--appearance-font-scale, 1));
-  font-weight: 600;
-  color: var(--ink);
-  background: var(--paper);
-  border: 0;
-  border-radius: 2px;
-  cursor: pointer;
-  white-space: normal;
-  transition: transform .14s var(--ease), color .14s var(--ease);
-}
-.sk-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: var(--stroke) solid var(--edge);
-  filter: url(#sk-rough-fine);
-  pointer-events: none;
-  transition: border-color .14s var(--ease);
-}
-.sk-btn:hover:not(:disabled) { transform: translateY(-1.5px) rotate(-.8deg); }
-.sk-btn:hover:not(:disabled)::before { border-color: var(--marker); }
-.sk-btn:active:not(:disabled) { transform: translateY(1px) rotate(0); }
-.sk-btn:focus-visible { outline: 2.5px solid var(--marker); outline-offset: 2px; }
-.sk-btn:disabled { opacity: .45; cursor: default; }
+/* 高纸片内容多，页脚压到纸底；矮纸片紧跟内容，不留半张空白 */
+.sk-card[data-size='stamp'] .sk-card-foot,
+.sk-card[data-size='wide'] .sk-card-foot,
+.sk-card[data-size='tall'] .sk-card-foot { margin-top: auto; }
 
-.sk-btn.is-primary {
-  color: #fff;
-  background: var(--marker-fill);
-}
-.sk-btn.is-primary::before { border-color: color-mix(in srgb, var(--marker-fill) 82%, #000); }
-:root[data-theme='dark'] .sk-btn.is-primary { color: #1b1d1e; background: var(--marker); }
+/* 大纸多留一点纸边，像剪贴簿里贴完还空着的一角 */
+.sk-card[data-size='wide'] { padding-bottom: calc(18px * var(--appearance-density, 1)); }
 
-.sk-btn.is-quiet { color: var(--ink-faint); background: transparent; }
-.sk-btn.is-quiet::before { border-color: transparent; }
-.sk-btn.is-quiet:hover:not(:disabled) { color: var(--ink); transform: none; }
-.sk-btn.is-quiet:hover:not(:disabled)::before { border-color: transparent; }
 
-/* ── 空 / 加载 / 提示 ── */
-.sk-empty {
-  position: relative;
+/* 加载骨架：同尺寸的空白纸，带一道扫光 */
+.sk-skeleton-grid {
   display: grid;
-  place-items: center;
-  gap: 9px;
-  padding: 54px 20px;
-  text-align: center;
-  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  /* 列数由 JS 按视口与宿主设置算好后写进 --sk-columns：
+   * 跨度也按同一个数字铺，两者必须同源，否则会出现空洞。 */
+  grid-template-columns: repeat(var(--sk-columns, 4), minmax(0, 1fr));
+  grid-auto-rows: minmax(var(--sk-row-unit, 94px), auto);
+  gap: var(--appearance-gap, 16px);
 }
-.sk-empty::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 2px dashed var(--edge-soft);
-  filter: url(#sk-rough);
-  pointer-events: none;
-}
-.sk-empty strong { font-family: var(--hand); font-size: 19px; font-weight: 600; }
-.sk-empty span { max-width: 44ch; font-size: 12.5px; line-height: 1.65; color: var(--ink-soft); }
-
-.sk-skeleton-grid { display: grid; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); gap: var(--gap); }
-
 .sk-skeleton {
   position: relative;
-  height: 172px;
-  background: var(--paper);
-  border: var(--stroke) solid var(--edge-soft);
-  border-radius: 2px;
   overflow: hidden;
+  background: var(--sk-paper);
+  border-radius: var(--appearance-card-radius, 3px);
 }
 .sk-skeleton::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(96deg, transparent 22%, color-mix(in srgb, var(--ink) 8%, transparent) 48%, transparent 74%);
-  transform: translateX(-100%);
-  animation: sk-shimmer 1.5s var(--ease) infinite;
+  background: linear-gradient(96deg, transparent 22%, color-mix(in srgb, var(--sk-ink) 8%, transparent) 48%, transparent 74%);
+  translate: -100% 0;
+  animation: sk-shimmer 1.5s var(--sk-ease-out) infinite;
 }
-@keyframes sk-shimmer { to { transform: translateX(100%); } }
+@keyframes sk-shimmer { to { translate: 100% 0; } }
 
-/* 提示：便签条，左侧一条马克笔色 */
+/* ── 空态与提示 ── */
+.sk-empty {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 9px;
+  padding: 52px 20px;
+  text-align: center;
+  background: color-mix(in srgb, var(--sk-paper) 62%, transparent);
+}
+.sk-empty::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px dashed var(--sk-edge-soft);
+  filter: url(#sk-rough);
+  pointer-events: none;
+}
+.sk-empty strong { font-family: var(--font-heading); font-size: 19px; font-weight: 600; }
+.sk-empty span { max-width: 46ch; font-size: 12.5px; line-height: 1.7; color: var(--sk-ink-soft); }
+
+/* 提示条：纸条，左侧一道马克笔 + 略歪 */
 .sk-notice {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: calc(14px * var(--density));
-  padding: 9px 14px 9px 18px;
+  margin-bottom: calc(13px * var(--appearance-density, 1));
+  padding: 9px 14px 9px 17px;
   font-size: 12.5px;
-  color: var(--ink);
-  background: color-mix(in srgb, var(--ink-2) 14%, var(--paper));
-  border-radius: 2px;
-  clip-path: polygon(0 6%, 1% 0, 100% 2%, 99% 100%, 0 96%);
+  color: var(--sk-ink);
+  background: color-mix(in srgb, var(--sk-marker) 9%, var(--sk-paper));
+  border-radius: 1px;
+  box-shadow: var(--sk-shadow-slip);
 }
 .sk-notice::before {
   content: '';
   position: absolute;
   inset: 0;
-  border: 1.5px solid color-mix(in srgb, var(--ink-2) 52%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--sk-marker) 44%, transparent);
   filter: url(#sk-rough-fine);
   pointer-events: none;
 }
+.sk-notice::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: var(--sk-marker);
+  pointer-events: none;
+}
 
-/* 详情是目录上方的活页纸：原生 top layer 管焦点/模态，内容自有滚动。 */
+/* ── 详情：盖在桌面上的一整张活页纸 ── */
 .sk-modal {
   position: fixed;
   inset: 0;
@@ -916,97 +1165,112 @@
   max-width: none;
   max-height: none;
   margin: 0;
-  padding: clamp(12px, 3vh, 30px) clamp(12px, 3vw, 36px) max(24px, 4vh) clamp(54px, 7vw, 90px);
-  border: 0;
+  padding: clamp(10px, 3vh, 28px) clamp(10px, 3vw, 34px) max(18px, 4vh);
   overflow: hidden;
-  color: var(--ink);
+  color: var(--sk-ink);
+  border: 0;
   background: transparent;
 }
 .sk-modal[open] { display: flex; flex-direction: column; align-items: center; }
-.sk-modal::backdrop { background: color-mix(in srgb, var(--ink) 28%, transparent); }
-.sk-modal-bar, .sk-modal-body { position: relative; width: min(100%, 1120px); background: var(--paper); border: var(--stroke) solid var(--edge); }
-.sk-modal-bar { display: flex; align-items: center; justify-content: space-between; flex: none; gap: 16px; padding: 12px 18px 10px 30px; border-bottom: 1px dashed var(--edge-soft); }
-.sk-modal-bar::before { content: ''; position: absolute; top: -7px; left: 42%; width: 72px; height: 16px; background: color-mix(in srgb, var(--ink-2) 38%, transparent); transform: rotate(-3deg); clip-path: polygon(3% 0, 100% 10%, 96% 100%, 0 88%); }
-.sk-modal-bar h2 { margin: 0; font-family: var(--hand); font-size: 18px; line-height: 1.4; }
-.sk-modal-body { flex: 0 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; border-top: 0; padding-inline-end: 12px; scrollbar-gutter: stable; box-shadow: 4px 10px 24px color-mix(in srgb, var(--ink) 16%, transparent); }
-.sk-detail { position: relative; padding: 20px 18px 32px 28px; }
-.sk-detail::before { content: ''; position: absolute; left: 9px; top: 20px; bottom: 20px; width: 6px; background: radial-gradient(circle, var(--edge-soft) 2px, transparent 2.5px) 0 0 / 6px 30px repeat-y; pointer-events: none; }
-.sk-market.has-detail .sk-scroll { overflow: hidden; }
-.sk-modal[open] :is(.sk-modal-bar, .sk-modal-body) { animation: sk-sheet-in .26s var(--ease) backwards; }
-:root[data-anim='high'] .sk-modal[open] :is(.sk-modal-bar, .sk-modal-body) { animation-duration: .4s; }
-@keyframes sk-sheet-in { from { opacity: .2; transform: translateY(12px) rotate(-.8deg); } to { opacity: 1; transform: none; } }
-:root[data-anim='low'] .sk-modal[open] :is(.sk-modal-bar, .sk-modal-body) { animation: none; }
+.sk-modal::backdrop { background: rgb(var(--sk-shade-rgb) / .38); }
 
-.sk-back {
+.sk-modal-bar,
+.sk-modal-body {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 14px;
-  padding: 4px 11px 5px 8px;
-  font-family: var(--hand);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  background: var(--paper);
-  border: 0;
-  border-radius: 2px;
-  cursor: pointer;
-  clip-path: polygon(0 8%, 2% 0, 100% 3%, 98% 100%, 1% 95%);
-  transition: transform .16s var(--ease), color .16s var(--ease);
+  width: min(100%, 1180px);
+  background: var(--sk-paper);
+  box-shadow: var(--sk-shadow-paper);
 }
-.sk-back::before {
+
+.sk-modal-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 16px 10px 26px;
+  border-bottom: 1.5px dashed var(--sk-edge-soft);
+  border-radius: var(--appearance-panel-radius, 4px) var(--appearance-panel-radius, 4px) 0 0;
+}
+/* 标题条上贴一段胶带，像把这一页别进本子 */
+.sk-modal-bar::before {
   content: '';
   position: absolute;
-  inset: 0;
-  border: 1.5px solid var(--edge-soft);
-  filter: url(#sk-rough-fine);
+  top: -7px;
+  left: 42%;
+  width: 76px;
+  height: 16px;
+  background: var(--sk-tape);
+  border-left: 1px solid var(--sk-tape-edge);
+  border-right: 1px solid var(--sk-tape-edge);
+  clip-path: polygon(2% 0, 98% 3%, 100% 97%, 96% 100%, 3% 96%, 0 100%);
+  rotate: -3deg;
   pointer-events: none;
 }
-.sk-back:hover { color: var(--ink); transform: translateX(-3px); }
+.sk-modal-bar h2 { margin: 0; font-family: var(--font-heading); font-size: 18px; font-weight: 600; line-height: 1.4; }
 
-/* 详情头：档案卡，右上角盖一枚彩色印章 */
+.sk-modal-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-inline-end: 12px;
+  border-radius: 0 0 var(--appearance-panel-radius, 4px) var(--appearance-panel-radius, 4px);
+  scrollbar-gutter: stable;
+}
+/* 活页孔 */
+.sk-modal-body::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 22px;
+  bottom: 22px;
+  width: 8px;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--sk-ink) 30%, transparent) 2.6px, transparent 2.8px);
+  background-size: 8px 28px;
+  background-repeat: repeat-y;
+  pointer-events: none;
+}
+
+.sk-market.has-detail .sk-scroll { overflow: hidden; }
+.sk-modal[open] :is(.sk-modal-bar, .sk-modal-body) { animation: sk-sheet-in .26s var(--sk-ease) backwards; }
+:root[data-anim='high'] .sk-modal[open] :is(.sk-modal-bar, .sk-modal-body) { animation-duration: .4s; }
+@keyframes sk-sheet-in { from { opacity: .25; translate: 0 12px; rotate: -.7deg; } }
+
+.sk-detail { position: relative; padding: 18px 16px 30px 30px; }
+
+/* ── 详情头：档案卡 ── */
 .sk-detail-hero {
   position: relative;
   display: flex;
   align-items: flex-start;
   gap: 18px;
-  padding: calc(20px * var(--density));
-  margin-bottom: calc(16px * var(--density));
-  background: var(--paper);
-  border-radius: 2px;
-  clip-path: polygon(0 1.2%, 1% 0, 100% 0, 100% 97.6%, 98.6% 100%, 0 99%);
+  margin-bottom: calc(15px * var(--appearance-density, 1));
+  padding: calc(18px * var(--appearance-density, 1));
+  background: var(--sk-card-stock);
+  border-radius: var(--appearance-card-radius, 3px);
+  box-shadow: var(--sk-shadow-card);
 }
 .sk-detail-hero::before {
   content: '';
   position: absolute;
   inset: 0;
-  border: var(--stroke) solid var(--edge);
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge-soft);
   filter: url(#sk-rough);
   pointer-events: none;
 }
 
-.sk-detail-hero .sk-avatar {
-  width: 64px;
-  height: 64px;
-  font-size: 28px;
-  clip-path: polygon(5% 0, 100% 4%, 96% 100%, 0 94%);
-}
+.sk-detail-hero .sk-avatar { width: 62px; height: 62px; font-size: 28px; }
+
 .sk-detail-title { flex: 1; min-width: 0; }
 .sk-detail-title h1 {
   margin: 0 0 6px;
-  font-family: var(--hand);
-  font-size: clamp(26px, 2.8vw, 36px);
+  font-family: var(--font-heading);
+  font-size: clamp(25px, 2.7vw, 34px);
   font-weight: 600;
   line-height: 1.14;
 }
-.sk-detail-title p {
-  margin: 0;
-  max-width: 66ch;
-  font-size: 13px;
-  line-height: 1.68;
-  color: var(--ink-soft);
-}
+.sk-detail-title p { max-width: 66ch; margin: 0; font-size: 13px; line-height: 1.7; color: var(--sk-ink-soft); }
 
 .sk-detail-meta {
   display: flex;
@@ -1014,56 +1278,103 @@
   gap: 6px 14px;
   margin-top: 12px;
   font-size: 11.5px;
-  color: var(--ink-faint);
+  color: var(--sk-ink-faint);
   font-variant-numeric: tabular-nums;
 }
-.sk-detail-meta b { color: var(--ink); font-weight: 650; }
+.sk-detail-meta b { font-weight: 650; color: var(--sk-ink); }
 
-.sk-detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; flex: 0 1 auto; min-width: 0; max-width: min(250px, 100%); }
+.sk-detail-actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+  max-width: min(250px, 100%);
+}
 .sk-detail-actions .sk-btn { min-height: 33px; }
 
+/* 详情双栏：两栏严格等高，各自在超过上限后内部滚动。
+ * 关键是给 grid 一个确定的高度上限，并让子项 min-height:0 —— 
+ * 否则内容多的那一栏会把整行撑开，另一栏底下留出一大片空白。 */
 .sk-detail-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: var(--gap);
-  align-items: start;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--appearance-gap, 16px);
+  /* 视口高度的上限：标题与动作区之外留给内容 */
+  max-height: min(64vh, 720px);
+  min-height: 0;
 }
 
-/* 面板：活页纸，左侧打孔 */
+.sk-detail-body > .sk-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+/* 面板标题不参与滚动 */
+.sk-detail-body > .sk-panel > h2 { flex: none; }
+
+/* 截图区与说明区各自滚动，滚动条只在真的溢出时出现 */
+.sk-shots,
+.sk-readme {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sk-edge-faint) transparent;
+}
+
+/* 截图只有一两张时不要被拉高 */
+.sk-shots { align-content: start; }
+
+/* 窄视口改单列：两栏上下排，上限交给页面滚动，不再内部双滚动 */
+@media (max-width: 1100px) {
+  .sk-detail-body { max-height: none; grid-template-rows: none; }
+  .sk-detail-body > .sk-panel { max-height: none; }
+  .sk-shots, .sk-readme { overflow: visible; }
+}
+
+/* 面板：方格纸，左侧打孔 */
 .sk-panel {
   position: relative;
-  padding: calc(16px * var(--density)) calc(16px * var(--density)) calc(18px * var(--density)) calc(22px * var(--density));
-  background: var(--paper);
-  border-radius: 2px;
+  padding: calc(15px * var(--appearance-density, 1)) calc(15px * var(--appearance-density, 1)) calc(17px * var(--appearance-density, 1)) calc(22px * var(--appearance-density, 1));
+  background: var(--sk-paper);
+  border-radius: var(--appearance-panel-radius, 4px);
+  box-shadow: var(--sk-shadow-slip);
 }
 .sk-panel::before {
   content: '';
   position: absolute;
   inset: 0;
-  border: var(--stroke) solid var(--edge-soft);
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge-soft);
   filter: url(#sk-rough);
   pointer-events: none;
 }
-/* 活页孔：面板左侧一串小圆 */
 .sk-panel::after {
   content: '';
   position: absolute;
   left: 8px;
-  top: 26px;
-  bottom: 26px;
+  top: 24px;
+  bottom: 24px;
   width: 7px;
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--ink) 32%, transparent) 2.6px, transparent 2.8px);
-  background-size: 7px 26px;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--sk-ink) 28%, transparent) 2.5px, transparent 2.7px);
+  background-size: 7px 25px;
   background-repeat: repeat-y;
+  pointer-events: none;
 }
 
-/* 只作用于面板自己的标题（直接子元素），README 正文里的 h2 不受影响 */
+/* 只作用于面板自己的标题，README 正文里的 h2 不受影响 */
 .sk-panel > h2 {
   position: relative;
   display: inline-block;
   margin: 0 0 12px;
   padding-bottom: 3px;
-  font-family: var(--hand);
+  font-family: var(--font-heading);
   font-size: calc(16px * var(--appearance-font-scale, 1));
   font-weight: 600;
 }
@@ -1074,44 +1385,40 @@
   right: -2px;
   bottom: 0;
   height: 2px;
-  background: var(--marker);
+  background: var(--sk-marker);
   opacity: .7;
   clip-path: polygon(0 44%, 100% 0, 99% 100%, 1% 82%);
 }
 
-.sk-shots { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); }
-
-/* 照片：拍立得，白色下边框 + 胶带 */
+/* 截图：拍立得，白下边框 + 胶带 */
+.sk-shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px; }
 .sk-shot {
   position: relative;
   margin: 0;
   padding: 7px 7px 20px;
-  background: var(--paper);
-  border: 1px solid var(--edge-soft);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 12%, transparent);
-  transform: rotate(-.8deg);
+  background: var(--sk-photo);
+  border: 1px solid var(--sk-edge-faint);
+  box-shadow: var(--sk-shadow-card);
+  rotate: -.7deg;
 }
-.sk-shot:nth-child(2n) { transform: rotate(.9deg); }
+.sk-shot:nth-child(2n) { rotate: .8deg; }
 .sk-shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
-
-/* 照片角上的胶带 */
-.sk-shot .sk-tape { display: block; top: -6px; left: 12px; margin-left: 0; transform: rotate(-5deg); }
+.sk-shot .sk-tape { display: block; top: -6px; left: 12px; margin-left: 0; rotate: -5deg; }
 
 .sk-readme {
   min-width: 0;
   padding-right: 4px;
   font-size: 12.5px;
-  line-height: 1.78;
-  color: var(--ink-soft);
+  line-height: 1.8;
+  color: var(--sk-ink-soft);
 }
-/* README 里的标题只用字号与字重区分；手绘下划线专属于面板标题，避免层级混淆 */
 .sk-readme h1, .sk-readme h2, .sk-readme h3 {
   margin: 18px 0 7px;
-  font-family: var(--hand);
+  font-family: var(--font-heading);
   font-weight: 600;
   line-height: 1.34;
-  color: var(--ink);
   letter-spacing: .01em;
+  color: var(--sk-ink);
 }
 .sk-readme h1 { font-size: 19px; }
 .sk-readme h2 { font-size: 16px; }
@@ -1120,15 +1427,15 @@
 .sk-readme p { margin: 0 0 10px; }
 .sk-readme ul, .sk-readme ol { margin: 0 0 10px; padding-left: 20px; }
 .sk-readme li { margin-bottom: 4px; }
-.sk-readme li::marker { color: var(--marker); }
+.sk-readme li::marker { color: var(--sk-marker); }
 .sk-readme code {
   padding: 1px 5px;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 11.5px;
-  background: var(--paper-2);
-  border-radius: 2px;
+  background: var(--sk-paper-shade);
+  border-radius: 1px;
 }
-.sk-readme pre { padding: 10px 12px; overflow: auto; background: var(--paper-2); border-radius: 2px; }
+.sk-readme pre { padding: 10px 12px; overflow: auto; background: var(--sk-paper-shade); border-radius: 1px; }
 .sk-readme pre code { padding: 0; background: none; }
 .sk-readme a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
 .sk-readme img { max-width: 100%; }
@@ -1136,85 +1443,73 @@
 .sk-perms { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
 .sk-perm {
   padding: 1px 7px;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 10.5px;
-  color: var(--ink-soft);
-  border: 1px solid var(--edge-soft);
-  border-radius: 2px;
-  transform: rotate(-.6deg);
+  color: var(--sk-ink-soft);
+  border: 1px solid var(--sk-edge-soft);
+  border-radius: 1px;
+  rotate: -.6deg;
 }
-.sk-perm:nth-child(2n) { transform: rotate(.8deg); }
+.sk-perm:nth-child(2n) { rotate: .8deg; }
 
-/* 真正开屏由宿主 splash 管理，这里只对内容做一次轻量进场，不遮盖页面。 */
-.sk-market.is-entering .sk-scroll { animation: sk-content-in .24s var(--ease) both; }
+/* ── 入场：纸片像被一张张贴上桌面 ── */
+.sk-market.is-entering .sk-scroll { animation: sk-content-in .24s var(--sk-ease-out) both; }
 :root[data-anim='high'] .sk-market.is-entering .sk-scroll { animation-duration: .34s; }
-:root[data-anim='low'] .sk-market.is-entering .sk-scroll { animation: none; }
-@keyframes sk-content-in {
-  from { opacity: .65; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+@keyframes sk-content-in { from { opacity: .66; translate: 0 6px; } }
 
-/* ── 入场：卡片像被一张张"贴"上来 ── */
 @keyframes sk-paste {
-  0% { opacity: 0; transform: translateY(12px) rotate(-2deg) scale(.98); }
-  100% { opacity: 1; }
+  /* 入场只碰 opacity / scale / rotate：translate 留给常驻的浮动动画，
+   * 否则同一条属性被两个动画抢，入场结束时纸片会跳一下。 */
+  from { opacity: 0; rotate: -2deg; scale: .98; }
 }
+.sk-card.is-new {
+  /* 入场期间接管动画（后声明者优先）；结束后 class 被移除，常驻浮动自动接上。
+   * backwards 让延迟期间保持起始帧，避免闪一下正常状态。 */
+  animation: sk-paste .3s var(--sk-ease-out) backwards;
+  animation-delay: calc(min(var(--sk-i, 0), 10) * 24ms);
+}
+.sk-feature.is-new { animation: sk-feature-drop .4s var(--sk-ease-out) backwards; animation-delay: calc(var(--sk-i, 0) * 70ms); }
+@keyframes sk-feature-drop { from { opacity: 0; scale: .985; } }
+:root[data-anim='high'] .sk-card.is-new { animation-duration: .46s; animation-delay: calc(min(var(--sk-i, 0), 12) * 36ms); }
+:root[data-anim='high'] .sk-feature.is-new { animation-duration: .6s; animation-delay: calc(var(--sk-i, 0) * 100ms); }
 
-/* 只有尚未可见展示的插件入场；目录重建沿用已见 pluginId，不再整页淡出重播。 */
-.sk-card.is-new { animation: sk-paste .28s var(--ease) backwards; animation-delay: calc(min(var(--i, 0), 8) * 22ms); }
-.sk-feature.is-new { animation: sk-feature-flip .38s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 65ms); }
-@keyframes sk-feature-flip { from { opacity: 0; transform: translateY(12px) rotateY(-12deg) rotate(-2deg); } }
-:root[data-anim='high'] .sk-card.is-new { animation-duration: .44s; animation-delay: calc(min(var(--i, 0), 10) * 35ms); }
-:root[data-anim='high'] .sk-feature.is-new { animation-name: sk-feature-flip-high; animation-duration: .6s; animation-delay: calc(var(--i, 0) * 95ms); }
-@keyframes sk-feature-flip-high { from { opacity: 0; transform: translateY(22px) rotateY(-24deg) rotate(-4deg) scale(.96); } }
-:root[data-anim='low'] :is(.sk-card, .sk-feature) { animation: none; }
+/* 低动效与隐藏预热：全部静止，但保留静态纸面（不用 visibility:hidden 抹掉外观） */
+:root[data-anim='low'] :is(.sk-card, .sk-feature, .sk-skeleton::after, .sk-market.is-entering .sk-scroll) { animation: none; }
+:root[data-anim='low'] :is(.sk-card, .sk-feature) { transition: none; }
 :root[data-home-visible='false'] .sk-market *,
 :root[data-sk-visible='false'] .sk-market * { animation-play-state: paused !important; }
 :root[data-sk-continuous='false'] :is(.sk-skeleton::after, .sk-round[aria-busy='true'] svg) { animation: none; }
 
-/* 低档保留静态纸面；持续漂移的统一降级在 base.css。 */
-:root[data-anim='low'] .sk-skeleton::after,
-:root[data-anim='low'] .sk-round[aria-busy='true'] svg { animation: none; }
-
 @media (prefers-reduced-motion: reduce) {
   .sk-market.is-entering .sk-scroll, .sk-card, .sk-feature,
   .sk-skeleton::after, .sk-round[aria-busy='true'] svg { animation: none !important; }
-  .sk-card, .sk-feature, .sk-feature-visual, .sk-btn, .sk-round, .sk-chip, .sk-back, .sk-shot { transition-duration: 0s; }
-  .sk-card:nth-child(n), .sk-feature:nth-child(n), .sk-feature .sk-feature-visual, .sk-shot { transform: none !important; }
+  :is(.sk-card, .sk-feature, .sk-btn, .sk-round, .sk-chip, .sk-shot, .sk-feature-visual) { transition-duration: 0s; }
+  .sk-card:nth-child(n), .sk-feature:nth-child(n) { rotate: 0deg !important; }
   .sk-modal[open] :is(.sk-modal-bar, .sk-modal-body) { animation: none; }
 }
 
-/* ── 响应式 ── */
-@media (max-width: 1100px) {
-  .sk-grid, .sk-skeleton-grid { grid-template-columns: repeat(min(2, var(--columns)), minmax(0, 1fr)); }
-  .sk-featured-grid { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
-  .sk-feature.is-index .sk-feature-link { grid-template-columns: 64px minmax(0, 1fr); }
+/* ── 响应式：列数收窄，但尺寸差异保留 ── */
+/* 列数在窄视口收窄，但每张纸的跨度由 JS 按当次列数重新铺过，
+ * 所以这里不再覆盖 grid-column / grid-row —— 覆盖会破坏"铺满无洞"。 */
+@media (max-width: 1180px) {
   .sk-detail-body { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 760px) {
-  .sk-page { padding-left: 54px; padding-right: 16px; }
-  .sk-detail { padding-left: 22px; padding-right: 8px; }
-  .sk-modal { padding-left: 42px; padding-right: 12px; }
-  .sk-feature.is-lead { grid-row: auto; }
-  .sk-binding { left: 6px; width: 34px; gap: 26px; padding: 20px 0; }
-  .sk-ring { width: 26px; height: 14px; }
-  .sk-grid, .sk-skeleton-grid { grid-template-columns: minmax(0, 1fr); }
-  .sk-featured-grid { grid-template-columns: minmax(0, 1fr); }
-  .sk-head h1 { font-size: clamp(28px, 8vw, 38px); }
-  .sk-toolbar { align-items: flex-start; flex-direction: column; }
-  .sk-detail-hero { flex-direction: column; }
-  .sk-detail-actions { flex: none; justify-content: flex-start; max-width: 100%; }
-  .sk-card:nth-child(n) { transform: none; }
+@media (max-width: 860px) {
+  .sk-grid, .sk-skeleton-grid { grid-auto-rows: minmax(var(--sk-row-unit, 88px), auto); }
+  .sk-featured-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sk-card:nth-child(n) { rotate: 0deg; }
 }
 
-@media (max-width: 460px) {
-  .sk-page { padding-left: 44px; }
-  .sk-modal { padding-left: 30px; padding-right: 8px; }
-  .sk-head { gap: 10px; }
-  .sk-head-main { flex: 1; }
-  .sk-round { width: 34px; height: 34px; }
-  .sk-binding { left: 2px; width: 28px; }
-  .sk-ring { width: 23px; }
-  .sk-hole { left: 12px; width: 8px; height: 8px; }
+@media (max-width: 560px) {
+  .sk-page { padding-left: 14px; padding-right: 14px; }
+  .sk-grid, .sk-skeleton-grid { grid-auto-rows: auto; }
+  .sk-card[data-size] { min-height: 148px; }
+  .sk-card:nth-child(n) { rotate: 0deg; }
+  .sk-head h1 { font-size: clamp(26px, 8vw, 34px); }
+  .sk-toolbar { align-items: flex-start; flex-direction: column; }
+  .sk-detail-hero { flex-direction: column; }
+  .sk-detail-actions { max-width: 100%; justify-content: flex-start; }
+  .sk-modal { padding-left: 10px; padding-right: 10px; }
+  .sk-detail { padding-left: 24px; padding-right: 10px; }
 }

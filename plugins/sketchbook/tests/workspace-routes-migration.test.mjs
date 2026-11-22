@@ -230,7 +230,7 @@ test('plugin, package and workspace lock all identify the same version', async (
   const manifest = JSON.parse(await readFile(new URL('plugin.json', root), 'utf8'))
   const pkg = JSON.parse(await readFile(new URL('package.json', root), 'utf8'))
   const lock = JSON.parse(await readFile(new URL('../../package-lock.json', root), 'utf8'))
-  assert.equal(manifest.version, '0.0.1')
+  assert.equal(manifest.version, '1.2.0')
   assert.equal(pkg.version, manifest.version)
   assert.equal(lock.packages['plugins/sketchbook'].version, manifest.version)
   assert.equal(manifest.contributes.homePages[0].entry, 'homes/sketchbook.html')

@@ -1,0 +1,526 @@
+/*
+ * 素描本 · 设置页（对齐壳的设置页）
+ *
+ * 结构必须和壳的设置页一致，用户在两处之间切换才不会有"换了个软件"的感觉：
+ *   顶部横向 tab 条（.settings-tabs）
+ *   → 单列卡片（.s-card：圆角、1px 边框、--surface 底）
+ *   → 卡片内逐行（.field：左标签+说明，右控件，行间 1px 分隔线）
+ *
+ * 右列宽度由 --settings-control-width 控制，与壳同宽；
+ * 分段控件沿用壳的胶囊造型（.segmented）。
+ * 设置页刻意保持中性克制：它是可信设置界面的一部分，纸品语汇留在主页面。
+ */
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font, system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 首帧兜底色：与 plugin.json 的浅色 tokens 一致 */
+html {
+  --bg: #f8f4ec;
+  --surface: #ffffff;
+  --surface-2: #f5f1e9;
+  --surface-3: #e8e1d5;
+  --text: #292524;
+  --text-2: #57534e;
+  --text-3: #78716c;
+  --accent: #c2410c;
+  --ok: #15803d;
+  --danger: #b91c1c;
+  --border: #d6d3d1;
+  --border-strong: #a8a29e;
+  --link: #1d4ed8;
+  --font: "Avenir Next", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --font-heading: "Hannotate SC", "HanziPen SC", "Bradley Hand", "Wawati SC", "PingFang SC", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  /* 与壳的设置页同一组尺度 */
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --settings-control-h: 36px;
+  --settings-control-width: 280px;
+  --settings-control-width-wide: 400px;
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  --bg: #1c1917;
+  --surface: #292524;
+  --surface-2: #332f2b;
+  --surface-3: #44403c;
+  --text: #fafaf9;
+  --text-2: #d6d3d1;
+  --text-3: #a8a29e;
+  --accent: #fb923c;
+  --ok: #4ade80;
+  --danger: #f87171;
+  --border: #44403c;
+  --border-strong: #78716c;
+  --link: #93c5fd;
+  color-scheme: dark;
+}
+
+/* 背景层：与主页面同一张桌面渐变（由宿主快照写进 --sk-desk-paint）。
+   设置页只保留这一层，不再引入纸品/手绘样式 —— 它要对齐壳的设置页观感。 */
+.sk-desk {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.sk-desk-paint {
+  position: absolute;
+  inset: 0;
+  opacity: var(--sk-desk-opacity, 1);
+  background: var(--sk-desk-paint, none);
+}
+
+/* ── 页面骨架：与壳一致 ── */
+.sk-settings {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-3) 50%, transparent) transparent;
+}
+
+.page-settings {
+  box-sizing: border-box;
+  min-height: 100%;
+}
+
+.settings-shell {
+  max-width: min(880px, 100%);
+  margin: 0 auto;
+  padding: clamp(28px, 4.5vh, 44px) clamp(20px, 3.5vw, 40px) 120px;
+  min-width: 0;
+}
+
+.settings-header { margin-bottom: 18px; }
+
+.settings-header h1 {
+  margin: 0;
+  font-size: clamp(22px, 2.4vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.settings-header p {
+  margin: 6px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* ── 顶部 tab 条 ── */
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+  min-width: 0;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 24px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.settings-tabs button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  min-width: 0;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: calc(13px * var(--appearance-font-scale, 1));
+  font-weight: 550;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-tabs button:hover { color: var(--text); }
+.settings-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.settings-tabs button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.08);
+}
+
+/* ── 卡片：与壳的 .s-card 一致 ── */
+.s-card {
+  position: relative;
+  z-index: 0;
+  margin-bottom: 20px;
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: visible;
+}
+
+.s-card > h2 {
+  margin: 0 0 20px;
+  font-size: calc(16px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.s-card > .hint {
+  margin: -12px 0 20px;
+  color: var(--text-3);
+  font-size: calc(12px * var(--appearance-font-scale, 1));
+  line-height: 1.6;
+}
+
+/* ── 字段行 ── */
+.field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--settings-control-width));
+  align-items: center;
+  gap: 24px;
+  min-height: 68px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.field:first-of-type { border-top: 0; padding-top: 0; }
+.field:last-child { padding-bottom: 0; }
+
+.field > .field-text { min-width: 0; }
+
+.field .label {
+  color: var(--text);
+  font-size: calc(13px * var(--appearance-font-scale, 1));
+  font-weight: 550;
+  line-height: 1.5;
+}
+
+.field .desc {
+  margin: 4px 0 0;
+  color: var(--text-3);
+  font-size: calc(12px * var(--appearance-font-scale, 1));
+  line-height: 1.6;
+}
+
+.field > .field-control {
+  justify-self: end;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* 拉伸型控件（滑块 / 颜色 / 选项卡）占满右列 */
+.field > .field-control.is-wide {
+  justify-self: stretch;
+  width: 100%;
+}
+
+/* 选项卡片是一整排纸样，比右列 280px 宽得多：
+ * 让它独占一行（标签在上、卡片在下），才不挤成两列窄条。 */
+.field:has(> .field-control > .choice-cards) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.field:has(> .field-control > .choice-cards) > .field-control {
+  justify-self: stretch;
+}
+
+/* ── 分段控件：壳的胶囊造型 ── */
+.segmented {
+  display: inline-flex;
+  padding: 4px;
+  gap: 3px;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  border: 1px solid var(--border);
+}
+
+.segmented button {
+  height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: calc(13px * var(--appearance-font-scale, 1));
+  font-weight: 550;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.segmented button:hover { color: var(--text); }
+.segmented button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.08), inset 0 0 0 0.5px color-mix(in srgb, var(--border) 70%, transparent);
+}
+.segmented button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.segmented button:disabled { opacity: .45; cursor: default; }
+
+/* ── 纸样卡（桌面预设）── */
+.choice-cards {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(min(132px, 100%), 1fr));
+  width: 100%;
+}
+
+.choice-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.choice-card:hover { border-color: var(--border-strong); }
+.choice-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  color: var(--text);
+}
+.choice-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 缩略图必须是"一块可见的纸样"：flex-basis 显式给高，
+ * 只写 height 时在 flex column 里仍可能被内容压扁。 */
+.choice-card i {
+  display: block;
+  flex: 0 0 58px;
+  height: 58px;
+  min-height: 58px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.choice-card span {
+  font-size: calc(12.5px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+  color: var(--text);
+}
+
+.choice-card small {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+/* ── 颜色控件 ── */
+.color-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.color-control input[type='color'] {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.color-control input[type='color']::-webkit-color-swatch-wrapper { padding: 0; }
+.color-control input[type='color']::-webkit-color-swatch {
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 50%;
+}
+
+.color-control code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+
+/* ── 滑块 ── */
+.slider-control {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+}
+
+.slider-control input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slider-control input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background:
+    linear-gradient(var(--accent), var(--accent)) 0 / var(--range-fill, 50%) 100% no-repeat,
+    var(--surface-3);
+}
+
+.slider-control input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 1px 3px rgb(15 23 42 / .18);
+}
+
+.slider-control input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring); }
+
+.slider-control output {
+  flex: 0 0 auto;
+  min-width: 38px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-2);
+}
+
+/* ── 开关 ── */
+.switch-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.switch-control input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+.switch-control i {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 24px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  transition: background .15s, border-color .15s;
+}
+
+.switch-control i::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / .25);
+  transition: translate .15s;
+}
+
+.switch-control input:checked + i { background: var(--accent); border-color: var(--accent); }
+.switch-control input:checked + i::after { translate: 16px 0; }
+.switch-control input:focus-visible + i { box-shadow: var(--focus-ring); }
+
+/* ── 状态行 ── */
+.settings-status {
+  margin: 14px 0 0;
+  min-height: 1.5em;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.settings-status[data-kind='ok'] { color: color-mix(in srgb, var(--ok) 80%, var(--text)); }
+.settings-status[data-kind='error'] { color: color-mix(in srgb, var(--danger) 85%, var(--text)); }
+
+/* ── 启动占位 ── */
+.sk-settings-startup {
+  margin: 0;
+  padding: 32px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+/* ── 原生设置入口：卡片内一行按钮 ── */
+.native-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.native-links button {
+  box-sizing: border-box;
+  height: var(--settings-control-h);
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: calc(13px * var(--appearance-font-scale, 1));
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.native-links button:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--border-strong) 70%, var(--accent) 30%);
+}
+
+/* ── 窄视口：右列落到标签下方，与壳的断点行为一致 ── */
+@media (max-width: 720px) {
+  .settings-shell { padding: 22px 16px 80px; }
+  .s-card { padding: 18px; }
+  .field { grid-template-columns: minmax(0, 1fr); gap: 8px; min-height: 0; }
+  .field > .field-control { justify-self: start; }
+  .field > .field-control.is-wide { justify-self: stretch; }
+  .settings-tabs button { padding: 0 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-tabs button, .segmented button, .choice-card, .native-links button { transition: none; }
+}

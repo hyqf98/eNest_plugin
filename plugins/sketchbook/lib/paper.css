@@ -1,0 +1,347 @@
+/*
+ * 素描本 · 纸张语言基础层（零构建，被工作区 / 样式台 / Quick / 设置页共用）
+ *
+ * 这一层只描述"纸"本身：纸品、桌面、投影分级、手抖描边、胶带、折角与笔迹。
+ * 它不关心某个页面怎么排布 —— 排布在各页面自己的样式里，读取这里的变量。
+ *
+ * 三条不许含糊的原则
+ *   1. 手绘感来自"纸 + 笔 + 影"，不来自圆角。这里的面全是直角纸片或斜切纸片。
+ *   2. 影是分级的：贴纸、便签、索引卡、活页纸各有自己的高度与扩散，不是一套通用阴影。
+ *   3. 纹理是纯 CSS 多层渐变。没有 data URI、没有图片、没有逐帧 JS。
+ *
+ * 颜色只经语义 token 进入；下面 --sk-* 是派生量，不引入新的可写调色板。
+ */
+
+/* ── 派生量：把宿主语义 token 折成纸的语汇 ──
+ * 必须定义在根节点：这些值只依赖 :root 上的语义 token，子元素（纸片、按钮、面板）
+ * 全部靠继承拿到，不能只在 .sk-surface 上声明，否则卡片拿不到纸色。 */
+:root {
+  --sk-ink: var(--text);
+  --sk-ink-soft: var(--text-2);
+  --sk-ink-faint: var(--text-3);
+
+  /* 纸品：桌面 = --bg（纸放上去的那张桌子），纸 = --surface，其余由这两支派生 */
+  --sk-desk: var(--bg);
+  --sk-paper: var(--surface);
+  --sk-paper-shade: var(--surface-2);
+  --sk-card-stock: color-mix(in srgb, var(--surface) 93%, var(--surface-3));
+  --sk-pad-stock: color-mix(in srgb, var(--surface) 86%, var(--surface-3));
+  --sk-kraft-stock: color-mix(in srgb, var(--surface) 86%, #e3d3b4);
+  --sk-photo: color-mix(in srgb, var(--surface) 94%, #fff);
+
+  /* 墨：笔迹、铅笔、马克笔 */
+  --sk-marker: var(--accent);
+  --sk-marker-deep: color-mix(in srgb, var(--accent) 78%, #201a16);
+  --sk-pencil: color-mix(in srgb, var(--text-3) 72%, var(--text-2));
+  --sk-edge: color-mix(in srgb, var(--text) 58%, transparent);
+  --sk-edge-soft: color-mix(in srgb, var(--text) 34%, transparent);
+  --sk-edge-faint: color-mix(in srgb, var(--text) 18%, transparent);
+  --sk-rule: color-mix(in srgb, var(--text-3) 22%, transparent);
+  --sk-margin-line: color-mix(in srgb, var(--accent) 26%, transparent);
+
+  /* 影：阴影色自带暖偏，靠 alpha 分级，不用纯黑 */
+  --sk-shade-rgb: 58 44 30;
+  --sk-shadow-k: 1;
+  --sk-shadow-hair: 0 1px 1.5px rgb(var(--sk-shade-rgb) / calc(.16 * var(--sk-shadow-k)));
+  --sk-shadow-slip: 0 1px 1px rgb(var(--sk-shade-rgb) / calc(.2 * var(--sk-shadow-k))), 0 4px 8px -3px rgb(var(--sk-shade-rgb) / calc(.2 * var(--sk-shadow-k)));
+  --sk-shadow-card: 0 1px 1.5px rgb(var(--sk-shade-rgb) / calc(.2 * var(--sk-shadow-k))), 0 6px 11px -5px rgb(var(--sk-shade-rgb) / calc(.24 * var(--sk-shadow-k)));
+  --sk-shadow-lift: 0 1px 1.5px rgb(var(--sk-shade-rgb) / calc(.2 * var(--sk-shadow-k))), 0 7px 16px -4px rgb(var(--sk-shade-rgb) / calc(.2 * var(--sk-shadow-k)));
+  --sk-shadow-pad: 0 1px 1.5px rgb(var(--sk-shade-rgb) / calc(.18 * var(--sk-shadow-k))), 0 10px 20px -8px rgb(var(--sk-shade-rgb) / calc(.22 * var(--sk-shadow-k)));
+  --sk-shadow-paper: 0 1px 1.5px rgb(var(--sk-shade-rgb) / calc(.2 * var(--sk-shadow-k))), 0 2px 5px -1px rgb(var(--sk-shade-rgb) / calc(.1 * var(--sk-shadow-k))), 0 12px 22px -8px rgb(var(--sk-shade-rgb) / calc(.2 * var(--sk-shadow-k)));
+  --sk-shadow-sticky: 0 1px 1px rgb(var(--sk-shade-rgb) / calc(.2 * var(--sk-shadow-k))), 0 9px 10px -7px rgb(var(--sk-shade-rgb) / calc(.34 * var(--sk-shadow-k)));
+
+  /* 纸面高光：斜向一道极淡的白，模拟光从左上落下来 */
+  --sk-paper-light: linear-gradient(135deg, #ffffff59, #fff0 42%, rgb(var(--sk-shade-rgb) / calc(.03 * var(--sk-shadow-k))));
+
+  /* 胶带：半透明米白 + 一点点边 */
+  --sk-tape: rgb(246 244 236 / .74);
+  --sk-tape-edge: rgb(140 135 120 / .3);
+
+  --sk-rule-h: calc(var(--appearance-density, 1) * 30px);
+  --sk-gap: var(--appearance-gap, 18px);
+  --sk-ease: cubic-bezier(.2, .85, .3, 1.05);
+  --sk-ease-out: cubic-bezier(.22, 1, .36, 1);
+}
+
+:root[data-theme='dark'] {
+  /* 深色纸不是把浅色压暗：纸与桌面拉开明度差，墨改暖白，影更实。 */
+  --sk-paper: var(--surface);
+  --sk-paper-shade: color-mix(in srgb, var(--surface) 84%, #0d1113);
+  --sk-card-stock: color-mix(in srgb, var(--surface) 93%, var(--surface-3));
+  --sk-kraft-stock: color-mix(in srgb, var(--surface) 88%, #6b5f4a 12%);
+  --sk-photo: color-mix(in srgb, var(--surface) 92%, #fff);
+  --sk-edge: color-mix(in srgb, var(--text) 52%, transparent);
+  --sk-edge-soft: color-mix(in srgb, var(--text) 28%, transparent);
+  --sk-edge-faint: color-mix(in srgb, var(--text) 16%, transparent);
+  --sk-rule: color-mix(in srgb, var(--text-3) 26%, transparent);
+  --sk-shade-rgb: 4 7 8;
+  --sk-shadow-k: 1.25;
+  --sk-paper-light: linear-gradient(150deg, #ffffff14, #fff0 58%);
+  --sk-tape: rgb(226 222 208 / .22);
+  --sk-tape-edge: rgb(255 255 255 / .12);
+}
+
+/* ── 桌面：全视口底层。织物纹 + 四周暗角，纸才有"放在桌上"的落点 ── */
+.sk-desk {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+  background: var(--sk-desk);
+}
+
+/* 色板铺色：宿主/设置页给出的不规则色洗，压在最底下 */
+.sk-desk > .sk-desk-paint {
+  position: absolute;
+  inset: 0;
+  opacity: var(--sk-desk-opacity, .9);
+  background: var(--sk-desk-paint, none);
+}
+
+/* 织物交叉纹：两组细线，间距不等，避免规整的网格感 */
+.sk-desk::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: var(--sk-desk-tooth, .5);
+  background-image:
+    repeating-linear-gradient(112deg, color-mix(in srgb, var(--sk-ink) 5%, transparent) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(22deg, color-mix(in srgb, var(--sk-ink) 4%, transparent) 0 1px, transparent 1px 5px);
+}
+
+/* 暗角：中间透，四角压，纯径向渐变 */
+.sk-desk::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 118% 96% at 50% 42%, transparent 58%, rgb(var(--sk-shade-rgb) / calc(.09 * var(--sk-shadow-k))));
+}
+
+/* 可选的桌面漂移色洗：只在动画中高档开启，静止时不影响可读性 */
+.sk-wash {
+  position: absolute;
+  inset: -60px;
+  pointer-events: none;
+  opacity: var(--sk-wash-strength, 0);
+  background:
+    radial-gradient(ellipse 34% 48% at 8% 34%, color-mix(in srgb, var(--sk-marker) 22%, transparent), transparent 76%),
+    radial-gradient(ellipse 30% 44% at 88% 74%, color-mix(in srgb, var(--accent) 16%, var(--surface-2)), transparent 78%);
+  animation: sk-desktop-drift var(--sk-wash-duration, 34s) ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes sk-desktop-drift {
+  from { transform: translate3d(-22px, 14px, 0) scale(1.02); }
+  to { transform: translate3d(20px, -18px, 0) scale(1.06); }
+}
+
+/* ── 纸品：每种纸只有一个 background 声明 + 可选纹理层 ── */
+.sk-stock-paper { background-color: var(--sk-paper); }
+.sk-stock-card { background-color: var(--sk-card-stock); }
+.sk-stock-pad { background-color: var(--sk-pad-stock); }
+.sk-stock-kraft { background-color: var(--sk-kraft-stock); }
+.sk-stock-photo { background-color: var(--sk-photo); }
+
+/* 纸面高光统一叠在底色之上，作为额外的 background-image 层 */
+.sk-tooth > * { position: relative; }
+
+:is(.sk-stock-paper, .sk-stock-card, .sk-stock-pad, .sk-stock-kraft, .sk-stock-photo) {
+  background-image: var(--sk-paper-light);
+}
+
+/* 方格纸：两组等距线，比横线纸更适合当索引卡底 */
+.sk-tooth-grid {
+  background-image:
+    var(--sk-paper-light),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--sk-rule) 55%, transparent) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--sk-rule) 55%, transparent) 0 1px, transparent 1px 26px);
+  background-blend-mode: normal, multiply, multiply;
+}
+
+/* 横线纸：一条红色页边线 + 均匀横线，底线对齐到行高 */
+.sk-tooth-ruled {
+  background-image:
+    var(--sk-paper-light),
+    linear-gradient(90deg, transparent 0 26px, var(--sk-margin-line) 26px 27.2px, transparent 27.2px),
+    repeating-linear-gradient(180deg, transparent 0 calc(var(--sk-rule-h) - 1px), var(--sk-rule) calc(var(--sk-rule-h) - 1px) var(--sk-rule-h));
+}
+
+/* 牛皮纸：斜向细纹 + 更粗的纤维斑，靠两层不等间距的线 */
+.sk-tooth-kraft {
+  background-image:
+    var(--sk-paper-light),
+    repeating-linear-gradient(8deg, color-mix(in srgb, var(--sk-ink) 6%, transparent) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(96deg, color-mix(in srgb, var(--sk-ink) 4%, transparent) 0 2px, transparent 2px 19px);
+}
+
+/* 纸纤维：极淡的交叉短划，放大后像纸浆 */
+.sk-tooth-fibre {
+  background-image:
+    var(--sk-paper-light),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--sk-ink) 3.5%, transparent) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--sk-ink) 2.5%, transparent) 0 1px, transparent 1px 4px);
+}
+
+/* ── 纸片：直角面 + 分级投影。倾斜由 --sk-tilt 控制，每张纸不一样 ── */
+.sk-sheet {
+  position: relative;
+  color: var(--sk-ink);
+  box-shadow: var(--sk-shadow-card);
+  rotate: var(--sk-tilt, 0deg);
+  transition: rotate .26s var(--sk-ease), box-shadow .26s var(--sk-ease), translate .26s var(--sk-ease);
+}
+
+.sk-sheet--sticky { box-shadow: var(--sk-shadow-sticky); }
+.sk-sheet--slip { box-shadow: var(--sk-shadow-slip); }
+.sk-sheet--pad { box-shadow: var(--sk-shadow-pad); }
+.sk-sheet--paper { box-shadow: var(--sk-shadow-paper); }
+
+/* 纸的底边压痕：一条更深的细线，让纸片看起来有厚度 */
+.sk-sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 -1px 0 rgb(var(--sk-shade-rgb) / calc(.1 * var(--sk-shadow-k)));
+}
+
+/* 折角：右下角掀起的一角，用两层三角渐变做出厚度 */
+.sk-dogear::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: var(--sk-dogear, 22px);
+  height: var(--sk-dogear, 22px);
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, transparent 48%, rgb(var(--sk-shade-rgb) / calc(.16 * var(--sk-shadow-k))) 50%, var(--sk-paper-shade) 52%);
+  box-shadow: var(--sk-shadow-hair);
+}
+
+/* 撕口：纸片边缘的不规则缺口。用 clip-path polygon，不同边各有形态 */
+.sk-torn {
+  clip-path: polygon(
+    0 1.4%, 1% 0, 99.2% .6%, 100% 1.8%,
+    99.4% 98.4%, 98% 100%, 1.2% 99.4%, 0 98%
+  );
+}
+.sk-torn-left {
+  clip-path: polygon(
+    0 2%, 1.6% 0, 100% 0, 100% 100%, 1.4% 100%, 0 97.6%
+  );
+}
+
+/* ── 手抖描边：只挂在描边伪元素上，绝不给容器套滤镜 ──
+ * 滤镜会让元素成为包含块并破坏定位/滚动，因此 .sk-draw 必须绝对定位且不承载布局。 */
+.sk-draw { position: absolute; inset: 0; pointer-events: none; }
+.sk-draw::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--sk-stroke, 1.6px) solid var(--sk-edge);
+  filter: url(#sk-rough);
+}
+.sk-draw--fine::after { filter: url(#sk-rough-fine); }
+.sk-draw--soft::after { border-color: var(--sk-edge-soft); }
+.sk-draw--marker::after { border-color: var(--sk-marker); }
+
+/* ── 胶带：贴在纸的上沿。半透明、边缘锯齿、略旋转 ── */
+.sk-tape {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--sk-tape-h, 16px) * -.42);
+  left: 50%;
+  width: var(--sk-tape-w, 66px);
+  height: var(--sk-tape-h, 16px);
+  margin-left: calc(var(--sk-tape-w, 66px) * -.5);
+  background: var(--sk-tape);
+  border-left: 1px solid var(--sk-tape-edge);
+  border-right: 1px solid var(--sk-tape-edge);
+  clip-path: polygon(2% 0, 98% 3%, 100% 97%, 96% 100%, 3% 96%, 0 100%);
+  rotate: var(--sk-tape-tilt, -2.4deg);
+  pointer-events: none;
+  backdrop-filter: saturate(.9);
+}
+
+/* ── 别针与图钉：纸角上的小物件，纯 CSS ── */
+.sk-pin {
+  position: absolute;
+  z-index: 4;
+  top: -5px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--sk-marker) 60%, #fff), var(--sk-marker-deep));
+  box-shadow: 0 1px 2px rgb(var(--sk-shade-rgb) / .34), inset 0 -.5px 1px rgb(0 0 0 / .22);
+  pointer-events: none;
+}
+.sk-pin::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 9px;
+  width: 1px;
+  height: 7px;
+  margin-left: -.5px;
+  background: linear-gradient(var(--sk-edge), transparent);
+}
+
+/* ── 笔迹：手写记号不是装饰，它们指向内容 ── */
+.sk-underline {
+  position: relative;
+  display: inline-block;
+}
+.sk-underline::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -4px;
+  bottom: -.16em;
+  height: .3em;
+  background: var(--sk-marker);
+  opacity: .88;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8.4c24-3.6 48-4.8 72-3.6 22 1.1 44 1.6 66 .4 20-1 40-1.6 58-2.8' fill='none' stroke='%23000' stroke-width='3.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'%3E%3Cpath d='M2 8.4c24-3.6 48-4.8 72-3.6 22 1.1 44 1.6 66 .4 20-1 40-1.6 58-2.8' fill='none' stroke='%23000' stroke-width='3.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  pointer-events: none;
+}
+
+/* 圈注：把一个数字或短词用马克笔圈起来 */
+.sk-circle {
+  position: relative;
+  padding: 0 .18em;
+}
+.sk-circle::after {
+  content: '';
+  position: absolute;
+  inset: -.34em -.4em -.3em;
+  border: 2px solid var(--sk-marker);
+  border-radius: 48% 52% 46% 54% / 56% 44% 56% 44%;
+  opacity: .5;
+  rotate: -2.2deg;
+  pointer-events: none;
+}
+
+/* ── 动效档位：高档多给一点形变，低档全部静止但保留静态外观 ── */
+:root[data-anim='high'] { --sk-motion-scale: 1.35; }
+:root[data-anim='low'] { --sk-motion-scale: 0; }
+
+:root[data-anim='low'] :is(.sk-wash) { animation: none; opacity: 0; }
+:root[data-anim='low'] :is(.sk-sheet) { transition: none; }
+
+/* 页面不可见时暂停所有持续动画，避免隐藏预热白烧合成器 */
+:root[data-sk-visible='false'] .sk-wash,
+:root[data-home-visible='false'] .sk-wash,
+:root[data-sk-visible='false'] .sk-loop,
+:root[data-home-visible='false'] .sk-loop { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-wash, .sk-loop { animation: none !important; }
+  :is(.sk-sheet) { transition: none; }
+}

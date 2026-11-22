@@ -1,7 +1,7 @@
 /** Quick V1 的隔离呈现页。仅用 enestQuick，不持有应用路径、普通插件桥或业务视图。 */
-import { h, reconcileChildren, setAttribute, setProperty, setStyle, setText } from '../shared/dom.js'
-import { icon } from '../shared/icons.js'
-import { createSketchPaper, mountSketchDefs } from '../shared/sketchPrimitives.js'
+import { h, reconcileChildren, setAttribute, setProperty, setStyle, setText } from '../../lib/dom.js'
+import { icon } from '../../lib/icons.js'
+import { createSketchPaper, mountSketchDefs } from '../../lib/sketchPrimitives.js'
 
 const api = window.enestQuick
 const container = document.getElementById('quick-root')

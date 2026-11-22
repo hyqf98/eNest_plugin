@@ -1,0 +1,465 @@
+/*
+ * 素描本 · 纸面控件层
+ *
+ * 全部控件按"纸 + 笔 + 影"三件套画，不用胶囊、不用柔和渐变按钮：
+ *   - 按钮：贴纸片，方角，手抖描边；主操作是实心马克笔色
+ *   - 输入：格子纸上的横线，聚焦时笔迹换成马克笔色
+ *   - 开关：手绘拨杆，滑块落位后是马克笔圆点
+ *   - 选择：分段是手写页签（文字 + 底下一笔），卡片是带缩略图的纸样
+ *
+ * 依赖 paper.css 的派生量（--sk-*）与 #sk-rough 滤镜定义。
+ * 这一层被工作区、样式台和设置页共用，因此不能带任何页面专属布局。
+ */
+
+/* ── 通用可访问性：键盘焦点是一条马克笔虚线，不用外发光 ── */
+.sk-focusable:focus-visible {
+  outline: 2.5px dashed var(--sk-marker);
+  outline-offset: 3px;
+}
+
+/* ── 按钮 ── */
+.sk-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 31px;
+  padding: 0 13px;
+  font-family: var(--font-heading, var(--font));
+  font-size: calc(13px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--sk-ink);
+  background: var(--sk-paper);
+  border: 0;
+  border-radius: calc(var(--appearance-control-radius, 6px) * .5);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: translate .14s var(--sk-ease), color .14s var(--sk-ease), background-color .14s var(--sk-ease);
+}
+
+/* 描边单独一层：手抖滤镜不能让容器成为包含块 */
+.sk-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge);
+  border-radius: inherit;
+  filter: url(#sk-rough-fine);
+  pointer-events: none;
+  transition: border-color .14s var(--sk-ease);
+}
+
+.sk-btn:hover:not(:disabled) { translate: 0 -1px; }
+.sk-btn:hover:not(:disabled)::before { border-color: var(--sk-marker); }
+.sk-btn:active:not(:disabled) { translate: 0 1px; }
+.sk-btn:disabled { opacity: .45; cursor: default; }
+
+.sk-btn--primary {
+  color: #fff;
+  background: var(--sk-marker-deep);
+}
+.sk-btn--primary::before { border-color: color-mix(in srgb, var(--sk-marker-deep) 76%, #1b1512); }
+:root[data-theme='dark'] .sk-btn--primary { color: #17191a; background: var(--sk-marker); }
+:root[data-theme='dark'] .sk-btn--primary::before { border-color: color-mix(in srgb, var(--sk-marker) 70%, #000); }
+
+.sk-btn--quiet { color: var(--sk-ink-faint); background: transparent; }
+.sk-btn--quiet::before { border-color: transparent; }
+.sk-btn--quiet:hover:not(:disabled) { color: var(--sk-ink); translate: none; }
+.sk-btn--quiet:hover:not(:disabled)::before { border-color: var(--sk-edge-soft); }
+
+.sk-btn--danger { color: color-mix(in srgb, var(--danger) 84%, var(--sk-ink)); }
+.sk-btn--danger::before { border-color: color-mix(in srgb, var(--danger) 52%, transparent); }
+
+/* 圆形工具钮：贴在纸角的小动作（刷新、关闭） */
+.sk-round {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--sk-ink-soft);
+  background: var(--sk-paper);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color .16s var(--sk-ease), rotate .16s var(--sk-ease);
+}
+.sk-round::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge);
+  border-radius: 50%;
+  filter: url(#sk-rough-fine);
+  pointer-events: none;
+}
+.sk-round:hover:not(:disabled) { color: var(--sk-marker); rotate: -9deg; }
+.sk-round:hover:not(:disabled)::before { border-color: var(--sk-marker); }
+.sk-round:disabled { opacity: .45; cursor: default; }
+.sk-round[aria-busy='true'] svg { animation: sk-spin 1.05s linear infinite; }
+@keyframes sk-spin { to { rotate: 360deg; } }
+
+/* ── 手写页签：文字 + 底下一笔，选中时那一笔划开 ── */
+.sk-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  border: 0;
+  background: none;
+}
+.sk-tabs button {
+  position: relative;
+  padding: 3px 2px 8px;
+  font-family: var(--font-heading, var(--font));
+  font-size: calc(15px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+  color: var(--sk-ink-faint);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color .16s var(--sk-ease);
+}
+.sk-tabs button::after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  bottom: 0;
+  height: 3px;
+  background: var(--sk-marker);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform .24s var(--sk-ease);
+}
+.sk-tabs button:hover { color: var(--sk-ink-soft); }
+.sk-tabs button[aria-selected='true'] { color: var(--sk-ink); }
+.sk-tabs button[aria-selected='true']::after { transform: scaleX(1); }
+
+/* ── 分类贴：小纸条，带一枚自己的墨点 ── */
+.sk-chip {
+  --sk-chip-ink: var(--sk-marker);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px 5px;
+  font-family: var(--font-heading, var(--font));
+  font-size: calc(12.5px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+  color: var(--sk-ink-soft);
+  background: var(--sk-paper);
+  border: 0;
+  border-radius: 1px;
+  cursor: pointer;
+  transition: color .16s var(--sk-ease), translate .16s var(--sk-ease), background-color .16s var(--sk-ease);
+}
+.sk-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid color-mix(in srgb, var(--sk-chip-ink) 50%, transparent);
+  filter: url(#sk-rough-fine);
+  pointer-events: none;
+}
+.sk-chip::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: var(--sk-chip-ink);
+  rotate: 14deg;
+}
+.sk-chip:hover { color: var(--sk-ink); translate: 0 -2px; }
+.sk-chip[aria-pressed='true'] {
+  color: var(--sk-ink);
+  background: color-mix(in srgb, var(--sk-chip-ink) 14%, var(--sk-paper));
+}
+.sk-chip[aria-pressed='true']::before { border-color: var(--sk-chip-ink); border-width: 2.4px; }
+
+/* ── 输入：格子纸上的横线 ── */
+.sk-field { display: grid; gap: 5px; min-width: 0; }
+.sk-field > label {
+  font-family: var(--font-heading, var(--font));
+  font-size: calc(12.5px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+  color: var(--sk-ink-soft);
+}
+.sk-field > small { font-size: 11px; line-height: 1.55; color: var(--sk-ink-faint); }
+.sk-field > small.is-error { color: color-mix(in srgb, var(--danger) 84%, var(--sk-ink)); }
+
+.sk-input {
+  min-width: 0;
+  max-width: 100%;
+  height: 33px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: calc(13px * var(--appearance-font-scale, 1));
+  color: var(--sk-ink);
+  background: var(--sk-paper);
+  border: 0;
+  border-bottom: 1.8px solid var(--sk-edge);
+  border-radius: 1px;
+  outline: none;
+  transition: border-color .16s var(--sk-ease), background-color .16s var(--sk-ease);
+}
+.sk-input::placeholder { color: var(--sk-ink-faint); }
+.sk-input:hover:not(:disabled) { border-bottom-color: var(--sk-ink-soft); }
+.sk-input:focus {
+  border-bottom-color: var(--sk-marker);
+  background: color-mix(in srgb, var(--sk-marker) 5%, var(--sk-paper));
+}
+.sk-input[aria-invalid='true'] { border-bottom-color: var(--danger); }
+.sk-input:disabled { opacity: .5; }
+.sk-textarea { min-height: 70px; padding: 8px 10px; resize: vertical; border: 1.6px solid var(--sk-edge); }
+
+/* ── 开关：手绘拨杆 ── */
+.sk-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: calc(12.5px * var(--appearance-font-scale, 1));
+  color: var(--sk-ink-soft);
+  cursor: pointer;
+  user-select: none;
+}
+.sk-switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.sk-switch i {
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 23px;
+  background: var(--sk-paper-shade);
+  border-radius: 2px;
+}
+.sk-switch i::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge);
+  border-radius: 11px;
+  filter: url(#sk-rough-fine);
+  transition: border-color .18s var(--sk-ease);
+}
+.sk-switch i::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+  background: var(--sk-ink-faint);
+  border-radius: 50%;
+  transition: translate .2s var(--sk-ease), background-color .2s var(--sk-ease);
+}
+.sk-switch input:checked + i::before { border-color: var(--sk-marker); }
+.sk-switch input:checked + i::after { translate: 19px 0; background: var(--sk-marker); }
+.sk-switch input:focus-visible + i::before { outline: 2.5px dashed var(--sk-marker); outline-offset: 3px; }
+.sk-switch input:disabled + i { opacity: .5; }
+
+/* ── 复选框：手画对勾 ── */
+.sk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: calc(12.5px * var(--appearance-font-scale, 1));
+  color: var(--sk-ink-soft);
+  cursor: pointer;
+}
+.sk-check input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.sk-check b {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: transparent;
+  background: var(--sk-paper);
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge);
+  border-radius: 1px;
+  transition: background-color .16s var(--sk-ease), color .16s var(--sk-ease), border-color .16s var(--sk-ease);
+}
+.sk-check input:checked + b { color: #fff; background: var(--sk-marker-deep); border-color: var(--sk-marker-deep); }
+:root[data-theme='dark'] .sk-check input:checked + b { color: #17191a; background: var(--sk-marker); border-color: var(--sk-marker); }
+.sk-check input:focus-visible + b { outline: 2.5px dashed var(--sk-marker); outline-offset: 3px; }
+
+/* ── 滑块：一条铅笔线 + 一枚马克笔圆点 ── */
+.sk-range {
+  --sk-range-fill: 50%;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.sk-range::-webkit-slider-runnable-track {
+  height: 3px;
+  background:
+    linear-gradient(var(--sk-marker), var(--sk-marker)) 0 / var(--sk-range-fill) 100% no-repeat,
+    var(--sk-edge-faint);
+  border-radius: 2px;
+}
+.sk-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -6px;
+  background: var(--sk-marker-deep);
+  border: 1.6px solid color-mix(in srgb, var(--sk-ink) 46%, transparent);
+  border-radius: 50%;
+  transition: scale .14s var(--sk-ease);
+}
+:root[data-theme='dark'] .sk-range::-webkit-slider-thumb { background: var(--sk-marker); }
+.sk-range:hover::-webkit-slider-thumb { scale: 1.12; }
+.sk-range:focus-visible::-webkit-slider-thumb { outline: 2.5px dashed var(--sk-marker); outline-offset: 3px; }
+.sk-range:disabled { opacity: .45; cursor: default; }
+
+/* ── 颜色样本：纸上的墨块，带手抖边 ── */
+.sk-color {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.sk-color input[type='color'] {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 1px;
+  cursor: pointer;
+  flex: none;
+}
+.sk-color input[type='color']::-webkit-color-swatch-wrapper { padding: 0; }
+.sk-color input[type='color']::-webkit-color-swatch {
+  border: var(--sk-stroke, 1.7px) solid var(--sk-edge);
+  border-radius: 1px;
+}
+.sk-color code {
+  overflow: hidden;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--sk-ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+/* ── 分段与选项卡片：设置页的两种选择形态 ── */
+.sk-segments {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--sk-ink) 6%, transparent);
+  border-radius: 2px;
+}
+.sk-segments button {
+  position: relative;
+  padding: 5px 12px;
+  font-family: var(--font-heading, var(--font));
+  font-size: calc(12.5px * var(--appearance-font-scale, 1));
+  font-weight: 600;
+  color: var(--sk-ink-faint);
+  background: transparent;
+  border: 0;
+  border-radius: 1px;
+  cursor: pointer;
+  transition: color .15s var(--sk-ease), background-color .15s var(--sk-ease);
+}
+.sk-segments button:hover { color: var(--sk-ink-soft); }
+.sk-segments button[aria-pressed='true'] {
+  color: var(--sk-ink);
+  background: var(--sk-paper);
+  box-shadow: var(--sk-shadow-slip);
+}
+
+.sk-options { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(168px, 100%), 1fr)); }
+.sk-option {
+  position: relative;
+  /* 用 flex 而不是 grid：缩略图需要固定的 62px 高，
+   * grid 的 auto 行会把 <i> 压成内容高度（实测只有 15px）。 */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 7px 8px 8px;
+  text-align: left;
+  color: var(--sk-ink-soft);
+  background: var(--sk-paper);
+  border: 0;
+  border-radius: 1px;
+  cursor: pointer;
+  transition: translate .16s var(--sk-ease);
+}
+.sk-option::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1.6px solid var(--sk-edge-soft);
+  filter: url(#sk-rough-fine);
+  pointer-events: none;
+}
+.sk-option:hover { translate: 0 -2px; }
+.sk-option[aria-pressed='true'] { color: var(--sk-ink); }
+.sk-option[aria-pressed='true']::before { border-color: var(--sk-marker); border-width: 2.6px; }
+/* 纸样缩略图：桌面预设靠它区分，太矮就看不出渐变差异 */
+.sk-option i {
+  display: block;
+  flex: 0 0 auto;
+  height: 62px;
+  border: 1px solid var(--sk-edge-faint);
+  border-radius: 1px;
+}
+.sk-option span { font-family: var(--font-heading, var(--font)); font-size: 12.5px; font-weight: 600; }
+.sk-option small { font-size: 10.5px; line-height: 1.45; color: var(--sk-ink-faint); }
+
+/* ── 橡皮章标签 ── */
+.sk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 2px;
+  font-family: var(--font-heading, var(--font));
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sk-ink-faint);
+  border: 1.5px solid var(--sk-edge-soft);
+  border-radius: 1px;
+  rotate: -1.4deg;
+}
+.sk-badge--ok {
+  color: color-mix(in srgb, var(--ok) 74%, var(--sk-ink));
+  border-color: color-mix(in srgb, var(--ok) 52%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+.sk-badge--update {
+  color: color-mix(in srgb, var(--sk-marker) 70%, var(--sk-ink));
+  border-color: color-mix(in srgb, var(--sk-marker) 56%, transparent);
+  background: color-mix(in srgb, var(--sk-marker) 12%, transparent);
+  rotate: 1.2deg;
+}
+.sk-badge--off { opacity: .72; }
+
+/* ── 分隔笔迹：手账里的点线，不用实线 ── */
+.sk-dots {
+  height: 2px;
+  background-image: radial-gradient(circle, var(--sk-edge-soft) 1px, transparent 1px);
+  background-size: 6px 2px;
+  background-repeat: repeat-x;
+}
+
+/* ── 动效档：低档取消所有位移，只留颜色 ── */
+@media (prefers-reduced-motion: reduce) {
+  :is(.sk-btn, .sk-chip, .sk-option, .sk-round, .sk-switch i::after, .sk-tabs button::after) { transition: none; }
+  :is(.sk-btn, .sk-chip, .sk-option):hover { translate: none; }
+  .sk-round:hover { rotate: none; }
+  .sk-round[aria-busy='true'] svg { animation: none; }
+}
+:root[data-anim='low'] :is(.sk-round[aria-busy='true'] svg) { animation: none; }

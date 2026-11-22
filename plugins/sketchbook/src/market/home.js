@@ -11,8 +11,8 @@ import { createController } from './controller.js'
 import { resolveBridge } from './bridge.js'
 import { createMarketView } from './SketchMarket.js'
 import { applyAppearance, observeDocumentVisibility, releaseFonts } from '../shared/applyAppearance.js'
-import { mountSketchDefs } from '../shared/sketchPrimitives.js'
-import { setAttribute } from '../shared/dom.js'
+import { mountSketchDefs } from '../../lib/sketchPrimitives.js'
+import { setAttribute } from '../../lib/dom.js'
 
 const container = document.getElementById('home-root')
 if (!container) throw new Error('#home-root is missing')

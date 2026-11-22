@@ -5,7 +5,7 @@
  * snapshot.tokens / fonts / components / layout 写成 CSS 变量。这里只实现公开契约
  * （见 docs/site/plugin/themes.md 的 appearanceStyleProperties），不读宿主私有设置。
  */
-import { setAttribute, setStyle } from './dom.js'
+import { setAttribute, setStyle } from '../../lib/dom.js'
 
 const TOKEN_KEYS = [
   '--bg', '--surface', '--surface-2', '--surface-3', '--text', '--text-2', '--text-3',
@@ -15,51 +15,54 @@ const TOKEN_KEYS = [
 /** 与 manifest 的声明色板一致；沿用旧 id，避免重装后丢失已存的色板选择。 */
 export const SKETCH_PALETTES = [
   {
-    id: 'markerStrokes', name: '纸灰',
-    stops: ['color-mix(in srgb, var(--bg) 74%, #88928b)', 'color-mix(in srgb, var(--surface-2) 88%, #87938e)'],
-    css: 'radial-gradient(ellipse 78% 86% at 12% 26%, color-mix(in srgb, var(--bg) 74%, #88928b), transparent 78%), linear-gradient(152deg, var(--bg), color-mix(in srgb, var(--surface-2) 88%, #87938e))',
-    wash: ['#87958d', '#939e9a'],
+    id: 'warmSand', name: '暖沙日光',
+    stops: ['linear-gradient(135deg, #fffefb, #eee7db)', 'color-mix(in srgb, var(--accent) 34%, transparent)'],
+    css: 'radial-gradient(ellipse 54% 46% at 6% 8%, rgba(251,146,60,.30), transparent 66%), radial-gradient(ellipse 44% 40% at 94% 6%, rgba(253,224,71,.34), transparent 68%), radial-gradient(ellipse 64% 50% at 68% 99%, rgba(168,162,158,.34), transparent 74%), linear-gradient(152deg, #fffefb 0%, #f8f4ec 42%, #eee7db 100%)',
+    wash: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
   },
   {
-    id: 'sketchPaper', name: '灰蓝',
-    stops: ['color-mix(in srgb, var(--bg) 76%, #7c919c)', 'color-mix(in srgb, var(--surface-2) 84%, #7d909a)'],
-    css: 'radial-gradient(ellipse 78% 86% at 12% 26%, color-mix(in srgb, var(--bg) 76%, #7c919c), transparent 78%), linear-gradient(152deg, var(--bg), color-mix(in srgb, var(--surface-2) 84%, #7d909a))',
-    wash: ['#7c919c', '#8d9d9f'],
+    id: 'morningMist', name: '晨雾中性',
+    stops: ['linear-gradient(135deg, #fdfdfc, #e3e1dc)', 'color-mix(in srgb, var(--accent) 34%, transparent)'],
+    css: 'radial-gradient(ellipse 54% 44% at 14% 10%, rgba(168,162,158,.24), transparent 70%), radial-gradient(ellipse 48% 42% at 88% 86%, rgba(198,194,189,.40), transparent 72%), radial-gradient(ellipse 42% 36% at 52% 44%, rgba(255,255,255,.9), transparent 66%), linear-gradient(160deg, #fdfdfc 0%, #f1f0ed 50%, #e3e1dc 100%)',
+    wash: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
   },
   {
-    id: 'chalkBoard', name: '鼠尾草',
-    stops: ['color-mix(in srgb, var(--bg) 76%, #849789)', 'color-mix(in srgb, var(--surface-2) 84%, #7e9487)'],
-    css: 'radial-gradient(ellipse 78% 86% at 12% 26%, color-mix(in srgb, var(--bg) 76%, #849789), transparent 78%), linear-gradient(152deg, var(--bg), color-mix(in srgb, var(--surface-2) 84%, #7e9487))',
-    wash: ['#849789', '#96a397'],
+    id: 'terracotta', name: '陶土纸感',
+    stops: ['linear-gradient(135deg, #fffaf4, #eddbc4)', 'color-mix(in srgb, var(--accent) 34%, transparent)'],
+    css: 'radial-gradient(ellipse 48% 44% at 8% 20%, rgba(234,88,12,.24), transparent 68%), radial-gradient(ellipse 50% 42% at 92% 12%, rgba(251,146,60,.28), transparent 70%), radial-gradient(ellipse 56% 44% at 60% 94%, rgba(253,230,138,.36), transparent 72%), linear-gradient(155deg, #fffaf4 0%, #f7ebda 46%, #eddbc4 100%)',
+    wash: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
+  },
+  {
+    id: 'coolMist', name: '冷雾青灰',
+    stops: ['linear-gradient(135deg, #fcfdfe, #dbe3ea)', 'color-mix(in srgb, var(--accent) 34%, transparent)'],
+    css: 'radial-gradient(ellipse 50% 44% at 10% 12%, rgba(125,211,252,.30), transparent 70%), radial-gradient(ellipse 48% 42% at 90% 16%, rgba(94,234,212,.24), transparent 70%), radial-gradient(ellipse 58% 46% at 64% 94%, rgba(148,163,184,.36), transparent 74%), linear-gradient(158deg, #fcfdfe 0%, #ecf0f4 50%, #dbe3ea 100%)',
+    wash: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
   },
 ]
 
-/** 宿主额外光效默认关闭；不透明原生页面自己绘制轻量纸面漂移。 */
+/** 宿主额外光效默认关闭；不透明原生页面自己绘制桌面织物纹与漂移。 */
 export const SKETCH_BACKGROUND = {
-  media: null, kind: 'gradient', palette: 'markerStrokes', color: '#e2e5e2',
-  opacity: 0.76, fit: 'cover', effect: 'none', texture: 'paper',
-  intensity: 0.46, speed: 0.65, direction: 24, warmth: 0.2, grain: 0.12, scale: 1, wash: 0.16,
+  media: null, kind: 'gradient', palette: 'warmSand', color: '#f8f4ec',
+  opacity: 0.9, fit: 'cover', effect: 'none', texture: 'paper',
+  intensity: 0.42, speed: 0.6, direction: 24, warmth: 0.2, grain: 0.14, scale: 1, wash: 0.18,
 }
 
 const bounded = (value, fallback, min = 0, max = 1) => Number.isFinite(value)
   ? Math.min(max, Math.max(min, value)) : fallback
 
-/** 只消费宿主已验证的颜色绘制，不把媒体 URL 或任意 CSS 当作纸面。 */
+/** 只消费宿主已验证的颜色绘制，不把媒体 URL 或任意 CSS 当作桌面。 */
 function backgroundProperties(background = {}) {
   const palette = SKETCH_PALETTES.find(item => item.id === background.palette) ?? SKETCH_PALETTES[0]
   const paint = background.media?.type === 'color' ? background.media.value : background.kind === 'color' ? background.color : null
   const safePaint = typeof paint === 'string' && paint.length <= 1024
     && !/[;{}<>\\\\]|url\s*\(/i.test(paint) && CSS.supports('background', paint)
-  const paperPaint = background.kind === 'none' ? 'none' : safePaint ? paint : palette.css
   return {
-    '--sk-paper-paint': paperPaint,
-    '--sk-paper-opacity': String(bounded(background.opacity ?? background.media?.opacity, 0.76)),
-    '--sk-wash-a': `color-mix(in srgb, var(--bg) 48%, ${palette.wash[0]})`,
-    '--sk-wash-b': `color-mix(in srgb, var(--bg) 54%, ${palette.wash[1]})`,
-    '--sk-drift-strength': String(0.3 + bounded(background.intensity, 0.46) * 0.5),
-    '--sk-stripe-strength': String(0.16 + bounded(background.intensity, 0.46) * 0.18),
-    '--sk-grain': background.texture === 'none' ? '0' : String(bounded(background.grain, 0.12)),
-    '--sk-drift-duration': `${(18 / bounded(background.speed, 0.65, 0.25, 2)).toFixed(2)}s`,
+    // 桌面色洗：色板自带的一层不规则铺色，叠在 --bg 之上
+    '--sk-desk-paint': background.kind === 'none' ? 'none' : safePaint ? paint : palette.css,
+    '--sk-desk-opacity': String(bounded(background.opacity ?? background.media?.opacity, 0.9)),
+    '--sk-desk-tooth': String(0.3 + bounded(background.grain, 0.14) * 1.6),
+    '--sk-wash-strength': String(bounded(background.intensity, 0.42) * 0.34),
+    '--sk-wash-duration': `${(20 / bounded(background.speed, 0.6, 0.25, 2)).toFixed(2)}s`,
   }
 }
 
