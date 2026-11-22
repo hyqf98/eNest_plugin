@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>表情包 · 浏览器预览</title>
+    <script type="module" src="./tests/preview-fixture.js"></script>
+    <script type="module" src="./src/entry.js"></script>
+    <style>
+      /* 预览窗口的兜底 token（宿主 applyAppearance 会覆盖真实值） */
+      :root { --bg: #f7f6f3; --surface: #fff; --text: #2b2a27; --border: rgba(0,0,0,.1); --accent: #d97b4c; }
+      :root[data-theme='dark'] { --bg: #17181c; --surface: #202227; --text: #e8e6e1; --border: rgba(255,255,255,.09); --accent: #e9865a; }
+      html, body { margin: 0; height: 100%; }
+      body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

@@ -40,7 +40,7 @@
 
 ## 🗂 插件目录
 
-已发布 37 个插件包 + 4 个数据库平台包；仓库现有 43 个插件源码目录。绿色 ✅ = 已随 v0.0.1 发布；未标注的为仓库新增、尚未随 Release 分发。
+已发布 37 个插件包 + 4 个数据库平台包；仓库现有 44 个插件源码目录。绿色 ✅ = 已随 v0.0.1 发布；未标注的为仓库新增、尚未随 Release 分发。
 
 ### ⚡ 效率（13）
 
@@ -92,25 +92,25 @@
 | [<img src="plugins/image-gen/public/assets/market/icon.svg" width="20" alt=""> **AI 生图**](plugins/image-gen) | 对话式生图：Images / Chat / Responses 三协议，会话流与预览库 |
 | [<img src="plugins/sketchbook/public/assets/market/icon.svg" width="20" alt=""> **素描本**](plugins/sketchbook) ✅ | 纸品手绘主题：桌面、索引卡、便签与牛皮纸，手抖描边与胶带拼贴 |
 
-### 🎬 媒体（6）
+### 🎬 媒体（5）
 
 | 插件 | 简介 |
 | --- | --- |
 | [<img src="plugins/comic-house/public/assets/market/icon.svg" width="20" alt=""> **漫画屋**](plugins/comic-house) | 聚合漫画阅读：多源管理、跨源搜索、沉浸式竖向阅读与整部缓存 |
-| [<img src="plugins/image-tools/public/assets/market/icon.svg" width="20" alt=""> **图片工具箱**](plugins/image-tools) ✅ | 压缩、格式转换、缩放裁剪、水印、EXIF、色板提取 |
 | [<img src="plugins/novel-house/public/assets/market/icon.svg" width="20" alt=""> **小说屋**](plugins/novel-house) | Legado 书源聚合阅读：多源搜索、舒适排版阅读器、整本缓存 |
-| [<img src="plugins/screen-assistant/public/assets/market/icon.svg" width="20" alt=""> **屏幕助手**](plugins/screen-assistant) ✅ | 截图标注、区域录屏、贴图管理与粘性工具头 |
+| [<img src="plugins/screen-assistant/public/assets/market/icon.svg" width="20" alt=""> **屏幕助手**](plugins/screen-assistant) ✅ | 截图、长截图、区域/全屏录屏、统一媒体库、GIF、贴图与图片工具 |
 | [<img src="plugins/tvbox/public/assets/market/icon.svg" width="20" alt=""> **影视仓**](plugins/tvbox) | TVBox 配置源导入：多仓线路、聚合搜索、hls.js 选集播放 |
 | [<img src="plugins/wallpaper-house/public/assets/market/icon.svg" width="20" alt=""> **壁纸屋**](plugins/wallpaper-house) | 15 源壁纸聚合、本地库与轮换，静态/动态壁纸跨三平台，自研引擎与视频性能设置 |
 
-### 🧩 其它（2）
+### 🧩 其它（3）
 
 | 插件 | 简介 |
 | --- | --- |
 | [<img src="plugins/batch-rename/public/assets/market/icon.svg" width="20" alt=""> **批量重命名**](plugins/batch-rename) ✅ | 查找替换/序号/日期规则链实时预览，冲突检测与撤销 |
 | [<img src="plugins/lan-share/public/assets/market/icon.svg" width="20" alt=""> **局域网传件**](plugins/lan-share) ✅ | 同一 Wi-Fi 取件码 + 二维码向手机传文件，限时自动关闭 |
+| [<img src="plugins/memes/public/assets/market/icon.svg" width="20" alt=""> **表情包**](plugins/memes) | ChineseBQB + 发表情双数据源：分类浏览、关键词搜索、点击即复制（动图保动画）、收藏与本地导入 |
 
-> 未标注 ✅ 的插件（甘特图、AI 生图、漫画屋、小说屋、影视仓、壁纸屋）已在仓库可用，将随下个 Release 分发。
+> 未标注 ✅ 的插件（甘特图、AI 生图、漫画屋、小说屋、影视仓、壁纸屋、表情包）已在仓库可用，将随下个 Release 分发。
 
 ## 🚀 快速开始
 

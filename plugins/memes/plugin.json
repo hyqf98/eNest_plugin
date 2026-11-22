@@ -1,0 +1,31 @@
+{
+  "id": "com.github.eNest.memes",
+  "name": "表情包",
+  "version": "0.1.0",
+  "description": "内置 ChineseBQB 与发表情多数据源：分类浏览、关键词搜索、点击即复制（动图保动画）、收藏与本地图片导入。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "layouts": ["shell"],
+    "default": "shell"
+  },
+  "category": "其它",
+  "icon": "assets/market/icon.svg",
+  "engines": { "enest": ">=0.0.1" },
+  "permissions": ["net.fetch", "clipboard.writeImage"],
+  "window": { "width": 1080, "height": 720, "minWidth": 480, "minHeight": 320 },
+  "features": [
+    {
+      "code": "main",
+      "explain": "表情包：多数据源浏览搜索，一键复制与收藏",
+      "cmds": ["表情包", "斗图", "memes", "bqb", "表情"]
+    }
+  ],
+  "ui": { "chrome": "none", "themeAware": true, "background": "opaque", "preferredColorScheme": "auto" },
+  "market": {
+    "tags": ["表情包", "斗图", "ChineseBQB", "搜索", "剪贴板"],
+    "readme": "assets/market/README.md",
+    "screenshots": ["assets/market/screenshots/01-browse-light.png", "assets/market/screenshots/02-browse-dark.png"]
+  },
+  "development": { "main": "http://127.0.0.1:5225/" }
+}
