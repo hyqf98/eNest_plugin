@@ -98,11 +98,11 @@ export async function runGeneration(ctx) {
   let result
   if (attachments.length) {
     result = await protocol.edit(provider, {
-      prompt: finalPrompt, images: toProtocolImages(attachments), size, quality, onProgress
+      prompt: finalPrompt, images: toProtocolImages(attachments), size, quality, onProgress, signal
     })
   } else {
     result = await protocol.generate(provider, {
-      prompt: finalPrompt, size, quality, n, onProgress
+      prompt: finalPrompt, size, quality, n, onProgress, signal
     })
   }
   if (signal?.aborted) throw new DOMException('已取消', 'AbortError')

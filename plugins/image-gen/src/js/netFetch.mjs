@@ -95,23 +95,35 @@ export async function requestJson({ url, method = 'GET', headers = {}, body, sec
  * 先订阅 net.chunk 再发起请求；早到分片暂存，宿主对每块独立 base64 编码。
  * 返回 { status, json }（响应体解码为 UTF-8 文本后按 JSON 解析）。
  * timeoutMs 缺省贴着宿主 net.fetch 的 120s 上限留 2s 余量，避免被静默截断。
+ * signal：外部取消时立刻停止等待并抛 AbortError；宿主侧请求随连接丢弃。
  */
-export async function requestJsonStreamed({ url, method = 'POST', headers = {}, body, bodyBase64, secretRef, timeoutMs = 118000, onProgress }) {
+export async function requestJsonStreamed({ url, method = 'POST', headers = {}, body, bodyBase64, secretRef, timeoutMs = 118000, onProgress, signal }) {
+  if (signal?.aborted) throw new DOMException('已取消', 'AbortError')
   return schedule(() => new Promise((resolve, reject) => {
     const enest = api()
     const parts = []
     let settled = false
     let requestInfo = null
-    const off = enest.net.onChunk(({ reqId, chunk, done, error }) => {
-      if (reqId !== requestInfo?.reqId) return
+    /* 宿主先 void consumeFetchStream 再 return 元信息，小响应/本地网关可能让
+       net.chunk 早于 then 里拿到 reqId。reqId 未知时先暂存，拿到后重放。 */
+    const early = []
+    const onEvent = event => {
+      // reqId 未定时无法归属，先暂存，等 net.fetch 返回后重放
+      if (!requestInfo) { early.push(event); return }
+      if (event.reqId !== requestInfo.reqId) return
+      const { chunk, done, error } = event
       if (error) { finish(() => reject(new Error(`请求失败：${error}`))); return }
       if (chunk) {
         parts.push(chunk)
         if (onProgress) onProgress(chunk.length * 0.75)
       }
       if (done) finish(() => resolve(decode()))
-    })
+    }
+    const off = enest.net.onChunk(onEvent)
     const timer = setTimeout(() => finish(() => reject(new Error('请求超时'))), timeoutMs)
+    /* 取消：不等待宿主回调，直接结算，界面立刻回到可操作状态 */
+    const onAbort = () => finish(() => reject(new DOMException('已取消', 'AbortError')))
+    signal?.addEventListener('abort', onAbort, { once: true })
     function decode() {
       const bytes = decodeBase64Chunks(parts)
       const text = new TextDecoder().decode(bytes)
@@ -129,8 +141,16 @@ export async function requestJsonStreamed({ url, method = 'POST', headers = {}, 
       if (settled) return
       settled = true
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
       off?.()
-      settle()
+      // settle 里可能抛（decode 遇到非 2xx / 非 JSON）。这里必须转成 reject：
+      // 直接抛会从 onChunk 事件回调同步冒出，promise 既不 resolve 也不 reject，
+      // 界面就永远停在"正在生成"（点停止也没反应）。
+      try {
+        settle()
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
     }
     enest.net.fetch({
       url, method, headers,
@@ -140,30 +160,46 @@ export async function requestJsonStreamed({ url, method = 'POST', headers = {}, 
       stream: true, timeoutMs
     }).then(res => {
       requestInfo = res
+      // 重放早到的分片（同 reqId 的才处理）
+      const pending = early.splice(0, early.length)
+      for (const event of pending) {
+        if (event.reqId !== res.reqId) continue
+        onEvent(event)
+        if (settled) break
+      }
     }).catch(err => finish(() => reject(err instanceof Error ? err : new Error(String(err)))))
   }))
 }
 
 /** 流式下载二进制（远程图片 URL → Uint8Array） */
-export async function downloadBinary(url, { timeoutMs = 120000 } = {}) {
+export async function downloadBinary(url, { timeoutMs = 120000, signal } = {}) {
+  if (signal?.aborted) throw new DOMException('已取消', 'AbortError')
   return schedule(() => new Promise((resolve, reject) => {
     const enest = api()
     const parts = []
     let settled = false
     let requestInfo = null
-    const off = enest.net.onChunk(({ reqId, chunk, done, error }) => {
-      if (reqId !== requestInfo?.reqId) return
+    /* 同 requestJsonStreamed：reqId 未知时先暂存分片，拿到后重放 */
+    const early = []
+    const onEvent = event => {
+      if (!requestInfo) { early.push(event); return }
+      if (event.reqId !== requestInfo.reqId) return
+      const { chunk, done, error } = event
       if (error) { finish(() => reject(new Error(`下载失败：${error}`))); return }
       if (chunk) parts.push(chunk)
       if (done) finish(() => resolve(decodeBase64Chunks(parts)))
-    })
+    }
+    const off = enest.net.onChunk(onEvent)
     const timer = setTimeout(() => finish(() => reject(new Error('下载超时'))), timeoutMs)
+    const onAbort = () => finish(() => reject(new DOMException('已取消', 'AbortError')))
+    signal?.addEventListener('abort', onAbort, { once: true })
     function finish(settle) {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
       off?.()
-      settle()
+      try { settle() } catch (err) { reject(err instanceof Error ? err : new Error(String(err))) }
     }
     enest.net.fetch({ url, method: 'GET', stream: true, timeoutMs }).then(res => {
       if (res.status < 200 || res.status >= 300) {
@@ -171,6 +207,12 @@ export async function downloadBinary(url, { timeoutMs = 120000 } = {}) {
         return
       }
       requestInfo = res
+      const pending = early.splice(0, early.length)
+      for (const event of pending) {
+        if (event.reqId !== res.reqId) continue
+        onEvent(event)
+        if (settled) break
+      }
     }).catch(err => finish(() => reject(err instanceof Error ? err : new Error(String(err)))))
   }))
 }

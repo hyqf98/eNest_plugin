@@ -1,12 +1,23 @@
 /**
  * ChatView — 会话流视图：顶栏 + 消息列表 + Composer。
- * 用户消息靠右（复制/重新编辑）；AI 消息靠左无框（running shimmer / 图片网格 / 失败卡）。
+ * 用户消息靠右（复制/重新编辑）；AI 消息靠左（running 占位 / 图片网格 / 失败卡）。
  * 自动滚动：新内容贴底，上滚 >120px 暂停并显示「回到最新」。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Composer } from './Composer.jsx'
 import { usageLabel } from '../js/params.mjs'
 import { assetPreviewUrl } from '../js/assets.mjs'
+import {
+  AlertIcon, ChevronDownIcon, ChevronRightIcon, CopyIcon, DownloadIcon,
+  PencilIcon, RotateIcon, SparklesIcon, SquareIcon, TrashIcon
+} from '../ui/icons.jsx'
+
+/** 空态给出的起步提示：真实可用的短提示词，不是占位文案 */
+const STARTERS = [
+  { key: 'product', label: '商品图', text: '白底棚拍，柔和顶光，居中构图，浅灰渐变背景，高细节，4:5 竖构图' },
+  { key: 'scene', label: '场景图', text: '清晨的日式木质小屋厨房，窄窗透入斜射光，浅景深，安静氛围，写实摄影' },
+  { key: 'portrait', label: '人像', text: '侧脸半身人像，窗帘柔光，浅灰背景，35mm 镜头质感，自然肤色' }
+]
 
 function UserMessage({ message, onCopy, onRecall }) {
   const atts = Array.isArray(message.attachments) ? message.attachments : []
@@ -26,8 +37,12 @@ function UserMessage({ message, onCopy, onRecall }) {
       )}
       {message.prompt && <div className="ig-user-bubble">{message.prompt}</div>}
       <div className="ig-user-acts">
-        <button type="button" className="ig-act-btn" onClick={() => onCopy(message.prompt)}>复制</button>
-        <button type="button" className="ig-act-btn" onClick={() => onRecall(message)}>重新编辑</button>
+        <button type="button" className="ig-act-btn" onClick={() => onCopy(message.prompt)}>
+          <CopyIcon size={12} />复制
+        </button>
+        <button type="button" className="ig-act-btn" onClick={() => onRecall(message)}>
+          <PencilIcon size={12} />重新编辑
+        </button>
       </div>
     </div>
   )
@@ -56,11 +71,11 @@ function AssistantMessage({ message, onOpenImage, onImageAction, onRetry, onCont
         <div className="ig-running">
           <span className="ig-shimmer" aria-hidden="true" />
           <span className="ig-running-info">
-            正在生成…<br />
-            <span className="ig-running-kb">{kb > 0 ? `${kb} KB` : '等待响应'}</span>
+            <span className="ig-running-title">正在生成</span>
+            <span className="ig-running-sub" aria-live="polite">{kb > 0 ? `${kb} KB` : '等待响应'}</span>
           </span>
-          <button type="button" className="ig-stop-btn" aria-label="停止生成" title="停止生成" onClick={onStop}>
-            <span className="ig-stop-square" />
+          <button type="button" className="ig-stop-btn" onClick={onStop} title="停止生成">
+            <SquareIcon size={11} strokeWidth={2.4} />停止
           </button>
         </div>
       </div>
@@ -72,7 +87,9 @@ function AssistantMessage({ message, onOpenImage, onImageAction, onRetry, onCont
       <div className="ig-assistant-block">
         <div className="ig-cancelled">
           <span>已取消</span>
-          <button type="button" className="pk-btn pk-btn-sm" onClick={onRetry}>重试</button>
+          <button type="button" className="ig-act-btn" onClick={onRetry}>
+            <RotateIcon size={12} />重试
+          </button>
         </div>
       </div>
     </div>
@@ -83,11 +100,16 @@ function AssistantMessage({ message, onOpenImage, onImageAction, onRetry, onCont
       <div className="ig-assistant-block">
         <div className="ig-error-card" data-open={errorOpen ? '' : undefined}>
           <div className="ig-error-head">
+            <AlertIcon size={14} />
             <span>生成失败</span>
-            <button type="button" className="ig-error-toggle" onClick={() => setErrorOpen(v => !v)}>
-              {errorOpen ? '收起' : '展开'}
-            </button>
-            <button type="button" className="pk-btn pk-btn-sm" onClick={onRetry} style={{ marginLeft: 8 }}>重试</button>
+            <span className="ig-error-acts">
+              <button type="button" className="ig-error-toggle" aria-expanded={errorOpen} onClick={() => setErrorOpen(v => !v)}>
+                {errorOpen ? '收起' : '详情'}
+              </button>
+              <button type="button" className="ig-act-btn" onClick={onRetry}>
+                <RotateIcon size={12} />重试
+              </button>
+            </span>
           </div>
           <div className="ig-error-detail">{message.error}</div>
         </div>
@@ -98,6 +120,12 @@ function AssistantMessage({ message, onOpenImage, onImageAction, onRetry, onCont
   const images = Array.isArray(message.images) ? message.images : []
   const meta = message.meta ?? {}
   const usage = usageLabel(meta.usage)
+  const metaBits = [
+    meta.size && meta.size !== 'auto' ? meta.size : '',
+    Number.isFinite(meta.ms) ? `${(meta.ms / 1000).toFixed(1)}s` : '',
+    usage
+  ].filter(Boolean)
+
   return <div className="ig-msg ig-msg-assistant">
     <div className="ig-assistant-block">
       {images.length > 0 && (
@@ -109,23 +137,33 @@ function AssistantMessage({ message, onOpenImage, onImageAction, onRetry, onCont
         </div>
       )}
       <div className="ig-meta-row">
-        <span className="ig-meta-model">{meta.model}</span>
-        {meta.size && meta.size !== 'auto' && <span>{meta.size}</span>}
-        <span>{((meta.ms ?? 0) / 1000).toFixed(1)}s</span>
-        {usage && <span>{usage}</span>}
+        {meta.model && <span className="ig-meta-model">{meta.model}</span>}
+        {metaBits.map((bit, i) => (
+          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+            <span className="ig-meta-sep" aria-hidden="true" />{bit}
+          </span>
+        ))}
         {message.revised && (
           <button type="button" className="ig-revised-toggle" aria-expanded={revisedOpen}
-            onClick={() => setRevisedOpen(v => !v)}>优化后提示词 ▸</button>
+            onClick={() => setRevisedOpen(v => !v)}>
+            <ChevronRightIcon size={11} />优化后提示词
+          </button>
         )}
       </div>
       {revisedOpen && message.revised && <div className="ig-revised-body">{message.revised}</div>}
       <div className="ig-result-acts">
-        <button type="button" className="pk-btn pk-btn-sm" onClick={onRetry}>重新生成</button>
+        <button type="button" className="ig-act-btn" onClick={onRetry}>
+          <RotateIcon size={12} />重新生成
+        </button>
         {images.length > 0 && (
-          <button type="button" className="pk-btn pk-btn-sm" onClick={() => onContinue(images[0])}>以此图继续</button>
+          <button type="button" className="ig-act-btn" onClick={() => onContinue(images[0])}>
+            <PencilIcon size={12} />以此图继续
+          </button>
         )}
         {images.length > 1 && (
-          <button type="button" className="pk-btn pk-btn-sm" onClick={onDownloadAll}>全部下载</button>
+          <button type="button" className="ig-act-btn" onClick={onDownloadAll}>
+            <DownloadIcon size={12} />全部下载
+          </button>
         )}
       </div>
     </div>
@@ -135,30 +173,62 @@ function AssistantMessage({ message, onOpenImage, onImageAction, onRetry, onCont
 /** 图片格 + hover 渐变操作条（以此图继续/下载/删除） */
 function ImageCellWrap({ assetId, index, count, onOpen, onImageAction }) {
   const [url, setUrl] = useState(null)
+  const [failed, setFailed] = useState(false)
   useEffect(() => {
     let alive = true
-    assetPreviewUrl(assetId).then(u => { if (alive) setUrl(u) }).catch(() => {})
+    assetPreviewUrl(assetId).then(u => { if (alive) setUrl(u) }).catch(() => { if (alive) setFailed(true) })
     return () => { alive = false }
   }, [assetId])
-  // 1 图时 hover 放大智能贴边：靠左半屏贴左、靠右半屏贴右
-  const onEnter = (event) => {
-    const cell = event.currentTarget
-    if (count !== 1) return
-    const rect = cell.getBoundingClientRect()
-    const mid = window.innerWidth / 2
-    cell.dataset.origin = rect.left + rect.width / 2 < mid ? 'left' : 'right'
-  }
-  return <div className="ig-cell ig-cell-zoomable" onMouseEnter={onEnter} onClick={() => url && onOpen(assetId, url)}>
-    {url ? <img src={url} alt="生成图" draggable={false} /> : <span className="ig-lib-skel" />}
-    {url && <span className="ig-cell-bar" onClick={e => e.stopPropagation()}>
-      <button type="button" className="ig-cell-act" title="以此图继续" aria-label="以此图继续"
-        onClick={() => onImageAction('continue', assetId, url)}>✎</button>
-      <button type="button" className="ig-cell-act" title="下载" aria-label="下载"
-        onClick={() => onImageAction('download', assetId, url)}>⤓</button>
-      <button type="button" className="ig-cell-act" title="删除" aria-label="删除"
-        onClick={() => onImageAction('delete', assetId, url)}>✕</button>
-    </span>}
+
+  return <div className="ig-cell" data-count={count} onClick={() => url && onOpen(assetId, url)}>
+    {url
+      ? <img src={url} alt="生成图" draggable={false} onError={() => setFailed(true)} />
+      : failed
+        ? <span className="ig-cell-failed">图片无法读取</span>
+        : <span className="ig-lib-skel" aria-hidden="true" />}
+    {url && (
+      <span className="ig-cell-bar" onClick={e => e.stopPropagation()}>
+        <button type="button" className="ig-cell-act" title="以此图继续" aria-label="以此图继续"
+          onClick={() => onImageAction('continue', assetId, url)}><PencilIcon size={14} /></button>
+        <button type="button" className="ig-cell-act" title="下载" aria-label="下载"
+          onClick={() => onImageAction('download', assetId, url)}><DownloadIcon size={14} /></button>
+        <button type="button" className="ig-cell-act" data-danger title="删除" aria-label="删除"
+          onClick={() => onImageAction('delete', assetId, url)}><TrashIcon size={14} /></button>
+      </span>
+    )}
   </div>
+}
+
+/** 空态：给出三个真实可用的起点，点一下直接进输入框 */
+function Welcome({ onUsePrompt, onOpenSettings, hasProvider }) {
+  return (
+    <div className="ig-welcome">
+      <span className="ig-welcome-mark" aria-hidden="true"><SparklesIcon size={22} /></span>
+      <h1 className="ig-welcome-title">描述画面，生成图片</h1>
+      <p className="ig-welcome-desc">
+        写清构图、光线和质感效果最好。<br className="ig-welcome-br" />
+        参考图可直接拖进窗口，或用 ⌘V 粘贴剪贴板里的图做图生图。
+      </p>
+      {hasProvider ? (
+        <div className="ig-welcome-list">
+          <span className="ig-welcome-list-title">试一条现成的</span>
+          {STARTERS.map(item => (
+            <button key={item.key} type="button" className="ig-welcome-item" onClick={() => onUsePrompt?.(item.text)}>
+              <span className="ig-welcome-item-label">{item.label}</span>
+              <span className="ig-welcome-item-text">{item.text}</span>
+              <ChevronRightIcon size={14} className="ig-welcome-item-arrow" />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <button type="button" className="ig-welcome-item" onClick={onOpenSettings}>
+          <span className="ig-welcome-item-label" data-tone="warn"><AlertIcon size={12} />尚未配置渠道</span>
+          <span className="ig-welcome-item-text">添加接口地址、模型和密钥后即可开始生成。</span>
+          <ChevronRightIcon size={14} className="ig-welcome-item-arrow" />
+        </button>
+      )}
+    </div>
+  )
 }
 
 export function ChatView({
@@ -198,29 +268,29 @@ export function ChatView({
   return (
     <div className="ig-stage">
       {topbar}
-      <div className="ig-stream" ref={streamRef} onScroll={onScroll}>
-        <div className="ig-stream-inner">
-          {messages.length === 0 && (
-            <div className="ig-lib-empty">
-              <span>描述画面，Enter 发送</span>
-            </div>
-          )}
-          {messages.map((m, i) => m.role === 'user'
-            ? <UserMessage key={m.id} message={m} onCopy={onCopyPrompt} onRecall={msg => composerProps.onRecall?.(msg)} />
-            : <AssistantMessage key={m.id} message={m}
-              onOpenImage={onOpenImage}
-              onImageAction={onImageAction}
-              onRetry={() => onRetry(i)}
-              onContinue={onContinue}
-              onDownloadAll={() => onDownloadAll(m)}
-              onStop={() => composerProps.onStop?.()} />)}
+      <div className="ig-stream-wrap">
+        <div className="ig-stream" ref={streamRef} onScroll={onScroll}>
+          <div className="ig-stream-inner">
+            {messages.length === 0
+              ? <Welcome onUsePrompt={composerProps.onUsePrompt} onOpenSettings={composerProps.onOpenSettings}
+                  hasProvider={composerProps.hasProvider} />
+              : messages.map((m, i) => m.role === 'user'
+                ? <UserMessage key={m.id} message={m} onCopy={onCopyPrompt} onRecall={msg => composerProps.onRecall?.(msg)} />
+                : <AssistantMessage key={m.id} message={m}
+                  onOpenImage={onOpenImage}
+                  onImageAction={onImageAction}
+                  onRetry={() => onRetry(i)}
+                  onContinue={onContinue}
+                  onDownloadAll={() => onDownloadAll(m)}
+                  onStop={() => composerProps.onStop?.()} />)}
+          </div>
         </div>
+        {showJump && (
+          <button type="button" className="ig-jump-latest" onClick={() => { stickRef.current = true; scrollToBottom() }}>
+            <ChevronDownIcon size={13} />回到最新
+          </button>
+        )}
       </div>
-      {showJump && (
-        <button type="button" className="ig-jump-latest" onClick={() => { stickRef.current = true; scrollToBottom() }}>
-          ↓ 回到最新
-        </button>
-      )}
       <Composer {...composerProps} />
     </div>
   )

@@ -1,8 +1,17 @@
 /**
  * LibraryView — 预览库：records.v1 时间倒序分组（粘性组头）+ 方格缩略墙。
  * blob LRU 懒加载 + 骨架 shimmer + IntersectionObserver 占位；多选 + 批量条；渠道/模型筛选。
+ *
+ * 筛选用 pk-ui 的 Radix Select：原先给原生 <select> 加 .pk-select-trigger 类，
+ * 但那套样式依赖 ::after 折线箭头与 pk-select-rich 结构，原生 select 上不成立。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, Select
+} from '../ui/index.jsx'
+import {
+  CheckIcon, DownloadIcon, ExpandIcon, GalleryIcon, MoreIcon, TrashIcon, XIcon
+} from '../ui/icons.jsx'
 import { assetPreviewUrl } from '../js/assets.mjs'
 
 function dayLabel(at) {
@@ -26,6 +35,7 @@ function LibCell({ record, selected, onToggle, onOpen, onAction, onCopy }) {
   const ref = useRef(null)
   const [visible, setVisible] = useState(false)
   const [url, setUrl] = useState(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     const el = ref.current
@@ -40,32 +50,58 @@ function LibCell({ record, selected, onToggle, onOpen, onAction, onCopy }) {
   useEffect(() => {
     if (!visible) return
     let alive = true
-    assetPreviewUrl(record.assetId).then(u => { if (alive) setUrl(u) }).catch(() => {})
+    assetPreviewUrl(record.assetId).then(u => { if (alive) setUrl(u) }).catch(() => { if (alive) setFailed(true) })
     return () => { alive = false }
   }, [visible, record.assetId])
 
+  const sub = [record.model, record.size !== 'auto' ? record.size : '', timeShort(record.at)].filter(Boolean).join('  ')
+
   return (
-    <figure className="ig-lib-cell" ref={ref}>
+    <figure className="ig-lib-cell" ref={ref} data-selected={selected ? '' : undefined}>
       {url
-        ? <img src={url} alt={record.prompt || '生成图'} draggable={false} onClick={() => onOpen(record, url)} />
-        : <span className="ig-lib-skel" aria-hidden="true" />}
+        ? <img src={url} alt={record.prompt || '生成图'} draggable={false}
+            onClick={() => onOpen(record, url)} onError={() => setFailed(true)} />
+        : failed
+          ? <span className="ig-cell-failed">图片无法读取</span>
+          : <span className="ig-lib-skel" aria-hidden="true" />}
+
       <button type="button" className="ig-lib-check" aria-label={selected ? '取消选择' : '选择'}
-        data-checked={selected ? 'true' : 'false'} onClick={onToggle}>{selected ? '✓' : ''}</button>
-      <span className="ig-lib-acts">
+        aria-pressed={selected} data-checked={selected ? 'true' : 'false'}
+        onClick={event => { event.stopPropagation(); onToggle() }}>
+        {selected && <CheckIcon size={12} strokeWidth={2.6} />}
+      </button>
+
+      {/* 格子最窄约 150px：5 个 28px 按钮会把最左边挤出 overflow 被裁，
+          所以只留 3 个常驻动作，复制提示词与删除收进菜单。 */}
+      <span className="ig-lib-acts" onClick={event => event.stopPropagation()}>
         <button type="button" className="ig-cell-act" title="放大" aria-label="放大"
-          onClick={() => url && onOpen(record, url)}>⤢</button>
+          onClick={() => url && onOpen(record, url)}><ExpandIcon size={13} /></button>
         <button type="button" className="ig-cell-act" title="下载" aria-label="下载"
-          onClick={() => onAction('download', record)}>⤓</button>
-        <button type="button" className="ig-cell-act" title="以此图继续" aria-label="以此图继续"
-          onClick={() => onAction('continue', record)}>✎</button>
-        <button type="button" className="ig-cell-act" title="复制提示词" aria-label="复制提示词"
-          onClick={() => onCopy(record)}>⧉</button>
-        <button type="button" className="ig-cell-act" title="删除" aria-label="删除"
-          onClick={() => onAction('delete', record)}>✕</button>
+          onClick={() => onAction('download', record)}><DownloadIcon size={13} /></button>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className="ig-cell-act" title="更多操作" aria-label="更多操作">
+              <MoreIcon size={13} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent aria-label="更多操作" side="bottom" align="end">
+            <DropdownMenuItem onSelect={() => onAction('continue', record)}>
+              <span className="pk-menu-check" aria-hidden="true" /><span className="pk-menu-label">以此图继续</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onCopy(record)}>
+              <span className="pk-menu-check" aria-hidden="true" /><span className="pk-menu-label">复制提示词</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem danger onSelect={() => onAction('delete', record)}>
+              <span className="pk-menu-check" aria-hidden="true" /><span className="pk-menu-label">删除</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </span>
+
       <figcaption className="ig-lib-veil">
         <span className="ig-lib-prompt" title={record.prompt}>{record.prompt || '（无提示词）'}</span>
-        <span className="ig-lib-sub">{[record.model, record.size !== 'auto' ? record.size : '', timeShort(record.at)].filter(Boolean).join(' · ')}</span>
+        <span className="ig-lib-sub">{sub}</span>
       </figcaption>
     </figure>
   )
@@ -78,7 +114,7 @@ export function LibraryView({ records, topbar, onOpen, onAction, onCopy, onBulkD
 
   const providerOptions = useMemo(() => {
     const names = [...new Set(records.map(r => r.providerName).filter(Boolean))]
-    return [{ value: 'all', label: `全部渠道${records.length ? ` (${records.length})` : ''}` },
+    return [{ value: 'all', label: `全部渠道 · ${records.length} 张` },
       ...names.map(n => ({ value: n, label: n }))]
   }, [records])
 
@@ -87,6 +123,9 @@ export function LibraryView({ records, topbar, onOpen, onAction, onCopy, onBulkD
     const names = [...new Set(source.map(r => r.model).filter(Boolean))]
     return [{ value: 'all', label: '全部模型' }, ...names.map(n => ({ value: n, label: n }))]
   }, [records, providerFilter])
+
+  /* 筛选变了之后，已选中的条目可能已不在列表里；直接清空避免"删了看不见的东西" */
+  useEffect(() => { setSelected(new Set()) }, [providerFilter, modelFilter])
 
   const filtered = useMemo(() => records.filter(r =>
     (providerFilter === 'all' || r.providerName === providerFilter)
@@ -113,21 +152,25 @@ export function LibraryView({ records, topbar, onOpen, onAction, onCopy, onBulkD
       {topbar}
       <div className="ig-library">
         <div className="ig-library-head">
-          <select className="pk-select-trigger" aria-label="按渠道筛选" value={providerFilter}
-            onChange={e => { setProviderFilter(e.target.value); setModelFilter('all') }}>
-            {providerOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <select className="pk-select-trigger" aria-label="按模型筛选" value={modelFilter}
-            onChange={e => setModelFilter(e.target.value)} disabled={modelOptions.length <= 1}>
-            {modelOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <Select value={providerFilter} options={providerOptions} onChange={v => { setProviderFilter(v); setModelFilter('all') }}
+            ariaLabel="按渠道筛选" minWidth={168} />
+          <Select value={modelFilter} options={modelOptions} onChange={setModelFilter}
+            ariaLabel="按模型筛选" minWidth={148} disabled={modelOptions.length <= 1} />
           <span className="ig-lib-count">{filtered.length} 张</span>
         </div>
         <div className="ig-lib-inner">
           {filtered.length === 0 ? (
-            <div className="ig-lib-empty">
-              <span>还没有生成记录</span>
-              <button type="button" className="pk-btn pk-btn-primary" onClick={onGoChat}>去发第一张</button>
+            <div className="ig-empty">
+              <span className="ig-empty-icon" aria-hidden="true"><GalleryIcon size={20} /></span>
+              <span className="ig-empty-title">{records.length ? '当前筛选没有图片' : '预览库还是空的'}</span>
+              <span className="ig-empty-desc">
+                {records.length
+                  ? '换一个渠道或模型筛选，或者回到会话继续生成。'
+                  : '每次生成都会自动留一份原图在这里，可以随时下载、续作或复制提示词。'}
+              </span>
+              {!records.length && (
+                <button type="button" className="pk-btn pk-btn-primary" onClick={onGoChat}>去生成第一张</button>
+              )}
             </div>
           ) : groups.map(([label, items]) => (
             <section key={label}>
@@ -147,10 +190,17 @@ export function LibraryView({ records, topbar, onOpen, onAction, onCopy, onBulkD
       </div>
       {selected.size > 0 && (
         <div className="ig-bulk-bar">
-          <span>已选 {selected.size}</span>
-          <button type="button" className="pk-btn pk-btn-sm" onClick={() => onBulkDownload([...selected])}>下载</button>
-          <button type="button" className="pk-btn pk-btn-sm pk-btn-danger" onClick={() => onBulkDelete([...selected])}>删除</button>
-          <button type="button" className="pk-btn pk-btn-sm pk-btn-ghost" onClick={() => setSelected(new Set())}>取消</button>
+          <span className="ig-bulk-count">已选 {selected.size} 张</span>
+          <button type="button" className="pk-btn pk-btn-sm" onClick={() => onBulkDownload([...selected])}>
+            <DownloadIcon size={13} />下载
+          </button>
+          <button type="button" className="pk-btn pk-btn-sm pk-btn-danger" onClick={() => onBulkDelete([...selected])}>
+            <TrashIcon size={13} />删除
+          </button>
+          <button type="button" className="ig-icon-btn" title="取消选择" aria-label="取消选择"
+            onClick={() => setSelected(new Set())}>
+            <XIcon size={14} />
+          </button>
         </div>
       )}
     </div>

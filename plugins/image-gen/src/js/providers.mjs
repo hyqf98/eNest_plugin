@@ -92,7 +92,7 @@ export function getDefaultProvider(list) {
  */
 
 /** 从 OpenAI Images 响应提取图片字节数组（b64_json 或 url 两种载体） */
-async function extractImages(json, onProgress) {
+async function extractImages(json, onProgress, signal) {
   const data = Array.isArray(json?.data) ? json.data : []
   const images = []
   for (const item of data) {
@@ -102,7 +102,7 @@ async function extractImages(json, onProgress) {
       for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
       images.push(bytes)
     } else if (item?.url) {
-      images.push(await downloadBinary(item.url))
+      images.push(await downloadBinary(item.url, { signal }))
     }
     if (onProgress) onProgress()
   }
@@ -151,7 +151,7 @@ export const imagesProtocol = {
   },
   listModels: listModelsViaModelsEndpoint,
   /** 文生图：POST /images/generations（流式收 b64） */
-  async generate(provider, { prompt, size, quality, n, onProgress }) {
+  async generate(provider, { prompt, size, quality, n, onProgress, signal }) {
     const payload = { model: provider.model, prompt }
     if (size && size !== 'auto') payload.size = size
     if (quality && quality !== 'auto') payload.quality = quality
@@ -162,16 +162,17 @@ export const imagesProtocol = {
       headers: { 'content-type': 'application/json' },
       body: payload,
       secretRef: provider.secretRef || undefined,
-      onProgress
+      onProgress,
+      signal
     })
-    const images = await extractImages(json, onProgress)
+    const images = await extractImages(json, onProgress, signal)
     return finishImages(images, {
       usage: json?.usage ?? null,
       revised: typeof json?.data?.[0]?.revised_prompt === 'string' ? json.data[0].revised_prompt : null
     })
   },
   /** 图生图/编辑：POST /images/edits（multipart，可多图 + 可选 mask） */
-  async edit(provider, { prompt, images, mask, size, quality, onProgress }) {
+  async edit(provider, { prompt, images, mask, size, quality, onProgress, signal }) {
     const files = images.map((img, i) => ({ name: 'image[]', filename: `input-${i}.${(img.mime.split('/')[1] || 'png')}`, mime: img.mime, bytes: img.bytes }))
     if (mask) files.push({ name: 'mask', filename: `mask.${(mask.mime.split('/')[1] || 'png')}`, mime: mask.mime, bytes: mask.bytes })
     const fields = { model: provider.model, prompt }
@@ -184,9 +185,10 @@ export const imagesProtocol = {
       headers: { 'content-type': contentType },
       bodyBase64: toBase64(bytes),
       secretRef: provider.secretRef || undefined,
-      onProgress
+      onProgress,
+      signal
     })
-    const result = await extractImages(json, onProgress)
+    const result = await extractImages(json, onProgress, signal)
     return finishImages(result, { usage: json?.usage ?? null })
   }
 }
@@ -231,7 +233,7 @@ export const chatProtocol = {
   },
   listModels: listModelsViaModelsEndpoint,
   /** 文生图：messages 只带文本，提示词后缀翻译尺寸 */
-  async generate(provider, { prompt, size, n, onProgress }) {
+  async generate(provider, { prompt, size, n, onProgress, signal }) {
     const payload = {
       model: provider.model,
       messages: [{ role: 'user', content: prompt }],
@@ -243,7 +245,8 @@ export const chatProtocol = {
       headers: { 'content-type': 'application/json' },
       body: payload,
       secretRef: provider.secretRef || undefined,
-      onProgress
+      onProgress,
+      signal
     })
     const message = json?.choices?.[0]?.message
     const images = await imagesFromChatContent(message?.content, onProgress)
@@ -254,7 +257,7 @@ export const chatProtocol = {
     })
   },
   /** 图生图：content 数组混排 text 与 image_url（dataUri） */
-  async edit(provider, { prompt, images, onProgress }) {
+  async edit(provider, { prompt, images, onProgress, signal }) {
     const content = [{ type: 'text', text: prompt }]
     for (const img of images) {
       content.push({ type: 'image_url', image_url: { url: img.dataUrl } })
@@ -270,7 +273,8 @@ export const chatProtocol = {
       headers: { 'content-type': 'application/json' },
       body: payload,
       secretRef: provider.secretRef || undefined,
-      onProgress
+      onProgress,
+      signal
     })
     const message = json?.choices?.[0]?.message
     const result = await imagesFromChatContent(message?.content, onProgress)
@@ -309,7 +313,7 @@ export const responsesProtocol = {
   },
   listModels: listModelsViaModelsEndpoint,
   /** 文生图：input 数组 + image_generation 工具 */
-  async generate(provider, { prompt, size, quality, n, onProgress }) {
+  async generate(provider, { prompt, size, quality, n, onProgress, signal }) {
     const tool = { type: 'image_generation' }
     if (size && size !== 'auto') tool.size = size
     if (quality && quality !== 'auto') tool.quality = quality
@@ -324,14 +328,15 @@ export const responsesProtocol = {
       headers: { 'content-type': 'application/json' },
       body: payload,
       secretRef: provider.secretRef || undefined,
-      onProgress
+      onProgress,
+      signal
     })
     const { bytesList, revised } = await parseResponsesOutput(json, onProgress)
     if (!bytesList.length) throw new Error('响应中没有 image_generation 结果')
     return finishImages(bytesList, { usage: json?.usage ?? null, revised })
   },
   /** 图生图：input 数组混排 input_text 与 input_image（dataUri 或 https） */
-  async edit(provider, { prompt, images, size, quality, onProgress }) {
+  async edit(provider, { prompt, images, size, quality, onProgress, signal }) {
     const tool = { type: 'image_generation' }
     if (size && size !== 'auto') tool.size = size
     if (quality && quality !== 'auto') tool.quality = quality
@@ -348,7 +353,8 @@ export const responsesProtocol = {
       headers: { 'content-type': 'application/json' },
       body: payload,
       secretRef: provider.secretRef || undefined,
-      onProgress
+      onProgress,
+      signal
     })
     const { bytesList } = await parseResponsesOutput(json, onProgress)
     if (!bytesList.length) throw new Error('响应中没有 image_generation 结果')

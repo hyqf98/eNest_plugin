@@ -9,15 +9,16 @@ import { ChatView } from './ChatView.jsx'
 import { LibraryView } from './LibraryView.jsx'
 import { Lightbox } from './Lightbox.jsx'
 import { SettingsDialog, loadTemplates, loadSaveDir } from './SettingsDialog.jsx'
+import {
+  ArrowUpRightIcon, GalleryIcon, MenuIcon, MessageIcon, SettingsIcon
+} from '../ui/icons.jsx'
 import { loadProviders, getDefaultProvider } from '../js/providers.mjs'
 import { runGeneration, loadSessionIndex, loadSession, persistSession, deleteSession } from '../js/agent.mjs'
 import { loadRecords, removeRecord, deleteAsset, getAsset, assetPreviewUrl } from '../js/assets.mjs'
 import { saveAssetToDirectory } from '../js/backendBridge.mjs'
 
-const GEAR_SVG = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-  <circle cx="12" cy="12" r="3.2" />
-  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-</svg>
+/** 协议类型 → 徽标文字：替代原先三种颜色的圆点，避免与强调色打架 */
+const KIND_TAG = { images: 'IMG', chat: 'CHAT', responses: 'RESP' }
 
 const uid = () => `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 
@@ -27,7 +28,23 @@ export function App() {
 
   const [ready, setReady] = useState(false)
   const [quickMode, setQuickMode] = useState(() => (api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode')) === 'quick')
-  const [railCollapsed, setRailCollapsed] = useState(false)
+  /* 窄窗（<760px）会话栏是抽屉，默认应收起，否则一进页面就压住一半正文 */
+  const [railCollapsed, setRailCollapsed] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia?.('(max-width: 760px)').matches
+  ))
+  /* 只有在抽屉形态（窄窗）下，选完会话才需要顺手收起；宽屏保持展开 */
+  const collapseRailIfDrawer = useCallback(() => {
+    if (window.matchMedia?.('(max-width: 760px)').matches) setRailCollapsed(true)
+  }, [])
+
+  /* 窗口跨过 760px 边界时同步抽屉状态：
+     变窄自动收起（否则一进去就压住正文），变宽自动展开（否则宽屏看不到会话栏）。 */
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 760px)')
+    const sync = () => setRailCollapsed(mq.matches)
+    mq.addEventListener?.('change', sync)
+    return () => mq.removeEventListener?.('change', sync)
+  }, [])
   const [view, setView] = useState('chat')
 
   const [sessions, setSessions] = useState([])
@@ -179,20 +196,19 @@ export function App() {
     })
   }, [])
 
-  const renameSession = useCallback(id => {
-    const current = sessions.find(s => s.id === id)
-    const name = window.prompt('重命名会话', current?.title ?? '')
-    if (name === null || !name.trim()) return
-    setSessions(prev => prev.map(s => (s.id === id ? { ...s, title: name.trim().slice(0, 40) } : s)))
+  const renameSession = useCallback((id, title) => {
+    const name = String(title ?? '').trim().slice(0, 40)
+    if (!name) return
+    setSessions(prev => prev.map(s => (s.id === id ? { ...s, title: name } : s)))
     void (async () => {
       // 重命名直接改索引标题（分键不动）
       try {
         const storage = (window.enest || window.zapi).storage
         const index = await loadSessionIndex()
-        await storage.set('image-gen.sessions.v1', index.map(s => (s.id === id ? { ...s, title: name.trim().slice(0, 40) } : s)))
+        await storage.set('image-gen.sessions.v1', index.map(s => (s.id === id ? { ...s, title: name } : s)))
       } catch { /* 下次写入会重新同步 */ }
     })()
-  }, [sessions])
+  }, [])
 
   /* —— 发送 / 停止 —— */
   const stopRun = useCallback(() => {
@@ -350,7 +366,7 @@ export function App() {
       if (!asset) { toast('图片不存在或已删除', 'error'); return }
       setAttachments([{ id: uid(), dataUrl: asset.dataUrl, name: '以此图继续' }])
       setView('chat')
-      document.querySelector('.ig-composer-input')?.focus()
+      document.querySelector('.ig-composer-textarea')?.focus()
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error')
     }
@@ -448,7 +464,7 @@ export function App() {
   const recallMessage = useCallback((message) => {
     setInput(message.prompt ?? '')
     setAttachments((message.attachments ?? []).map(a => ({ id: uid(), dataUrl: a.assetId, name: a.name })))
-    document.querySelector('.ig-composer-input')?.focus()
+    document.querySelector('.ig-composer-textarea')?.focus()
   }, [])
 
   const openSettingsAt = useCallback((section) => {
@@ -456,29 +472,50 @@ export function App() {
     setSettingsOpen(true)
   }, [])
 
-  /* —— 顶栏 —— */
+  /* —— 顶栏 ——
+     设置入口固定在顶栏右侧（原先左下角悬浮齿轮会压住会话栏，且 Quick 模式下被
+     display:none 掉，等于没有入口）。会话栏折叠按钮常显，不再只在折叠后才出现。 */
   const currentProvider = getDefaultProvider(providers) ?? providers[0] ?? null
   const topbar = (
     <header className="ig-topbar">
-      <button type="button" className="ig-icon-btn ig-topbar-menu-btn" title="会话列表" aria-label="会话列表"
-        onClick={() => setRailCollapsed(v => !v)}>☰</button>
-      <button type="button" className="ig-chip-select" title={currentProvider ? `${currentProvider.name}（${currentProvider.apiKind}）` : '未配置渠道'}
+      {!quickMode && (
+        <button type="button" className="ig-icon-btn" title={railCollapsed ? '展开会话列表' : '收起会话列表'}
+          aria-label={railCollapsed ? '展开会话列表' : '收起会话列表'} data-on={railCollapsed ? '' : undefined}
+          onClick={() => setRailCollapsed(v => !v)}>
+          <MenuIcon size={16} />
+        </button>
+      )}
+      <button type="button" className="ig-chip-select"
+        title={currentProvider ? `${currentProvider.name}（${currentProvider.apiKind}）· ${currentProvider.model}` : '未配置渠道，点此添加'}
         onClick={() => openSettingsAt('providers')} disabled={!providers.length}>
-        <span className="ig-kind-dot" data-kind={currentProvider?.apiKind} />
+        <span className="ig-kind-tag">{KIND_TAG[currentProvider?.apiKind] ?? 'N/A'}</span>
         <span className="ig-chip-label">{currentProvider?.name ?? '未配置渠道'}</span>
-        <span className="ig-caret">▾</span>
+        {currentProvider?.model && <span className="ig-chip-model">{currentProvider.model}</span>}
       </button>
-      <span className="ig-model-label" title={currentProvider?.model}>{currentProvider?.model ?? ''}</span>
       <span className="ig-topbar-spacer" />
-      {!quickMode && view === 'chat' && (
-        <button type="button" className="ig-icon-btn" title="预览库" aria-label="预览库" onClick={() => setView('library')}>▦</button>
-      )}
-      {view === 'library' && (
-        <button type="button" className="ig-icon-btn" title="回到会话" aria-label="回到会话" onClick={() => setView('chat')}>✉</button>
-      )}
-      {quickMode && (
-        <button type="button" className="ig-icon-btn ig-open-shell" title="在主窗口打开" aria-label="在主窗口打开"
-          onClick={() => api?.ui?.openInShell?.()}>↗</button>
+      {quickMode ? (
+        <button type="button" className="ig-icon-btn" title="在主窗口打开" aria-label="在主窗口打开"
+          onClick={() => api?.ui?.openInShell?.()}>
+          <ArrowUpRightIcon size={16} />
+        </button>
+      ) : (
+        <>
+          <span className="ig-view-switch" role="group" aria-label="视图">
+            <button type="button" className="ig-icon-btn" data-on={view === 'chat' ? '' : undefined}
+              title="会话" aria-label="会话" aria-pressed={view === 'chat'} onClick={() => setView('chat')}>
+              <MessageIcon size={16} />
+            </button>
+            <button type="button" className="ig-icon-btn" data-on={view === 'library' ? '' : undefined}
+              title="预览库" aria-label="预览库" aria-pressed={view === 'library'} onClick={() => setView('library')}>
+              <GalleryIcon size={16} />
+            </button>
+          </span>
+          <span className="ig-topbar-divider" aria-hidden="true" />
+          <button type="button" className="ig-icon-btn" title="设置" aria-label="打开设置"
+            onClick={() => setSettingsOpen(true)}>
+            <SettingsIcon size={16} />
+          </button>
+        </>
       )}
     </header>
   )
@@ -487,6 +524,13 @@ export function App() {
   const stateRef = useRef({})
   stateRef.current = { send }
 
+  /* 输入框 ↑ 回溯的历史：当前会话已发送的提示词（按时间正序，最多 40 条）。
+     从消息流推导而不是在 Composer 里攒：Composer 重挂载后本地缓存会丢。 */
+  const historyPrompts = useMemo(
+    () => messages.filter(m => m.role === 'user' && m.prompt).map(m => m.prompt).slice(-40),
+    [messages]
+  )
+
   const composerProps = {
     value: input, onChange: setInput, onSend: () => void send(), busy: running, onStop: stopRun,
     attachments, onAttachmentsChange: setAttachments,
@@ -494,18 +538,52 @@ export function App() {
     templates, onOpenTemplateSettings: () => openSettingsAt('templates'),
     onPickFiles: pickFiles, onImageClick: url => setLightbox({ items: [{ url, prompt: '' }], index: 0 }),
     onRecall: recallMessage,
-    toast, editMode: attachments.length > 0
+    toast, editMode: attachments.length > 0,
+    onOpenSettings: () => openSettingsAt('providers'),
+    hasProvider: providers.length > 0,
+    historyPrompts,
+    onUsePrompt: text => setInput(text)
   }
 
-  if (!ready || !prefs) return <div className="ig-app"><main className="ig-stage" style={{ alignItems: 'center', justifyContent: 'center', color: 'var(--ig-muted)' }}>正在准备…</main></div>
+  /* 首屏骨架：本地加载通常极快，给一个同形状的占位而不是一句"正在准备…" */
+  if (!ready || !prefs) {
+    return (
+      <div className="ig-app">
+        <div className="ig-stage">
+          <div className="ig-topbar"><span className="ig-skel" style={{ width: 168, height: 30 }} /></div>
+          <div className="ig-stream">
+            <div className="ig-stream-inner">
+              <span className="ig-skel" style={{ width: '62%', height: 15 }} />
+              <span className="ig-skel" style={{ width: '44%', height: 15 }} />
+            </div>
+          </div>
+          <div className="ig-composer">
+            <div className="ig-composer-inner">
+              <div className="ig-composer-card" style={{ height: 96 }}>
+                <span className="ig-skel" style={{ display: 'block', width: 'calc(100% - 28px)', height: 13, margin: '14px' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="ig-app" data-rail-collapsed={railCollapsed && !quickMode ? '' : undefined}>
       {!quickMode && (
-        <SessionRail
-          sessions={sessions} activeId={activeId}
-          onSelect={selectSession} onNew={newSession} onDelete={removeSession} onRename={renameSession}
-        />
+        <>
+          <SessionRail
+            sessions={sessions} activeId={activeId}
+            onSelect={id => { selectSession(id); collapseRailIfDrawer() }}
+            onNew={() => { newSession(); collapseRailIfDrawer() }}
+            onDelete={removeSession}
+            onRename={renameSession}
+          />
+          {/* 窄窗抽屉遮罩：点一下即收起（宽屏不显示） */}
+          <button type="button" className="ig-rail-scrim" aria-label="收起会话列表"
+            tabIndex={-1} onClick={() => setRailCollapsed(true)} />
+        </>
       )}
       {view === 'chat' || quickMode ? (
         <ChatView
@@ -540,12 +618,6 @@ export function App() {
           }}
           onGoChat={() => setView('chat')}
         />
-      )}
-
-      {!quickMode && (
-        <button type="button" className="ig-gear" title="设置" aria-label="打开设置" onClick={() => setSettingsOpen(true)}>
-          {GEAR_SVG}
-        </button>
       )}
 
       <SettingsDialog
