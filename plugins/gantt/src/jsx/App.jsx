@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   STORE_KEY, emptyState, validateState, makeTask, makePlan, summarize,
-  flattenTasks, planStats, todayStr, addDays, genId
+  flattenTasks, planStats, todayStr, addDays, genId, autoSchedule
 } from '../js/model.mjs'
 import { DEFAULT_WIDTHS } from '../js/timeScale.mjs'
 import { GanttChart } from './GanttChart.jsx'
@@ -52,11 +52,25 @@ export function App() {
     return () => { disposed = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ---------- 持久化 ---------- */
+  /* ---------- 持久化 + 撤销栈 ----------
+     所有变更都经 persist/mutatePlan 收口：变更前把旧快照压入 undo 栈，
+     ⌘Z 撤销 / ⇧⌘Z（Ctrl+Y）重做。快照是整个 state（含 activePlanId），
+     MCP handler 走同一路径所以同样可撤销。 */
+  const historyRef = useRef({ undo: [], redo: [] })
+
+  const pushHistory = useCallback((snapshot) => {
+    if (!snapshot) return
+    const h = historyRef.current
+    h.undo.push(snapshot)
+    if (h.undo.length > 60) h.undo.shift()
+    h.redo.length = 0
+  }, [])
+
   const persist = useCallback((next) => {
+    pushHistory(stateRef.current)
     setState(next)
     void kit.save(STORE_KEY, next)
-  }, [kit])
+  }, [kit, pushHistory])
 
   const mutatePlan = useCallback((planId, fn) => {
     setState(prev => {
@@ -64,6 +78,7 @@ export function App() {
       if (!plan) return prev
       const tasks = fn(plan.tasks)
       if (tasks === plan.tasks) return prev
+      pushHistory(prev)
       const next = {
         ...prev,
         plans: prev.plans.map(p => p.id === planId
@@ -73,6 +88,28 @@ export function App() {
       void kit.save(STORE_KEY, next)
       return next
     })
+  }, [kit, pushHistory])
+
+  const undo = useCallback(() => {
+    const h = historyRef.current
+    const prev = h.undo.pop()
+    if (!prev) { kit.toast('没有可撤销的操作', 'warn'); return false }
+    h.redo.push(stateRef.current)
+    setState(prev)
+    void kit.save(STORE_KEY, prev)
+    kit.toast('已撤销')
+    return true
+  }, [kit])
+
+  const redo = useCallback(() => {
+    const h = historyRef.current
+    const next = h.redo.pop()
+    if (!next) { kit.toast('没有可重做的操作', 'warn'); return false }
+    h.undo.push(stateRef.current)
+    setState(next)
+    void kit.save(STORE_KEY, next)
+    kit.toast('已重做')
+    return true
   }, [kit])
 
   /* ---------- mutation api（UI 与 MCP 共用） ---------- */
@@ -81,6 +118,8 @@ export function App() {
     return {
       toast: (msg, type) => kit.toast(msg, type),
       openMenu: (...args) => PluginKit.openMenu(...args),
+      undo,
+      redo,
       getState,
       getActivePlan: () => {
         const s = stateRef.current
@@ -134,7 +173,7 @@ export function App() {
         const task = makeTask(patch)
         const parentOk = !task.parentId || plan.tasks.some(t => t.id === task.parentId)
         if (!parentOk) throw new Error('父任务不存在')
-        mutatePlan(plan.id, tasks => [...tasks, task])
+        mutatePlan(plan.id, tasks => autoSchedule([...tasks, task]))
         return task
       },
       patchTask: (planId, taskId, patch) => {
@@ -143,12 +182,13 @@ export function App() {
         const target = plan.tasks.find(t => t.id === taskId)
         if (!target) throw new Error('任务不存在')
         const merged = { ...target, ...patch, id: taskId, updatedAt: new Date().toISOString() }
-        if (merged.milestone) { merged.end = merged.start }
+        if (merged.milestone) { merged.end = merged.start; merged.duration = null }
+        else if (merged.duration) { merged.end = addDays(merged.start, merged.duration - 1) }
         else if (merged.end < merged.start) { merged.end = merged.start }
         merged.progress = Math.max(0, Math.min(100, Math.round(merged.progress ?? 0)))
         merged.colorIndex = Math.max(0, Math.min(9, Math.round(merged.colorIndex ?? 0)))
         if (merged.parentId === taskId) merged.parentId = null
-        mutatePlan(plan.id, tasks => tasks.map(t => t.id === taskId ? merged : t))
+        mutatePlan(plan.id, tasks => autoSchedule(tasks.map(t => t.id === taskId ? merged : t)))
         return merged
       },
       deleteTask: (planId, taskId) => {
@@ -234,11 +274,26 @@ export function App() {
         return planStats(plan)
       }
     }
-  }, [kit, persist, mutatePlan])
+  }, [kit, persist, mutatePlan, undo, redo])
 
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state }, [state])
   useEffect(() => { mcpApiRef.current = api }, [api])
+
+  /* ---------- 撤销/重做快捷键：⌘Z / Ctrl+Z 撤销，⇧⌘Z / Ctrl+Y 重做 ---------- */
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod || e.altKey) return
+      const key = e.key.toLowerCase()
+      if (key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
+      else if ((key === 'z' && e.shiftKey) || key === 'y') { e.preventDefault(); redo() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   /* ---------- MCP 注册（数据 ready 后立即，不等页面可见） ---------- */
   useEffect(() => {
@@ -323,7 +378,7 @@ export function App() {
         {stats.status.overdue > 0 && <span className="gt-foot-warn">{stats.status.overdue} 已逾期</span>}
         {violations > 0 && <span className="gt-foot-warn">{violations} 依赖冲突</span>}
         <span style={{ flex: 1 }} />
-        <span>拖动条移动 · 拖两端改期 · 拖条尾圆点连线 · 右键更多操作</span>
+        <span>拖动条移动 · 拖两端改期 · 拖条尾圆点连线 · 右键更多 · ⌘Z 撤销</span>
       </footer>
 
       <TaskDialog

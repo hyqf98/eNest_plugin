@@ -21,7 +21,7 @@ const BAR_MIN_DAYS = 1
 const DRAG_DEAD_ZONE = 3
 const ROW_H = 40
 const HEAD_H = 56
-const MIN_LEFT_COL = 160
+const MIN_LEFT_COL = 140
 const MAX_LEFT_COL = 420
 const EDGE_SCROLL_ZONE = 56
 const EDGE_SCROLL_STEP = 14
@@ -45,7 +45,7 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
   const todayColKey = useMemo(() => todayKey(frame.todayIndex, granularity), [frame.todayIndex, granularity])
 
   /* ---------- 左列宽度（可拖拽） ---------- */
-  const [leftCol, setLeftCol] = useState(240)
+  const [leftCol, setLeftCol] = useState(200)
   const colDragRef = useRef(null)
   const [colDragging, setColDragging] = useState(false)
 
@@ -180,10 +180,10 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
     return () => ro.disconnect()
   }, [autoFit, frame.minIndex, frame.maxIndex, laneViewport, setDayWidth, plan.id, granularity])
 
-  /** 手动缩放（按钮/菜单）时关闭自动适应 */
+  /** 手动缩放（按钮/菜单）时关闭自动适应；下限 20px 防两位日期裁字 */
   const zoomBy = useCallback((delta) => {
     setAutoFit(false)
-    setDayWidth(w => Math.max(6, Math.min(96, w + delta)))
+    setDayWidth(w => Math.max(20, Math.min(96, w + delta)))
   }, [setDayWidth])
 
   /* ---------- 选中行 ---------- */
@@ -469,7 +469,16 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
     })
   }
 
-  /* ---------- 依赖连线几何 ---------- */
+  /* ---------- 依赖连线几何 ----------
+     拖拽预览叠加：被拖任务的端点直接用 preview 值，连线实时跟随条移动，
+     而不是等 pointerup 提交后才跳到新位置。 */
+  const liveSummaries = useMemo(() => {
+    if (!dragPreview) return summaries
+    const m = new Map(summaries)
+    m.set(dragPreview.taskId, { ...summaries.get(dragPreview.taskId), start: dragPreview.start, end: dragPreview.end })
+    return m
+  }, [summaries, dragPreview])
+
   const linkPaths = useMemo(() => {
     const out = []
     for (const row of rows) {
@@ -477,8 +486,8 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
       for (const depId of task.deps || []) {
         const depRowIdx = rowIndex.get(depId)
         if (depRowIdx === undefined) continue
-        const depSum = summaries.get(depId)
-        const mySum = summaries.get(task.id)
+        const depSum = liveSummaries.get(depId)
+        const mySum = liveSummaries.get(task.id)
         if (!depSum || !mySum) continue
         const x1 = (dayIndex(depSum.end) - frame.minIndex + 1) * dayWidth
         const y1 = depRowIdx * ROW_H + ROW_H / 2
@@ -491,7 +500,7 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
       }
     }
     return out
-  }, [rows, summaries, rowIndex, frame.minIndex, dayWidth, violations])
+  }, [rows, liveSummaries, rowIndex, frame.minIndex, dayWidth, violations])
 
   const rubberPath = useMemo(() => {
     if (!linkDrag) return null
@@ -506,12 +515,12 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
   if (plan.tasks.length === 0) {
     return (
       <div className="gantt-stage">
-        <div className="gt-bezel"><div className="gt-bezel-inner">
+        <div className="gt-panel">
           <div className="gt-empty">
             <div className="gt-empty-mark">▤</div>
             <p>还没有任务，点击右上「新建任务」或在时间轴空白处右键添加</p>
           </div>
-        </div></div>
+        </div>
       </div>
     )
   }
@@ -528,9 +537,8 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
 
   return (
     <div className="gantt-stage">
-      <div className="gt-bezel">
-        <div className="gt-bezel-inner">
-          <div className="gantt-scroll" ref={scrollRef} style={{ '--gt-left-col': `${leftCol}px` }}>
+      <div className="gt-panel">
+        <div className="gantt-scroll" ref={scrollRef} style={{ '--gt-left-col': `${leftCol}px` }}>
             <div className="gantt-inner" data-scroll-left={scrollState.left > 4}>
               {/* 表头：月份带 + 日期列 */}
               <div className="g-head" style={{ '--gt-left-col': `${leftCol}px` }}>
@@ -563,7 +571,7 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
                   <div className="g-col-row">
                     {columns.map(col => (
                       <div key={col.key}
-                        className={`g-col${col.weekend ? ' is-weekend' : ''}${col.key === todayColKey ? ' is-today' : ''}${col.width < 22 ? ' is-narrow' : ''}${col.width > 120 ? ' is-wide' : ''}`}
+                        className={`g-col${col.weekend ? ' is-weekend' : ''}${col.key === todayColKey ? ' is-today' : ''}${col.width < 24 ? ' is-narrow' : ''}${col.width > 120 ? ' is-wide' : ''}`}
                         style={{ left: (col.index - frame.minIndex) * dayWidth, width: col.width }}>
                         <span className="g-col-main">{col.label}</span>
                         {col.sub ? <span className="g-col-sub">{col.sub}</span> : null}
@@ -715,7 +723,6 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
               }} />
             </div>
           </div>
-        </div>
       </div>
 
       {dragHint && (

@@ -4,6 +4,8 @@
  * 逐一对比，不符即拒绝）。App 数据 ready 后注册一次、不等页面可见。
  * handler 全部走 App 内构造的 api 对象（同一 mutation + persist 路径）。
  */
+import { addDays, todayStr } from './model.mjs'
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const ok = (text, structured) => ({
@@ -53,6 +55,14 @@ function optInt(value, { min, max, fallback }) {
   return Math.max(min, Math.min(n, max))
 }
 
+function optRangeInt(value, field, { min, max }) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || Math.floor(n) !== n || n < min || n > max) {
+    throw new Error(`${field} 需为 ${min}-${max} 的整数`)
+  }
+  return n
+}
+
 function optBool(value) {
   if (value === undefined || value === null || value === '') return undefined
   return Boolean(value)
@@ -70,6 +80,7 @@ function planBrief(plan, stats) {
 function taskOut(t) {
   return {
     id: t.id, name: t.name, start: t.start, end: t.end,
+    duration: t.duration ?? null,
     progress: t.progress, colorIndex: t.colorIndex, milestone: t.milestone,
     parentId: t.parentId, deps: t.deps, depth: t.depth, isParent: t.isParent,
     rangeStart: t.rangeStart, rangeEnd: t.rangeEnd, progressSummary: t.progressSummary,
@@ -120,8 +131,17 @@ export function registerGanttMcp(api) {
     }),
     'task.create': wrap(async (args) => {
       const patch = { name: reqStr(args.name, 'name', 200), start: reqDate(args.start, 'start') }
-      if (args.end !== undefined) patch.end = optDate(args.end, 'end') || patch.start
-      else patch.end = patch.start
+      if (args.duration !== undefined) {
+        const d = optRangeInt(args.duration, 'duration', { min: 1, max: 365 })
+        patch.duration = d
+        patch.end = addDays(patch.start, d - 1)
+      } else if (args.end !== undefined) {
+        patch.end = optDate(args.end, 'end') || patch.start
+        patch.duration = null
+      } else {
+        patch.end = patch.start
+        patch.duration = null
+      }
       if (args.progress !== undefined) patch.progress = optInt(args.progress, { min: 0, max: 100, fallback: 0 })
       if (args.colorIndex !== undefined) patch.colorIndex = optInt(args.colorIndex, { min: 0, max: 9, fallback: 0 })
       if (args.milestone !== undefined) patch.milestone = Boolean(args.milestone)
@@ -136,7 +156,14 @@ export function registerGanttMcp(api) {
       const patch = {}
       if (args.name !== undefined) patch.name = reqStr(args.name, 'name', 200)
       if (args.start !== undefined) patch.start = reqDate(args.start, 'start')
-      if (args.end !== undefined) patch.end = optDate(args.end, 'end')
+      if (args.duration !== undefined) {
+        const d = optRangeInt(args.duration, 'duration', { min: 1, max: 365 })
+        patch.duration = d
+        if (d) patch.end = addDays(patch.start ?? api.getPlan(optStr(args.planId))?.tasks.find(t => t.id === id)?.start ?? todayStr(), d - 1)
+      } else if (args.end !== undefined) {
+        patch.end = optDate(args.end, 'end')
+        patch.duration = null
+      }
       if (args.progress !== undefined) patch.progress = optInt(args.progress, { min: 0, max: 100, fallback: 0 })
       if (args.colorIndex !== undefined) patch.colorIndex = optInt(args.colorIndex, { min: 0, max: 9, fallback: 0 })
       if (args.milestone !== undefined) patch.milestone = Boolean(args.milestone)

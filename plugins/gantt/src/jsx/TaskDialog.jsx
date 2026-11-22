@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, Input, Switch, Slider, Select } from '../ui/index.jsx'
-import { PALETTE_SIZE, cmpDate, fmtDate, wouldCycle, addDays, todayStr } from '../js/model.mjs'
+import { PALETTE_SIZE, cmpDate, fmtDate, wouldCycle, addDays, diffDays, todayStr } from '../js/model.mjs'
 import { paletteVar } from './GanttChart.jsx'
 
 export function TaskDialog({ open, onOpenChange, plan, editing, api }) {
@@ -18,6 +18,8 @@ export function TaskDialog({ open, onOpenChange, plan, editing, api }) {
   const [name, setName] = useState('')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [autoDur, setAutoDur] = useState(false)
+  const [duration, setDuration] = useState(3)
   const [progress, setProgress] = useState(0)
   const [colorIndex, setColorIndex] = useState(0)
   const [milestone, setMilestone] = useState(false)
@@ -34,6 +36,8 @@ export function TaskDialog({ open, onOpenChange, plan, editing, api }) {
       setName(task.name)
       setStart(task.start)
       setEnd(task.milestone ? task.start : task.end)
+      setAutoDur(Boolean(task.duration))
+      setDuration(task.duration || diffDays(task.milestone ? task.start : task.end, task.start) + 1)
       setProgress(task.progress)
       setColorIndex(task.colorIndex)
       setMilestone(task.milestone)
@@ -45,6 +49,8 @@ export function TaskDialog({ open, onOpenChange, plan, editing, api }) {
       setName('')
       setStart(s)
       setEnd(defaults.end || s)
+      setAutoDur(false)
+      setDuration(3)
       setProgress(0)
       setColorIndex(defaults.colorIndex ?? (plan.tasks.length % PALETTE_SIZE))
       setMilestone(Boolean(defaults.milestone))
@@ -95,14 +101,15 @@ export function TaskDialog({ open, onOpenChange, plan, editing, api }) {
     const trimmed = name.trim()
     if (!trimmed) { setError('请输入任务名称'); return }
     if (!start) { setError('请选择开始日期'); return }
+    /* 自动排期：只提交 start + duration，结束由排期推算（end 传 null） */
+    const dur = autoDur && !milestone ? Math.max(1, Math.min(365, Math.round(duration) || 1)) : null
     let e2 = end || start
     if (milestone) e2 = start
+    else if (dur) e2 = addDays(start, dur - 1)
     else if (cmpDate(e2, start) < 0) { setError('结束日期不能早于开始日期'); return }
-    if (isEdit) {
-      api.patchTask(plan.id, task.id, { name: trimmed, start, end: e2, progress, colorIndex, milestone, parentId, deps, note })
-    } else {
-      api.createTask(plan.id, { name: trimmed, start, end: e2, progress, colorIndex, milestone, parentId, deps, note })
-    }
+    const patch = { name: trimmed, start, end: e2, duration: dur, progress, colorIndex, milestone, parentId, deps, note }
+    if (isEdit) api.patchTask(plan.id, task.id, patch)
+    else api.createTask(plan.id, patch)
     onOpenChange(false)
   }
 
@@ -129,19 +136,26 @@ export function TaskDialog({ open, onOpenChange, plan, editing, api }) {
               <span className="gt-field-label">{milestone ? '日期' : '开始'}</span>
               <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
             </label>
-            {!milestone && (
+            {!milestone && !autoDur && (
               <label className="gt-field">
                 <span className="gt-field-label">结束</span>
                 <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} min={start} />
               </label>
             )}
-            <div className="gt-field gt-field-auto">
+            {!milestone && autoDur && (
+              <label className="gt-field">
+                <span className="gt-field-label">时长（天）</span>
+                <Input type="number" min={1} max={365} value={duration}
+                  onChange={(e) => setDuration(Number(e.target.value))} />
+              </label>
+            )}
+            <div className="gt-field gt-field-auto gt-field-shift">
               <span className="gt-field-label">前后调整</span>
               <div className="gt-inline-btns">
-                <button type="button" className="pk-btn pk-btn-sm" onClick={() => shift(-7)}>前 7 天</button>
-                <button type="button" className="pk-btn pk-btn-sm" onClick={() => shift(-1)}>前一天</button>
-                <button type="button" className="pk-btn pk-btn-sm" onClick={() => shift(1)}>后一天</button>
-                <button type="button" className="pk-btn pk-btn-sm" onClick={() => shift(7)}>后 7 天</button>
+                <button type="button" className="pk-btn pk-btn-sm gt-shift-btn" title="前 7 天" onClick={() => shift(-7)}>−7</button>
+                <button type="button" className="pk-btn pk-btn-sm gt-shift-btn" title="前一天" onClick={() => shift(-1)}>−1</button>
+                <button type="button" className="pk-btn pk-btn-sm gt-shift-btn" title="后一天" onClick={() => shift(1)}>+1</button>
+                <button type="button" className="pk-btn pk-btn-sm gt-shift-btn" title="后 7 天" onClick={() => shift(7)}>+7</button>
               </div>
             </div>
           </div>
@@ -164,10 +178,17 @@ export function TaskDialog({ open, onOpenChange, plan, editing, api }) {
                 ))}
               </div>
             </div>
-            <label className="gt-field gt-field-auto">
-              <span className="gt-field-label">里程碑</span>
-              <Switch checked={milestone} onCheckedChange={setMilestone} />
-            </label>
+            <div className="gt-field gt-field-auto gt-field-milestone">
+              <label className="gt-field-inline" title="开启后只需开始日期与时长，结束自动推算；依赖此任务的任务自动顺延">
+                <input type="checkbox" checked={autoDur} onChange={(e) => setAutoDur(e.target.checked)}
+                  disabled={milestone} />
+                <span className="gt-field-label">自动排期</span>
+              </label>
+              <label className="gt-field-inline">
+                <span className="gt-field-label">里程碑</span>
+                <Switch checked={milestone} onCheckedChange={setMilestone} />
+              </label>
+            </div>
           </div>
 
           <div className="gt-field-row">

@@ -59,9 +59,9 @@ export function buildColumns(granularity, minIndex, maxIndex, dayWidth) {
         key: `w${i}`,
         index: i,
         label: sameMonth
-          ? `${d.getDate()}–${next.getDate()}`
-          : `${d.getMonth() + 1}/${d.getDate()}–${next.getMonth() + 1}/${next.getDate()}`,
-        sub: `W${weekNo}`,
+          ? `${d.getMonth() + 1}.${d.getDate()}–${next.getDate()}日`
+          : `${d.getMonth() + 1}.${d.getDate()}–${next.getMonth() + 1}.${next.getDate()}日`,
+        sub: `第${weekNo}周`,
         left: i * dayWidth,
         width: dayWidth * 7,
         date: indexToDate(i)
@@ -100,7 +100,10 @@ function isoWeekNo(d) {
   return 1 + Math.round((t - firstThursday) / (7 * 86400000))
 }
 
-/** 视口需要覆盖的日期范围：任务范围外扩（前后留白随粒度变化，够看到条两端即可） */
+/** 视口需要覆盖的日期范围：任务范围外扩（前后留白随粒度变化）。
+ *  周粒度把边界对齐到周一（避免首列从上周中途起画、被左侧任务列遮住）；
+ *  月粒度对齐到自然月首（首列是完整月份）。列边界与任务列右缘齐平，
+ *  两侧不再出现无网格的空白带。 */
 export function frameFor(tasks, summaries, granularity, pad = 7) {
   let min = Infinity
   let max = -Infinity
@@ -120,7 +123,26 @@ export function frameFor(tasks, summaries, granularity, pad = 7) {
   const padDays = granularity === 'month' ? 45 : granularity === 'week' ? 14 : pad
   min -= padDays
   max += padDays
-  return { minIndex: Math.floor(min), maxIndex: Math.ceil(max), todayIndex: ti }
+  let minIndex = Math.floor(min)
+  let maxIndex = Math.ceil(max)
+  if (granularity === 'week') {
+    // 周一为一周之首：min 向前对齐周一，max 向后补足到周日
+    const minDate = parseDate(indexToDate(minIndex))
+    const maxDate = parseDate(indexToDate(maxIndex))
+    if (minDate && maxDate) {
+      minIndex -= (minDate.getDay() + 6) % 7
+      if (maxDate.getDay() !== 0) maxIndex += 7 - maxDate.getDay()
+    }
+  } else if (granularity === 'month') {
+    const minDate = parseDate(indexToDate(minIndex))
+    if (minDate) {
+      minIndex = dayIndex(toDateStr(new Date(minDate.getFullYear(), minDate.getMonth(), 1)))
+      const maxDate = parseDate(indexToDate(maxIndex))
+      const nextMonth1st = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 1)
+      maxIndex = dayIndex(toDateStr(nextMonth1st)) - 1
+    }
+  }
+  return { minIndex, maxIndex, todayIndex: ti }
 }
 
 /**
@@ -155,8 +177,10 @@ export function buildMonthBands(minIndex, maxIndex, dayWidth) {
   return bands
 }
 
-/** 把全部日期压进视口所需的列宽 */
-export function fitDayWidth(viewportWidth, minIndex, maxIndex, min = 6, max = 44) {
+/** 把全部日期压进视口所需的列宽；最小 20px——再窄两位日期就裁字，
+ *  放不下时宁可横向滚动（配合缩略带与滚动条）也不挤压；
+ *  自适应上限 64px：日期数不多时把列放大铺满视口，避免尾部大片空白列。 */
+export function fitDayWidth(viewportWidth, minIndex, maxIndex, min = 20, max = 64) {
   const days = Math.max(1, maxIndex - minIndex + 1)
   return Math.max(min, Math.min(max, Math.floor(viewportWidth / days)))
 }

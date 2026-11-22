@@ -72,15 +72,19 @@ export function genId(prefix = 't') {
   return `${prefix}${Date.now().toString(36)}${String(idSeq).padStart(4, '0')}${Math.random().toString(36).slice(2, 5)}`
 }
 
-export function makeTask({ name, start, end, progress = 0, colorIndex = 0, milestone = false, parentId = null, deps = [], note = '', date = null } = {}) {
+export function makeTask({ name, start, end, duration = null, progress = 0, colorIndex = 0, milestone = false, parentId = null, deps = [], note = '', date = null } = {}) {
   const s = clampDate(String(start || '').slice(0, 10))
   let e = clampDate(String(end || '').slice(0, 10))
   if (e < s) e = s
+  /* duration（天）：只定开始与时长的「自动排期」任务；end 持久化派生值 */
+  const dur = Number.isFinite(Number(duration)) && Number(duration) >= 1 ? Math.round(Number(duration)) : null
+  const finalEnd = milestone ? s : (dur ? addDays(s, dur - 1) : e)
   return {
     id: genId('t'),
     name: String(name || '未命名任务').slice(0, 200),
     start: s,
-    end: milestone ? s : e,
+    end: finalEnd,
+    duration: milestone ? null : dur,
     progress: Math.max(0, Math.min(100, Math.round(Number(progress) || 0))),
     colorIndex: Math.max(0, Math.min(PALETTE_SIZE - 1, Math.round(Number(colorIndex) || 0))),
     milestone: Boolean(milestone),
@@ -91,6 +95,39 @@ export function makeTask({ name, start, end, progress = 0, colorIndex = 0, miles
     createdAt: date || new Date().toISOString(),
     updatedAt: date || new Date().toISOString()
   }
+}
+
+/** 自动排期（FS 约束松弛）：任务 start 若早于全部前置的 end+1，顺延到
+ *  约束位置（条长/duration 不变）；duration 任务同样吸收约束——锚定的
+ *  start 只是「不早于」下界，依赖链会把它推到合法位置。
+ *  多轮松弛处理链式依赖，任务量小（<= 数百）足够。无变化返回原引用。 */
+export function autoSchedule(tasks) {
+  const byId = new Map(tasks.map(t => [t.id, t]))
+  let changed = false
+  let rounds = tasks.length + 1
+  while (rounds-- > 0) {
+    let moved = false
+    for (const t of tasks) {
+      const cur = byId.get(t.id)
+      if (!cur.deps?.length) continue
+      let earliest = null
+      for (const depId of cur.deps) {
+        const dep = byId.get(depId)
+        if (!dep) continue
+        const cand = addDays(dep.end, 1)
+        if (!earliest || cand > earliest) earliest = cand
+      }
+      if (earliest && cur.start < earliest) {
+        const len = cur.duration || diffDays(cur.end, cur.start)
+        byId.set(cur.id, { ...cur, start: earliest, end: addDays(earliest, len) })
+        moved = true
+      }
+    }
+    if (!moved) break
+    changed = true
+  }
+  if (!changed) return tasks
+  return tasks.map(t => byId.get(t.id))
 }
 
 export function makePlan({ name, tasks = [] } = {}) {

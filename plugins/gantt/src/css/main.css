@@ -20,7 +20,7 @@
   --gt-ease: cubic-bezier(0.32, 0.72, 0, 1);
   --gt-row-h: 40px;
   --gt-bar-h: 22px;
-  --gt-left-col: 240px;
+  --gt-left-col: 200px;
   --gt-head-h: 56px;
   --gt-shadow: 0 4px 12px color-mix(in srgb, var(--gt-bar-color, #0d9488) 35%, transparent);
 }
@@ -136,6 +136,7 @@
 /* ---------- 主体两栏 ---------- */
 
 .gt-body {
+  position: relative; /* 左上角计划悬浮把手的定位锚 */
   flex: 1 1 auto;
   display: flex;
   min-height: 0;
@@ -143,39 +144,102 @@
   padding: 0 14px 10px;
 }
 
-/* ---------- 左栏计划列表 ---------- */
+/* ---------- 通用单层面板（替代原双层 bezel 嵌套） ---------- */
 
-.plan-sidebar {
-  flex: none;
-  width: 220px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.gt-bezel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 6px;
-  border-radius: var(--gt-radius-lg);
-  background: color-mix(in srgb, var(--gt-surface) 55%, transparent);
-  border: 1px solid var(--gt-border);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent);
-}
-
-.plan-sidebar .gt-bezel { flex: 1 1 auto; }
-
-.gt-bezel-inner {
+.gt-panel {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-radius: calc(var(--gt-radius-lg) - 5px);
+  border-radius: var(--gt-radius-lg);
   background: var(--gt-surface);
-  border: 1px solid color-mix(in srgb, var(--gt-border) 60%, transparent);
+  border: 1px solid var(--gt-border);
   overflow: hidden;
 }
+
+/* ---------- 右上角悬浮计划把手 ----------
+   不占布局列：绝对定位悬浮在甘特区右上角，hover/点按展开下拉面板；
+   面板浮层向下展开，不遮任务列表，甘特区始终铺满整个 body 宽度。 */
+
+.plan-sidebar {
+  position: absolute;
+  right: 0;
+  top: 4px;
+  z-index: 60;
+  width: 0;
+  height: 0;
+}
+
+.plan-side-handle {
+  position: absolute;
+  right: 8px;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--gt-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gt-surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.25);
+  color: var(--gt-text-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.18s var(--gt-ease), border-color 0.18s var(--gt-ease), box-shadow 0.18s var(--gt-ease);
+}
+
+.plan-side-handle:hover,
+.plan-sidebar.is-open .plan-side-handle {
+  color: var(--gt-accent);
+  border-color: color-mix(in srgb, var(--gt-accent) 45%, transparent);
+  box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--gt-accent) 45%, transparent);
+}
+
+.plan-handle-glyph { font-size: 13px; line-height: 1; }
+
+.plan-handle-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gt-accent) 15%, transparent);
+  color: var(--gt-accent);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-side-panel {
+  position: absolute;
+  right: 8px;
+  top: 34px;
+  width: 240px;
+  max-height: 60vh;
+  border-radius: var(--gt-radius-md);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.3);
+  transform: translateY(-6px) scale(0.98);
+  transform-origin: top right;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.22s var(--gt-ease), opacity 0.18s var(--gt-ease), visibility 0.22s;
+}
+
+.plan-sidebar:hover .plan-side-panel,
+.plan-sidebar.is-open .plan-side-panel {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.plan-side-panel .plan-list { min-height: 56px; }
 
 .plan-list-head {
   display: flex;
@@ -311,7 +375,7 @@
   flex-direction: column;
 }
 
-.gantt-stage .gt-bezel { flex: 1 1 auto; }
+.gantt-stage .gt-panel { flex: 1 1 auto; }
 
 .gantt-scroll {
   flex: 1 1 auto;
@@ -432,6 +496,7 @@
   bottom: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 0 8px;
   box-sizing: border-box;
   border-left: 1px solid color-mix(in srgb, var(--gt-border) 55%, transparent);
@@ -492,15 +557,14 @@
   line-height: 1.2;
 }
 
-/* 窄列（自适应压到 22px 以下）只留日期数字，隐藏副标签 */
+/* 窄列（<24px）只留日期数字、隐藏星期副标签；两位日期靠 tabular-nums + 10px 不裁字 */
 .g-col.is-narrow { padding: 0 1px; }
-.g-col.is-narrow .g-col-main { font-size: 10.5px; }
+.g-col.is-narrow .g-col-main { font-size: 10px; letter-spacing: -0.02em; }
 .g-col.is-narrow .g-col-sub { display: none; }
 
 /* 月粒度列很宽（整月天数 × 日宽），标签靠左显示更像时间轴刻度 */
 .g-col.is-wide { align-items: flex-start; padding: 0 10px; }
 .g-col.is-wide .g-col-main { text-align: left; font-size: 12px; }
-
 .g-col.is-weekend .g-col-main { color: var(--gt-text-3); }
 
 .g-col.is-today {
@@ -756,14 +820,19 @@
   pointer-events: none;
 }
 
-/* 条内文字：压在实色填充上用白色，露出浅底时用深色（分层做描边保证两边都可读） */
+/* 条内文字：压在实色填充上用白色 + 同色描边；行高显式给到可测量值，
+   否则 flex 行内在 line-height:1 + overflow:hidden 下会塌成 0 高 */
 .g-bar-text {
   position: relative;
   z-index: 2;
+  align-self: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 14px;
+  line-height: 14px;
   padding: 0 9px;
   font-size: 11px;
   font-weight: 650;
-  line-height: 1;
   color: #fff;
   text-shadow: 0 1px 2px color-mix(in srgb, var(--gt-bar-color) 70%, #000);
   white-space: nowrap;
@@ -998,8 +1067,27 @@
   align-items: center;
   gap: 3px;
 }
+/* 时间轴横向滚动条：细而可见，支持左右拖滚 */
+.gantt-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--gt-text-3) 45%, transparent) transparent;
+}
 
-/* ---------- 概览缩略带（minimap） ---------- */
+.gantt-scroll::-webkit-scrollbar { height: 10px; width: 10px; }
+
+.gantt-scroll::-webkit-scrollbar-track { background: transparent; }
+
+.gantt-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gt-text-3) 40%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.gantt-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--gt-text-3) 65%, transparent);
+  background-clip: padding-box;
+}
 
 .g-minimap {
   position: relative;
@@ -1109,6 +1197,33 @@
 .gt-field-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
 
 .gt-field-auto { flex: 0 0 auto; }
+
+/* 里程碑/自动排期开关组：横排两组，垂直居中，右对齐 */
+.gt-field-milestone {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.gt-field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.gt-field-inline .gt-field-label { margin: 0; }
+
+.gt-field-inline input[type="checkbox"] { accent-color: var(--gt-accent); width: 14px; height: 14px; margin: 0; }
+
+/* 前后调整按钮组：纯图标按钮（−7/−1/+1/+7，天为单位），日期行一行放下 */
+.gt-field-shift .gt-inline-btns { flex-wrap: nowrap; gap: 4px; }
+
+.gt-shift-btn { min-width: 34px; padding: 0 6px; justify-content: center; font-variant-numeric: tabular-nums; }
 
 .gt-inline-btns { display: flex; gap: 5px; flex-wrap: wrap; }
 
