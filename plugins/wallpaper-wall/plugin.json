@@ -1,0 +1,105 @@
+{
+  "id": "com.github.eNest.wallpaper-wall",
+  "name": "壁纸社",
+  "version": "0.0.1",
+  "description": "聚合壁纸源与本地库：静态壁纸、多显示器设置、内置动态引擎、定时轮换与性能策略。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "layouts": ["shell"],
+    "default": "shell"
+  },
+  "category": "媒体",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.0.1"
+  },
+  "permissions": [
+    "backend.node",
+    "shell.openExternal"
+  ],
+  "activation": {
+    "resident": {
+      "setting": "backgroundEnabled",
+      "code": "resident",
+      "default": false
+    }
+  },
+  "window": {
+    "width": 1180,
+    "height": 760,
+    "minWidth": 480,
+    "minHeight": 320
+  },
+  "features": [
+    {
+      "code": "main",
+      "explain": "壁纸社：多源壁纸浏览、本地库、静态与动态壁纸",
+      "cmds": ["壁纸", "壁纸社", "壁纸屋", "wallpaper", "bizhi", "wallpaper-wall", "wallpaper-house"]
+    },
+    {
+      "code": "settings",
+      "explain": "壁纸社设置：数据源 Key、壁纸目录、轮换与性能",
+      "cmds": ["壁纸设置", "wallpaper settings"]
+    },
+    {
+      "code": "resident",
+      "explain": "壁纸社后台服务：动态壁纸与定时轮换",
+      "cmds": [],
+      "activation": { "type": "command" }
+    }
+  ],
+  "contributes": {
+    "settings": [
+      {
+        "id": "wallpaper-wall.preferences",
+        "title": "壁纸社",
+        "items": [
+          {
+            "key": "defaultFit",
+            "type": "select",
+            "label": "默认填充方式",
+            "default": "fill",
+            "options": [
+              { "label": "填充", "value": "fill" },
+              { "label": "适应", "value": "fit" },
+              { "label": "拉伸", "value": "stretch" },
+              { "label": "居中", "value": "center" },
+              { "label": "平铺", "value": "tile" },
+              { "label": "跨屏", "value": "span" }
+            ]
+          },
+          {
+            "key": "openPreferences",
+            "type": "page",
+            "label": "打开壁纸社设置",
+            "entry": { "code": "settings" }
+          }
+        ]
+      }
+    ]
+  },
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": ["壁纸", "动态壁纸", "桌面", "数据源", "聚合", "引擎"],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png",
+      "assets/market/screenshots/02-engines.png",
+      "assets/market/screenshots/03-settings.png",
+      "assets/market/screenshots/04-library.png",
+      "assets/market/screenshots/05-performance.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5223/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
+  }
+}

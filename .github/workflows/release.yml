@@ -102,24 +102,24 @@ jobs:
       - name: Build Windows helper
         if: runner.os == 'Windows'
         run: powershell -NoProfile -ExecutionPolicy Bypass -File native/windows/build-helper.ps1
-        working-directory: plugins/wallpaper-house
+        working-directory: plugins/wallpaper-wall
 
       - name: Build macOS helper
         if: runner.os == 'macOS'
         shell: bash
         run: bash native/macos/build-helper.sh
-        working-directory: plugins/wallpaper-house
+        working-directory: plugins/wallpaper-wall
 
       - name: Build Linux helper
         if: runner.os == 'Linux'
         shell: bash
         run: bash native/linux/build-helper.sh
-        working-directory: plugins/wallpaper-house
+        working-directory: plugins/wallpaper-wall
 
       - uses: actions/upload-artifact@v4
         with:
           name: wallpaper-helper-${{ matrix.target }}
-          path: plugins/wallpaper-house/helper-cache
+          path: plugins/wallpaper-wall/helper-cache
           if-no-files-found: error
 
   release:
@@ -142,7 +142,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: wallpaper-helper-*
-          path: plugins/wallpaper-house/helper-cache
+          path: plugins/wallpaper-wall/helper-cache
           merge-multiple: true
 
       - name: Install deps

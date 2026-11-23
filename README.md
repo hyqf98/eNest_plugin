@@ -100,7 +100,7 @@
 | [<img src="plugins/novel-house/public/assets/market/icon.svg" width="20" alt=""> **小说屋**](plugins/novel-house) | Legado 书源聚合阅读：多源搜索、舒适排版阅读器、整本缓存 |
 | [<img src="plugins/screen-assistant/public/assets/market/icon.svg" width="20" alt=""> **屏幕助手**](plugins/screen-assistant) ✅ | 截图、长截图、区域/全屏录屏、统一媒体库、GIF、贴图与图片工具 |
 | [<img src="plugins/tvbox/public/assets/market/icon.svg" width="20" alt=""> **影视仓**](plugins/tvbox) | TVBox 配置源导入：多仓线路、聚合搜索、hls.js 选集播放 |
-| [<img src="plugins/wallpaper-house/public/assets/market/icon.svg" width="20" alt=""> **壁纸屋**](plugins/wallpaper-house) | 15 源壁纸聚合、本地库与轮换，静态/动态壁纸跨三平台，自研引擎与视频性能设置 |
+| [<img src="plugins/wallpaper-wall/public/assets/market/icon.svg" width="20" alt=""> **壁纸社**](plugins/wallpaper-wall) | 15 源壁纸聚合、本地库与轮换，静态/动态壁纸跨三平台，自研引擎与视频性能设置 |
 
 ### 🧩 其它（3）
 
@@ -110,7 +110,7 @@
 | [<img src="plugins/lan-share/public/assets/market/icon.svg" width="20" alt=""> **局域网传件**](plugins/lan-share) ✅ | 同一 Wi-Fi 取件码 + 二维码向手机传文件，限时自动关闭 |
 | [<img src="plugins/memes/public/assets/market/icon.svg" width="20" alt=""> **表情包**](plugins/memes) | ChineseBQB + 发表情双数据源：分类浏览、关键词搜索、点击即复制（动图保动画）、收藏与本地导入 |
 
-> 未标注 ✅ 的插件（甘特图、AI 生图、漫画屋、小说屋、影视仓、壁纸屋、表情包）已在仓库可用，将随下个 Release 分发。
+> 未标注 ✅ 的插件（甘特图、AI 生图、漫画屋、小说屋、影视仓、壁纸社、表情包）已在仓库可用，将随下个 Release 分发。
 
 ## 🚀 快速开始
 

@@ -14,5 +14,7 @@ logs/
 # 壁纸插件按平台构建的原生 helper 与 SDK 缓存，不提交二进制
 /plugins/*/helper-cache/
 /plugins/*/native/**/.cache/
+# 插件根下的临时验证产物（与宿主的 .cache/verification/ 同性质），不提交
+/plugins/*/.cache/
 /plugins/*/native/**/.build/
 /plugins/*/native/**/build/
