@@ -78,21 +78,6 @@ export function Pager({ page, totalPages, onChange }: { page: number; totalPages
   )
 }
 
-/* ---------------- 二维码 ---------------- */
-
-export function QrCode({ image, status, message }: { image: string; status: 'loading' | 'pending' | 'scanned' | 'expired' | 'failed'; message: string }) {
-  return (
-    <div className="gh-qr" data-status={status}>
-      <div className="gh-qr-frame">
-        {image && status !== 'loading' ? <img src={image} alt="登录二维码" /> : <div className="gh-qr-placeholder" />}
-        {status === 'loading' || status === 'scanned' ? <div className="gh-qr-overlay"><span className="gh-spin" />{status === 'scanned' ? '已扫码' : ''}</div> : null}
-        {status === 'expired' || status === 'failed' ? <div className="gh-qr-overlay gh-qr-overlay-solid">{status === 'expired' ? '二维码已过期' : '获取失败'}</div> : null}
-      </div>
-      <p className="gh-qr-message" role="status" aria-live="polite">{message}</p>
-    </div>
-  )
-}
-
 /* ---------------- 净化后的 HTML（含媒体令牌解析） ---------------- */
 
 /**

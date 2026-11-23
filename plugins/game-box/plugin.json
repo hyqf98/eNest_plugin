@@ -15,8 +15,15 @@
     "enest": ">=0.0.1"
   },
   "permissions": [
-    "backend.node"
+    "backend.node",
+    "web.login"
   ],
+  "net": {
+    "loginOrigins": [
+      "https://cloud.189.cn",
+      "https://open.e.189.cn"
+    ]
+  },
   "window": {
     "width": 1200,
     "height": 760,

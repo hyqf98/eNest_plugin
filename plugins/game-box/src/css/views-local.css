@@ -750,16 +750,7 @@
   width: 100%;
 }
 
-/* 登录表单：在宽列里铺满，但输入框不宜拉得太长——超过 560px 后居中限宽 */
-.gh-set-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
-}
-
+/* 登录区：说明 + 一个主按钮，纵向排列、左对齐 */
 .gh-set-login-body {
   display: flex;
   flex-direction: column;
@@ -768,7 +759,29 @@
   width: 100%;
 }
 
-.gh-set-login-body .gh-qr { align-items: center; margin: 0 auto; }
+.gh-set-weblogin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+/* 面板里唯一的主动作用壳的按钮尺寸（32px、字重 550），不用模板默认的小号 */
+.gh-set-weblogin > .pk-btn { min-height: var(--gh-row); height: var(--gh-row); padding: 0 14px; font-size: var(--fs-secondary); font-weight: var(--fw-medium, 500); }
+
+/* 说明行：图标 + 文字，文字可换行（窄窗时不撑破面板） */
+.gh-set-weblogin-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-2, #666c70);
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+}
+
+.gh-set-weblogin-hint i { display: inline-flex; flex: 0 0 auto; margin-top: 2px; color: var(--text-3, #82888b); }
 
 /* 滑杆行 */
 .gh-set-slider {
@@ -892,14 +905,6 @@
   overflow-wrap: anywhere;
 }
 
-/* 验证码图片 */
-.gh-set-captcha {
-  height: 32px;
-  border: var(--appearance-border-width, 1px) solid var(--border, rgba(41, 44, 46, .08));
-  border-radius: calc(var(--gh-ctl-radius, 8px) - 2px);
-  background: #fff;
-}
-
 /* 说明行 */
 .gh-set-note {
   display: flex;
@@ -936,5 +941,4 @@
 /* 设置页的两栏：窄窗回到单列（必须排在上面基础规则之后，同特异性时后者生效） */
 @media (max-width: 860px) {
   .gh-set-columns { grid-template-columns: minmax(0, 1fr); }
-  .gh-set-form { max-width: none; }
 }

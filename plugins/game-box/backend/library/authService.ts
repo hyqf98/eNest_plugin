@@ -1,39 +1,25 @@
 /**
- * 天翼云登录服务：扫码 / 账密 / 会话持久化 / 退出 / 忘记密码。
+ * 天翼云登录服务：会话持久化 / 登录状态 / 退出 / 忘记密码。
  *
  * 凭据流向（后端没有保险库写能力，只有页面能写）：
- *   后端登录成功 → 会话凭据随响应 / 事件交给页面 → 页面 vault.set 入库 →
- *   带着 secretRef 调 saveSession 回传。后端只保存 secretRef（不透明引用）。
- * 密码只在"账密登录"这一次请求里出现，绝不落盘、绝不进日志、错误消息与事件。
+ *   用户在应用内登录窗口里登录（宿主 web.login）→ 页面拿到会话 cookie 并 vault.set 入库 →
+ *   带着 secretRef 调 saveSession 回传。后端只保存 secretRef（不透明引用），不接触登录过程。
+ * 天翼的登录接口要求官方签名与设备校验，第三方无法复刻，所以后端不再自己发登录请求。
  *
  * 状态的唯一来源是 AuthMeta：sessionRef 变化时重建云盘客户端（它缓存内存凭据）。
  */
 
 import { BackendError } from '../adapters/types.ts'
-import { EVENTS, type AuthInfo, type QrPhase, type QrStatus, type SaveSessionRequest } from '../contracts.ts'
-import { Cloud189Client, type QrPollResult } from '../cloud189/index.ts'
+import { EVENTS, type AuthInfo, type SaveSessionRequest } from '../contracts.ts'
+import { Cloud189Client } from '../cloud189/index.ts'
 import { postEvent, resolveSecret } from '../runtime.ts'
 import { flushStore, loadAuthMeta, saveAuthMeta, type AuthMeta } from '../store.ts'
-
-/** 扫码轮询间隔 */
-const QR_POLL_MS = 3000
-/** 扫码会话最长存活时间；超时即使服务端没报过期也停止轮询 */
-const QR_MAX_MS = 5 * 60 * 1000
 
 export const VAULT_KEYS = {
   session: 'tianyi.session',
   account: 'tianyi.account',
   password: 'tianyi.password',
 } as const
-
-/** 进行中的扫码会话 */
-interface QrRun {
-  id: string
-  session: ReturnType<Cloud189Client['loginQr']>
-  startedAt: number
-  timer?: NodeJS.Timeout
-  stopped: boolean
-}
 
 /** 按会话保存的云盘客户端：每个客户端持有自己的内存凭据与 cookie jar */
 const clients = new Map<string, Cloud189Client>()
@@ -85,7 +71,6 @@ export function replacedSecrets(before: AuthMeta, next: { sessionRef: string; ac
 }
 
 export class AuthService {
-  private qr: QrRun | null = null
   private checking: Promise<AuthInfo> | null = null
 
   /** 当前登录状态；会话凭据按 secretRef 从保险库取，取不到即未登录 */
@@ -106,91 +91,6 @@ export class AuthService {
     } finally {
       this.checking = null
     }
-  }
-
-  /** 开始扫码登录：立即返回 sessionId；二维码图片与后续状态经 auth.qr 事件推送 */
-  async qrStart(): Promise<{ sessionId: string }> {
-    if (this.qr) throw new BackendError('INVALID_ARGUMENT', '已有进行中的扫码登录')
-    const session = clientFor('').loginQr()
-    const run: QrRun = { id: `qr_${Date.now().toString(36)}`, session, startedAt: Date.now(), stopped: false }
-    this.qr = run
-    // 取二维码是网络请求，不阻塞这次响应
-    void this.beginQr(run)
-    return { sessionId: run.id }
-  }
-
-  private async beginQr(run: QrRun): Promise<void> {
-    try {
-      const image = await run.session.start()
-      if (run.stopped) return
-      this.pushQr(run, { phase: 'pending', image, message: '请用天翼云盘 App 扫码' })
-      this.schedulePoll(run)
-    } catch (error) {
-      if (run.stopped) return
-      run.stopped = true
-      if (this.qr === run) this.qr = null
-      this.pushQr(run, { phase: 'failed', image: '', message: errorText(error) })
-    }
-  }
-
-  private schedulePoll(run: QrRun): void {
-    run.timer = setTimeout(() => { void this.poll(run) }, QR_POLL_MS)
-    run.timer.unref?.()
-  }
-
-  private async poll(run: QrRun): Promise<void> {
-    if (run.stopped) return
-    let result: QrPollResult
-    try {
-      result = await run.session.poll()
-    } catch {
-      // 多为网络抖动；二维码自身会过期，这里只重试
-      result = 'pending'
-    }
-    if (run.stopped) return
-    if (result === 'success') {
-      run.stopped = true
-      if (this.qr === run) this.qr = null
-      // 会话凭据随这一次事件交给页面；页面入库后调用 saveSession
-      this.pushQr(run, { phase: 'pending', image: '', message: '登录成功' }, run.session.credential())
-      return
-    }
-    if (result === 'expired' || Date.now() - run.startedAt > QR_MAX_MS) {
-      run.stopped = true
-      if (this.qr === run) this.qr = null
-      this.pushQr(run, { phase: 'expired', image: '', message: '二维码已过期，请刷新' })
-      return
-    }
-    this.pushQr(run, result === 'scanned'
-      ? { phase: 'scanned', image: '', message: '已扫码，请在手机上确认' }
-      : { phase: 'pending', image: '', message: '请用天翼云盘 App 扫码' })
-    this.schedulePoll(run)
-  }
-
-  private pushQr(run: QrRun, status: QrStatus, credential?: string): void {
-    postEvent(EVENTS.qrStatus, { sessionId: run.id, status, ...(credential ? { credential } : {}) })
-  }
-
-  async qrCancel(sessionId: string): Promise<{ ok: boolean }> {
-    const run = this.qr
-    if (!run || run.id !== sessionId) return { ok: false }
-    run.stopped = true
-    if (run.timer) clearTimeout(run.timer)
-    run.session.cancel()
-    this.qr = null
-    clients.delete('\0none')
-    return { ok: true }
-  }
-
-  /**
-   * 账密登录。需要图形验证码时返回 needCaptcha（验证码图片的 data URL）；
-   * 成功时返回会话凭据，由页面入库后调用 saveSession。
-   */
-  async loginPassword(input: { account: string; password: string; captcha: string; remember: boolean }): Promise<{ sessionId: string; needCaptcha: string; credential?: string }> {
-    const client = clientFor('')
-    const result = await client.loginPassword({ account: input.account, password: input.password, captcha: input.captcha ?? '', remember: input.remember })
-    if (result.kind === 'needCaptcha') return { sessionId: '', needCaptcha: result.image }
-    return { sessionId: '', needCaptcha: '', credential: result.credential }
   }
 
   /**
@@ -264,19 +164,4 @@ export class AuthService {
   async hasSession(): Promise<boolean> {
     return Boolean((await loadAuthMeta()).sessionRef)
   }
-
-  /** 关闭时停掉扫码轮询 */
-  shutdown(): void {
-    if (!this.qr) return
-    this.qr.stopped = true
-    if (this.qr.timer) clearTimeout(this.qr.timer)
-    this.qr.session.cancel()
-    this.qr = null
-  }
 }
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-export type { QrPhase }

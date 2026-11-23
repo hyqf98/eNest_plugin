@@ -13,7 +13,7 @@ import { flushStore, loadSettings, saveSettings } from './store.ts'
 import { errorMessage, requireString } from './util.ts'
 import { setPackagePath } from './adapters/live.ts'
 import { METHODS } from './contracts.ts'
-import { authForget, authInfo, authLoginPassword, authQrCancel, authQrStart, authSaveSession, authLogout, shareParse } from './api/cloud.ts'
+import { authForget, authInfo, authSaveSession, authLogout, shareParse } from './api/cloud.ts'
 import { libraryDetail, libraryFacets, libraryList } from './api/library.ts'
 import { libraryMethods } from './api/managed.ts'
 import { mediaLoad } from './imageProxy.ts'
@@ -73,7 +73,6 @@ async function initializeServices(): Promise<void> {
 
 onShutdown(async () => {
   // 只做保存与中止；不要在这里等待网络或解压。
-  auth?.shutdown()
   await tasks?.shutdown().catch(() => undefined)
   // 最后把所有防抖写入（任务、条目、设置、登录元信息）真正落盘：之后 50ms 进程就退出，防抖定时器等不到
   await flushStore().catch(() => undefined)
@@ -123,9 +122,6 @@ async function dispatch(method: string, args: unknown[]): Promise<unknown> {
 
     /* ---------------- 天翼云 ---------------- */
     case METHODS.authInfo: return authInfo(auth)
-    case METHODS.authQrStart: return authQrStart(auth)
-    case METHODS.authQrCancel: return authQrCancel(auth, args[0])
-    case METHODS.authLoginPassword: return authLoginPassword(auth, args[0])
     case METHODS.authSaveSession: return authSaveSession(auth, args[0])
     case METHODS.authLogout: return authLogout(auth)
     case METHODS.authForget: return authForget(auth, args[0])

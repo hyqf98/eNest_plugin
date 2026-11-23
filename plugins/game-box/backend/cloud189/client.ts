@@ -8,7 +8,7 @@
 
 import { BackendError } from '../adapters/types.ts'
 import { CookieJar, jarRequestJson } from './http.ts'
-import { loginWithPassword, createQrSession, refreshSession, type PasswordLoginInput, type PasswordLoginResult, type QrPollResult, type QrSession, type SessionCredential } from './login.ts'
+import { refreshSession, type SessionCredential } from './session.ts'
 import { parseShare, listShareFolder, resolveFileDownloadUrl, type ParsedShare, type ShareListResult, type DownloadUrlResult } from './share.ts'
 import { accessTokenFromUrl } from './sign.ts'
 
@@ -134,28 +134,6 @@ export class Cloud189Client {
   forgetSaved(): void {
     // 与 logout 相同的内存清理；账号密码本身在 vault，由页面删。
     this.logout()
-  }
-
-  /** 扫码登录：创建会话对象（登录链路凭据通过 QrSession.credential() 交给调用方） */
-  loginQr(): QrSession {
-    const session = createQrSession()
-    return {
-      start: () => session.start(),
-      poll: async (): Promise<QrPollResult> => {
-        const outcome = await session.poll()
-        if (outcome === 'success') this.memoryCredential = session.credential()
-        return outcome
-      },
-      cancel: () => session.cancel(),
-      credential: () => session.credential(),
-    }
-  }
-
-  /** 账密登录 */
-  async loginPassword(input: PasswordLoginInput): Promise<PasswordLoginResult> {
-    const result = await loginWithPassword(input)
-    if (result.kind === 'success') this.memoryCredential = result.credential
-    return result
   }
 
   /** 解析分享（无需登录） */

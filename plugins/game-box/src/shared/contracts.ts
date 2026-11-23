@@ -168,21 +168,6 @@ export interface SaveSessionRequest {
   rememberPassword?: boolean
 }
 
-/** 扫码登录过程中后端推给页面的会话凭据（登录成功那一次），页面需入库后回传 auth.saveSession */
-export interface QrSuccessHandoff {
-  sessionId: string
-  credential: string
-}
-
-export type QrPhase = 'loading' | 'pending' | 'scanned' | 'expired' | 'failed'
-
-export interface QrStatus {
-  phase: QrPhase
-  /** 二维码图片的 data URL，phase 为 pending 时有值 */
-  image: string
-  message: string
-}
-
 /* ---------------- 下载任务 ---------------- */
 
 export type TaskState =
@@ -355,9 +340,6 @@ export const METHODS = {
   taskRemove: 'task.remove',
   taskUpdateOptions: 'task.updateOptions',
   authInfo: 'auth.info',
-  authQrStart: 'auth.qrStart',
-  authQrCancel: 'auth.qrCancel',
-  authLoginPassword: 'auth.loginPassword',
   /** 登录成功后由页面调用：入库后的 secretRef 回传后端保存 */
   authSaveSession: 'auth.saveSession',
   authLogout: 'auth.logout',
@@ -375,17 +357,9 @@ export const EVENTS = {
   taskFinished: 'task.finished',
   libraryChanged: 'library.changed',
   authChanged: 'auth.changed',
-  qrStatus: 'auth.qr',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]
-
-export interface QrEvent {
-  sessionId: string
-  status: QrStatus
-  /** 仅登录成功那一次带上：会话凭据，页面入库后回传 auth.saveSession */
-  credential?: string
-}
 
 /** 分享解析结果：根层文件与子文件夹；下载时需要数字 shareId */
 export interface ShareParseResult {

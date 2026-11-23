@@ -57,7 +57,7 @@ enest.onEnter(async ({ code, type, payload, input }) => {
 
 已被注入的上下文可在当前 Quick 会话通过 `enest.quickInput.readContext()` 重新读取（返回同形状 `QuickEnterInput`，无则为 null）。搜索框尚未消费的粘贴队列与已交付插件的上下文是两份不同生命周期：前者隐藏时清理，后者自动隐藏后仍可读取；Esc/返回、迁出 Quick、换代或实例销毁后失效。重复激活（无新载荷的 enter）不会重放旧 input，无输入的新会话也不能读到上一会话的内容。
 
-该链路由当前宿主源码引入。更早打包的旧宿主按旧 `plugin-manifest.schema.json` 校验，`features.items.additionalProperties:false` 会直接拒绝包含 `img`/`files` 指令的包（fail-fast），属预期；新宿主接受并执行完整链路。官方参考实现见插件仓 `plugins/screen-assistant` 的图片工具（粘贴图片 → 压缩）。
+该链路由当前宿主源码引入。更早打包的旧宿主按旧 `plugin-manifest.schema.json` 校验，`features.items.additionalProperties:false` 会直接拒绝包含 `img`/`files` 指令的包（fail-fast），属预期；新宿主接受并执行完整链路。官方参考实现见插件仓 `plugins/image-tools`（粘贴图片 → 压缩）。
 
 ## 设置、主题和反馈
 

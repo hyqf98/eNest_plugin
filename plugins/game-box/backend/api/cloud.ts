@@ -30,24 +30,6 @@ export function authInfo(service: AuthService): Promise<AuthInfo> {
   return service.info()
 }
 
-export function authQrStart(service: AuthService): Promise<{ sessionId: string }> {
-  return service.qrStart()
-}
-
-export function authQrCancel(service: AuthService, rawSessionId: unknown): Promise<{ ok: boolean }> {
-  return service.qrCancel(requireString(rawSessionId, '扫码会话', 128))
-}
-
-export function authLoginPassword(service: AuthService, raw: unknown): Promise<{ sessionId: string; needCaptcha: string; credential?: string }> {
-  const input = (raw ?? {}) as Record<string, unknown>
-  return service.loginPassword({
-    account: requireString(input.account, '账号', 320).trim(),
-    password: requireString(input.password, '密码', 1024),
-    captcha: optionalString(input.captcha, '验证码', 16).trim(),
-    remember: optionalBoolean(input.remember, false),
-  })
-}
-
 export function authSaveSession(service: AuthService, raw: unknown): Promise<{ ok: boolean; removeRefs: string[] }> {
   const input = (raw ?? {}) as Record<string, unknown>
   const accountRef = optionalString(input.accountRef, '账号引用', 512)

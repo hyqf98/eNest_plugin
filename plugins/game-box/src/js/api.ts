@@ -15,14 +15,14 @@ import type {
   MediaPayload,
   Page,
   PanSouResponse,
-  QrEvent,
-  QrStatus,
   SaveSessionRequest,
   ShareParseResult,
   Task,
   TaskCounts,
 } from '../shared/contracts'
 import { EVENTS, METHODS } from '../shared/contracts'
+import type { WebLoginCookie } from '@enest/plugin-sdk'
+export type { WebLoginCookie }
 
 type BackendEvent = { event: string; data: unknown }
 type Listener = (payload: BackendEvent) => void
@@ -93,10 +93,6 @@ export const tasks = {
 
 export const auth = {
   info: () => call<AuthInfo>(METHODS.authInfo, [], 20_000),
-  qrStart: () => call<{ sessionId: string }>(METHODS.authQrStart, [], 15_000),
-  qrCancel: (sessionId: string) => call<{ ok: boolean }>(METHODS.authQrCancel, [sessionId], 5_000),
-  loginPassword: (input: { account: string; password: string; captcha: string; remember: boolean }) =>
-    call<{ sessionId: string; needCaptcha: string; credential?: string }>(METHODS.authLoginPassword, [input], 30_000),
   /**
    * 登录成功后调用：把已入库的 secretRef 回传后端保存。
    * 后端会把这次被替换或清除的旧引用（旧会话、不再记住的账号密码）交回来，由这里从保险库删除；
@@ -149,12 +145,6 @@ export function onAuthChanged(listener: (info: AuthInfo) => void): () => void {
   })
 }
 
-export function onQrStatus(listener: (event: QrEvent) => void): () => void {
-  return onBackendEvent(payload => {
-    if (payload.event === EVENTS.qrStatus) listener(payload.data as QrEvent)
-  })
-}
-
 /* ---------------- 宿主能力 ---------------- */
 
 export const host = {
@@ -182,6 +172,16 @@ export const host = {
     const result = await getApi().vault.set(key, value)
     return result.secretRef
   },
+  /**
+   * 让用户在天翼云盘自己的登录页里登录（应用内窗口）。登录成功返回这次会话的 cookie，
+   * 由调用方拼成凭据保存；用户中途关窗返回 null。
+   */
+  async webLogin(url: string, successUrlPrefix: string, title: string): Promise<WebLoginCookie[] | null> {
+    const api = getApi()
+    if (!api.shell?.login) throw new Error('当前 eNest 版本不支持应用内登录，请升级 eNest 后重试')
+    const result = await api.shell.login({ url, successUrlPrefix, title, width: 560, height: 760 })
+    return result.ok ? result.cookies : null
+  },
   async removeKey(secretRef: string): Promise<void> {
     await getApi().vault.remove(secretRef)
   },
@@ -204,5 +204,3 @@ export const host = {
     return picked ? picked.handleId : null
   },
 }
-
-export type { QrStatus }

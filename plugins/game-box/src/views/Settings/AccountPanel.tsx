@@ -1,7 +1,7 @@
 /**
- * 天翼云盘账号面板：未登录时提供扫码 / 账号密码两个标签页；已登录显示昵称与
- * 已保存账号（后端 auth.info 返回的明文账号，仅展示）、退出登录与忘记密码；
- * 过期时给出警告条与重新登录入口。
+ * 天翼云盘账号面板：未登录时提供「打开登录窗口」（在应用内登录天翼自己的页面，见 WebLogin）；
+ * 已登录显示昵称与已保存账号（后端 auth.info 返回的明文账号，仅展示）、退出登录与忘记密码；
+ * 过期时给出警告条并直接提供重新登录。
  */
 
 import { useState } from 'react'
@@ -12,15 +12,11 @@ import { Empty, Spinner } from '../../components/base'
 import { Glyph } from '../../components/Glyph'
 import { useApp } from '../../js/state'
 import * as api from '../../js/api'
-import { QrLogin } from './QrLogin'
-import { PasswordLogin } from './PasswordLogin'
-
-type LoginTab = 'qr' | 'password'
+import { WebLogin } from './WebLogin'
 
 export function AccountPanel() {
   const app = useApp()
   const { auth } = app
-  const [tab, setTab] = useState<LoginTab>('qr')
   const [busy, setBusy] = useState<'logout' | 'forget' | ''>('')
   const [logoutOpen, setLogoutOpen] = useState(false)
 
@@ -66,7 +62,6 @@ export function AccountPanel() {
         <div className="gh-set-expired" role="alert">
           <Glyph icon={Warning} size={15} />
           <span>登录已过期，需要重新登录后才能继续下载。</span>
-          <Button size="sm" onClick={() => setTab('qr')}>重新登录</Button>
         </div>
       ) : null}
 
@@ -91,17 +86,9 @@ export function AccountPanel() {
           </div>
         </div>
       ) : (
-        <>
-          <div className="gh-tabs" role="tablist" aria-label="登录方式">
-            <button type="button" role="tab" aria-selected={tab === 'qr'} onClick={() => setTab('qr')}>扫码登录</button>
-            <button type="button" role="tab" aria-selected={tab === 'password'} onClick={() => setTab('password')}>账号密码登录</button>
-          </div>
-          <div className="gh-set-login-body" role="tabpanel">
-            {tab === 'qr'
-              ? <QrLogin onSuccess={() => void app.refreshAuth()} />
-              : <PasswordLogin onSuccess={() => void app.refreshAuth()} />}
-          </div>
-        </>
+        <div className="gh-set-login-body">
+          <WebLogin />
+        </div>
       )}
 
       {busy === 'logout' || busy === 'forget' ? <Spinner label={busy === 'logout' ? '正在退出…' : '正在处理…'} /> : null}

@@ -823,41 +823,6 @@ html, body, #root {
 .gh-switch-row strong { font-size: var(--fs-body); font-weight: var(--fw-medium, 500); }
 .gh-switch-row small { font-size: var(--fs-caption); color: var(--text-3, #82888b); }
 
-/* ---------------- 二维码 ---------------- */
-
-.gh-qr { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-
-.gh-qr-frame {
-  position: relative;
-  width: 200px;
-  height: 200px;
-  padding: 8px;
-  border: var(--appearance-border-width, 1px) solid var(--border, rgba(41, 44, 46, .08));
-  border-radius: var(--gh-ctl-radius);
-  background: #fff;
-  overflow: hidden;
-}
-
-.gh-qr-frame img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
-.gh-qr-placeholder { position: absolute; inset: 8px; background: var(--surface-2, #eeefed); }
-
-.gh-qr-overlay {
-  position: absolute;
-  inset: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  /* 二维码本身是白底的，遮罩跟着用表面色（浅色近白、深色随表面变暗），文字用正文色 */
-  background: color-mix(in srgb, var(--surface, #fff) 88%, transparent);
-  color: var(--text, #292c2e);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium, 500);
-}
-
-.gh-qr-message { margin: 0; font-size: var(--fs-secondary); color: var(--text-2, #666c70); text-align: center; }
-
 /* ---------------- 资源列表（详情页选包） ---------------- */
 
 .gh-resource-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
@@ -889,16 +854,6 @@ html, body, #root {
 .gh-thumbs button { flex: 0 0 auto; width: 108px; aspect-ratio: 16 / 9; padding: 0; border: 2px solid transparent; border-radius: calc(var(--gh-ctl-radius) - 3px); overflow: hidden; background: var(--surface-2, #eeefed); cursor: pointer; }
 .gh-thumbs button[data-active="true"] { border-color: var(--accent, #bd542b); }
 .gh-thumbs img { display: block; width: 100%; height: 100%; object-fit: cover; }
-
-/* ---------------- 标签页（面板内的下划线式切换，如登录方式） ---------------- */
-/* 与工具栏的主栏目分段同一套视觉：36px 高、字重 550、选中项正文色 + accent 短线压在细线上 */
-
-.gh-tabs { display: flex; gap: 18px; border-bottom: var(--appearance-border-width, 1px) solid var(--border, rgba(41, 44, 46, .08)); margin-bottom: var(--gh-gap); }
-.gh-tabs button { position: relative; height: 36px; padding: 8px 0; border: 0; background: transparent; color: var(--text-3, #82888b); font: inherit; font-weight: 550; white-space: nowrap; cursor: pointer; transition: color var(--pk-speed, 120ms) ease; }
-.gh-tabs button:hover { color: var(--text, #292c2e); }
-.gh-tabs button[aria-selected="true"] { color: var(--text, #292c2e); }
-.gh-tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: var(--accent, #bd542b); }
-.gh-tabs button:focus-visible { outline: 2px solid var(--accent, #bd542b); outline-offset: -2px; border-radius: 6px; }
 
 /* ================= 以下为子代理 C 追加：浏览视图（gh-lib）、详情（gh-detail）、资源包（gh-pkg）、下载对话框（gh-dlg） ================= */
 
