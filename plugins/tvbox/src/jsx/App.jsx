@@ -32,6 +32,7 @@ export function App() {
   const [sites, setSites] = useState([])
   const [keyword, setKeyword] = useState('')
   const [notice, setNotice] = useState('')
+  const [reloadSeq, setReloadSeq] = useState(0)   // 手动刷新：递增强制当前页重挂载重拉
   const kit = useKit()
   const siteDropRef = useRef(null)
 
@@ -97,11 +98,21 @@ export function App() {
               <span>{item.label}</span>
             </button>
           ))}
+          {/* 手动刷新当前页：重挂载内容区触发各页面数据 useEffect 重拉 */}
+          <button
+            className="tb-rail-btn tb-rail-refresh"
+            onClick={() => { setReloadSeq(s => s + 1); void refreshSites() }}
+            title="刷新当前页"
+            aria-label="刷新当前页"
+          >
+            <span className="tb-rail-glyph">↻</span>
+            <span>刷新</span>
+          </button>
         </div>
       </nav>
 
       {/* 内容区 */}
-      <main className="tb-main">
+      <main className="tb-main" key={reloadSeq}>
         {/* 顶行工具条：聚合模式只有搜索框（多源自动参与，站点启停在配置页） */}
         {view.name !== 'live' ? (
           <div className="tb-topbar">

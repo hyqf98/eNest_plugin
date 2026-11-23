@@ -166,7 +166,7 @@ export function App() {
     return searchPort(st.ports, st.search)
   }
 
-  // —— Quick 形态列表（等价原 renderQuickList）——
+  // —— Quick 形态列表（等价原 renderQuickList；支持 kill/k 命令词直达端口结束）——
   const renderQuickList = useCallback((q) => {
     st._quickInput = q
     const list = []
@@ -175,10 +175,26 @@ export function App() {
       setQuickList({ kind: 'empty', rows: [] })
       return
     }
-    const asPort = /^\d{1,5}$/.test(query)
+    // 命令词 kill/k <port>：进入端口 kill 模式（占用时首行提供一键结束全部）
+    const killCmd = /^(?:kill|k)\s+(\d{1,5})$/i.exec(query)
+    const killPort = killCmd ? killCmd[1] : null
+    const effQuery = killPort ?? query
+    const asPort = /^\d{1,5}$/.test(effQuery)
     if (asPort) {
-      const hits = st.ports.filter((p) => String(p.port) === query)
-      if (!hits.length) list.push({ kind: 'empty-text', text: `端口 ${query} 当前无监听进程` })
+      const hits = st.ports.filter((p) => String(p.port) === effQuery)
+      if (killPort) {
+        if (!hits.length) {
+          list.push({ kind: 'empty-text', text: `端口 ${effQuery} 当前无监听进程，无需结束` })
+          setQuickList({ kind: 'rows', rows: list })
+          return
+        }
+        list.push({
+          kind: 'kill-all', port: effQuery, count: hits.length,
+          procs: hits.map((p) => ({ ...p, command: p.command || p.name, rss: 0, pcpu: 0 })),
+        })
+      } else if (!hits.length) {
+        list.push({ kind: 'empty-text', text: `端口 ${query} 当前无监听进程` })
+      }
       for (const p of hits) {
         list.push({
           kind: 'port', protocol: p.protocol, address: `${p.address}:${p.port}`,
@@ -187,8 +203,8 @@ export function App() {
         })
       }
     }
-    const procHits = searchProc(st.procs, query).slice(0, asPort ? 8 : 30)
-    if (procHits.length && asPort) list.push({ kind: 'head', text: '相关进程' })
+    const procHits = searchProc(st.procs, effQuery).slice(0, asPort ? 8 : 30)
+    if (procHits.length && asPort && !killPort) list.push({ kind: 'head', text: '相关进程' })
     for (const p of procHits) {
       list.push({ kind: 'proc', pid: p.pid, name: shortName(p.command), cpu: formatPct(p.pcpu), mem: formatKb(p.rss), proc: p })
     }
@@ -197,6 +213,26 @@ export function App() {
   }, [st]) // eslint-disable-line react-hooks/exhaustive-deps
   const renderQuickListRef = useRef(renderQuickList)
   renderQuickListRef.current = renderQuickList
+
+  /** kill 命令词：逐个结束端口占用进程（每个都走原生确认；取消或失败停止后续并汇总） */
+  const killPortOccupants = useCallback(async (port, procs) => {
+    const results = []
+    let cancelled = false
+    for (const proc of procs) {
+      try {
+        await api.sys.kill(proc.pid, { signal: 'TERM', confirmed: true })
+        results.push(`#${proc.pid} ${shortName(proc.command)} ✓`)
+      } catch (err) {
+        const message = String(err?.message ?? '')
+        if (message === 'operation cancelled') { cancelled = true; break }
+        results.push(`#${proc.pid} ${message || '失败'}`)
+      }
+    }
+    if (cancelled) results.push('已取消')
+    kitRef.current?.toast(`端口 ${port}：${results.join('，')}`, cancelled ? 'info' : 'success')
+    await refreshRef.current()
+    renderQuickListRef.current(st._quickInput ?? '')
+  }, [])
 
   // —— 危险确认（结束进程，原生 dialog#dlg）——
   const showKillDialog = useCallback((proc) => {
@@ -725,11 +761,22 @@ export function App() {
   const quick = quickList
   const renderQuickRows = () => {
     if (!quick || quick.kind !== 'rows' || !Array.isArray(quick.rows)) {
-      return <div className="sg-empty">{'输入端口号查询监听占用\n或输入进程名 / pid 搜索并结束进程'}</div>
+      return <div className="sg-empty">{'输入端口号查占用 / kill 端口 一键结束\n或输入进程名 / pid 搜索并结束进程'}</div>
     }
     return quick.rows.map((r, i) => {
       if (r.kind === 'empty-text') return <div className="sg-empty" key={i}>{r.text}</div>
       if (r.kind === 'head') return <div className="sg-row36 sg-row-head" key={i}><span className="pk-muted">{r.text}</span></div>
+      if (r.kind === 'kill-all') {
+        return (
+          <div className="sg-row36 sg-kill-cmd" key={i}>
+            <span className="pk-muted mono">kill</span>
+            <span className="mono">{`:${r.port}`}</span>
+            <span className="name">{`结束占用端口的 ${r.count} 个进程`}</span>
+            <button className="pk-btn pk-btn-danger pk-btn-sm" type="button"
+              onClick={() => { void killPortOccupants(r.port, r.procs) }}>全部结束</button>
+          </div>
+        )
+      }
       if (r.kind === 'port') {
         return (
           <div className="sg-row36" key={i}>
@@ -763,7 +810,7 @@ export function App() {
       {/* Quick：单列表 */}
       <section className="sg-quick" id="quick-view" hidden={mode !== 'quick'}>
         <div className="sg-quick-bar">
-          <input id="q-input" type="search" placeholder="输入端口号查占用，或进程名 / pid 搜索"
+          <input id="q-input" type="search" placeholder="端口号查占用 · kill 端口 · 进程名 / pid"
             onInput={onQuickInput} onKeyDown={onQuickKeydown}
           />
           <button type="button" className="pk-btn pk-btn-primary" id="q-search"

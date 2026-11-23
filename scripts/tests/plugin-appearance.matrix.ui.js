@@ -5,7 +5,7 @@ import { installPreviewFixture } from '../preview-fixture.mjs'
 import { appearanceCases, snapshotFor } from './appearance-fixture.js'
 
 const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1sAAAAASUVORK5CYII=', 'base64')
-const visualSamples = new Set(['remote-desktop', 'markdown', 'todos', 'password-kit', 'screen-assistant'])
+const visualSamples = new Set(['remote-desktop', 'markdown', 'todos', 'password-kit'])
 
 // Each row registers a primary path and a mutable business input/selection.
 // Remote transports, OS effects, files and services remain isolated fixtures.
@@ -23,7 +23,6 @@ const plugins = [
   ['diff', 'editor', '.editor', '#source', 'first\nchanged draft', 'Enter the first comparison document'],
   ['dsh', 'workbench', '.settings', '#profile-name', 'theme-draft', 'Open settings and draft a profile without starting a process'],
   ['hash', 'editor', '.page:visible', '#hash-input', 'eNest theme draft', 'Hash a text draft locally'],
-  ['image-tools', 'flow', '.work-layout', '#wm-text', 'eNest draft', 'Load an isolated PNG and draft its watermark'],
   ['json-tools', 'editor', '.editors', '#input', '{"theme":"draft","count":31}', 'Parse a JSON source draft'],
   ['lan-share', 'flow', '.layout', '#device-name', 'Theme fixture', 'Draft a device name without starting a share service'],
   ['markdown', 'editor', '.workspace', '#editor', '# Theme draft\n\nKeep this document.', 'Create and edit a local Markdown note'],
@@ -33,7 +32,6 @@ const plugins = [
   ['pomodoro', 'instrument', '.workspace', '#task', 'Theme acceptance', 'Draft the next focus task without starting a timer'],
   ['regex', 'editor', '.workbench', '#pattern', 'theme\\w+', 'Edit a regular expression draft'],
   ['remote-desktop', 'workbench', '.workspace', '#search', 'design', 'Filter remote profiles without connecting'],
-  ['screen-assistant', 'flow', '.editor-layout', '#annotation-text', 'Theme draft', 'Import an isolated PNG and draft a text annotation'],
   ['ssh', 'workbench', '.app', '#search-input', 'fixture connection', 'Filter profiles; fitted terminal/session preservation is tested separately'],
   ['sticky-notes', 'collection', '.app', '#title', 'Theme draft note', 'Create a note and preserve its unsaved edit'],
   ['sysguard', 'collection', '.sg', '.sg-search:visible', 'eNest', 'Filter fixture processes without terminating anything'],
@@ -49,17 +47,7 @@ async function prepare(page, plugin) {
     await page.locator('#rule-add').selectOption('insert', { force: true })
   }
   if (plugin === 'dsh') await page.locator('[data-act="settings"]').click()
-  if (plugin === 'image-tools') {
-    await page.locator('#file-input').setInputFiles({ name: 'theme-fixture.png', mimeType: 'image/png', buffer: tinyPng })
-    await page.getByRole('button', { name: '选择 theme-fixture.png' }).click()
-    await expect(page.locator('.work-layout')).toBeVisible()
-    await page.locator('[data-tab="watermark"]').click()
-  }
   if (plugin === 'password-kit') await page.locator('.advanced summary').click()
-  if (plugin === 'screen-assistant') {
-    await page.locator('#image-file').setInputFiles({ name: 'theme-fixture.png', mimeType: 'image/png', buffer: tinyPng })
-    await page.locator('[data-tool="text"]').click()
-  }
   if (plugin === 'markdown') await page.locator('#new-note').click()
   if (plugin === 'sticky-notes') await page.locator('#new').click()
   if (plugin === 'sysguard') await page.locator('[data-tab="proc"]').click()

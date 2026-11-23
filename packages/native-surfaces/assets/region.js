@@ -19,7 +19,9 @@ async function startLive() {
     await new Promise(resolve => { if (live.readyState >= 2 && live.videoWidth) return resolve(); live.addEventListener('loadeddata', resolve, { once: true }); setTimeout(resolve, 800) })
     if (!live.videoWidth || finished) { stopLive(); return }
     videoReady = true
-    liveBox.style.display = 'block'; hint.classList.add('is-live')
+    // 拖拽进行中不立即露洞：等松手后 draw() 再切实时画面，避免首帧残影闪现。
+    liveBox.style.display = dragging ? 'none' : 'block'
+    hint.classList.add('is-live')
     draw()
   } catch { stopLive() }
 }
@@ -35,8 +37,12 @@ function draw() {
   const x = Math.min(sx, ex), y = Math.min(sy, ey), width = Math.abs(ex - sx), height = Math.abs(ey - sy)
   const active = dragging || width > 2 || height > 2
   Object.assign(selection.style, { display: active ? 'block' : 'none', left: `${x}px`, top: `${y}px`, width: `${width}px`, height: `${height}px` })
-  if (videoReady && active) liveBox.style.transform = `translate(${-x}px, ${-y}px)`
-  else if (videoReady) liveBox.style.display = 'none'
+  if (!videoReady) return
+  // 拖拽中洞内显示静态底图：视频流会采集到本窗口自身的选框绘制，逐帧叠加成
+  // 残影闪烁（拖得越快越明显）。松手后再露出实时画面，确认取帧仍是 WYSIWYG。
+  if (dragging) liveBox.style.display = 'none'
+  else if (active) { liveBox.style.display = 'block'; liveBox.style.transform = `translate(${-x}px, ${-y}px)` }
+  else liveBox.style.display = 'none'
 }
 /** 等流稳定几帧再取：首帧常是启动前的残影（光标位置、动画相位都会旧）。 */
 async function settleFrames() {

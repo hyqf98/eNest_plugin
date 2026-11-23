@@ -26,7 +26,7 @@ export async function runMarketScenario(page, id) {
       return '执行 Base64 编码并显示结果'
     case 'com.github.eNest.diff':
       await fill('#source', 'name: eNest\nversion: 1.0.0\nmode: shell\nplugins:\n  - calculator\n  - notes\n  - clipboard')
-      await fill('#target', 'name: eNest\nversion: 1.1.0\nmode: quick\nplugins:\n  - calculator\n  - markdown\n  - clipboard\n  - image-tools')
+      await fill('#target', 'name: eNest\nversion: 1.1.0\nmode: quick\nplugins:\n  - calculator\n  - markdown\n  - clipboard\n  - screen-assistant')
       await wait(() => document.querySelector('#diff-view .diff-row.add') && document.querySelector('#diff-view .diff-row.del') && document.querySelector('#nav-next')?.disabled === false)
       await checkMenuAction('对比选项与导出', '导出 patch')
       return '比较两个版本配置，显示行级与行内差异'
@@ -34,14 +34,6 @@ export async function runMarketScenario(page, id) {
       await fill('#hash-input', 'eNest / local tools, thoughtful workflows')
       await wait(() => /[a-f0-9]{32}/.test(document.querySelector('#hash-list').textContent))
       return '计算演示文本的多算法摘要'
-    case 'com.github.eNest.image-tools':
-      await click('#add-files'); await page.locator('#work-layout').waitFor({ state: 'visible' })
-      await click('#thumb-grid .thumb')
-      await click('#run-compress')
-      await page.locator('#result-bar').waitFor({ state: 'visible' })
-      await wait(() => /\d+×\d+/.test(document.querySelector('#result-meta')?.textContent || '') && document.querySelector('#use-result')?.disabled === false)
-      await checkMenuAction('结果另存', '另存结果')
-      return '通过模拟授权句柄读取演示图片，执行压缩并显示预览'
     case 'com.github.eNest.json-tools':
       await fill('#input', '{"name":"eNest","version":"1.1.0","window":{"width":720,"height":420},"features":["local-first","sandboxed","responsive"],"enabled":true}')
       await click('[data-action="format"]'); await wait(() => document.querySelector('#output').value.includes('\n'))
@@ -57,12 +49,8 @@ export async function runMarketScenario(page, id) {
       await wait(() => document.querySelector('#match-list').children.length >= 3)
       return '匹配三个日期并展示捕获组与替换结果'
     case 'com.github.eNest.screen-assistant': {
-      await page.getByRole('button', { name: '截图来源', exact: true }).click()
-      // Host-bound inputs consume authorized handles rather than a browser filechooser.
-      await page.getByRole('menuitem', { name: '打开图片', exact: true }).click()
-      await page.locator('#canvas-wrap').waitFor({ state: 'visible' })
-      await wait(() => document.querySelector('#image-canvas')?.width === 1000 && document.querySelector('#image-canvas')?.height === 650)
-      return '从截图来源菜单导入隔离演示图片，展示标注工作区'
+      await page.locator('.sa-stage').waitFor({ state: 'visible' })
+      return '展示全宽捕获台、最近媒体与录制选项'
     }
     case 'com.github.eNest.batch-rename':
     case 'com.github.eNest.lan-share':

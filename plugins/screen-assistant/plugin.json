@@ -1,8 +1,8 @@
 {
   "id": "com.github.eNest.screen-assistant",
   "name": "屏幕助手",
-  "version": "0.0.1",
-  "description": "截图与原图历史、裁剪箭头文字马赛克标注（含工具快捷键）、区域录屏和贴图管理；粘性半透明工具头，小窗快速操作，桌面展开完整编辑。",
+  "version": "0.1.0",
+  "description": "截图、长截图、区域/全屏录屏与统一媒体库，内置标注、GIF 导出、贴图和图片工具箱。",
   "author": "eNest Labs",
   "main": "index.html",
   "category": "媒体",
@@ -10,54 +10,82 @@
   "engines": {
     "enest": ">=0.0.1"
   },
-  "backend": {"entry": "backend/index.cjs"},
   "permissions": [
-    "backend.node",
     "screen.capture",
     "screen.record",
     "pin.create",
     "clipboard.readImage",
     "clipboard.writeImage",
-    "clipboard.write",
-    "shell.openExternal"
+    "clipboard.write"
   ],
   "window": {
-    "minWidth": 480,
-    "minHeight": 360
+    "width": 1020,
+    "height": 700,
+    "minWidth": 720,
+    "minHeight": 460
   },
   "features": [
     {
       "code": "capture",
-      "explain": "框选矩形区域截图",
-      "cmds": [
-        "截图",
-        "screenshot",
-        "截屏",
-        "jt",
-        "截图标注"
-      ]
+      "explain": "矩形区域截图",
+      "cmds": ["截图", "截屏", "screenshot", "jt", "截图标注"]
+    },
+    {
+      "code": "full",
+      "explain": "全屏截图",
+      "cmds": ["全屏截图", "fullscreen", "quanpingjietu"]
+    },
+    {
+      "code": "longshot",
+      "explain": "滚动长截图",
+      "cmds": ["长截图", "滚动截图", "长截屏", "changjietu"]
     },
     {
       "code": "record",
-      "explain": "框选矩形区域录屏",
-      "cmds": [
-        "录屏",
-        "record",
-        "lp",
-        "luping"
-      ]
+      "explain": "矩形区域录屏",
+      "cmds": ["录屏", "区域录屏", "record", "lp", "luping"]
+    },
+    {
+      "code": "record-full",
+      "explain": "全屏录屏",
+      "cmds": ["全屏录屏", "quanpingluping"]
     },
     {
       "code": "pin",
-      "explain": "把截图钉在桌面最上层",
+      "explain": "贴图到桌面",
+      "cmds": ["贴图", "pin", "tt", "tietu"]
+    },
+    {
+      "code": "tools",
+      "explain": "图片压缩、转换与处理",
       "cmds": [
-        "贴图",
-        "pin",
-        "tt",
-        "tietu"
+        "图片",
+        "压缩",
+        "转换",
+        "图片工具",
+        "image",
+        "tp",
+        "tupian",
+        "yasuo",
+        { "type": "img", "label": "压缩这张图片" }
       ]
+    },
+    {
+      "code": "library",
+      "explain": "截图与录屏历史",
+      "cmds": ["历史", "媒体库", "截图历史", "录制历史", "相册"]
     }
   ],
+  "contributes": {
+    "openWith": [
+      {
+        "id": "image-files",
+        "extensions": ["png", "jpg", "jpeg", "webp", "gif"],
+        "mimeTypes": ["image/png", "image/jpeg", "image/webp", "image/gif"],
+        "role": "Viewer"
+      }
+    ]
+  },
   "ui": {
     "chrome": "none",
     "themeAware": true,
@@ -66,15 +94,14 @@
   },
   "market": {
     "featured": true,
-    "tags": [
-      "截图",
-      "录屏",
-      "贴图"
-    ],
+    "tags": ["截图", "长截图", "录屏", "GIF", "贴图", "图片工具"],
     "readme": "assets/market/README.md",
     "screenshots": [
       "assets/market/screenshots/01-main.png",
-      "assets/market/screenshots/02-annotation.webp"
+      "assets/market/screenshots/02-library.png",
+      "assets/market/screenshots/03-tools.png",
+      "assets/market/screenshots/04-editor.png",
+      "assets/market/screenshots/05-video.png"
     ]
   },
   "development": {

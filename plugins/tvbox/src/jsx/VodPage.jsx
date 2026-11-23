@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { call } from '../js/api.js'
 import { Card } from './HomePage.jsx'
-import { ErrorBox, FilterRows, LoadMore, useKit } from './widgets.jsx'
+import { ErrorBox, FilterRows, LoadMore, SkeletonRow, useKit } from './widgets.jsx'
 
 /** 标准板块（与后端 STANDARD_SECTIONS 一致） */
 const SECTIONS = [
@@ -123,10 +123,8 @@ export function VodPage({ params, onOpenVod }) {
         {list.map((v, i) => (
           <Card key={`${v.vod_name}-${v.vod_year ?? ''}-${i}`} item={v} onOpen={() => onOpenVod({ ...v, siteName: v.sources?.[0]?.siteName ?? '' })} />
         ))}
-        {loading ? Array.from({ length: 8 }).map((_, i) => (
-          <div key={`sk-${i}`} className="tb-card tb-card-skeleton"><div className="tb-card-poster tb-skeleton" /></div>
-        )) : null}
       </div>
+      {loading && !list.length ? <SkeletonRow count={8} label="正在加载分类内容…" /> : null}
       {!loading && !list.length && !error ? <div className="tb-empty">这个分类暂时没有内容</div> : null}
       <LoadMore loading={loading} hasMore={list.length > 0 && list.length % 40 === 0} onLoad={loadMore} />
     </div>

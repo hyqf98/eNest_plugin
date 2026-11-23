@@ -1,0 +1,73 @@
+.sa-editor {
+  position: absolute; inset: 0; z-index: 40;
+  display: flex; flex-direction: column; background: var(--bg);
+}
+.sa-ed-head { height: 46px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--sa-line); }
+.sa-ed-name { min-width: 0; flex: 1; font-size: 12px; color: var(--sa-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sa-ed-state { font-size: 10px; color: var(--sa-text-3); white-space: nowrap; }
+.sa-ed-stage {
+  flex: 1; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center;
+  padding: 26px 26px 104px;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in oklab, var(--sa-accent) 5%, transparent), transparent 55%),
+    var(--bg);
+}
+.sa-canvas-wrap { position: relative; line-height: 0; box-shadow: 0 18px 48px rgba(15, 23, 42, .16); border-radius: 2px; }
+.sa-canvas-wrap canvas { display: block; }
+.sa-canvas-image { max-width: 100%; max-height: calc(100vh - 210px); width: auto; height: auto; }
+.sa-canvas-wrap.long .sa-canvas-image { max-height: none; }
+.sa-canvas-overlay {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  cursor: crosshair; touch-action: none;
+}
+.sa-canvas-overlay[data-tool="text"] { cursor: text; }
+.sa-ed-toolbar {
+  position: absolute; left: 0; right: 0; bottom: 18px; margin: 0 auto; z-index: 5;
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  width: max-content; max-width: calc(100% - 28px); overflow-x: auto;
+  padding: 5px; border-radius: 12px;
+  background: color-mix(in oklab, var(--sa-card) 92%, transparent);
+  border: 1px solid var(--sa-line); box-shadow: var(--sa-shadow);
+  backdrop-filter: blur(10px);
+}
+.sa-tool {
+  width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 8px;
+  background: transparent; color: var(--sa-text-2); cursor: pointer;
+}
+.sa-tool:hover { background: var(--sa-soft); color: var(--text); }
+.sa-tool[data-active="true"] { background: var(--sa-accent-soft); color: var(--sa-accent); }
+.sa-tool:disabled { opacity: .4; cursor: default; }
+.sa-tool .sa-icon { width: 17px; height: 17px; }
+.sa-swatches { display: flex; align-items: center; gap: 4px; padding: 0 3px; }
+.sa-swatch {
+  width: 17px; height: 17px; border-radius: 50%; border: 2px solid transparent;
+  padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14);
+}
+.sa-swatch[data-active="true"] { border-color: var(--text); }
+.sa-swatch.custom { position: relative; overflow: hidden; background: conic-gradient(#f87171, #fbbf24, #34d399, #60a5fa, #a78bfa, #f87171); }
+.sa-swatch.custom input { position: absolute; inset: -6px; opacity: 0; cursor: pointer; }
+.sa-widths { display: flex; align-items: center; gap: 2px; }
+.sa-width {
+  width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent;
+  display: grid; place-items: center; cursor: pointer; color: var(--sa-text-2);
+}
+.sa-width[data-active="true"] { background: var(--sa-soft); color: var(--text); }
+.sa-width i { display: block; width: 16px; border-radius: 999px; background: currentColor; }
+.sa-ed-primary {
+  height: 32px; padding: 0 12px; border: 0; border-radius: 8px;
+  background: var(--sa-accent); color: #fff; font-size: 11px; cursor: pointer;
+}
+.sa-ed-primary:disabled { opacity: .5; cursor: default; }
+.sa-text-editor {
+  position: absolute; z-index: 8; min-width: 130px; max-width: 70%;
+  padding: 4px 7px; border-radius: 5px;
+  border: 1px dashed var(--sa-accent); background: rgba(10, 12, 16, .55);
+  color: #fff; font-size: 14px; outline: none; line-height: 1.3;
+}
+.sa-ed-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--sa-text-3); font-size: 12px; }
+.sa-ed-empty { flex: 1; display: grid; place-items: center; color: var(--sa-text-3); font-size: 12px; }
+
+@media (max-width: 760px) {
+  .sa-ed-toolbar { bottom: 10px; }
+  .sa-swatches { display: none; }
+}

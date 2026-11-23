@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-11T08:18:14.978Z",
+  "generatedAt": "2026-11-22T13:41:05.916Z",
   "channel": "stable",
   "categories": [
     "效率",
@@ -731,50 +731,6 @@
       },
       "readmeImages": {
         "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/hash/public/assets/market/screenshots/01-main.png"
-      }
-    },
-    {
-      "id": "com.github.eNest.image-tools",
-      "name": "图片工具箱",
-      "version": "0.0.1",
-      "description": "图片压缩、格式转换、批量缩放、裁剪旋转、文字水印、EXIF 查看、色板提取与贴图预览。",
-      "author": "eNest Labs",
-      "category": "媒体",
-      "icon": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/icon.svg",
-      "readmeUrl": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/README.md",
-      "screenshots": [
-        "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/screenshots/01-main.png"
-      ],
-      "tags": [
-        "图片",
-        "压缩",
-        "格式转换",
-        "水印",
-        "EXIF"
-      ],
-      "permissions": [
-        "pin.create",
-        "clipboard.readImage",
-        "clipboard.write"
-      ],
-      "engines": {
-        "enest": ">=0.0.1"
-      },
-      "featured": false,
-      "ui": {
-        "chrome": "none",
-        "themeAware": true,
-        "background": "opaque",
-        "preferredColorScheme": "auto"
-      },
-      "asset": {
-        "name": "image-tools@0.0.1.enestplugin",
-        "url": "https://github.com/hyqf98/eNest_plugin/releases/download/v0.0.1/image-tools%400.0.1.enestplugin",
-        "size": 195981,
-        "sha256": "7e9258dd24e81f46d0b7b00c2d449629932e94f8f52a49514db74a057d9d3936"
-      },
-      "readmeImages": {
-        "./screenshots/01-main.png": "https://raw.githubusercontent.com/hyqf98/eNest_plugin/main/plugins/image-tools/public/assets/market/screenshots/01-main.png"
       }
     },
     {

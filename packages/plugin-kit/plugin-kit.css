@@ -364,13 +364,9 @@ dialog { color: var(--text); background: var(--surface); border: 1px solid var(-
 }
 .pk-appearance[data-plugin="batch-rename"] .rn-workbench,
 .pk-appearance[data-plugin="color-picker"] .color-layout,
-.pk-appearance[data-plugin="image-tools"] .work-layout,
-.pk-appearance[data-plugin="screen-assistant"] .editor-layout,
 .pk-appearance[data-plugin="lan-share"] .layout { gap: var(--flow-gap); }
 .pk-appearance[data-plugin="batch-rename"] .panel,
 .pk-appearance[data-plugin="color-picker"] .work-panel,
-.pk-appearance[data-plugin="image-tools"] .editor-panel,
-.pk-appearance[data-plugin="screen-assistant"] .editor-main,
 .pk-appearance[data-plugin="lan-share"] .stage { border-radius: var(--appearance-panel-radius); }
 
 /* Default family geometry; host tokens continue to flow through shared hooks. */
@@ -620,12 +616,9 @@ select:not(.pk-select-native) {
       grid-template-columns: minmax(300px, var(--appearance-primary-track)) minmax(360px, var(--appearance-secondary-track));
     }
   }
-  /* image-tools 的 .work-layout 已改为三栏（队列/画板/工具），列定义由插件自身
-     CSS 决定；这里不再按插件 ID 覆盖，否则会把三栏压回两栏。 */
   @container colorpick (min-width: 761px) {
     :root:not([data-mode="quick"]) .pk-appearance[data-plugin="color-picker"] .color-layout { grid-template-columns: var(--flow-side) minmax(0, 1fr); }
   }
-  :root:not([data-mode="quick"]) .pk-appearance[data-plugin="screen-assistant"] .editor-layout { grid-template-columns: minmax(0, 1fr) var(--flow-side); }
   @container (min-width: 721px) {
     :root:not([data-mode="quick"]) .pk-appearance[data-plugin="lan-share"] .layout { grid-template-columns: minmax(0, 1fr) var(--flow-side); }
   }

@@ -38,7 +38,11 @@
         "port",
         "jincheng",
         "jc",
-        "进程管理器"
+        "进程管理器",
+        "kill",
+        "kill端口",
+        "kill port",
+        "结束端口"
       ]
     }
   ],

@@ -15,7 +15,6 @@ const plugins = [
   "json-tools",
   "password-kit",
   "qrcode",
-  "screen-assistant",
   "color-picker",
 ];
 
@@ -355,17 +354,6 @@ async function seed(page, slug) {
     await page.waitForTimeout(300);
     return { selector: "#input", value: draft };
   }
-  if (slug === "screen-assistant") {
-    await page.locator("#capture-full").click();
-    await page.waitForFunction(
-      () => document.querySelector("#copy-image").disabled === false,
-    );
-    return {
-      contains: "#image-meta",
-      value: "480",
-      stored: "screen_workspace_v2",
-    };
-  }
   await page.locator("#color-input").fill("#305080");
   await page.locator("#remember").click();
   return {
@@ -439,10 +427,6 @@ const featureEntries = {
   qrcode: {
     quick: ["#copy-image", "[data-tab=decode]"],
     shell: ["#template", "[data-tab=batch]"],
-  },
-  "screen-assistant": {
-    quick: ["#capture", "#copy-image"],
-    shell: ["#import-image", "[data-tab=record]"],
   },
   "color-picker": {
     quick: ["#capture", "#remember"],

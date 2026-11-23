@@ -1,0 +1,104 @@
+.sa-tools { flex: 1; min-height: 0; display: grid; grid-template-columns: 88px minmax(0, 1fr) 296px; }
+.sa-tools-queue {
+  min-height: 0; overflow: auto; padding: 10px 8px; border-right: 1px solid var(--sa-line);
+  display: flex; flex-direction: column; gap: 6px; background: color-mix(in oklab, var(--sa-card) 45%, transparent);
+}
+.sa-queue-add {
+  height: 54px; flex: none; border-radius: 8px; border: 1px dashed var(--sa-line);
+  background: transparent; color: var(--sa-text-3); display: grid; place-items: center;
+  cursor: pointer; font-size: 10px; gap: 3px;
+}
+.sa-queue-add:hover { color: var(--sa-accent); border-color: var(--sa-accent); }
+.sa-queue-item {
+  position: relative; aspect-ratio: 1; flex: none; border-radius: 8px; overflow: hidden;
+  border: 2px solid transparent; background: var(--sa-soft); padding: 0; cursor: pointer;
+}
+.sa-queue-item img { width: 100%; height: 100%; object-fit: cover; }
+.sa-queue-item[data-active="true"] { border-color: var(--sa-accent); }
+.sa-queue-item .remove {
+  position: absolute; top: 2px; right: 2px; width: 17px; height: 17px; border-radius: 50%;
+  border: 0; background: rgba(15, 17, 21, .7); color: #fff; font-size: 11px; line-height: 1; cursor: pointer;
+}
+.sa-tools-board {
+  position: relative; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding: 18px; overflow: hidden;
+}
+.sa-tools-canvas {
+  position: relative; max-width: 100%; max-height: 100%; line-height: 0;
+  border-radius: 12px; overflow: hidden; background: var(--sa-card);
+  border: 1px solid var(--sa-line); box-shadow: 0 18px 44px rgba(20, 16, 12, .13);
+}
+.sa-tools-canvas img { max-width: 100%; max-height: calc(100vh - 150px); object-fit: contain; user-select: none; -webkit-user-drag: none; }
+.sa-tools-crop {
+  position: absolute; border: 1px dashed var(--sa-accent); background: rgba(59, 130, 246, .1);
+  pointer-events: none;
+}
+.sa-tools-drop {
+  width: min(520px, 90%); min-height: 260px; border: 1px dashed var(--sa-line); border-radius: 16px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  color: var(--sa-text-3); font-size: 12px; background: color-mix(in oklab, var(--sa-card) 55%, transparent);
+  text-align: center; padding: 24px;
+}
+.sa-tools-drop .sa-icon { width: 30px; height: 30px; opacity: .6; }
+.sa-tools-drop[data-dragging="true"] { border-color: var(--sa-accent); background: var(--sa-accent-soft); }
+.sa-tools-panel {
+  min-height: 0; overflow: auto; border-left: 1px solid var(--sa-line);
+  padding: 12px; display: flex; flex-direction: column; gap: 11px;
+  background: color-mix(in oklab, var(--sa-card) 45%, transparent);
+}
+.sa-tool-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.sa-tool-tab {
+  min-height: 44px; border-radius: 8px; border: 1px solid transparent; background: transparent;
+  color: var(--sa-text-3); display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; font-size: 8.5px; cursor: pointer; padding: 0;
+}
+.sa-tool-tab .sa-icon { width: 16px; height: 16px; }
+.sa-tool-tab:hover { background: var(--sa-soft); color: var(--text); }
+.sa-tool-tab[data-active="true"] { background: var(--sa-accent-soft); color: var(--sa-accent); border-color: color-mix(in oklab, var(--sa-accent) 40%, transparent); }
+.sa-field { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--sa-text-2); }
+.sa-field > .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sa-field output { font-variant-numeric: tabular-nums; color: var(--sa-text-3); }
+.sa-field input[type="text"], .sa-field input[type="number"], .sa-field select {
+  height: 30px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--sa-line);
+  background: var(--sa-card); color: var(--text); font-size: 12px; width: 100%;
+}
+.sa-field input[type="range"] { width: 100%; accent-color: var(--sa-accent); }
+.sa-inline-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.sa-inline-actions .pk-btn { flex: 1; min-width: 64px; }
+.sa-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.sa-presets button {
+  height: 25px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--sa-line);
+  background: var(--sa-card); color: var(--sa-text-2); font-size: 10px; cursor: pointer;
+}
+.sa-presets button:hover { border-color: var(--sa-accent); color: var(--sa-accent); }
+.sa-wm-grid { display: grid; grid-template-columns: repeat(3, 18px); gap: 3px; width: max-content; }
+.sa-wm-grid button {
+  width: 18px; height: 18px; border-radius: 3px; border: 1px solid var(--sa-line);
+  background: var(--sa-soft); cursor: pointer; padding: 0;
+}
+.sa-wm-grid button[data-active="true"] { background: var(--sa-accent); border-color: var(--sa-accent); }
+.sa-palette { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.sa-palette button {
+  height: 44px; border-radius: 7px; border: 1px solid rgba(0, 0, 0, .12);
+  font-size: 10px; cursor: pointer; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+}
+.sa-exif { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; font-size: 11px; }
+.sa-exif dt { color: var(--sa-text-3); }
+.sa-exif dd { margin: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.sa-result {
+  display: flex; flex-direction: column; gap: 7px; padding: 8px;
+  border: 1px solid var(--sa-line); border-radius: 9px; background: var(--sa-card);
+}
+.sa-result img { width: 100%; max-height: 120px; object-fit: contain; background: var(--sa-soft); border-radius: 5px; }
+.sa-result .meta { display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--sa-text-3); }
+.sa-result .meta b { color: var(--text); font-weight: 600; }
+.sa-batch-progress { font-size: 10px; color: var(--sa-text-3); }
+.sa-panel-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--sa-text-3); font-size: 11px; text-align: center; padding: 16px; }
+
+@media (max-width: 900px) {
+  .sa-tools { grid-template-columns: 74px minmax(0, 1fr) 260px; }
+}
+@media (max-width: 760px) {
+  .sa-tools { grid-template-columns: minmax(0, 1fr) 240px; }
+  .sa-tools-queue { display: none; }
+}

@@ -111,6 +111,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid transparent; outl
 .sg-row36:hover { background: var(--surface-2, #eeefed); }
 .sg-row36.sg-row-head { min-height: 28px; font-size: 11px; background: var(--surface-2, #eeefed); border-top: 1px solid var(--border, rgba(41, 44, 46, 0.08)); }
 .sg-row36.sg-row-head:hover { background: var(--surface-2, #eeefed); }
+/* kill 命令行首行：命令词高亮 + 一键结束全部占用 */
+.sg-row36.sg-kill-cmd { background: var(--surface-2, #eeefed); font-size: 12px; }
+.sg-row36.sg-kill-cmd .mono:first-child { color: var(--accent, #bd542b); font-weight: 600; }
 .sg-row36 .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sg-row36 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; min-width: 64px; }
 

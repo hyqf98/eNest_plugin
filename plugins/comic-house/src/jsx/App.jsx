@@ -52,6 +52,7 @@ function AppInner() {
   const [view, setView] = useState({ name: 'browse' })        // {name, ...params}
   const [history, setHistory] = useState([])
   const [favorites, setFavorites] = useState([])
+  const [reloadSeq, setReloadSeq] = useState(0)               // 手动刷新：递增强制当前页重挂载重拉
   const kit = useKit()
 
   const refreshSources = useCallback(async () => {
@@ -123,9 +124,18 @@ function AppInner() {
           <button className={railClass(view, 'settings')} onClick={() => setView({ name: 'settings' })}>
             <span className="ch-rail-glyph" aria-hidden>⚙</span>设置
           </button>
+          {/* 手动刷新当前页：重挂载内容区触发各页面数据 useEffect 重拉 */}
+          <button
+            className="ch-rail-btn ch-rail-refresh"
+            onClick={() => { setReloadSeq(s => s + 1); void refreshSources(); void refreshHistory(); void refreshFavorites() }}
+            title="刷新当前页"
+            aria-label="刷新当前页"
+          >
+            <span className="ch-rail-glyph" aria-hidden>↻</span>刷新
+          </button>
         </div>
       </nav>
-      <main className="ch-main ch-body">
+      <main className="ch-main ch-body" key={reloadSeq}>
         {view.name === 'browse' && (
           <BrowsePage
             sources={sources}

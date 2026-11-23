@@ -2,7 +2,7 @@ import { cp, mkdir, readdir, readFile, lstat, rm, writeFile } from 'node:fs/prom
 import { existsSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createHash } from 'node:crypto'
-import { join, resolve, relative, sep } from 'node:path'
+import { basename, dirname, join, resolve, relative, sep } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { build } from 'esbuild'
 import { repositoryRoot, localFile } from './plugin-contract.mjs'
@@ -18,10 +18,12 @@ export function lockedPackagePath(root, directory) {
 }
 
 export function validateNativeArchive(archive) {
-  const names = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n')
-  if (names.some(file => !file.startsWith('package/') || file.split('/').includes('..') || /[\\\u0000-\u001f\u007f]/.test(file))) throw new Error('Unsafe native package archive path')
+  // Run tar with a relative file name: GNU tar on Windows reads `D:\...` as a remote host spec.
+  const cwd = dirname(archive), file = basename(archive)
+  const names = execFileSync('tar', ['-tzf', file], { cwd, encoding: 'utf8' }).trim().split('\n')
+  if (names.some(name => !name.startsWith('package/') || name.split('/').includes('..') || /[\\\u0000-\u001f\u007f]/.test(name))) throw new Error('Unsafe native package archive path')
   // Check entry types before extraction: name-only listings cannot expose symlink/hardlink targets.
-  const entries = execFileSync('tar', ['-tvzf', archive], { encoding: 'utf8' }).trim().split('\n')
+  const entries = execFileSync('tar', ['-tvzf', file], { cwd, encoding: 'utf8' }).trim().split('\n')
   if (entries.some(line => !/^[d-]/.test(line))) throw new Error('Unsafe native package archive entry type')
 }
 
@@ -151,14 +153,20 @@ export async function buildBackend(source, destination, { root = repositoryRoot,
     await mkdir(cache, { recursive: true })
     const archive = join(cache, 'package.tgz')
     if (!existsSync(archive)) {
-      const result = JSON.parse(execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['pack', data.resolved, '--ignore-scripts', '--json', '--pack-destination', cache], { cwd: root, encoding: 'utf8' }))
+      // Windows .cmd shims cannot be exec'd without a shell since Node 18.20/20.12;
+      // quote every argument so paths with spaces survive the shell round-trip.
+      const windows = process.platform === 'win32'
+      const packArgs = ['pack', data.resolved, '--ignore-scripts', '--json', '--pack-destination', cache]
+      const result = JSON.parse(execFileSync(windows ? 'npm.cmd' : 'npm',
+        windows ? packArgs.map(value => `"${value.replaceAll('"', '\\"')}"`) : packArgs,
+        { cwd: root, encoding: 'utf8', windowsHide: true, ...(windows ? { shell: true } : {}) }))
       await cp(join(cache, result[0].filename), archive)
     }
     const archiveBytes = await readFile(archive)
     if (`sha512-${createHash('sha512').update(archiveBytes).digest('base64')}` !== data.integrity) throw new Error(`Native package integrity mismatch: ${name}`)
     const unpack = join(cache, 'unpacked'); await rm(unpack, { recursive: true, force: true }); await mkdir(unpack)
     validateNativeArchive(archive)
-    execFileSync('tar', ['-xzf', archive, '--no-same-owner', '--no-same-permissions', '-C', unpack])
+    execFileSync('tar', ['-xzf', basename(archive), '--no-same-owner', '--no-same-permissions', '-C', 'unpacked'], { cwd: dirname(archive) })
     const unpackedPackage = JSON.parse(await readFile(join(unpack, 'package/package.json'), 'utf8'))
     if (unpackedPackage.name !== name || unpackedPackage.version !== data.version) throw new Error('Native package identity mismatch')
     await copyPackage(join(unpack, 'package'), join(target, location), name, excludedFiles.get(name))

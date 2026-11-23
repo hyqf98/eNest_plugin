@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>录制控制</title>
+  <link rel="stylesheet" href="bar.css">
+  <script type="module" src="bar.js"></script>
+</head>
+<body>
+  <main id="bar" data-state="idle">
+    <span id="dot"></span>
+    <div id="text">
+      <strong id="label">录屏</strong>
+      <span id="sub"></span>
+    </div>
+    <canvas id="preview" width="76" height="38" hidden></canvas>
+    <div id="actions">
+      <button type="button" id="start" class="primary">开始</button>
+      <button type="button" id="pause" hidden>暂停</button>
+      <button type="button" id="resume" hidden>继续</button>
+      <button type="button" id="stop" class="danger" hidden>停止</button>
+      <button type="button" id="cancel" class="icon" title="取消" aria-label="取消">×</button>
+    </div>
+  </main>
+  <video id="video" muted playsinline></video>
+  <canvas id="crop" hidden></canvas>
+</body>
+</html>

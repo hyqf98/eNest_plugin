@@ -83,7 +83,7 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
     'localFiles.pick': async () => ['batch-rename', 'lan-share'].includes(pluginId) ? [
       { id: 'demo-file-1', name: '项目说明.pdf', kind: 'file', size: 142600, displayPath: '演示文件' },
       { id: 'demo-file-2', name: '界面设计.png', kind: 'file', size: 286720, displayPath: '演示文件' }
-    ] : ['image-tools', 'screen-assistant'].includes(pluginId) ? [{ id: 'demo-image', name: '海岸配色.png', kind: 'file', size: 32768, displayPath: '隔离演示图片' }] : [],
+    ] : pluginId === 'screen-assistant' ? [{ id: 'demo-image', name: '海岸配色.png', kind: 'file', size: 32768, displayPath: '隔离演示图片' }] : [],
     'localFiles.read': async ({ handleId }) => {
       if (handleId !== 'demo-image') throw new Error('Unknown demonstration file handle')
       const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 650

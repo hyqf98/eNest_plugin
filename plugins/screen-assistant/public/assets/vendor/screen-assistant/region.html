@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>选择区域</title>
+  <link rel="stylesheet" href="region.css">
+  <script type="module" src="region.js"></script>
+</head>
+<body>
+  <img id="shot" alt="">
+  <div id="veil" aria-hidden="true">
+    <span id="mask-top"></span><span id="mask-bottom"></span><span id="mask-left"></span><span id="mask-right"></span>
+  </div>
+  <div id="selection" aria-hidden="true">
+    <div id="live"><video id="live-video" muted playsinline autoplay></video></div>
+    <span class="handle" data-h="nw"></span><span class="handle" data-h="n"></span><span class="handle" data-h="ne"></span>
+    <span class="handle" data-h="w"></span><span class="handle" data-h="e"></span>
+    <span class="handle" data-h="sw"></span><span class="handle" data-h="s"></span><span class="handle" data-h="se"></span>
+  </div>
+  <span id="badge"></span>
+  <div id="tools" role="toolbar" aria-label="截图操作">
+    <button type="button" id="audio" class="tool" title="录制系统声音" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path id="wave" d="M16 8a5 5 0 0 1 0 8M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+      <span>声音</span>
+    </button>
+    <span class="sep"></span>
+    <button type="button" id="longshot" class="tool" title="滚动长截图">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M12 7v10m0 0-2.5-2.5M12 17l2.5-2.5"/></svg>
+      <span>长截图</span>
+    </button>
+    <button type="button" id="record" class="tool" title="录制所选区域">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3" class="fill"/></svg>
+      <span>录屏</span>
+    </button>
+    <span class="sep"></span>
+    <button type="button" id="cancel" class="tool icon" title="取消（Esc）" aria-label="取消">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+    <button type="button" id="shot-btn" class="tool primary" title="截图（Enter）">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3v11H4V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+      <span>截图</span>
+    </button>
+  </div>
+  <div id="hint">拖动选择区域 · Enter 截图 · Esc 取消</div>
+</body>
+</html>

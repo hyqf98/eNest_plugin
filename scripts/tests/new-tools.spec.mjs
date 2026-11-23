@@ -4,7 +4,7 @@ import { createPreviewServer } from "../dev-server.mjs";
 import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
-const plugins = ["image-tools", "code-shot"];
+const plugins = ["code-shot"];
 
 /** Mock eNest host: storage in localStorage, blobs in memory, no OS APIs. */
 function installHost() {
@@ -124,17 +124,10 @@ async function seed(page, slug) {
     assert.equal(await page.locator("#copy-shot").isDisabled(), false, "canvas ready enables copy");
     return { selector: "#code", value: draft, stored: "codeshot_config_v1" };
   }
-  // image-tools: 从剪贴板导入 → 队列出现 → 压缩产出结果
-  await page.locator("#from-clipboard").click();
-  await page.waitForFunction(() => document.querySelectorAll(".thumb").length >= 1, null, { timeout: 8000 });
-  await page.locator(".thumb").first().click();
-  await page.locator("#run-compress").click();
-  await page.waitForFunction(() => !document.querySelector("#result-bar")?.hidden, null, { timeout: 8000 });
-  return { contains: "#result-meta", value: "×", stored: "imagetools_queue_v1" };
 }
 
 test(
-  "image-tools + code-shot: dual mode, theme tokens, core flows and key boundaries",
+  "code-shot: dual mode, theme tokens, core flows and key boundaries",
   { timeout: 240000 },
   async () => {
     const { chromium } = await import("@playwright/test");

@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { installPreviewFixture } from '../preview-fixture.mjs'
 const cases = [
-  ['hash', '#hash-drop'], ['image-tools', '#empty-add'], ['qrcode', '#choose-files'],
-  ['color-picker', '#open-image'], ['screen-assistant', '#import-image']
+  ['hash', '#hash-drop'], ['qrcode', '#choose-files'], ['color-picker', '#open-image']
 ]
 const pixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jStsAAAAASUVORK5CYII='
 for (const [id, button] of cases) {
@@ -41,15 +40,7 @@ for (const [id, button] of cases) {
     await expect.poll(() => page.evaluate(() => window.__fileCalls.filter(call => call[0] === 'read').length)).toBe(1)
     expect(await page.evaluate(() => window.__fileCalls.find(call => call[0] === 'read')[1])).toMatchObject({ handleId: 'allowed-file', encoding: 'dataUrl' })
     if (id === 'hash') await expect(page.locator('#hash-file-result')).toContainText('SHA-256')
-    if (id === 'image-tools') {
-      await expect(page.locator('.thumb')).toHaveCount(1)
-      await page.locator('.thumb').click()
-      await page.locator('#run-compress').click()
-      await expect(page.locator('#compress-progress')).toContainText('完成')
-      for (const action of ['save-result', 'pin-result', 'use-result']) await expect(page.locator(`#${action}`)).toBeEnabled()
-    }
     if (id === 'color-picker') await expect(page.locator('#picker-panel')).toBeVisible()
-    if (id === 'screen-assistant') await expect(page.locator('#copy-image')).toBeEnabled()
     expect(nativeChoosers).toBe(0)
     expect(errors).toEqual([])
   })

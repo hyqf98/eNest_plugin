@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { call, loadHistory } from '../js/api.js'
-import { Empty, ErrorBox } from './widgets.jsx'
+import { Empty, ErrorBox, SkeletonRow } from './widgets.jsx'
 
 /** 一个首页板块：标题 + 横向卡片行 + 「更多」进分类页 */
 function Section({ title, list, onMore, onOpen }) {
@@ -93,11 +93,7 @@ export function HomePage({ sites, onOpenVod, onGoConfig, onPlayResume, onGoCateg
       ) : null}
 
       <ErrorBox error={error} onRetry={() => setSections([])} />
-      {loading && !sections.length ? (
-        <div className="tb-row">
-          {Array.from({ length: 6 }).map((_, i) => <div key={`sk-${i}`} className="tb-card tb-card-skeleton"><div className="tb-card-poster tb-skeleton" /></div>)}
-        </div>
-      ) : null}
+      {loading && !sections.length ? <SkeletonRow count={6} label="正在聚合各内容源…" /> : null}
 
       {sections.map(sec => (
         <Section

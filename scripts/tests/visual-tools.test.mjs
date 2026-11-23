@@ -16,7 +16,7 @@ async function loadEsm(relative) {
   return import(pathToFileURL(fileURLToPath(new URL(relative, root))).href)
 }
 const color = load('color-picker/src/js/color-math.js', 'ColorMath')
-const editor = await loadEsm('screen-assistant/src/js/editor-core.js')
+const editor = await loadEsm('screen-assistant/src/editor/core.js')
 const plain = (value) => JSON.parse(JSON.stringify(value))
 
 test('CSS colors support shorthand alpha HEX and modern RGB/HSL syntax', () => {

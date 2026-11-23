@@ -117,10 +117,12 @@
 /* —— Switch（40×24 圆角胶囊 + thumb） —— */
 .pk-switch {
   position: relative;
+  display: inline-flex;
+  align-items: center;
   width: 40px;
   height: 24px;
   flex: 0 0 auto;
-  padding: 0;
+  padding: 2px;
   border: 1px solid var(--line, var(--border, #dfe3e8));
   border-radius: 99px;
   background: var(--wash, var(--surface-3, #e6e9ee));
@@ -132,16 +134,17 @@
 .pk-switch:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--pk-focus-ring); }
 .pk-switch-thumb {
   display: block;
+  flex: 0 0 auto;
   width: 18px;
   height: 18px;
-  margin: auto;
+  margin: 0;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transition: transform 0.15s;
   will-change: transform;
 }
-.pk-switch[data-state='checked'] .pk-switch-thumb { transform: translateX(8px); }
+.pk-switch[data-state='checked'] .pk-switch-thumb { transform: translateX(16px); }
 
 /* —— Segmented —— */
 .pk-segmented {

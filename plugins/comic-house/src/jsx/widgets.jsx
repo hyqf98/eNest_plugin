@@ -163,15 +163,21 @@ export function Loading({ label = '加载中…' }) {
   )
 }
 
-/** 骨架屏（卡片墙占位） */
-export function GridSkeleton({ count = 12 }) {
+/** 骨架屏（卡片墙占位 + 顶部转圈提示，避免长时间聚合加载时看不出在进行中） */
+export function GridSkeleton({ count = 12, label = '加载中…' }) {
   return (
-    <div className="ch-grid" aria-hidden>
-      {Array.from({ length: count }, (_, i) => (
-        <div className="ch-card ch-card-skeleton" key={i}>
-          <div className="ch-card-cover" />
-        </div>
-      ))}
+    <div>
+      <div className="ch-skeleton-hint" role="status" aria-live="polite">
+        <span className="ch-loading-ring" aria-hidden />
+        <span>{label}</span>
+      </div>
+      <div className="ch-grid" aria-hidden>
+        {Array.from({ length: count }, (_, i) => (
+          <div className="ch-card ch-card-skeleton" key={i}>
+            <div className="ch-card-cover" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

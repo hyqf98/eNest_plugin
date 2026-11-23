@@ -149,7 +149,7 @@ test('Vite asset hook materializes portable real files for dev and build without
 })
 
 test('all four consumers declare and build the private adapter; host no longer owns selection/recording/pin UI', () => {
-  for (const name of ['screen-assistant', 'color-picker', 'image-tools', 'remote-desktop']) {
+  for (const name of ['screen-assistant', 'color-picker', 'remote-desktop']) {
     const base = new URL(`../../plugins/${name}/`, import.meta.url)
     const pkg = JSON.parse(readFileSync(new URL('package.json', base), 'utf8')), manifest = JSON.parse(readFileSync(new URL('plugin.json', base), 'utf8'))
     assert.equal(pkg.dependencies['@enest/native-surfaces'], '1.0.0')

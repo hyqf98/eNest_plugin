@@ -25,6 +25,23 @@ export function Empty({ children }) {
   return <div className="tb-empty">{children}</div>
 }
 
+/** 骨架卡片行（+ 顶部转圈提示，避免长时间聚合加载时看不出在进行中） */
+export function SkeletonRow({ count = 8, label = '加载中…' }) {
+  return (
+    <div>
+      <div className="tb-skeleton-hint" role="status" aria-live="polite">
+        <span className="tb-loading-ring" aria-hidden />
+        <span>{label}</span>
+      </div>
+      <div className="tb-row" aria-hidden>
+        {Array.from({ length: count }, (_, i) => (
+          <div key={`sk-${i}`} className="tb-card tb-card-skeleton"><div className="tb-card-poster tb-skeleton" /></div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function LoadMore({ loading, hasMore, onLoad }) {
   if (!hasMore) return null
   return (

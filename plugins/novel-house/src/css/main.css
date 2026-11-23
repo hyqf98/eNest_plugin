@@ -10,6 +10,9 @@
 .nh-rail-glyph { display: flex; align-items: center; justify-content: center; height: 17px; font-size: 15px; line-height: 17px; }
 .nh-rail-btn:hover { background: var(--bg, #f6f7f9); color: var(--text, #252a32); }
 .nh-rail-btn.pk-active { background: color-mix(in srgb, var(--accent, #3579dd) 12%, transparent); color: var(--accent, #3579dd); font-weight: 600; }
+/* 刷新按钮与导航项同语言，用细分隔线归到功能区 */
+.nh-rail-refresh { margin-top: 6px; position: relative; }
+.nh-rail-refresh::before { content: ''; position: absolute; top: -4px; left: 10px; right: 10px; height: 1px; background: color-mix(in srgb, var(--border, #d9dfe6) 70%, transparent); }
 
 /* —— 主体（flex 容器：内容区不裁切，滚动交给各页面内部） —— */
 .nh-main { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: visible; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -95,6 +98,9 @@
 .nh-card-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nh-card-sub { font-size: 11.5px; color: var(--text-2, #747c88); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nh-card-skeleton .nh-card-cover { animation: nh-shimmer 1.4s infinite; }
+/* 骨架屏顶部转圈提示条：聚合首屏等待时给出明确的进行中信号 */
+.nh-skeleton-hint { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 18px 0 14px; font-size: 12.5px; color: var(--text-2, #747c88); }
+.nh-skeleton-hint .nh-loading-ring { width: 14px; height: 14px; border-width: 2px; }
 
 /* —— 热门推荐区 —— */
 .nh-hot { border-bottom: 1px solid color-mix(in srgb, var(--border, #d9dfe6) 45%, transparent); padding-bottom: 20px; margin-bottom: 20px; }
