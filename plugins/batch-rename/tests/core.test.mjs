@@ -169,6 +169,12 @@ ok('目标撞上队列内未改名文件', () => {
   const rows = applyRules([E('a.txt', 0), E('b.txt', 1)], [{ type: 'replace', find: 'b', replaceWith: 'a' }])
   assert.equal(rows[1].error, '冲突：与现有文件同名')
 })
+ok('目标撞上队列内未改名文件（未改名文件排在前面，回标改名者）', () => {
+  const rows = applyRules([E('b.txt', 0), E('a.txt', 1)], [{ type: 'replace', find: 'a', replaceWith: 'b' }])
+  assert.equal(rows[0].error, null)
+  assert.equal(rows[1].error, '冲突：与现有文件同名')
+  assert.ok(hasBlocked(rows))
+})
 ok('改名后仍是原名不算冲突', () => {
   const rows = applyRules([E('a.txt', 0), E('a.txt', 1, '/other')], [])
   assert.equal(rows[0].error, null)

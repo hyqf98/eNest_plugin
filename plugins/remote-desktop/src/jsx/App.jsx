@@ -597,7 +597,7 @@ export function App() {
           <section className="welcome" id="welcome" hidden={hasSessions}>
             <div className="hero">
               <h2>远程桌面</h2>
-              <p>VNC 与 RDP 双协议，支持 SSH 隧道直达内网。</p>
+              <p>粘贴地址，或新建连接</p>
               <div className="quick-uri">
                 <input
                   id="uri-input" type="text" placeholder="粘贴 vnc://host:5901 或 rdp://user@host:3389"
@@ -633,8 +633,7 @@ export function App() {
               </div>
             </div>
             <div className="empty-guide" id="empty-guide" hidden={emptyGuideHidden}>
-              <p>还没有连接资产。</p>
-              <button className="pk-btn pk-btn-primary" id="btn-empty-new" onClick={() => openProfileDialog(null)}>新建连接</button>
+              <p>暂无保存的连接，点右上角「＋ 新建」添加</p>
             </div>
           </section>
           <div className="sessions" id="sessions" ref={sessionsElRef} hidden={!hasSessions}></div>

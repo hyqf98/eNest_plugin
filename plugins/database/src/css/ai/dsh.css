@@ -58,11 +58,13 @@
   --dbai-text: var(--dbai-neutral-950);
   --dbai-text-2: var(--dbai-neutral-700);
   --dbai-text-3: var(--dbai-neutral-500);
-  --dbai-brand: var(--dbai-deepseek-500);
-  --dbai-brand-hover: var(--dbai-deepseek-450);
-  --dbai-brand-soft: var(--dbai-deepseek-50);
-  --dbai-on-brand: rgb(255, 255, 255);
-  --dbai-bubble: var(--dbai-deepseek-50);
+  /* 品牌色跟随壳子强调色（与插件其余按钮同一颜色），不再单独使用 DeepSeek 蓝。
+     回退值为壳子浅色预设，壳子 token 内联注入后即被取代。 */
+  --dbai-brand: var(--accent, #bd542b);
+  --dbai-brand-hover: color-mix(in srgb, var(--accent, #bd542b) 86%, black);
+  --dbai-brand-soft: var(--accent-soft, color-mix(in srgb, #bd542b 12%, transparent));
+  --dbai-on-brand: var(--accent-contrast, #ffffff);
+  --dbai-bubble: var(--accent-soft, color-mix(in srgb, #bd542b 12%, transparent));
   --dbai-code-bg: var(--dbai-neutral-50);
   --dbai-hover: rgba(38, 49, 72, 0.06);
   --dbai-active: rgba(38, 49, 72, 0.1);
@@ -87,10 +89,10 @@ html[data-scheme='dark'],
   --dbai-text: var(--dbai-neutral-50);
   --dbai-text-2: var(--dbai-neutral-300);
   --dbai-text-3: var(--dbai-neutral-400);
-  --dbai-brand: var(--dbai-deepseek-400);
-  --dbai-brand-hover: var(--dbai-deepseek-500);
-  --dbai-brand-soft: rgba(122, 170, 255, 0.14);
-  --dbai-on-brand: var(--dbai-neutral-950);
+  --dbai-brand: var(--accent, #e98654);
+  --dbai-brand-hover: color-mix(in srgb, var(--accent, #e98654) 86%, black);
+  --dbai-brand-soft: var(--accent-soft, color-mix(in srgb, #e98654 16%, transparent));
+  --dbai-on-brand: var(--accent-contrast, #292c2e);
   --dbai-bubble: var(--dbai-neutral-850);
   --dbai-code-bg: var(--dbai-neutral-900);
   --dbai-hover: rgba(255, 255, 255, 0.08);

@@ -101,8 +101,9 @@ code, pre { font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
 .wh-view-head h1 { margin: 0 0 3px; font-size: 22px; letter-spacing: -.2px; }
 .wh-view-head p { margin: 0; color: var(--wh-text-2); }
 .wh-facets-reset { margin-left: auto; }
+/* Many facets per source: gap 10px keeps chips + selects on the first row; swatches wrap below. */
 .wh-facets {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 12px;
   border: 1px solid var(--wh-line); border-radius: 12px; background: color-mix(in srgb, var(--wh-surface) 70%, transparent);
 }
 .wh-facets-label { display: inline-flex; align-items: center; gap: 5px; color: var(--wh-text-2); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }

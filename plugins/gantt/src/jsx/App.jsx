@@ -12,6 +12,7 @@ import { DEFAULT_WIDTHS } from '../js/timeScale.mjs'
 import { GanttChart } from './GanttChart.jsx'
 import { PlanSidebar } from './PlanSidebar.jsx'
 import { TaskDialog } from './TaskDialog.jsx'
+import { PromptDialog } from '../ui/index.jsx'
 import { registerGanttMcp } from '../js/mcp.mjs'
 import { exportPlanXlsx } from '../js/exportXlsx.mjs'
 import { exportPlanHtml } from '../js/exportHtml.mjs'
@@ -28,6 +29,8 @@ export function App() {
   const [granularity, setGranularity] = useState('day')
   const [dayWidth, setDayWidth] = useState(DEFAULT_WIDTHS.day)
   const [dialog, setDialog] = useState(null) // null | {task} | {defaults}
+  // 单行文本输入（重命名、改时长）：window.prompt 在 Electron 渲染进程里恒返回 null，统一走 PromptDialog
+  const [prompt, setPrompt] = useState(null) // null | {title, defaultValue, resolve}
   const mcpApiRef = useRef(null)
 
   /* ---------- 载入 ---------- */
@@ -329,6 +332,7 @@ export function App() {
   const openNewTask = (defaults) => setDialog({ defaults: defaults || {} })
   const openEditTask = (task) => setDialog({ task })
   const onCreateAt = (date, opts) => setDialog({ defaults: { start: date, end: date, ...(opts || {}) } })
+  const askText = (title, defaultValue = '') => new Promise((resolve) => setPrompt({ title, defaultValue, resolve }))
 
   return (
     <div className="gt-app">
@@ -359,7 +363,7 @@ export function App() {
       </header>
 
       <div className="gt-body">
-        <PlanSidebar state={state} activePlan={plan} api={api} onExport={doExport} />
+        <PlanSidebar state={state} activePlan={plan} api={api} onExport={doExport} askText={askText} />
         <GanttChart
           plan={plan}
           granularity={granularity}
@@ -368,6 +372,7 @@ export function App() {
           api={api}
           openTaskDialog={openEditTask}
           onCreateAt={onCreateAt}
+          askText={askText}
         />
       </div>
 
@@ -388,6 +393,15 @@ export function App() {
         editing={dialog}
         api={api}
       />
+
+      {prompt && (
+        <PromptDialog
+          title={prompt.title}
+          defaultValue={prompt.defaultValue}
+          onCancel={() => { prompt.resolve(null); setPrompt(null) }}
+          onSubmit={(value) => { prompt.resolve(value); setPrompt(null) }}
+        />
+      )}
     </div>
   )
 }

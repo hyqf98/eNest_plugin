@@ -63,23 +63,9 @@
   --surface: #ffffff !important;
   --surface-2: #f1f1ec !important;
   --surface-3: #e6e6e0 !important;
-  --border: rgba(51, 48, 43, 0.14) !important;
-  --border-strong: rgba(51, 48, 43, 0.24) !important;
-  --text: #33302b !important;
-  --text-2: #6f6a61 !important;
-  --text-3: #8a8579 !important;
-  --accent: #2f5f82 !important;
-  --accent-soft: rgba(47, 95, 130, 0.12) !important;
-  --accent-contrast: #ffffff !important;
-  --brand: #2f5f82 !important;
-  --brand-strong: #2f5f82 !important;
-  --brand-soft: rgba(47, 95, 130, 0.12) !important;
-  --ok: #3f9b57 !important;
-  --ok-soft: rgba(63, 155, 87, 0.12) !important;
-  --danger: #a63a34 !important;
-  --danger-soft: rgba(166, 58, 52, 0.12) !important;
-  --warn: #8e744c !important;
-  --warn-soft: rgba(176, 124, 42, 0.14) !important;
+  --brand: var(--accent, #bd542b) !important;
+  --brand-strong: var(--accent, #bd542b) !important;
+  --brand-soft: var(--accent-soft, color-mix(in srgb, #bd542b 12%, transparent)) !important;
   /* pk-ui 的 --line/--wash 从未定义（深色泄漏 #dfe3e8/#f4f6f8 的根因），此处补真实语义。 */
   --line: rgba(51, 48, 43, 0.24) !important;
   --wash: #ffffff !important;
@@ -91,7 +77,7 @@
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
   /* 行悬停用纸墨洗，选中才用蓝墨（悬停是"纸被摸过"，选中是"被标记"）。 */
   --row-hover: rgba(58, 47, 30, 0.055) !important;
-  --row-sel: rgba(29, 92, 138, 0.13) !important;
+  --row-sel: var(--accent-soft, color-mix(in srgb, #bd542b 12%, transparent)) !important;
   --tok-kw: #a63a34; --tok-fn: #b45309; --tok-str: #2f7a3a; --tok-cmt: #6f6a61;
   --tok-num: #c2410c; --tok-op: #2f5f82; --tok-identq: #0e7490; --tok-table: #2f5f82; --tok-alias: #a63a34;
 }
@@ -106,23 +92,9 @@
   --surface: #fdfcf8 !important;
   --surface-2: #efebe1 !important;
   --surface-3: #e4dfd3 !important;
-  --border: rgba(58, 54, 46, 0.14) !important;
-  --border-strong: rgba(58, 54, 46, 0.24) !important;
-  --text: #3a362e !important;
-  --text-2: #767065 !important;
-  --text-3: #918a7d !important;
-  --accent: #33607f !important;
-  --accent-soft: rgba(39, 96, 127, 0.12) !important;
-  --accent-contrast: #fdfcf8 !important;
-  --brand: #33607f !important;
-  --brand-strong: #33607f !important;
-  --brand-soft: rgba(39, 96, 127, 0.12) !important;
-  --ok: #4f8b3f !important;
-  --ok-soft: rgba(79, 139, 63, 0.12) !important;
-  --danger: #a8452f !important;
-  --danger-soft: rgba(176, 67, 31, 0.12) !important;
-  --warn: #91794e !important;
-  --warn-soft: rgba(179, 130, 44, 0.14) !important;
+  --brand: var(--accent, #bd542b) !important;
+  --brand-strong: var(--accent, #bd542b) !important;
+  --brand-soft: var(--accent-soft, color-mix(in srgb, #bd542b 12%, transparent)) !important;
   --line: rgba(58, 54, 46, 0.24) !important;
   --wash: #fdfcf8 !important;
   --font: var(--ink-hand) !important;
@@ -132,7 +104,7 @@
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
   --row-hover: rgba(67, 51, 29, 0.06) !important;
-  --row-sel: rgba(39, 96, 127, 0.14) !important;
+  --row-sel: var(--accent-soft, color-mix(in srgb, #bd542b 12%, transparent)) !important;
   --tok-kw: #a8452f; --tok-fn: #9c8a6f; --tok-str: #2f7a3a; --tok-cmt: #767065;
   --tok-num: #c2410c; --tok-op: #33607f; --tok-identq: #0e7490; --tok-table: #33607f; --tok-alias: #a8452f;
 }
@@ -147,23 +119,9 @@
   --surface: #2a2a27 !important;
   --surface-2: #32322e !important;
   --surface-3: #3a3a35 !important;
-  --border: rgba(232, 229, 221, 0.16) !important;
-  --border-strong: rgba(232, 229, 221, 0.28) !important;
-  --text: #e8e5dd !important;
-  --text-2: #a5a094 !important;
-  --text-3: #8b877c !important;
-  --accent: #88b0cc !important;
-  --accent-soft: rgba(127, 178, 212, 0.16) !important;
-  --accent-contrast: #222220 !important;
-  --brand: #88b0cc !important;
-  --brand-strong: #88b0cc !important;
-  --brand-soft: rgba(127, 178, 212, 0.16) !important;
-  --ok: #83bd8a !important;
-  --ok-soft: rgba(131, 189, 138, 0.16) !important;
-  --danger: #d98070 !important;
-  --danger-soft: rgba(224, 112, 92, 0.16) !important;
-  --warn: #b9a67d !important;
-  --warn-soft: rgba(216, 178, 94, 0.16) !important;
+  --brand: var(--accent, #e98654) !important;
+  --brand-strong: var(--accent, #e98654) !important;
+  --brand-soft: var(--accent-soft, color-mix(in srgb, #e98654 16%, transparent)) !important;
   --line: rgba(232, 229, 221, 0.28) !important;
   --wash: #2a2a27 !important;
   --font: var(--ink-hand) !important;
@@ -173,7 +131,7 @@
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
   --row-hover: rgba(236, 229, 211, 0.07) !important;
-  --row-sel: rgba(127, 178, 212, 0.18) !important;
+  --row-sel: var(--accent-soft, color-mix(in srgb, #e98654 16%, transparent)) !important;
   --tok-kw: #d9a3e6; --tok-fn: #b8a888; --tok-str: #83bd8a; --tok-cmt: #a5a094;
   --tok-num: #e8a07a; --tok-op: #88b0cc; --tok-identq: #88b0cc; --tok-table: #88b0cc; --tok-alias: #d98070;
 }
@@ -188,23 +146,9 @@
   --surface: #30372f !important;
   --surface-2: #383f37 !important;
   --surface-3: #404740 !important;
-  --border: rgba(230, 229, 218, 0.16) !important;
-  --border-strong: rgba(230, 229, 218, 0.28) !important;
-  --text: #e6e5da !important;
-  --text-2: #a6ab9c !important;
-  --text-3: #8b9082 !important;
-  --accent: #a0c2d4 !important;
-  --accent-soft: rgba(160, 194, 212, 0.16) !important;
-  --accent-contrast: #293029 !important;
-  --brand: #a0c2d4 !important;
-  --brand-strong: #a0c2d4 !important;
-  --brand-soft: rgba(160, 194, 212, 0.16) !important;
-  --ok: #a8d0a0 !important;
-  --ok-soft: rgba(168, 208, 160, 0.16) !important;
-  --danger: #d79180 !important;
-  --danger-soft: rgba(215, 145, 128, 0.16) !important;
-  --warn: #c2b68e !important;
-  --warn-soft: rgba(214, 192, 122, 0.16) !important;
+  --brand: var(--accent, #e98654) !important;
+  --brand-strong: var(--accent, #e98654) !important;
+  --brand-soft: var(--accent-soft, color-mix(in srgb, #e98654 16%, transparent)) !important;
   --line: rgba(230, 229, 218, 0.28) !important;
   --wash: #30372f !important;
   --font: var(--ink-hand) !important;
@@ -214,7 +158,7 @@
   --shadow-soft: 2px 3px 0 var(--ac-shadow) !important;
   --shadow-float: 3px 5px 0 var(--ac-shadow) !important;
   --row-hover: rgba(233, 232, 214, 0.07) !important;
-  --row-sel: rgba(160, 194, 212, 0.18) !important;
+  --row-sel: var(--accent-soft, color-mix(in srgb, #e98654 16%, transparent)) !important;
   --tok-kw: #d9a3e6; --tok-fn: #c2bfa8; --tok-str: #a8d0a0; --tok-cmt: #a6ab9c;
   --tok-num: #e8a07a; --tok-op: #a0c2d4; --tok-identq: #a0c2d4; --tok-table: #a0c2d4; --tok-alias: #d79180;
 }
@@ -285,14 +229,14 @@
    边框必须是整圈（不能只留 border-right/left）：有了间隙和三面圆角之后，只画内侧
    那条线会让纸片缺两条边，读起来像被切掉一半。 */
 :root[data-paper] .app .mid-col {
-  border: 1.5px dashed var(--ink-line);
+  border: 1.5px solid var(--border);
   border-radius: var(--appearance-panel-radius, 10px);
   box-shadow: 2px 3px 0 var(--ac-shadow);
   overflow: hidden;
 }
 :root[data-paper] .app .side,
 :root[data-paper] .app .right-panel {
-  border: 1.5px dashed var(--ink-line);
+  border: 1.5px solid var(--border);
   border-radius: var(--appearance-panel-radius, 10px);
   box-shadow: 2px 3px 0 var(--ac-shadow);
 }
@@ -336,11 +280,11 @@
 /* 单条 chrome / 查询条：纸片底 + 虚线分隔（虚线比实线更像铅笔，且不需要滤镜）。 */
 :root[data-paper] .app .mid-chrome {
   background: color-mix(in srgb, var(--surface) 82%, var(--bg));
-  border-bottom: 1.5px dashed var(--ink-line);
+  border-bottom: 1.5px solid var(--border);
 }
 :root[data-paper] .app .wb-querybar {
   background: color-mix(in srgb, var(--surface) 80%, var(--bg));
-  border-bottom: 1.5px dashed var(--ink-line);
+  border-bottom: 1.5px solid var(--border);
 }
 /* 左工具轨 + 右功能轨（.wb-func-rail 原本没有任何样式，只有按钮自带参数，
    所以它是一列无间距的块级按钮；这里补成与左轨对称的竖排轨道）。
@@ -348,12 +292,12 @@
    优先级压过这里未加 !important 的 display:flex。 */
 :root[data-paper] .app .nav-toolrail {
   background: color-mix(in srgb, var(--surface) 68%, var(--bg));
-  border-right: 1.4px dashed var(--ink-line);
+  border-right: 1.4px solid var(--border);
 }
 :root[data-paper] .app .wb-func-rail {
   display: flex; flex-direction: column; align-items: center; gap: 5px;
   width: 38px; flex: none; padding: 7px 3px;
-  border-left: 1.4px dashed var(--ink-line);
+  border-left: 1.4px solid var(--border);
   background: color-mix(in srgb, var(--surface) 68%, var(--bg));
 }
 :root[data-paper] .app .wb-func-rail .nav-toolrail-button { width: 30px; }
@@ -381,20 +325,20 @@
 }
 :root[data-paper] .app .results .grid-head {
   background: color-mix(in srgb, var(--surface) 72%, var(--bg));
-  border-bottom: 1.4px dashed var(--ink-line);
+  border-bottom: 1.4px solid var(--border);
 }
 :root[data-paper] .app .result-tabs { border-bottom: 0; }
-:root[data-paper] .app .grid-bar { border-top: 0; border-bottom: 1.3px dashed var(--ink-line-soft); }
-:root[data-paper] .app .rg-pager { border-top: 1.3px dashed var(--ink-line-soft); }
-:root[data-paper] .app .wb-server-pager { border-top: 1.3px dashed var(--ink-line-soft); }
-:root[data-paper] .app .right-tabs { border-bottom: 1.3px dashed var(--ink-line); }
+:root[data-paper] .app .grid-bar { border-top: 0; border-bottom: 1.3px solid var(--border); }
+:root[data-paper] .app .rg-pager { border-top: 1.3px solid var(--border); }
+:root[data-paper] .app .wb-server-pager { border-top: 1.3px solid var(--border); }
+:root[data-paper] .app .right-tabs { border-bottom: 1.3px solid var(--border); }
 /* 结果停靠右侧时它自带 border-left（workspace.css），一并换成墨线。 */
-:root[data-paper] .app[data-result-dock='right'] .results { border-left: 1.4px dashed var(--ink-line); }
+:root[data-paper] .app[data-result-dock='right'] .results { border-left: 1.4px solid var(--border); }
 
 /* 状态栏：纸片条 + 虚线手绘上缘 + 空心墨点。 */
 :root[data-paper] .app .wb-status {
   background: color-mix(in srgb, var(--surface) 72%, var(--bg));
-  border-top: 1.5px dashed var(--ink-line);
+  border-top: 1.5px solid var(--border);
   color: var(--text-2);
 }
 :root[data-paper] .app .wb-status-dot {
@@ -452,7 +396,7 @@
 }
 :root[data-paper] :is(.wb-dialog-head, .modal-head) {
   background: color-mix(in srgb, var(--surface-2) 72%, var(--surface)) !important;
-  border-bottom: 1.4px dashed var(--ink-line) !important;
+  border-bottom: 1.4px solid var(--border) !important;
 }
 :root[data-paper] :is(.wb-dialog-head h2, .wb-dialog-head strong, .modal-head h2) { font-family: var(--ink-hand); }
 :root[data-paper] .wb-dialog-head [data-dialog-close] {
@@ -572,13 +516,13 @@
 :root[data-paper] .empty.sm::before { display: none; }
 :root[data-paper] .wb-empty,
 :root[data-paper] .wb-object-state {
-  border: 1.4px dashed var(--ink-line);
+  border: 1.4px solid var(--border);
   border-radius: var(--ink-radius-card);
   background: color-mix(in srgb, var(--ink-card-bg) 55%, transparent);
   color: var(--text-3);
 }
 :root[data-paper] .app .wb-observe-card {
-  border: 1.4px dashed var(--ink-line);
+  border: 1.4px solid var(--border);
   border-radius: var(--ink-radius-card);
   background: color-mix(in srgb, var(--ink-card-bg) 55%, transparent);
 }
@@ -592,7 +536,7 @@
 }
 :root[data-paper] .app .wb-table th {
   background: color-mix(in srgb, var(--surface-2) 74%, var(--bg));
-  border-bottom: 1.3px dashed var(--ink-line);
+  border-bottom: 1.3px solid var(--border);
 }
 :root[data-paper] .app .wb-table th,
 :root[data-paper] .app .wb-table td { border-right-color: var(--ink-line-soft); }
@@ -607,11 +551,11 @@
 }
 :root[data-paper] .app .wb-er strong {
   background: color-mix(in srgb, var(--surface-2) 78%, var(--bg));
-  border-bottom: 1.3px dashed var(--ink-line);
+  border-bottom: 1.3px solid var(--border);
   font-family: var(--ink-hand);
 }
-:root[data-paper] .app .wb-er article > div { border-top: 1.2px dashed var(--ink-line-soft); }
-:root[data-paper] .app .wb-er-line { border-top: 1.4px dashed var(--ink-line-strong); }
+:root[data-paper] .app .wb-er article > div { border-top: 1.2px solid var(--border); }
+:root[data-paper] .app .wb-er-line { border-top: 1.4px solid var(--border-strong); }
 :root[data-paper] .app .wb-er-line:after { border-left-color: var(--ink-line-strong); }
 
 /* 数据比较：分栏墨框，命中行保留语义色但压成纸面淡彩。 */
@@ -652,11 +596,11 @@
 :root[data-paper] .btn { font-family: var(--ink-hand); }
 :root[data-paper] .btn:hover:not(:disabled) { border-color: var(--ink-line-strong); }
 :root[data-paper] .btn.primary {
-  background: var(--text); border-color: var(--text); color: var(--surface);
+  background: var(--accent); border-color: var(--accent); color: var(--accent-contrast);
   box-shadow: 1.5px 2px 0 var(--ac-shadow);
 }
 :root[data-paper] .btn.primary:hover:not(:disabled) {
-  background: var(--text); border-color: var(--text); color: var(--surface); filter: brightness(1.12);
+  background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); filter: brightness(1.12);
 }
 
 /* 输入/下拉/文本域：纸面凹槽。:where() 把 :not 链的权重归零，便于后面按区域覆盖。
@@ -733,7 +677,7 @@
 }
 :root[data-paper] .app .tab.active::after {
   background: none !important;
-  border-top: 2px dashed var(--text);
+  border-top: 2px solid var(--border);
   height: 0;
   /* 基础层是 bottom:-1px，但 .result-tabs 是 overflow-x:auto 的滚动容器
      （任一轴 auto 会让另一轴的 visible 计算成 auto），负偏移会被裁掉，
@@ -747,7 +691,7 @@
   box-shadow: inset 0 -2px 0 var(--text) !important;
   color: var(--text);
 }
-:root[data-paper] .app .wb-subtabs button.active { border-bottom-color: var(--text) !important; border-bottom-style: dashed; }
+:root[data-paper] .app .wb-subtabs button.active { border-bottom-color: var(--text) !important; border-bottom-style: solid; }
 :root[data-paper] .app .nav-toolrail-button.active:before {
   background: var(--text) !important; width: 2.4px;
 }
@@ -792,18 +736,18 @@
 :root[data-paper] .app .nav-heading > span:first-child { font-family: var(--ink-hand); }
 :root[data-paper] .app .nav-disclosure.open > svg { transform: rotate(90deg) scale(1.05); }
 :root[data-paper] .app .nav-empty {
-  border: 1.3px dashed var(--ink-line); border-radius: var(--ink-radius-card);
+  border: 1.3px solid var(--border); border-radius: var(--ink-radius-card);
   /* 不改基础层的 padding（20px 12px）：Quick 窄屏下侧栏是抽屉，纵向空间本来紧张，
      只补边框和圆角，尺寸完全沿用基础层。 */
   margin: 6px 6px;
 }
 /* 工作标签：分隔线转虚线，活动态靠墨下划线而不是纸片色块。 */
-:root[data-paper] .app .wb-tab { border-right: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .wb-tab { border-right: 1.2px solid var(--border); }
 :root[data-paper] .app .wb-tab:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
 :root[data-paper] .app .wb-tab.active { background: var(--surface); }
 /* 顶栏上下文 chip：手绘小标签（原来是无框纯文字，纸面上完全看不出边界）。 */
 :root[data-paper] .app .ctx-chip {
-  border: 1.2px dashed var(--ink-line);
+  border: 1.2px solid var(--border);
   border-radius: 40% 60% 55% 45% / 55% 45% 60% 40%;
   padding: 1px 8px;
 }
@@ -817,7 +761,7 @@
 
 /* 设置页：区块上缘虚线段，行分隔虚线，选择卡已在上文卡片层处理。 */
 :root[data-paper] .app .wb-settings-section {
-  border-top: 1.4px dashed var(--ink-line);
+  border-top: 1.4px solid var(--border);
 }
 :root[data-paper] .app .wb-setting-row { border-bottom-color: var(--ink-line-soft); }
 :root[data-paper] .app .wb-setting-label { color: var(--text-2); }
@@ -829,9 +773,9 @@
   text-underline-offset: 5px;
 }
 :root[data-paper] .app .wb-page h2 { font-family: var(--ink-hand); }
-:root[data-paper] .app .wb-shortcuts { border-top: 1.4px dashed var(--ink-line); }
-:root[data-paper] .app .wb-shortcuts > label { border-bottom: 1.2px dashed var(--ink-line-soft); }
-:root[data-paper] .app .db-shortcut-row { border-bottom: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .wb-shortcuts { border-top: 1.4px solid var(--border); }
+:root[data-paper] .app .wb-shortcuts > label { border-bottom: 1.2px solid var(--border); }
+:root[data-paper] .app .db-shortcut-row { border-bottom: 1.2px solid var(--border); }
 /* 录制态：中性墨环，不用品牌蓝。productivity.css 用 #app 前缀（ID 权重）写了蓝环，
    且上面那条全局 input 规则带 !important，这里必须同样 !important 才压得住。 */
 :root[data-paper] .app .db-shortcut-row.recording input {
@@ -845,7 +789,7 @@
 
 /* SQL 补全设置（设置页第五个区块，自成一套 .sql-* 结构）。 */
 :root[data-paper] .app .sql-completion-settings { border-top-color: var(--ink-line); }
-:root[data-paper] .app .sql-config-section { border-bottom: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .sql-config-section { border-bottom: 1.2px solid var(--border); }
 :root[data-paper] .app .sql-item { border-radius: var(--ink-radius-input); }
 :root[data-paper] .app .sql-item.active {
   background: var(--accent-soft);
@@ -875,11 +819,11 @@
 }
 
 /* 结构与对象页。 */
-:root[data-paper] .app .wb-structure-layout { border-top: 1.3px dashed var(--ink-line); }
+:root[data-paper] .app .wb-structure-layout { border-top: 1.3px solid var(--border); }
 :root[data-paper] .app .wb-object-list button { border-radius: var(--ink-radius-input); }
 :root[data-paper] .app .wb-object-list button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-:root[data-paper] .app .wb-object-context { border-bottom: 1.3px dashed var(--ink-line); }
-:root[data-paper] .app .wb-library-row { border-bottom: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .app .wb-object-context { border-bottom: 1.3px solid var(--border); }
+:root[data-paper] .app .wb-library-row { border-bottom: 1.2px solid var(--border); }
 :root[data-paper] .app .wb-library-row > button { border-radius: var(--ink-radius-input); }
 :root[data-paper] .app .wb-command-list button { border-radius: var(--ink-radius-input); }
 :root[data-paper] .app .wb-command-list button[aria-selected='true'],
@@ -888,7 +832,7 @@
 /* 资源中心：KPI 卡已卡片化，这里只补表头与来源徽章。 */
 :root[data-paper] .app .wb-observe-table th {
   background: color-mix(in srgb, var(--surface-2) 72%, var(--bg));
-  border-bottom: 1.3px dashed var(--ink-line);
+  border-bottom: 1.3px solid var(--border);
   font-family: var(--ink-hand);
 }
 :root[data-paper] .app .wb-observe-source {
@@ -948,16 +892,16 @@
   border-radius: var(--ink-radius-input);
 }
 :root[data-paper] .db-batch-summary {
-  border-bottom: 1.2px dashed var(--ink-line-soft);
+  border-bottom: 1.2px solid var(--border);
   color: var(--text-2);
 }
-:root[data-paper] .wb-design-columns { border-top: 1.2px dashed var(--ink-line-soft); padding-top: 12px; }
+:root[data-paper] .wb-design-columns { border-top: 1.2px solid var(--border); padding-top: 12px; }
 :root[data-paper] .wb-design-column input { min-width: 0; }
 :root[data-paper] .db-export-columns,
 :root[data-paper] .wb-compare-advanced,
 :root[data-paper] .wb-document-actions { border-color: var(--ink-line-soft); }
 :root[data-paper] .wb-document-actions { background: var(--surface); }
-:root[data-paper] .wb-json-children { border-left: 1.2px dashed var(--ink-line-soft); }
+:root[data-paper] .wb-json-children { border-left: 1.2px solid var(--border); }
 :root[data-paper] .wb-connection-dialog details > summary { color: var(--text-2); }
 :root[data-paper] .wb-design-column { border-radius: var(--ink-radius-input); }
 

@@ -14,7 +14,7 @@ function applyTheme(themeId, css) {
     style.id = THEME_STYLE_ID;
     document.head.appendChild(style);
   }
-  style.textContent = css;
+  style.textContent = css + EDITOR_GEOMETRY_CSS;
   document.documentElement.setAttribute(THEME_CONTAINER_ATTR, themeId);
 }
 function getActiveTheme() {
@@ -62,6 +62,10 @@ const MINIMAL_DARK_CSS = `
 `;
 const CONTENT_CSS = `
 .md-scope {
+  --md-font-ui: var(--font, -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif);
+  --md-font-body: var(--font, -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif);
+  --md-font-serif: "New York", "Songti SC", Georgia, "Noto Serif SC", serif;
+  --md-font-mono: var(--mono, "SF Mono", Menlo, monospace);
   background: var(--md-canvas);
   color: var(--md-text);
   font-family: var(--md-font-body);
@@ -71,36 +75,16 @@ const CONTENT_CSS = `
 }
 .md-scope .cm-editor { background: transparent; }
 /* 滚动容器全宽：滚动条贴窗口边缘，不被内容栏限宽裹窄 */
-.md-scope .cm-scroller { overflow: auto; }
-/* Typora 惯例：内容根 #write 居中限宽（挂在 CM 的 .cm-content 上，不是滚动容器）。
- * max-width 从 860 → 960：原值在 1200px 宽的窗口里两侧各空 170px，加上 20px padding
- * 视觉上"内容离边太远"。960 让正文更贴近可视边缘，同时保持约 60-70 字/行的可读上限。
- * padding 左右收到 12px：滚动条已经贴边，不需要再留一层厚呼吸。 */
+.md-scope .cm-scroller { overflow: auto; line-height: inherit; }
 .md-scope #write, .md-scope .md-doc {
-  max-width: 960px;
+  width: 100%;
+  min-width: 0;
+  max-width: 984px;
   margin: 0 auto;
   padding: 20px 12px 96px;
-  box-sizing: content-box;
+  box-sizing: border-box;
 }
-/* 空行折叠：CM 空行默认整行高 → 收成细缝（回车不再"多一行"） */
-.md-scope .cm-blank-line {
-  line-height: 0.45em;
-  min-height: 0.45em;
-}
-.md-scope .cm-blank-line::after { content: ''; display: block; height: 0; }
-/* 导出/预览用的独立 #write 容器（非 CM 内）同样限宽 */
-.md-scope > #write { box-sizing: border-box; }
-
-/* ================= 编辑态（行 class 驱动，Typora 混合架构） ================= */
-/* 文本块的行样式：文字始终可编辑，语法标记由 CM 装饰隐藏，外观全在这里定义。
- *
- * 硬约束（别改成 margin）：编辑区里的行与块只用 padding 做纵向间距。
- * CodeMirror 的高度地图（viewState.heightOracle）只累加每个行/块 DOM 的盒子高度，
- * 不计元素垂直 margin —— 一旦某行带 margin-top/bottom，该行之后的坐标就整体偏移，
- * posAtCoords 会把点击落到别的行（表现为「点这里光标跑别处」，且越往文档下方越严重）。
- * 空白行是真实 .cm-line，所以 margin 与 padding 的视觉间距等价，改动不影响观感。 */
-.md-scope .cm-content .md-line { margin-top: 0; margin-bottom: 0; }
-.md-scope .cm-content .md-p { margin-top: 0; margin-bottom: 0; padding-bottom: 0.62em; }
+.md-scope .cm-content > .cm-line { margin: 0; padding: 0 2px; }
 .md-scope .md-h1, .md-scope .md-h2, .md-scope .md-h3,
 .md-scope .md-h4, .md-scope .md-h5, .md-scope .md-h6 {
   font-family: var(--md-font-serif);
@@ -115,54 +99,29 @@ const CONTENT_CSS = `
 .md-scope .cm-content .md-h3 { font-size: 1.18em; padding: 0.7em 0 0.24em; }
 .md-scope .cm-content .md-h4 { font-size: 1.04em; padding: 0.65em 0 0.2em; }
 .md-scope .cm-content .md-h5, .md-scope .cm-content .md-h6 { font-size: 0.95em; color: var(--md-text-2); padding: 0.6em 0 0.18em; }
-/* 引用：左线 + 微底（整行 class，多行连续自然连成一块）。
- * 权重需高于后面统一给的 .md-scope .cm-line 基础 padding（同为 0,2,0 且更靠后），
- * 否则左侧 14px 缩进被抹成 2px，文字会紧贴竖线。
- *
- * padding-left 取 20px：引用标记被隐藏后，光标落在内容区起点（= border + padding），
- * 14px 时这个落点离 3px 竖线只有 11px 空隙，视觉上像压在竖线上；
- * 20px 让光标与竖线之间留出明确的呼吸区。
- * 用 padding 而不是 margin-left：光标定位依赖行内部盒模型，margin 会让
- * posAtCoords / coordsAtPos 的换算落到边界外。 */
-.md-scope .md-line.md-quote {
-  border-left: 3px solid var(--md-border);
+.md-scope .cm-content > .md-quote {
+  border-inline-start: 3px solid var(--md-border);
   background: var(--md-quote-bg);
   color: var(--md-text-2);
-  padding-left: 20px;
-  margin: 0;
+  padding-inline-start: .85em;
 }
-.md-scope .md-line.md-quote:first-of-type { border-top-left-radius: 4px; border-top-right-radius: var(--md-radius); }
-/* 列表：标记隐藏后靠 padding 保持缩进（圆点由 .md-bullet 伪元素补） */
-.md-scope .md-line.md-list { padding-left: 1.15em; margin: 0; }
-/* 无序列表项：补一个圆点占位（与隐藏的 "- " 视觉等宽） */
-.md-scope .md-line.md-list.md-list-bullet::before {
-  content: '•';
-  display: inline-block;
-  width: 0.62em;
-  margin-right: 0.36em;
-  margin-left: -0.98em;
-  color: var(--md-text-2);
-  opacity: 0.7;
-}
+.md-scope .cm-content > .md-list { padding-inline-start: .35em; }
 /* front matter / 源码态块 */
 .md-scope .md-meta {
   font-family: var(--md-font-mono); font-size: 0.82em; color: var(--md-text-2);
   background: var(--md-quote-bg); border-radius: var(--md-radius);
 }
-.md-scope .md-fence-src, .md-scope .md-table-src, .md-scope .md-math-src, .md-scope .md-html-src {
+.md-scope .cm-content > :is(.md-fence-src, .md-table-src, .md-math-src, .md-html-src) {
   font-family: var(--md-font-mono); font-size: 0.86em;
-  background: var(--md-surface); border: 1px solid var(--md-border);
-  border-radius: var(--md-radius); padding-left: 12px; padding-right: 12px;
+  background: var(--md-surface); border-inline: 1px solid var(--md-border);
+  padding-inline: 12px;
 }
+.md-scope .cm-content > .md-source-start { border-top: 1px solid var(--md-border); border-radius: var(--md-radius) var(--md-radius) 0 0; padding-top: .4em; }
+.md-scope .cm-content > .md-source-end { border-bottom: 1px solid var(--md-border); border-radius: 0 0 var(--md-radius) var(--md-radius); padding-bottom: .4em; }
+.md-scope .cm-content > .md-source-start.md-source-end { border-radius: var(--md-radius); }
+.md-scope .cm-editor[data-md-source='on'] .cm-content { font-family: var(--md-font-mono); }
 .md-scope .md-hrline { color: var(--md-text-2); }
-/* 引用标记的隐藏占位：宽度必须与原文严格一致（继承行内字体即可），
-   否则隐藏/显形切换时行内文字左右移动，光标看起来压在引用竖线上。
-   视觉上完全透明，只保留宽度。 */
-.md-scope .md-quote-mark-placeholder {
-  color: transparent;
-  user-select: none;
-  pointer-events: none;
-}
+.md-scope .md-rule-preview { display: inline-block; width: 100%; height: 1px; vertical-align: middle; background: var(--md-border); }
 /* 行内语义样式（mark decoration） */
 .md-scope .md-strong { font-weight: 650; color: var(--md-text); }
 .md-scope .md-em { font-style: italic; }
@@ -178,7 +137,7 @@ const CONTENT_CSS = `
  * 内层渲染内容（p/pre/figure…）的 margin 本身会撑大这个盒子、从而被正确量到；
  * 但内层 margin 可能向外塌陷出 widget 边界（那样就不被量了），flow-root 给渲染根建 BFC
  * 把内层 margin 关在盒内。 */
-.md-scope .cm-content .md-atomic { margin: 0; padding: 0.6em 0; cursor: text; }
+.md-scope .cm-content .md-atomic { display: flow-root; margin: 0; padding: 0.35em 0; cursor: text; }
 .md-scope .md-atomic > .md-block-render { display: flow-root; }
 .md-scope .md-atomic > .md-block-render > .md-inline-render { display: flow-root; }
 
@@ -348,7 +307,7 @@ const CONTENT_CSS = `
    注意：这里不写 width/height:auto，否则会盖掉 HTML 的 width/height 属性。
    必须排除 CM 的内部辅助 <img>（.cm-widgetBuffer 等）：它们是行内占位元素，
    被套上 display:block + 外边距会把行盒撑高，表现为光标上下溢出、盖住文字。 */
-.md-scope img:not(.cm-widgetBuffer):not(.cm-selectionBackground) {
+.md-scope :is(.md-block-render, .md-doc) img, .md-scope > #write:not(.cm-content) img {
   max-width: var(--md-img-max-w, 100%);
   max-height: var(--md-img-max-h, none);
   object-fit: contain;
@@ -356,29 +315,7 @@ const CONTENT_CSS = `
   display: block;
   margin: 0.4em auto;
 }
-/* 渲染态图片常在外层包了 span/label 等，保持原有的居中块级行为 */
-.md-scope .md-live-block img:not(.cm-widgetBuffer),
-.md-scope .md-block-render img:not(.cm-widgetBuffer) { display: block; margin: 0.4em auto; }
 .md-scope span.md-image { display: inline-block; }
-/* 编辑态图片预览（行内 widget）：尺寸跟随设置变量，单张覆盖写内联样式 */
-.md-scope .md-image-widget {
-  display: inline-block;
-  max-width: var(--md-img-max-w, 100%);
-  line-height: 0;
-  vertical-align: bottom;
-}
-.md-scope .md-image-widget img {
-  max-width: var(--md-img-max-w, 100%);
-  max-height: var(--md-img-max-h, none);
-  border-radius: var(--md-radius);
-  display: inline-block;
-  margin: 0.2em 0;
-  cursor: pointer;
-}
-.md-scope .md-image-widget[data-align='left'] { display: block; text-align: left; }
-.md-scope .md-image-widget[data-align='center'] { display: block; text-align: center; }
-.md-scope .md-image-widget[data-align='right'] { display: block; text-align: right; }
-.md-scope .md-image-widget.is-broken { font-family: var(--md-font-mono); font-size: 0.85em; color: var(--md-text-2); }
 /* \u6570\u5B66 */
 .md-scope .katex { font-size: 1.02em; }
 .md-scope p.md-math-block { text-align: center; margin: 0.75em 0; overflow-x: auto; }
@@ -424,38 +361,23 @@ const CONTENT_CSS = `
 .md-scope .md-html-block > img,
 .md-scope .md-html-block img { max-width: 100%; height: auto; }
 .md-scope pre.md-html-raw { font-family: var(--md-font-mono); font-size: 0.84em; color: var(--md-text-2); background: var(--md-quote-bg); border-radius: var(--md-radius); padding: 10px 14px; white-space: pre-wrap; }
-/* 源码态（光标所在块）融入。
- * 只补两侧 2px 呼吸，不写纵向 padding —— 纵向间距由 .md-p / .md-h* / .md-quote 各自给，
- * 这里若用列简写会把它们的纵向值一起清零（同权重、靠后者胜），
- * 标题的上下留白与引用左缩进都会被抹掉。 */
-.md-scope .cm-line { padding-left: 2px; padding-right: 2px; }
-.md-scope .cm-content { caret-color: var(--md-link); }
-/* 选中背景统一由 drawSelection 的 .cm-selectionBackground 层绘制（贴合文本盒）；
-   原生 ::selection 保持透明，否则全选时行 padding 与折叠空行会画出重叠方块。 */
-.md-scope .cm-selectionBackground,
-.md-scope .cm-editor.cm-focused .cm-selectionBackground {
-  background: color-mix(in srgb, var(--md-link) 18%, transparent) !important;
-}
-.md-scope .cm-editor .cm-line::selection,
-.md-scope .cm-editor .cm-line ::selection,
-.md-scope .cm-editor .cm-content::selection,
-.md-scope .cm-editor .cm-content ::selection {
-  background: transparent !important;
-  background-color: transparent !important;
-}
+.md-scope .cm-editor .cm-content { caret-color: var(--md-link); }
+.md-scope .cm-content::selection, .md-scope .cm-content ::selection { background-color: color-mix(in srgb, var(--md-link) 26%, transparent); }
 .md-scope .cm-editor .cm-selectionMatch { background: color-mix(in srgb, var(--md-link) 12%, transparent); }
-.md-scope .cm-cursor { border-left-color: var(--md-link); }
-/* 折叠空行不画背景块（全选时高亮保持连续） */
-.md-scope .cm-blank-line,
-.md-scope .cm-blank-line::after { background: transparent; }
-/* \u6253\u5B57\u673A/\u4E13\u6CE8 */
-.md-scope[data-focus-mode="on"] .md-live-block { opacity: 0.35; transition: opacity .35s cubic-bezier(.16,1,.3,1); }
-.md-scope[data-focus-mode="on"] .md-live-block.is-active, .md-scope[data-focus-mode="on"] .cm-active-line { opacity: 1; }
+.md-scope[data-focus-mode='on'] .cm-editor:focus-within .cm-content > :is(.cm-line:not(.cm-activeLine), .md-atomic:not(:focus-within)) { opacity: .5; }
 /* kbd */
 .md-scope kbd {
   font-family: var(--md-font-mono); font-size: 0.82em;
   border: 1px solid var(--md-border); border-radius: 4px;
   background: var(--md-quote-bg); padding: 1px 5px;
+}
+`;
+const EDITOR_GEOMETRY_CSS = `
+.md-scope #write.cm-content > .cm-line { margin-block: 0; }
+.md-scope #write.cm-content img.cm-widgetBuffer {
+  display: inline !important; vertical-align: baseline !important; float: none !important;
+  width: 0 !important; min-width: 0 !important; max-width: 0 !important; height: 1em !important;
+  margin: 0 !important; padding: 0 !important; border: 0 !important;
 }
 `;
 function builtinThemeCss(themeId) {

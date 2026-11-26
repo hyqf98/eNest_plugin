@@ -57,21 +57,6 @@
   --surface: #ffffff !important;
   --surface-2: #f1f1ec !important;
   --surface-3: #dbd8d0 !important;
-  --border: rgba(51, 48, 43, 0.14) !important;
-  --border-strong: rgba(51, 48, 43, 0.24) !important;
-  --text: #33302b !important;
-  --text-2: #6f6a61 !important;
-  --text-3: #8a8579 !important;
-  --accent: #2f5f82 !important;
-  --accent-soft: rgba(47, 95, 130, 0.12) !important;
-  --accent-contrast: #ffffff !important;
-  --ok: #3f9b57 !important;
-  --ok-soft: rgba(63, 155, 87, 0.12) !important;
-  --danger: #a63a34 !important;
-  --danger-soft: rgba(166, 58, 52, 0.12) !important;
-  --warn: #8e744c !important;
-  --warn-soft: rgba(176, 124, 42, 0.14) !important;
-  --link: #2f5f82 !important;
   --line: rgba(51, 48, 43, 0.24) !important;
   --wash: #ffffff !important;
   --font: var(--ink-hand) !important;
@@ -98,21 +83,6 @@
   --surface: #fdfcf8 !important;
   --surface-2: #efebe1 !important;
   --surface-3: #d6d2c8 !important;
-  --border: rgba(58, 54, 46, 0.14) !important;
-  --border-strong: rgba(58, 54, 46, 0.24) !important;
-  --text: #3a362e !important;
-  --text-2: #767065 !important;
-  --text-3: #918a7d !important;
-  --accent: #33607f !important;
-  --accent-soft: rgba(39, 96, 127, 0.12) !important;
-  --accent-contrast: #fdfcf8 !important;
-  --ok: #4f8b3f !important;
-  --ok-soft: rgba(79, 139, 63, 0.12) !important;
-  --danger: #a8452f !important;
-  --danger-soft: rgba(176, 67, 31, 0.12) !important;
-  --warn: #91794e !important;
-  --warn-soft: rgba(179, 130, 44, 0.14) !important;
-  --link: #33607f !important;
   --line: rgba(58, 54, 46, 0.24) !important;
   --wash: #fdfcf8 !important;
   --font: var(--ink-hand) !important;
@@ -136,21 +106,6 @@
   --surface: #2a2a27 !important;
   --surface-2: #32322e !important;
   --surface-3: #47423a !important;
-  --border: rgba(232, 229, 221, 0.16) !important;
-  --border-strong: rgba(232, 229, 221, 0.28) !important;
-  --text: #e8e5dd !important;
-  --text-2: #a5a094 !important;
-  --text-3: #8b877c !important;
-  --accent: #88b0cc !important;
-  --accent-soft: rgba(127, 178, 212, 0.16) !important;
-  --accent-contrast: #222220 !important;
-  --ok: #83bd8a !important;
-  --ok-soft: rgba(131, 189, 138, 0.16) !important;
-  --danger: #d98070 !important;
-  --danger-soft: rgba(224, 112, 92, 0.16) !important;
-  --warn: #b9a67d !important;
-  --warn-soft: rgba(216, 178, 94, 0.16) !important;
-  --link: #88b0cc !important;
   --line: rgba(232, 229, 221, 0.28) !important;
   --wash: #2a2a27 !important;
   --font: var(--ink-hand) !important;
@@ -174,21 +129,6 @@
   --surface: #30372f !important;
   --surface-2: #383f37 !important;
   --surface-3: #4a584a !important;
-  --border: rgba(230, 229, 218, 0.16) !important;
-  --border-strong: rgba(230, 229, 218, 0.28) !important;
-  --text: #e6e5da !important;
-  --text-2: #a6ab9c !important;
-  --text-3: #8b9082 !important;
-  --accent: #a0c2d4 !important;
-  --accent-soft: rgba(160, 194, 212, 0.16) !important;
-  --accent-contrast: #293029 !important;
-  --ok: #a8d0a0 !important;
-  --ok-soft: rgba(168, 208, 160, 0.16) !important;
-  --danger: #d79180 !important;
-  --danger-soft: rgba(215, 145, 128, 0.16) !important;
-  --warn: #c2b68e !important;
-  --warn-soft: rgba(214, 192, 122, 0.16) !important;
-  --link: #a0c2d4 !important;
   --line: rgba(230, 229, 218, 0.28) !important;
   --wash: #30372f !important;
   --font: var(--ink-hand) !important;
@@ -267,7 +207,7 @@
 /* 连接树纸片：整张卡，半透混色让点阵隐约透出（原来只有底色没边没影）。 */
 :root[data-paper] .tree {
   background: color-mix(in srgb, var(--surface) 84%, transparent) !important;
-  border: 1.5px dashed var(--ink-line) !important;
+  border: 1.5px solid var(--border) !important;
   border-radius: var(--appearance-panel-radius, 10px) !important;
   box-shadow: 2px 3px 0 var(--ac-shadow);
 }
@@ -279,7 +219,7 @@
 /* 内容区纸片：子导航/页面/表格都住在里面，整张卡 + 圆角裁切。 */
 :root[data-paper] .content {
   background: var(--ink-card-bg) !important;
-  border: 1.5px dashed var(--ink-line) !important;
+  border: 1.5px solid var(--border) !important;
   border-radius: var(--appearance-panel-radius, 10px) !important;
   box-shadow: 2px 3px 0 var(--ac-shadow);
   overflow: hidden;
@@ -287,17 +227,17 @@
 /* 内容区顶部两条 chrome 保持透明（贴 .content 纸片底），分界线换墨色。 */
 :root[data-paper] .conn-tabs {
   background: transparent !important;
-  border-bottom: 1.4px dashed var(--ink-line) !important;
+  border-bottom: 1.4px solid var(--border) !important;
 }
 :root[data-paper] .conn-tab.on { background: var(--ink-card-bg) !important; }
 :root[data-paper] .subnav {
   background: transparent !important;
-  border-bottom: 1.4px dashed var(--ink-line) !important;
+  border-bottom: 1.4px solid var(--border) !important;
 }
 /* 状态栏纸片：原来只有底色横条，升级为独立纸条卡。 */
 :root[data-paper] .status-bar {
   background: color-mix(in srgb, var(--surface) 72%, var(--bg)) !important;
-  border: 1.5px dashed var(--ink-line) !important;
+  border: 1.5px solid var(--border) !important;
   border-radius: var(--appearance-panel-radius, 10px) !important;
   box-shadow: 2px 3px 0 var(--ac-shadow);
 }
@@ -398,7 +338,7 @@
 /* 子导航：活动项给墨下划线（workbench.css 把原 ::after 关掉了，这里恢复）。 */
 :root[data-paper] .subnav {
   background: transparent !important;
-  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 22%, transparent) !important;
+  border-bottom: 1.4px solid var(--border) !important;
 }
 :root[data-paper] .subnav button {
   border-radius: 8px 11px 9px 12px;
@@ -452,9 +392,9 @@
   transform: translateY(-1px);
 }
 :root[data-paper] .btn.primary {
-  background: var(--text) !important;
-  border-color: var(--text) !important;
-  color: var(--surface) !important;
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent-contrast) !important;
   font-weight: 600;
   box-shadow: 2px 2.5px 0 var(--ac-shadow);
 }
@@ -490,9 +430,9 @@
 }
 /* 主/危险变体：上面的 .pk-btn 基础规则特异性更高，必须显式接回来。 */
 :root[data-paper] .pk-btn.primary, :root[data-paper] .pk-btn-primary {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--surface);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
   font-weight: 600;
 }
 :root[data-paper] .pk-btn.danger, :root[data-paper] .pk-btn-danger {
@@ -547,7 +487,7 @@
 :root[data-paper] table.grid th {
   background: var(--surface) !important;
   color: var(--text-3);
-  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 30%, transparent) !important;
+  border-bottom: 1.4px solid var(--border) !important;
   letter-spacing: 0.04em;
 }
 :root[data-paper] table.grid td { background: var(--bg); }
@@ -651,17 +591,17 @@
   box-shadow: 2px 3px 0 var(--ac-shadow) !important;
 }
 :root[data-paper] .msg-viewer .vh {
-  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 24%, transparent) !important;
+  border-bottom: 1.4px solid var(--border) !important;
   letter-spacing: 0.02em;
 }
 :root[data-paper] .msg-viewer .meta {
-  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 20%, transparent) !important;
+  border-bottom: 1.4px solid var(--border) !important;
 }
 :root[data-paper] .msg-viewer .meta .k { color: var(--text-3); font-size: 0.92em; }
 :root[data-paper] .msg-viewer .meta .v { color: var(--text-2); }
 :root[data-paper] .payload-pane {
   background: color-mix(in srgb, var(--bg) 62%, var(--surface));
-  border-top: 1.4px dashed color-mix(in srgb, var(--text) 20%, transparent);
+  border-top: 1.4px solid var(--border);
   color: var(--text);
 }
 :root[data-paper] .payload-pane .j-k { color: var(--j-k) !important; }
@@ -688,7 +628,7 @@
 :root[data-paper] .loading-bar::after { background: var(--ac-edge); }
 
 /* 发送页：底部操作条改虚线分界，与表头/抽屉同一套笔触。 */
-:root[data-paper] .publish-footer { border-top: 1.4px dashed color-mix(in srgb, var(--text) 22%, transparent) !important; }
+:root[data-paper] .publish-footer { border-top: 1.4px solid var(--border) !important; }
 
 /* ═══════════ 抽屉 / 遮罩 / 表单 ═══════════ */
 
@@ -706,11 +646,11 @@
   border-left: 1.8px solid var(--text);
   filter: url(#ink-rough-fine); opacity: .72;
 }
-:root[data-paper] .drawer .dh { border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 20%, transparent); padding-bottom: 12px; }
+:root[data-paper] .drawer .dh { border-bottom: 1.4px solid var(--border); padding-bottom: 12px; }
 :root[data-paper] .drawer .dh h2 { letter-spacing: 0.01em; }
 :root[data-paper] .drawer .dh .x { border-radius: var(--ink-radius-ctl); }
 :root[data-paper] .drawer .dh .x:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); transform: rotate(8deg); }
-:root[data-paper] .drawer .dfoot { border-top: 1.4px dashed color-mix(in srgb, var(--text) 22%, transparent) !important; }
+:root[data-paper] .drawer .dfoot { border-top: 1.4px solid var(--border) !important; }
 /* 遮罩（.mask / #nav-scrim）已在 main.css、workbench.css 改为按 --text 混合的墨色，
  * 纸面下天然跟随，无需再覆盖；这里只补去毛玻璃（手绘是纸，不糊）。 */
 :root[data-paper] .mask, :root[data-paper] .pk-dialog-overlay { backdrop-filter: none !important; }
@@ -788,7 +728,7 @@
 :root[data-paper] .ctxmenu .mi { border-radius: 8px 11px 9px 12px; color: var(--text-2); }
 :root[data-paper] .ctxmenu .mi:hover { background: color-mix(in srgb, var(--text) 9%, transparent) !important; color: var(--text); }
 :root[data-paper] .ctxmenu .mi.danger:hover { background: var(--danger-soft) !important; }
-:root[data-paper] .ctxmenu hr { border-top: 1.3px dashed color-mix(in srgb, var(--text) 22%, transparent) !important; }
+:root[data-paper] .ctxmenu hr { border-top: 1.3px solid var(--border) !important; }
 
 /* 本地 toast：手绘胶囊 + 状态内描边。 */
 :root[data-paper] #local-toast .toast-item {
@@ -843,7 +783,7 @@
   backdrop-filter: none !important;
 }
 :root[data-paper] .wb-dialog-head {
-  border-bottom: 1.4px dashed color-mix(in srgb, var(--text) 24%, transparent) !important;
+  border-bottom: 1.4px solid var(--border) !important;
 }
 :root[data-paper] .wb-dialog-head strong { letter-spacing: 0.01em; }
 :root[data-paper] .wb-dialog-head button { border-radius: var(--ink-radius-ctl); color: var(--text-2); }
@@ -851,7 +791,7 @@
 /* 弹框底部操作条：dialog 放开 overflow 后，它的实底不再被圆角裁切，
  * 必须自己补齐底部两个墨角（BR 15px 19px / BL 19px 15px）。 */
 :root[data-paper] .mw-dialog-footer {
-  border-top: 1.4px dashed color-mix(in srgb, var(--text) 22%, transparent) !important;
+  border-top: 1.4px solid var(--border) !important;
   background: color-mix(in srgb, var(--surface) 80%, var(--bg)) !important;
   border-radius: 0 0 15px 19px / 0 0 19px 15px;
 }

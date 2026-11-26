@@ -64,7 +64,6 @@ body { font-family: var(--font); }
 .table-wrap.table-wrap-flush { padding: 0; }
 .mw-dialog-actions { display: flex; gap: 8px; justify-content: flex-end; width: 100%; }
 .mw-danger-actions { padding-top: 4px; }
-.tree-empty-label { padding-left: 12px; }
 .tree-item .pk-row-actions { flex: none; }
 table.grid .grid-actions { padding: 0 4px; text-align: right; }
 .btn { padding: 5px 10px; border-radius: 6px; font-size: calc(var(--font-size-base, 13px) * 0.923077); }

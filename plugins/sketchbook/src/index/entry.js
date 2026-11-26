@@ -23,7 +23,7 @@ let revision = -1
 let offDestroy
 
 const applyLaunchMode = mode => {
-  if (disposed || !['quick', 'shell', 'panel'].includes(mode)) return
+  if (disposed || !['quick', 'shell'].includes(mode)) return
   document.documentElement.dataset.launchMode = mode
 }
 const offLaunchMode = api?.onModeChange?.(applyLaunchMode)

@@ -559,15 +559,8 @@ function decodeRegex(bytes, pattern) {
   return hits.join('\n')
 }
 
-/** 应用解码策略；自定义策略用 new Function 在插件上下文运行，错误向上抛 */
-export function applyDecoder(id, bytes, customs, { regexPattern = '' } = {}) {
-  const custom = customs?.find((c) => c.id === id)
-  if (custom) {
-    const fn = compileDecoder(custom.code)
-    const out = fn(bytes)
-    if (typeof out !== 'string') throw new Error('自定义解码器必须返回字符串')
-    return out
-  }
+/** 应用内置解码策略；未知策略抛错，由调用方展示 */
+export function applyDecoder(id, bytes, { regexPattern = '' } = {}) {
   switch (id) {
     case 'hexdump': return formatHexDump(bytes)
     case 'ascii': return [...bytes].map((b) => (b >= 32 && b < 127) ? String.fromCharCode(b) : '.').join('')
@@ -584,31 +577,6 @@ export function applyDecoder(id, bytes, customs, { regexPattern = '' } = {}) {
     case 'sep-null': return decodeSepFrame(bytes, [0])
     case 'regex': return decodeRegex(bytes, regexPattern || '.+')
     default: throw new Error(`未知解码策略：${id}`)
-  }
-}
-
-/** 编译自定义解码器：签名字节码 → 字符串。仅暴露 bytes 参数，出错抛可读信息 */
-export function compileDecoder(code) {
-  if (!code || !code.trim()) throw new Error('解码器代码为空')
-  try {
-    // eslint-disable-next-line no-new-func
-    const fn = new Function('bytes', `"use strict";\n${code}`)
-    if (typeof fn !== 'function') throw new Error('不是函数')
-    return fn
-  } catch (err) {
-    throw new Error(`解码器语法错误：${err.message}`)
-  }
-}
-
-/** 测试自定义解码器：返回 { ok, output | error } */
-export function testDecoder(code, sampleBytes) {
-  try {
-    const fn = compileDecoder(code)
-    const out = fn(sampleBytes)
-    if (typeof out !== 'string') return { ok: false, error: '必须返回字符串' }
-    return { ok: true, output: out }
-  } catch (err) {
-    return { ok: false, error: err.message }
   }
 }
 

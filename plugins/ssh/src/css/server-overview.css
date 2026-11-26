@@ -1,0 +1,353 @@
+/* Server overview: one card per saved server. Colours name the metric; amber and red are
+   reserved for thresholds so "what is this" and "is it in trouble" never share a hue.
+   Surfaces come from the theme tokens, so every paper theme and both modes resolve themselves. */
+
+.sov {
+  --m-cpu: #e0704f;
+  --m-memory: #2f9e8f;
+  --m-disk: #c9962e;
+  --m-gpu: #8a6cc9;
+  --m-net: #3d8ec9;
+  --sov-gap: 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ssh-chrome, var(--bg));
+}
+/* `display: flex` above outranks the hidden attribute, so it is restated with the same specificity. */
+.sov[hidden] { display: none; }
+/* The footer only ever said "未连接" behind the overview, which is misleading once servers are listed. */
+.app[data-workbench] .workspace.has-overview ~ .wb-statusbar { display: none; }
+/* Pinned over live terminals: the workspace is the positioning context, so the list covers every pane. */
+.app[data-workbench] .workspace.has-overview > .sov { position: absolute; inset: 0; z-index: 8; }
+.app[data-workbench] .workspace.has-overview > #panel-term { visibility: hidden; }
+/* Dark paper needs lighter inks for the same contrast; paper themes set data-theme on <html>. */
+:root[data-theme='dark'] .sov {
+  --m-cpu: #f0926f;
+  --m-memory: #4fc0ae;
+  --m-disk: #dfb256;
+  --m-gpu: #b39ae6;
+  --m-net: #74b4e6;
+}
+/* Follow-shell mode leaves data-theme unset; the bridge resolves it on <html data-paper>. */
+:root[data-paper='dark'] .sov, :root[data-paper='board'] .sov {
+  --m-cpu: #f0926f;
+  --m-memory: #4fc0ae;
+  --m-disk: #dfb256;
+  --m-gpu: #b39ae6;
+  --m-net: #74b4e6;
+}
+
+.sov-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  min-height: 36px;
+  padding: 4px 12px;
+  color: var(--text-3);
+  font-size: calc(var(--ssh-ui-size) * 0.846154);
+}
+.sov-toolbar strong { color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sov-summary { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.sov-summary > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.sov-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.sov-dot[data-level='warn'] { background: var(--warn); }
+.sov-dot[data-level='danger'] { background: var(--danger); }
+.sov-dot[data-level='off'] { background: var(--text-3); }
+.sov-toolbar-end { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.sov-toolbar button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  border-radius: 5px;
+  min-height: 24px;
+  padding: 3px 9px;
+  font-family: inherit;
+  font-size: calc(var(--ssh-ui-size) * 0.769231);
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .08s ease;
+}
+.sov-toolbar button:hover { background: var(--surface-2); color: var(--text); }
+.sov-toolbar button:active { transform: scale(.97); }
+.sov-toolbar button:disabled { opacity: .45; cursor: default; }
+
+.sov-scroller {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0 12px 12px;
+}
+.sov-list { display: flex; flex-direction: column; gap: var(--sov-gap); }
+.sov-list[hidden] { display: none; }
+
+.sov-card {
+  --m: var(--text-3);
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(190px, 1.4fr) repeat(5, minmax(96px, 1fr)) minmax(112px, auto) auto;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 9px 10px 9px 14px;
+  border-radius: 10px;
+  background: var(--ink-card-bg, var(--surface));
+  border: 1px solid transparent;
+  outline: none;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 66px;
+  transition: background-color .16s ease, border-color .16s ease;
+}
+.sov-card[hidden] { display: none; }
+.sov-card:hover { background: color-mix(in srgb, var(--surface) 92%, var(--bg)); border-color: color-mix(in srgb, var(--text) 10%, transparent); }
+.sov-card:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent); }
+
+/* The sentinel must stay laid out while rows are still hidden: a display:none element never
+   intersects, so hiding it there would deadlock paging. It only disappears once it has no text. */
+
+/* Status rail: the one place a server's health is summarised by colour. */
+.sov-rail {
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--text-3);
+  opacity: .5;
+  transition: background-color .2s ease, opacity .2s ease;
+}
+.sov-card.is-live .sov-rail { background: var(--ok); opacity: 1; }
+.sov-card.is-stale .sov-rail { background: var(--warn); opacity: .85; }
+.sov-card.is-failed .sov-rail { background: var(--danger); opacity: .9; }
+.sov-card[data-state='manual'] .sov-rail, .sov-card[data-state='connecting'] .sov-rail { background: var(--text-3); opacity: .4; }
+.sov-card[data-state='connecting'] .sov-rail { animation: sov-breathe 1.6s ease-in-out infinite; }
+.sov-card:has([data-level='danger']) .sov-rail { background: var(--danger); opacity: 1; }
+.sov-card:has([data-level='warn']):not(:has([data-level='danger'])) .sov-rail { background: var(--warn); opacity: 1; }
+
+.sov-identity { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sov-name-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sov-name {
+  font-size: calc(var(--ssh-ui-size) * 1.076923);
+  font-weight: 620;
+  letter-spacing: -.2px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.sov-env {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: calc(var(--ssh-ui-size) * 0.692308);
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+.sov-env[data-env='prod'] { color: var(--danger); background: var(--danger-soft); }
+.sov-env[data-env='staging'] { color: var(--warn); background: var(--warn-soft); }
+.sov-env[data-env='dev'] { color: var(--ok); background: var(--ok-soft); }
+.sov-platform { flex: none; color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 0.769231); }
+.sov-platform:empty { display: none; }
+.sov-target {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: calc(var(--ssh-ui-size) * 0.769231);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+/* The username shrinks first: the host is what identifies a server, and the full target is in the title. */
+.sov-target-user { flex: 0 1 auto; min-width: 3ch; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+.sov-target-host { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sov-target-port { flex: none; }
+/* user@host:port is read as one token, so the separators get room and the host colour; faded to
+   --text-3 the "@" vanished and "deploy@gw" looked like "deploygw". */
+.sov-at { color: var(--text); padding: 0 1px; font-weight: 600; }
+
+.sov-metric { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--m); }
+.sov-icon { width: 15px; height: 15px; flex: none; opacity: .85; }
+/* The body does not stretch to fill a wide column: a value parked at the far edge of a wide cell
+   reads as detached from its label, so extra room is left as breathing space instead. */
+.sov-metric-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 0 1 148px; }
+/* Label and value share one line. At the 96px column floor "网络 2.1 MB/s" does not fit, and as
+   plain inline content the value would drop to a second line and make that row taller than the rest. */
+.sov-metric-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+/* Captions use --text-2 rather than --text-3: on the cream and board papers --text-3 only reaches
+   3.3-3.8:1 against the card, under the 4.5:1 a label this size needs to stay legible. */
+.sov-metric-label { color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 0.769231); line-height: 1.3; font-weight: 600; letter-spacing: .04em; white-space: nowrap; overflow: hidden; }
+.sov-metric-value {
+  flex: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: calc(var(--ssh-ui-size) * 1.076923);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
+.sov-track { height: 4px; border-radius: 999px; background: color-mix(in srgb, var(--m) 18%, transparent); overflow: hidden; }
+.sov-fill { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--m); transition: width .5s cubic-bezier(.2,.8,.2,1), background-color .2s ease; }
+.sov-spark { width: 100%; height: 16px; display: block; flex: none; }
+.sov-metric-sub {
+  color: var(--text-2);
+  font-size: calc(var(--ssh-ui-size) * 0.769231);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-height: 1.35em;
+}
+.sov-metric-sub:empty { visibility: hidden; }
+.sov-metric[data-metric='cpu'] { --m: var(--m-cpu); }
+.sov-metric[data-metric='memory'] { --m: var(--m-memory); }
+.sov-metric[data-metric='disk'] { --m: var(--m-disk); }
+.sov-metric[data-metric='gpu'] { --m: var(--m-gpu); }
+.sov-metric[data-metric='net'] { --m: var(--m-net); }
+/* Thresholds override the metric hue for the fill only; the icon and sparkline keep their identity. */
+.sov-metric[data-level='warn'] .sov-fill { background: var(--warn); }
+.sov-metric[data-level='danger'] .sov-fill { background: var(--danger); }
+.sov-metric[data-level='warn'] .sov-metric-value { color: var(--warn); }
+.sov-metric[data-level='danger'] .sov-metric-value { color: var(--danger); }
+/* An empty cell keeps every slot (value, bar, sparkline, subtitle) so an unsampled server is exactly
+   as tall as a sampled one and the list stays even. */
+.sov-metric.is-empty .sov-spark { visibility: hidden; }
+.sov-metric.is-empty .sov-metric-value { color: var(--text-3); font-weight: 500; }
+
+/* Facts never wrap and never grow the row: the column is capped, so on a narrow window the
+   later facts are clipped (the title attribute on each value keeps them reachable). */
+.sov-facts {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 12px;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sov-facts > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.sov-facts dt { color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 0.769231); line-height: 1.3; }
+.sov-facts dd { margin: 0; color: var(--text-2); font-family: var(--mono); font-size: calc(var(--ssh-ui-size) * 0.846154); line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.sov-actions { display: flex; align-items: center; gap: 6px; justify-self: end; }
+.sov-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: calc(var(--ssh-ui-size) * 0.769231);
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .08s ease;
+}
+.sov-btn:hover { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--text); }
+.sov-btn:active { transform: scale(.96); }
+.sov-btn[hidden] { display: none; }
+.sov-btn-signin { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 36%, transparent); }
+.sov-btn-signin:hover { background: var(--accent-soft); color: var(--accent); }
+
+/* The note is the reason a server needs attention, so it is set like body text, not like a caption. */
+.sov-note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: calc(var(--ssh-ui-size) * 0.769231);
+  line-height: 1.35;
+  min-height: 1.35em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+.sov-card.has-note .sov-note { opacity: 1; }
+.sov-card.is-failed .sov-note { color: var(--danger); }
+.sov-card.is-stale .sov-note { color: var(--warn); }
+.sov-card[data-state='manual'] .sov-note { color: var(--accent); }
+
+.sov-sentinel { flex: none; padding: 10px 0 4px; text-align: center; color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 0.769231); }
+.sov-sentinel:empty { display: none; }
+
+.sov-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--text-3);
+  padding: 24px;
+}
+.sov-empty[hidden] { display: none; }
+.sov-empty p { margin: 0; font-size: calc(var(--ssh-ui-size) * 0.923077); line-height: 1.7; }
+/* 空态不再放「新建连接」按钮（入口只在左侧），改用一行更淡的指引说明去哪里新建。 */
+.sov-empty .sov-empty-hint { font-size: calc(var(--ssh-ui-size) * 0.846154); color: var(--text-3); opacity: .8; }
+
+@keyframes sov-breathe { 50% { opacity: .15; } }
+
+/* The first reading arrives after two samples; a quiet placeholder keeps the row's shape. */
+.sov-card[data-state='connecting'] .sov-metric-value { color: var(--text-3); font-weight: 500; }
+
+/* Eight columns only fit without clipping from roughly 1400px up (measured: at 1360px the memory
+   subtitle and the uptime are already cut). Below that the two-row layout is used, which leaves
+   every value intact down to the narrowest supported window. */
+@media (max-width: 1399px) {
+  .sov-card {
+    /* Three fixed-width metric columns, then the leftover: splitting the full row three ways would
+       park each value ~300px away from its label. */
+    grid-template-columns: repeat(3, minmax(0, 170px)) minmax(0, 1fr);
+    grid-template-areas:
+      'identity identity identity actions'
+      'cpu memory disk facts';
+    column-gap: 20px;
+    row-gap: 8px;
+    padding-block: 10px;
+  }
+  .sov-identity { grid-area: identity; }
+  .sov-actions { grid-area: actions; align-self: start; }
+  .sov-metric[data-metric='cpu'] { grid-area: cpu; }
+  .sov-metric[data-metric='memory'] { grid-area: memory; }
+  .sov-metric[data-metric='disk'] { grid-area: disk; }
+  /* The facts take the leftover of the second row instead of being dropped. */
+  .sov-facts { grid-area: facts; align-self: center; justify-self: end; overflow: visible; }
+  .sov-metric[data-metric='gpu'], .sov-metric[data-metric='net'] { display: none; }
+}
+@media (max-width: 900px) {
+  .sov-card {
+    grid-template-columns: repeat(2, minmax(0, 170px)) minmax(0, 1fr);
+    grid-template-areas:
+      'identity identity identity actions'
+      'cpu memory . facts';
+  }
+  .sov-metric[data-metric='disk'] { display: none; }
+}
+
+/* Paper themes trade crisp edges for ink lines; the card follows that language when it is active. */
+:root[data-paper] .sov-card { border-radius: var(--ink-radius-pop); }
+:root[data-paper] .sov-rail { border-radius: 2px 5px 4px 6px / 4px 6px 3px 5px; }
+:root[data-paper] .sov-track { border-radius: 4px 6px 5px 7px / 6px 4px 7px 5px; }
+
+/* Layout change must not read as motion, and no motion at all when the user asks for less. */
+@media (prefers-reduced-motion: reduce) {
+  .sov * , .sov *::before, .sov *::after { animation: none !important; transition-duration: 0s !important; }
+}
+:root[data-anim='low'] .sov *, :root[data-anim='low'] .sov *::before, :root[data-anim='low'] .sov *::after { animation: none !important; transition-duration: 0s !important; }

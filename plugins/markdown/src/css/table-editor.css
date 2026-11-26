@@ -1,0 +1,13 @@
+.md-live-table .md-table th { position: relative; }
+.md-live-table .md-table-col-handle { right: -3px; left: auto; margin: 0; z-index: 1; touch-action: none; }
+.md-table-cell-content { display: block; min-width: 1ch; }
+.md-table-cell-active { box-shadow: inset 0 0 0 1px var(--md-link, currentColor); }
+.md-scope .md-table .md-table-cell-editor {
+  display: block; width: 100%; min-width: 1ch; min-height: 1lh; max-width: 100%;
+  margin: 0; padding: 0; border: 0; border-radius: 0; resize: none; outline: 0;
+  box-sizing: border-box; field-sizing: content; font: inherit; line-height: inherit;
+  color: inherit; text-align: inherit; background: transparent; cursor: text;
+  white-space: pre-wrap; overflow-wrap: anywhere; caret-color: var(--md-link, currentColor);
+}
+.md-scope .md-table .md-table-cell-editor::selection { background: Highlight; color: HighlightText; }
+.md-table-menu { max-height: calc(100vh - 8px); overflow-y: auto; }

@@ -27,6 +27,7 @@
     "pin.create",
     "net.fetch",
     "shell.openExternal",
+    "launcher.access",
     "web.login",
     "notify",
     "hotkey",

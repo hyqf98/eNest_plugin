@@ -7,6 +7,8 @@ import { isReservedSshShortcut, displaySshShortcut } from './shortcutPolicy.js'
 import { PAPER_OPTIONS, applyPaper, normalizePaper } from './paper-theme.js'
 import { publishResourceState } from './resource-state.js'
 import { sshIndexedView, sshLaunchIndex } from './launch-index.js'
+import { createServerOverview } from './server-overview.js'
+import { createServerOverviewView } from './server-overview-view.js'
 
 const host = createSshHost(window.enest || window.zapi)
 const mac = /Mac/.test(navigator.platform)
@@ -35,13 +37,15 @@ async function boot() {
     return host.ssh.workbench({ action, sessionId: bridge.activeSession()?.sessionId, ...values })
   }
   const connected = () => !!bridge.activeSession()?.sessionId
-  const header = document.createElement('header'); header.className = 'wb-header'  // 顶部只保留身份与全局命令；「终端 / 文件 / 资源」切换已删除——三者各归其位：
-  // 终端占中列，文件与资源在连接后出现的右侧工作列里同时可见。
-  header.innerHTML = `<div class="wb-brand"><strong>SSH</strong><span class="wb-mode-label"></span></div><div class="wb-header-end"><button data-side-toggle title="显示或隐藏右侧工作列" aria-pressed="true">右侧面板</button><button data-command="palette" title="快捷命令">命令 <kbd>${mac ? '⌘⇧P' : 'Ctrl⇧P'}</kbd></button><button class="wb-open-shell" data-command="desktop">在桌面展开 ↗</button></div>`
-  app.before(header)
+  /* 顶部不再有独立标题行（原「SSH 工作台 + 分割线」那一行）：壳的 Tab 条已经标明当前是 SSH，
+     主区直接从会话标签开始，与数据库工作台对齐。原在这行里的入口移到会话上下文条（context）：
+     它只在连上服务器后出现，而「服务器」「右侧面板」本来就只在连接后才有意义。 */
   main.querySelector('.topbar')?.remove()
   const context = document.createElement('div'); context.className = 'wb-session-context'; context.innerHTML = '<span class="status-dot"></span><strong>SSH 工作区</strong><span class="wb-session-target">从左侧选择连接</span><span class="wb-session-status"></span><button data-connect>连接</button>'
   main.querySelector('.session-tabs').after(context)
+  /* 会话上下文条右端的全局入口。命令面板保留快捷键（Mod+Shift+P）与命令表，不再占按钮位。 */
+  const contextActions = document.createElement('span'); contextActions.className = 'wb-context-actions'
+  contextActions.innerHTML = '<button data-overview-toggle type="button" title="显示或隐藏服务器总览" aria-pressed="false">服务器</button><button data-side-toggle type="button" title="显示或隐藏右侧工作列" aria-pressed="true">右侧面板</button><button class="wb-open-shell" type="button" data-command="desktop" title="在桌面展开">在桌面展开 ↗</button>'
   // 「连接」在未选中任何连接时列出已保存连接供挑选；没有连接则直接开新建表单，
   // 绝不把焦点甩到左侧搜索框（旧行为让人误以为点错了按钮）。
   context.querySelector('[data-connect]').onclick = safe(async () => {
@@ -58,6 +62,8 @@ async function boot() {
   const selectionActions = document.createElement('span'); selectionActions.className = 'wb-selection-actions'; selectionActions.hidden = true
   selectionActions.innerHTML = '<button data-insert-selection title="选中单行命令后填入，保留当前输入">填入选中</button><button data-execute-selection title="执行选中的单行命令">执行选中</button>'
   context.append(selectionActions)
+  // 全局入口排在最右：选中操作（填入选中 / 执行选中）紧挨会话信息，它们只在选了终端文字时出现
+  context.append(contextActions)
   const selectedCommand = () => bridge.activeSession()?.term?.getSelection?.() || ''
   const selectionState = () => { selectionActions.hidden = !selectedCommand().trim() }
   window.addEventListener('ssh-selection-change', selectionState)
@@ -97,6 +103,110 @@ async function boot() {
   const editorPane = document.createElement('section'); editorPane.className = 'wb-editor-pane'; workspace.append(editorPane)
   const statusbar = document.createElement('footer'); statusbar.className = 'wb-statusbar'; statusbar.innerHTML = '<span class="wb-connection-state">未连接</span>'; main.append(statusbar)
 
+  /* 服务器总览：没有任何终端会话时占据整个工作区，一行一台显示已保存服务器的实时资源。
+     有会话后让位给终端；进入页面即对能免交互登录的服务器建立后台监控连接（不开 shell、
+     不进会话表），需要人工的连接只标出来、绝不弹窗。 */
+  const overview = document.createElement('section'); overview.className = 'sov'; overview.hidden = true; overview.setAttribute('aria-label', '服务器总览')
+  // 新建连接的入口只在左侧（侧栏搜索行的 ＋ 与空态按钮）；右侧总览不再重复放，没有连接时只说明情况。
+  overview.innerHTML = `<div class="sov-toolbar"><span class="sov-summary"></span><span class="sov-toolbar-end"><button type="button" data-overview-refresh title="重新读取全部服务器">刷新</button></span></div><div class="sov-scroller"><div class="sov-list"></div><div class="sov-empty" hidden><p>还没有已保存的服务器连接</p><p class="sov-empty-hint">点左侧搜索框旁的 ＋ 新建</p></div></div>`
+  workspace.prepend(overview)
+  let trustedHosts = null
+  const monitorApi = () => host?.ssh?.monitor
+  const overviewData = createServerOverview({
+    monitor: {
+      sync: targets => monitorApi().sync(targets),
+      stop: () => monitorApi().stop(),
+      refresh: ids => monitorApi().refresh(ids),
+      setInterval: ms => monitorApi().setInterval(ms),
+    },
+    profiles: () => store.state.profiles.filter(store.matchesFilters).sort(store.sortProfiles),
+    hasKeyHandle: id => !!id && !!window.SshApi?.hasLocalFileHandle?.(id),
+    trusted: () => trustedHosts,
+    // A server with a live terminal is sampled through that session, never through a monitor too.
+    sessionProfileIds: () => new Set([...bridge.sessions.values()].filter(session => session.sessionId && session.status === 'connected').map(session => session.profileId)),
+    onChange: () => paintOverview(),
+  })
+  const overviewView = createServerOverviewView(overview, {
+    thresholds: () => ({ warn: Number(store.state.ui.warnThreshold) || 85, danger: Number(store.state.ui.dangerThreshold) || 95 }),
+    onTerminal: id => void openTerminalFromOverview(id),
+    onSignin: id => void openTerminalFromOverview(id),
+    onRetry: id => void overviewData.refresh([id]).catch(error),
+  })
+  function paintOverview() {
+    if (!overviewShown) return
+    const byId = Object.fromEntries(store.state.profiles.map(profile => [profile.id, profile]))
+    const rows = overviewData.snapshot()
+    overviewView.render(rows, id => byId[id] || { id })
+    const warn = Number(store.state.ui.warnThreshold) || 85
+    const live = rows.filter(row => row.state === 'live').length
+    const alert = rows.filter(row => row.sample && rowAlertLevel(row.sample, warn) !== '').length
+    const manual = rows.filter(row => row.state === 'manual').length
+    const failed = rows.filter(row => row.state === 'failed').length
+    overview.querySelector('.sov-summary').innerHTML = `<span><i class="sov-dot" data-level="${alert ? 'danger' : live ? '' : 'off'}"></i><strong>${rows.length}</strong> 台服务器</span>${live ? `<span><strong>${live}</strong> 台在线</span>` : ''}${alert ? `<span><strong>${alert}</strong> 台告警</span>` : ''}${manual ? `<span><strong>${manual}</strong> 台待登录</span>` : ''}${failed ? `<span><strong>${failed}</strong> 台连接失败</span>` : ''}`
+  }
+  /** Highest threshold any headline metric crossed in a sample; '' when everything is under the warn line. */
+  function rowAlertLevel(sample, warn) {
+    const values = [sample.cpuPercent, sample.memPercent, ...(sample.disks || []).map(disk => disk.usedPercent), ...(sample.gpus || []).map(gpu => gpu.utilPercent)]
+    return values.some(value => Number.isFinite(value) && value >= warn) ? 'alert' : ''
+  }
+  let overviewShown = false
+  /**
+   * The overview covers the workspace while no terminal session exists, and can be brought back
+   * over the terminals from the session context bar. Hiding it never stops monitoring: sessions and
+   * background monitors keep feeding rows either way, and only leaving the page releases connections.
+   */
+  function syncOverviewVisibility() {
+    const show = mode === 'shell' && (bridge.sessions.size === 0 || overviewPinned)
+    if (show === overviewShown) return
+    overviewShown = show
+    overview.hidden = !show
+    workspace.classList.toggle('has-overview', show)
+    const toggle = contextActions.querySelector('[data-overview-toggle]')
+    if (toggle) { toggle.hidden = mode !== 'shell' || bridge.sessions.size === 0; toggle.setAttribute('aria-pressed', String(show)) }
+    if (show) {
+      void ensureOverview().catch(error)
+      requestAnimationFrame(() => { overviewView.resetPages(); paintOverview() })
+    }
+  }
+  let overviewPinned = false
+  /** (Re)conciles the monitor set with the saved profiles; the first run also loads the trust list. */
+  async function ensureOverview() {
+    if (trustedHosts == null) { try { trustedHosts = await host.ssh.workbench({ action: 'trust.list' }) } catch { trustedHosts = null } }
+    overviewData.setInterval(Math.max(2000, Number(prefs.monitorInterval) || 5000))
+    await overviewData.sync()
+    paintOverview()
+  }
+  async function openTerminalFromOverview(profileId) {
+    const profile = store.findProfile(profileId)
+    if (!profile) return
+    // Opening a terminal always yields the workspace to it; the context bar button brings the overview back.
+    overviewPinned = false
+    await bridge.connectProfile(profile)
+    if (overviewShown) syncOverviewVisibility()
+  }
+  const overviewToggle = contextActions.querySelector('[data-overview-toggle]')
+  overviewToggle.onclick = () => {
+    overviewPinned = !overviewShown
+    syncOverviewVisibility()
+    if (overviewShown) { overviewView.resetPages(); paintOverview(); overviewView.focusFirst() } else bridge.termFocus?.()
+  }
+  overview.addEventListener('click', event => {
+    if (overviewView.handleAction(event)) return
+    if (event.target.closest('[data-overview-refresh]')) void ensureOverview().catch(error)
+  })
+  overview.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || isSshCompositionEvent(event) || event.target.closest('[data-act],button')) return
+    const card = event.target.closest('[data-server]')
+    if (card) { event.preventDefault(); overviewView.activate(card.dataset.server) }
+  })
+  // Leaving the view stops every monitor so nothing stays signed in to a server in the background.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) void overviewData.stop().catch(() => {})
+    else if (overviewShown) void overviewData.sync().then(paintOverview).catch(error)
+  })
+  window.addEventListener('pagehide', () => void overviewData.stop().catch(() => {}))
+  host?.on('ssh.monitor', payload => { overviewData.applyStatus(payload?.status || payload); paintOverview() })
+
   const files = new RemoteFiles(filesElement, { session: bridge.activeSession, request, error, message: toast, prompt: bridge.promptDialog, confirm: bridge.confirmDialog, menu: bridge.showContextMenu, copy: bridge.api.copyText, edit: path => safe(openFile)(path), inspect, transfers: () => openTool('transfers') })
   const navigation = createWorkspaceNavigation({ app, bridge, changeView, openSettings: () => void settings(), onLayout: () => requestAnimationFrame(() => bridge.activeSession()?.term?.fit()) })
 
@@ -107,16 +217,16 @@ async function boot() {
     const shellMode = mode !== 'quick', visible = shellMode && rightOpen && connected()
     app.dataset.rightOpen = String(visible)
     right.hidden = !visible
-    const toggle = header.querySelector('[data-side-toggle]')
-    toggle.hidden = !shellMode || !connected()
+    // 开关在会话上下文条里，那条本身就只在连接后出现；这里只需管「小窗口放不下并列」。
+    const toggle = contextActions.querySelector('[data-side-toggle]')
+    toggle.hidden = !shellMode
     toggle.setAttribute('aria-pressed', String(visible))
     toggle.textContent = visible ? '收起右侧' : '右侧面板'
   }
   function setRightOpen(open) { rightOpen = !!open; store.setUi({ rightOpen }); paintRight(); requestAnimationFrame(() => { bridge.activeSession()?.term?.fit(); for (const doc of editors.values()) doc.editor?.layout?.() }) }
-  header.querySelector('[data-side-toggle]').onclick = () => setRightOpen(!rightOpen)
+  contextActions.querySelector('[data-side-toggle]').onclick = () => setRightOpen(!rightOpen)
 
   function changeView(next) {
-    if (mode === 'panel') return
     if (next === 'connections') { navigation.revealConnections(); return }
     const settingsPage = main.querySelector('.wb-settings-page'); if (settingsPage) settingsPage.hidden = true
     view = next; app.dataset.view = view; document.documentElement.dataset.sshView = view
@@ -132,8 +242,6 @@ async function boot() {
   function setMode(next) {
     mode = next; document.documentElement.dataset.launchMode = mode
     navigation.setMode(mode)
-    if (mode === 'panel') return
-    header.querySelector('.wb-mode-label').textContent = mode === 'quick' ? '快速连接' : '工作台'
     if (mode === 'quick') void host?.ui?.resize?.({ width: 720, height: 420 })
     paintRight()
     changeView(view)
@@ -143,7 +251,7 @@ async function boot() {
   }
   host?.onModeChange?.(setMode)
   setMode(host?.getLaunchMode?.() || mode)
-  header.querySelectorAll('[data-command]').forEach(button => button.onclick = () => safe(() => registry.run(button.dataset.command))())
+  contextActions.querySelectorAll('[data-command]').forEach(button => button.onclick = () => safe(() => registry.run(button.dataset.command))())
   dock.querySelectorAll('[data-tool]').forEach(button => button.onclick = () => openTool(button.dataset.tool))
   dock.querySelector('[data-tool-close]').onclick = () => { dock.classList.remove('open'); bridge.activeSession()?.term?.fit() }
   dock.querySelector('[data-tool-refresh]').onclick = safe(() => loadTool())
@@ -199,7 +307,7 @@ async function boot() {
   window.addEventListener('ssh-activate-terminal', () => changeView('terminal'))
   window.addEventListener('ssh-terminal-command', event => { void registry.run(event.detail) })
   document.addEventListener('keydown', event => {
-    if (mode === 'panel' || isSshCompositionEvent(event) || event.defaultPrevented || event.target.closest?.('[data-binding]') || document.querySelector('dialog[open],.modal-root.show')) return
+    if (isSshCompositionEvent(event) || event.defaultPrevented || event.target.closest?.('[data-binding]') || document.querySelector('dialog[open],.modal-root.show')) return
     // macOS Control belongs to the remote terminal; Mod shortcuts require Command.
     if (mac && event.ctrlKey && !event.metaKey) return
     const chord = normalizeShortcut(event), bound = registry.list().find(command => registry.shortcut(command.id) === chord)
@@ -381,6 +489,9 @@ async function boot() {
       if (disposed || bridge.activeSession()?.sessionId !== sessionId) return
       lastSample = value
       publishResourceState({ sample: value, sampledAt: value.ts || Date.now(), loading: false, error: '' })
+      // The active session feeds its overview row from this same reading (sampleOtherSessions skips it).
+      overviewData.applySessionSample(bridge.activeSession()?.profileId, value)
+      paintOverview()
       const network = value.net.reduce((sum,x) => sum + x.rxKbps + x.txKbps, 0)
       // 右列是窄列：四个指标排成 2×2 小卡，点卡片进对应工具页。
       summary.innerHTML = `<button data-resource="processes"><span>CPU</span><strong>${percentage(value.cpuPercent)}</strong><small>${({ linux:'Linux',darwin:'macOS',win32:'Windows' })[value.platform] || ''}</small></button><button data-resource="processes"><span>内存</span><strong>${percentage(value.memPercent)}</strong><small>${formatBytes(value.memUsed)} / ${formatBytes(value.memTotal)}</small></button><button data-resource="disks"><span>磁盘</span><strong>${percentage(value.disks[0]?.usedPercent)}</strong><small>${esc(value.disks[0]?.mount || '')}</small></button><button data-resource="ports"><span>网络</span><strong>${network.toFixed(1)} KB/s</strong><small>收发合计</small></button>`
@@ -397,6 +508,9 @@ async function boot() {
   function onWorkspaceChange(event) {
     const session = bridge.activeSession(), key = session?.sessionId || session?.tabId || ''
     const profile = store.findProfile(session?.profileId)
+    // 没选中连接时这一条不显示：空状态圆点、「SSH 工作区」占位标题和「从左侧选择连接」
+    // 引导语都是重复信息（插件名已在壳标题栏）。
+    context.dataset.idle = profile ? 'false' : 'true'
     context.querySelector('strong').textContent = session?.title || profile?.name || 'SSH 工作区'
     context.querySelector('.wb-session-target').textContent = profile ? `${profile.username}@${profile.host}:${profile.port || 22}` : '从左侧选择连接'
     context.querySelector('.wb-session-target').title = context.querySelector('.wb-session-target').textContent
@@ -415,23 +529,57 @@ async function boot() {
     })
     // 右侧工作列随会话出现：连上即显示；断开时收起（列内全是空态没有意义）。
     paintRight()
+    // 会话表一空（全部关闭）总览重新接管工作区；出现任何会话则让位给终端。
+    syncOverviewVisibility()
     if (changed) {
       activeKey = key; lastSample = null; toolRevision++; summary.innerHTML = connected() ? '<span>正在读取服务器资源…</span>' : '<span>连接后显示服务器资源</span>'
-      if (mode !== 'panel') void files.refresh()
+      void files.refresh()
       void sample()
-      if (mode !== 'panel' && dock.classList.contains('open')) void loadTool()
+      if (dock.classList.contains('open')) void loadTool()
     }
-    if (mode !== 'panel' && event?.detail?.connected) { if (app.dataset.compactNavigation === 'true') navigation.closeConnections(false); changeView('terminal') }
+    if (event?.detail?.connected) { if (app.dataset.compactNavigation === 'true') navigation.closeConnections(false); changeView('terminal') }
   }
   window.addEventListener('ssh-workspace-change', onWorkspaceChange)
   host?.on('ssh.exit', () => setTimeout(onWorkspaceChange, 0))
   onWorkspaceChange()
   bridge.refreshResources = sample
   let sampleTimer = setInterval(() => void sample(), Math.max(2000, Number(prefs.monitorInterval) || 5000))
-  transferTimer = setInterval(() => { if (mode !== 'panel' && dock.classList.contains('open') && tool === 'transfers') void loadTool(true) }, 1000)
+  /* Other open sessions are sampled for the overview only; the workbench strip stays bound to the
+     active one. Running them sequentially keeps the request queue short on a busy terminal. */
+  const sessionSamplesInFlight = new Set()
+  let overviewReconciled = '', sessionSampleTimer = null
+  async function sampleOtherSessions() {
+    if (disposed || document.hidden) return
+    const live = [...bridge.sessions.values()].filter(session => session.sessionId && session.status === 'connected')
+    // A session appearing or leaving changes which servers need a background monitor.
+    const signature = live.map(session => session.profileId).sort().join('\n')
+    if (signature !== overviewReconciled) { overviewReconciled = signature; if (trustedHosts != null) void overviewData.sync().catch(() => {}) }
+    for (const session of live) {
+      if (session === bridge.activeSession() || sessionSamplesInFlight.has(session.sessionId)) continue
+      sessionSamplesInFlight.add(session.sessionId)
+      try {
+        const sample = await request('system.snapshot', { sessionId: session.sessionId })
+        if (disposed) return
+        overviewData.applySessionSample(session.profileId, sample)
+      } catch { /* the row keeps its last reading; the next round retries */ }
+      finally { sessionSamplesInFlight.delete(session.sessionId) }
+    }
+    paintOverview()
+  }
+  sessionSampleTimer = setInterval(() => void sampleOtherSessions(), Math.max(2000, Number(prefs.monitorInterval) || 5000))
+  window.addEventListener('ssh-session-sample', event => { overviewData.applySessionSample(event.detail.profileId, event.detail.sample); paintOverview() })
+  /** One interval drives the active strip, the other open sessions and the background monitors together. */
+  function applyMonitorInterval(ms) {
+    const value = Math.max(2000, Number(ms) || 5000)
+    prefs.monitorInterval = value
+    clearInterval(sampleTimer); sampleTimer = setInterval(() => void sample(), value)
+    clearInterval(sessionSampleTimer); sessionSampleTimer = setInterval(() => void sampleOtherSessions(), value)
+    overviewData.setInterval(value)
+  }
+  transferTimer = setInterval(() => { if (dock.classList.contains('open') && tool === 'transfers') void loadTool(true) }, 1000)
   host?.onOut?.(() => { /* Remote sessions and tasks remain alive; only visible work pauses. */ })
-  host?.onDestroy?.(() => { disposed = true; delete bridge.refreshResources; clearInterval(sampleTimer); clearInterval(transferTimer); navigation.dispose(); for (const doc of editors.values()) doc.editor?.dispose?.() })
-  host?.onEnter?.(event => { if (mode === 'panel') onWorkspaceChange(); else if (event.code === 'settings') void settings(); else if (event.code === 'files') changeView('files'); else onWorkspaceChange() })
+  host?.onDestroy?.(() => { disposed = true; delete bridge.refreshResources; clearInterval(sampleTimer); clearInterval(sessionSampleTimer); clearInterval(transferTimer); navigation.dispose(); overviewView.destroy(); void overviewData.stop().catch(() => {}); for (const doc of editors.values()) doc.editor?.dispose?.() })
+  host?.onEnter?.(event => { if (event.code === 'settings') void settings(); else if (event.code === 'files') changeView('files'); else onWorkspaceChange() })
 
   async function openFile(path) {
     const sessionId = bridge.activeSession()?.sessionId, key = `${sessionId}:${path}`
@@ -502,8 +650,8 @@ async function boot() {
         content.querySelector('[data-reset]').onclick = () => { registry.bindings = {}; prefs.shortcuts = {}; void host.storage.set(PREFERENCES, prefs); void show('shortcuts') }
       }
       if (next === 'monitor') {
-        content.innerHTML = `<h2>资源采集</h2><form class="wb-settings-form"><label>刷新间隔<select name="interval">${[2000,5000,10000,30000].map(n => `<option value="${n}" ${Number(prefs.monitorInterval) === n ? 'selected' : ''}>${n / 1000} 秒</option>`).join('')}</select></label><p>仅采集当前服务器。慢请求完成后才发起下一次，CPU 与网络速率按服务器独立计算。</p><button class="btn primary">保存</button></form>`
-        content.querySelector('form').onsubmit = event => { event.preventDefault(); prefs.monitorInterval = Number(event.target.interval.value); clearInterval(sampleTimer); sampleTimer = setInterval(() => void sample(), prefs.monitorInterval); void host.storage.set(PREFERENCES, prefs); toast('刷新间隔已更新') }
+        content.innerHTML = `<h2>资源采集</h2><form class="wb-settings-form"><label>刷新间隔<select name="interval">${[2000,5000,10000,30000].map(n => `<option value="${n}" ${Number(prefs.monitorInterval) === n ? 'selected' : ''}>${n / 1000} 秒</option>`).join('')}</select></label><p>打开工作台时，会对所有已保存的服务器读取资源：能直接登录的后台连接，需要密码、私钥授权或双因素的只标记出来，不会弹出任何窗口。有终端会话的服务器沿用该连接，不重复登录。CPU 与网络速率按服务器独立计算。</p><button class="btn primary">保存</button></form>`
+        content.querySelector('form').onsubmit = event => { event.preventDefault(); applyMonitorInterval(Number(event.target.interval.value)); void host.storage.set(PREFERENCES, prefs); toast('刷新间隔已更新') }
       }
       if (next === 'trust') {
         content.innerHTML = '<h2>可信服务器</h2><p>首次连接记录指纹，后续指纹变化会阻止连接。移除前请通过其他渠道核实服务器身份。</p>'

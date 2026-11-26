@@ -13,7 +13,6 @@ import { fileIcon } from '../js/icons.js'
 import { formatSize, formatWhen, highlightName, parseQuery } from '../js/query.js'
 import { createPreview } from '../js/preview.js'
 import { registerAnythingMcp } from '../js/mcp.mjs'
-import { PanelView } from './PanelView.jsx'
 
 const api = () => window.enest || window.zapi
 const escape = PluginKit.escape
@@ -340,7 +339,7 @@ export function App() {
   // —— Quick provider 注册（等价原 registerProvider）——
   const registerProvider = useCallback(() => {
     if (!api()?.contribute || !backendReady()) return
-    api().contribute.registerQuickProvider?.({ id: 'anything', explain: '全盘文件搜索' }).catch(() => {})
+    api().contribute.registerQuickProvider?.({ id: 'anything', explain: '全盘文件搜索', fallbackFor: 'file-names' }).catch(() => {})
     api().contribute.onQuickQuery?.(({ reqId, query: text }) => {
       const keyword = String(text || '').trim()
       const respond = (items) => { api().contribute.respondQuickQuery?.(reqId, items).catch(() => {}) }
@@ -646,11 +645,6 @@ export function App() {
       </div>
     )
   }
-
-  if (mode === 'panel') return <PanelView query={query} results={results} status={status} booted={booted}
-    onQuery={onQueryInput} onOpen={path => { if (!searchingRef.current && resultsRef.current.some(file => file.path === path)) void openTarget(path, false) }}
-    onOpenShell={() => Promise.resolve(api()?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}
-  />
 
   return (
     <main className="app">

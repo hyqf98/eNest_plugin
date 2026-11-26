@@ -10,6 +10,8 @@ if (!container) throw new Error('#quick-root is missing')
 const FILTERS = [[null, '全部'], ['app', '应用'], ['plugin', '插件'], ['action', '操作']]
 const KIND_NAMES = { app: '应用', plugin: '插件', action: '操作' }
 const GROUP_NAMES = { best: '最佳匹配', match: '匹配结果', recommendation: '推荐', provider: '插件提供', recent: '最近使用', apps: '应用', plugins: '插件', actions: '操作' }
+const mac = /Mac/.test(navigator.platform)
+const canSearchFiles = state => state?.fileSearchEnabled === true && !state.plugin && !state.input?.items.length
 const root = document.documentElement
 const cleanups = []
 let snapshot = null
@@ -44,6 +46,7 @@ const input = h('input', {
 })
 const search = h('div', { class: 'skq-search', role: 'search' }, icon('search', 21), input)
 const back = button('返回搜索', 'arrowLeft', () => { void act({ type: 'plugin-back' }) })
+const pluginGrip = h('span', { class: 'skq-plugin-grip-slot', 'aria-hidden': 'true', hidden: true })
 const pluginTitle = h('strong', { class: 'skq-plugin-title' })
 const pluginStatus = h('span', { class: 'skq-plugin-status', role: 'status' })
 const pluginFocus = h('button', {
@@ -52,9 +55,14 @@ const pluginFocus = h('button', {
 }, pluginTitle, pluginStatus)
 const pin = button('固定到主窗', 'pin', () => { void act({ type: 'plugin-pin' }) })
 back.hidden = true
-const pluginBar = h('div', { class: 'skq-plugin-bar', hidden: true }, pluginFocus, pin)
+const pluginBar = h('div', { class: 'skq-plugin-bar', hidden: true }, pluginGrip, pluginFocus, pin)
 const hide = button('收起 Quick', 'close', () => { void act({ type: 'hide' }) })
-const bar = h('header', { class: 'skq-bar' }, back, search, pluginBar, hide)
+const files = button(`本地文件 · ${mac ? '⌘⇧F' : 'Ctrl+Shift+F'}`, 'folder', event => { if (event.isTrusted && canSearchFiles(snapshot)) void act({ type: 'open-files' }) })
+files.hidden = true
+files.setAttribute('aria-keyshortcuts', `${mac ? 'Meta' : 'Control'}+Shift+F`)
+const update = button('查看 eNest 更新', 'upgrade', () => { void act({ type: 'open-update' }) }, 'skq-tool skq-update')
+update.hidden = true
+const bar = h('header', { class: 'skq-bar' }, back, search, pluginBar, files, update, hide)
 const filters = h('nav', { class: 'skq-filters', 'aria-label': '搜索类型' })
 const filterButtons = FILTERS.map(([kind, label]) => {
   const control = h('button', {
@@ -289,7 +297,17 @@ function acceptState(state) {
   const plugin = Boolean(state.plugin)
   setAttribute(surface, 'data-mode', plugin ? 'plugin' : 'list')
   setProperty(back, 'hidden', !plugin)
+  setProperty(files, 'hidden', !canSearchFiles(state))
   setProperty(pluginBar, 'hidden', !plugin)
+  const gripSize = plugin && state.bounds?.pluginGripSize
+  setProperty(pluginGrip, 'hidden', !gripSize)
+  if (gripSize) setStyle(pluginGrip, '--skq-grip-size', `${gripSize}px`)
+  setProperty(update, 'hidden', !state.availableUpdateVersion)
+  if (state.availableUpdateVersion) {
+    const label = `查看 eNest ${state.availableUpdateVersion} 更新`
+    setAttribute(update, 'title', label)
+    setAttribute(update, 'aria-label', label)
+  }
   setProperty(panel, 'hidden', plugin)
   setAttribute(input, 'placeholder', state.plugin?.placeholder || '搜索应用、插件或操作')
   setAttribute(input, 'aria-label', plugin ? `搜索 ${state.plugin.title}` : '搜索应用、插件或操作')
@@ -344,7 +362,7 @@ function acceptState(state) {
     ready = true
     focusSearch({ selectAll: false })
   }
-  const layoutInputs = JSON.stringify([lastAppearance, lastItems, plugin, state.plugin?.title, state.plugin?.loading,
+  const layoutInputs = JSON.stringify([lastAppearance, lastItems, plugin, gripSize, state.plugin?.title, state.plugin?.loading,
     state.busy, state.loading, state.expanded, state.hiddenCount, state.emptyMarket, state.error, actionError])
   if (layoutInputs !== lastLayoutInputs) { lastLayoutInputs = layoutInputs; queueLayout() }
 }
@@ -359,10 +377,12 @@ function queueLayout() {
     setStyle(surface, '--skq-columns', columns)
     // 测量内层自然高度，不能用已被宿主 clamp 的视口高度反推所需尺寸。
     const height = snapshot.plugin ? 64 : Math.max(64, Math.min(545, Math.ceil(64 + filters.offsetHeight + status.offsetHeight + error.offsetHeight + resultContent.scrollHeight + footer.offsetHeight)))
-    const key = `${columns}:${height}`
+    const slot = !pluginGrip.hidden && pluginGrip.getBoundingClientRect()
+    const position = slot && slot.width ? { x: Math.round(slot.left), y: Math.round(slot.top) } : undefined
+    const key = `${columns}:${height}:${position?.x ?? ''}:${position?.y ?? ''}`
     if (key === lastLayout) return
     lastLayout = key
-    void act({ type: 'layout', columns, height })
+    void act({ type: 'layout', columns, height, ...(position ? { pluginGrip: position } : {}) })
   })
 }
 

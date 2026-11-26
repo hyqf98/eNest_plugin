@@ -621,6 +621,11 @@
 
 .g-row.is-drop-target { background: color-mix(in srgb, var(--gt-accent) 12%, transparent); }
 
+/* 补位空行：只是把列网格画满可视区，不是可操作的任务行——不接斑马纹，也不做 hover 高亮。
+   选择器带 .is-filler 以压过上面的 .g-row:hover。 */
+.g-row.is-filler,
+.g-row.is-filler:hover { background: transparent; }
+
 .g-row-label {
   position: sticky;
   left: 0;

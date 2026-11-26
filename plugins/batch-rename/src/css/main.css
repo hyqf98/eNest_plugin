@@ -25,13 +25,16 @@ html, body, #root { height: 100%; margin: 0; }
   display: grid;
   grid-template-columns: minmax(300px, 5fr) minmax(0, 7fr);
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
   flex: 1;
   min-height: 0;
 }
-.rn-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rn-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
 
 .panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 12px;
   border: 1px solid var(--border, #d9dfe6);
   border-radius: var(--rn-radius);
@@ -93,8 +96,13 @@ button.danger:disabled { opacity: 0.45; }
   font-size: 12px;
 }
 
-/* —— 队列 —— */
+/* —— 队列：空队列时投放区撑满面板，有文件后列表占满并在内部滚动 —— */
+.queue-panel { flex: 1; }
 .drop-zone {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
   padding: 20px 16px;
   border: 1px dashed var(--border-strong, #b8c2cf);
   border-radius: calc(var(--rn-radius) - 1px);
@@ -115,7 +123,8 @@ button.danger:disabled { opacity: 0.45; }
   display: flex;
   flex-direction: column;
   gap: 3px;
-  max-height: 152px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   font-size: 12px;
 }
@@ -213,8 +222,8 @@ button.danger:disabled { opacity: 0.45; }
   word-break: break-word;
 }
 
-/* —— 预览：列头 + 行（不透明度梯度弱化不变行，变化行才亮）—— */
-.preview-panel { display: flex; flex-direction: column; min-height: 200px; max-height: calc(100dvh - 190px); }
+/* —— 预览：占满右栏全高，列头吸顶、行在内部滚动（不透明度梯度弱化不变行，变化行才亮）—— */
+.preview-panel { min-height: 0; }
 .preview-head {
   position: sticky;
   top: 0;
@@ -234,6 +243,12 @@ button.danger:disabled { opacity: 0.45; }
   min-height: 0;
   overflow: auto;
   font-size: 12px;
+}
+/* 空队列：提示在撑满的预览区内居中，不让右侧面板上半截空白 */
+.preview-table:has(> .rule-empty:only-child) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .pv-row {
   display: grid;
@@ -299,10 +314,12 @@ dialog menu {
 
 #status { margin: 0; min-height: 18px; font-size: 12px; overflow-wrap: break-word; word-break: break-word; }
 
-/* 响应式：中窄收为上下结构；更窄单列 */
+/* 响应式：中窄收为上下结构（堆叠后退回自然高度，预览表格定高滚动）；更窄单列 */
 @container (max-width: 1080px) {
   .rn-workbench { grid-template-columns: 1fr; }
-  .preview-panel { max-height: none; }
+  .queue-panel { flex: none; }
+  .drop-zone { flex: none; }
+  .preview-panel { min-height: 0; }
   .preview-table { max-height: 300px; }
 }
 @container (max-width: 740px) {

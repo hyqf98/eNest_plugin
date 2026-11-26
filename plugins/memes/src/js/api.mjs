@@ -133,6 +133,13 @@ export async function fetchText({ url, headers, timeoutMs = 30000 }) {
   })
 }
 
+/** 大文本 GET（流式，<32MB）：超过非流式 2MB 预算的索引 JSON 必须走这里。 */
+export async function fetchLargeText({ url, headers, timeoutMs = 60000 }) {
+  const { bytes, status } = await fetchBytes({ url, headers, timeoutMs })
+  if (status < 200 || status >= 300) throw new Error(`HTTP ${status}`)
+  return new TextDecoder('utf-8').decode(bytes)
+}
+
 /* ---------------- 图片字节 LRU（dataUrl 缓存，显示与复制复用） ---------------- */
 
 const IMAGE_LRU_MAX = 200

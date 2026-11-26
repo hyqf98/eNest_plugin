@@ -198,6 +198,18 @@ label {
   gap: 12px;
   min-height: 0;
 }
+/* 哈希页：输入框是这一页的起点，吃掉剩余高度（工具型编辑器布局）；结果卡与校验块保持内容高度贴在下方。 */
+#page-hash > .field {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+#page-hash > .field #hash-input {
+  flex: 1;
+  min-height: 96px;
+  height: auto;
+}
 .field-head {
   display: flex;
   align-items: baseline;
@@ -211,28 +223,6 @@ label {
   resize: vertical;
   font-family: var(--mono);
   font-size: 13px;
-}
-
-/* ── 空状态 ── */
-.empty-state {
-  margin-top: 8px;
-  padding: 14px 16px;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
-.empty-state .empty-title {
-  display: block;
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  margin-bottom: 2px;
-}
-.empty-state[hidden] {
-  display: none;
 }
 
 /* ── 文件哈希：dropzone + 进度条 ── */
@@ -284,7 +274,7 @@ label {
   font-size: 11px;
 }
 
-/* ── 结果卡片阵列（多算法并行）── */
+/* ── 结果卡片阵列（多算法并行）── 六张同组并列的紧凑卡，保持内容高度。 */
 .hash-grid {
   list-style: none;
   margin: 0;

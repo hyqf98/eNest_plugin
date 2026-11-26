@@ -313,6 +313,8 @@ button.ghost:hover:not(:disabled) {
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 10px;
 }
+/* 五个域在四列里会让「周」落单到第二行首列、右侧留一大片空：落单的域横跨整行。 */
+.fields > .field-box:last-child:nth-child(4n + 1) { grid-column: 1 / -1; }
 .field-box {
   /* 域构建器是同一张表单的五/六段，不给每段再加一层描边卡片：
      用一条细分隔线分栏，视觉噪音低，且与表格/表单保持同一层级。 */

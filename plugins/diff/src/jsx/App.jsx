@@ -88,7 +88,7 @@ export function App() {
 
     if (!a && !b) {
       setDiffHtml(
-        '<div class="diff-empty">在两侧粘贴文本开始对比；也可以把本地文件拖到任意一侧。<br>选项支持字符级细化 / 忽略空白 / 忽略大小写 / 忽略空行；JSON 规范化会按键排序后对比；统一视图切换单栏差异流。</div>',
+        '<div class="diff-empty">在两侧粘贴文本，或把文件拖到任意一侧</div>',
       )
       setStatsHtml('')
       setNavPos({ visible: false, text: '' })
@@ -568,7 +568,7 @@ export function App() {
           id={id}
           ref={areaRef}
           className="mono"
-          spellcheck="false"
+          spellCheck="false"
           placeholder={`粘贴${label}，或把文件拖进来`}
           value={value}
           onChange={onChange}
@@ -620,7 +620,7 @@ export function App() {
       <section className="result" id="result">
         <div className="pane-head result-head">
           <h2>差异结果 <span id="result-mode" className="hint" onDoubleClick={() => void toggleHex()}>{hexMode ? 'hex 字节对比' : '行级'}</span></h2>
-          <span className="hint" id="result-hint">Ctrl/⌘+↑ ↓ 导航差异；导出为 unified patch</span>
+          {/* 导航走顶部 ↑↓ 按钮与快捷键，导出在「…」菜单：不再常驻一行操作说明。 */}
         </div>
         {noticeText ? <div className="diff-notice" id="diff-notice">{noticeText}</div> : null}
         <div id="diff-view" ref={diffViewRef} className="diff-view mono" tabIndex={0}

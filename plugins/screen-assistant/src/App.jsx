@@ -5,12 +5,10 @@ import { host } from './lib/env.js'
 import { useLibrary } from './lib/library.js'
 import { getThumb } from './lib/assets.js'
 import { loadImageElement, releaseAll } from './lib/blobs.js'
-import { loadDisplays, physicalDisplayBounds } from './lib/surfaces.js'
+import { loadDisplays, openAnnotate, openRegion, physicalDisplayBounds } from './lib/surfaces.js'
+import { captureStill, startLongshot, startRecorder } from './lib/session.js'
 import {
-  captureFullscreen, imageFromRegionResult, openRegionSession, startLongshot, startRecorder
-} from './lib/session.js'
-import {
-  canvasToBlob, dataUrlToBlob, fileToDataUrl, mimeForExtension, writeBlob
+  canvasToBlob, dataUrlToBlob, extensionForMime, fileToDataUrl, mimeForExtension, writeBlob
 } from './lib/files.js'
 import { thumbFromCanvas, thumbFromImage } from './lib/media.js'
 import { flushDrafts } from './lib/draft.js'
@@ -24,7 +22,7 @@ import { PinsView } from './views/PinsView.jsx'
 import { SettingsDialog } from './views/SettingsDialog.jsx'
 
 const DEFAULT_SETTINGS = {
-  captureAction: 'preview',
+  captureAction: 'annotate',
   imageLimit: 200,
   recordAudio: false,
   gifFps: 10,
@@ -32,6 +30,7 @@ const DEFAULT_SETTINGS = {
 }
 
 const safeName = value => String(value || 'record').replace(/[\\/:*?"<>|]/g, '-').slice(0, 100)
+const usesEditorWindow = action => action === 'annotate' || action === 'preview'
 
 function matchesFilter(item, filter, text) {
   if (filter === 'image' && item.kind !== 'image') return false
@@ -47,6 +46,7 @@ export function App() {
   const [prefsReady, setPrefsReady] = useState(false)
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [view, setView] = useState('capture')
+  const [captureMode, setCaptureMode] = useState('image')
   const [displays, setDisplays] = useState([])
   const [displayId, setDisplayId] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -66,7 +66,9 @@ export function App() {
   const notify = useCallback((text, type = 'info') => {
     const message = String(text || '')
     if (!message) return
-    if (kitRef.current?.toast) kitRef.current.toast(message, type)
+    if (document.hidden && host.ui?.toast) {
+      void host.ui.toast({ body: message, level: type }).catch(() => kitRef.current?.toast(message, type))
+    } else if (kitRef.current?.toast) kitRef.current.toast(message, type)
     else console.warn(message)
   }, [])
 
@@ -93,9 +95,11 @@ export function App() {
   const settingsRef = useRef(settings)
   const modeRef = useRef(mode)
   const viewRef = useRef(view)
-  const queryRef = useRef(query)
+  const captureModeRef = useRef(captureMode)
+  const settingsOpenRef = useRef(settingsOpen)
   const displayRef = useRef(display)
   const activeRef = useRef(active)
+  const capturingRef = useRef(false)
   const libraryRef = useRef(library)
   const filteredRef = useRef(filtered)
   const lightboxIdRef = useRef(lightboxId)
@@ -103,17 +107,38 @@ export function App() {
   settingsRef.current = settings
   modeRef.current = mode
   viewRef.current = view
-  queryRef.current = query
+  settingsOpenRef.current = settingsOpen
   displayRef.current = display
-  activeRef.current = active
   libraryRef.current = library
   filteredRef.current = filtered
   lightboxIdRef.current = lightboxId
   editorIdRef.current = editorId
 
-  const enterRef = useRef(null)
+  const selectCaptureMode = useCallback(next => {
+    if (next !== 'image' && next !== 'record') return
+    captureModeRef.current = next
+    setCaptureMode(next)
+  }, [])
+
+  const showSession = useCallback(next => {
+    activeRef.current = next
+    setActive(next)
+  }, [])
 
   /* ---------- 基础数据 ---------- */
+  const getCaptureDisplay = useCallback(async () => {
+    const selectedId = displayRef.current?.id
+    const list = await loadDisplays()
+    setDisplays(list)
+    const selected = list.find(entry => entry.id === selectedId)
+    if (selected) return selected
+    const primary = list.find(entry => entry.primary) || list[0]
+    setDisplayId(primary?.id ?? null)
+    if (!primary) throw new Error('没有可用显示器')
+    if (selectedId != null) throw new Error('所选显示器已断开，请重新选择后再试')
+    return primary
+  }, [])
+
   const refreshPins = useCallback(async () => {
     setPinsLoading(true)
     try {
@@ -174,19 +199,33 @@ export function App() {
     } catch (error) { notify(error?.message || error, 'error') }
   }, [itemDataUrl, notify])
 
+  // 删除是破坏性操作：提示必须反映真实结果，所以批量删除串行等待每一条落定后再汇总。
   const deleteItem = useCallback(async item => {
     const list = filteredRef.current
     const index = list.findIndex(entry => entry.id === item.id)
     try {
       await libraryRef.current.remove(item.id)
-    } catch (error) { notify(error?.message || error, 'error'); return }
+    } catch (error) { notify(error?.message || error, 'error'); return false }
     if (lightboxIdRef.current === item.id) {
       const next = list[index + 1] || list[index - 1]
       setLightboxId(next?.id || null)
     }
     if (editorIdRef.current === item.id) setEditorId(null)
-    notify('已删除', 'success')
+    return true
   }, [notify])
+
+  const deleteItems = useCallback(async items => {
+    if (!items.length) return
+    let removed = 0
+    let firstError = null
+    // 串行而不是并行：每条删除都要改写同一份媒体库索引，并发会互相覆盖。
+    for (const item of items) {
+      if (await deleteItem(item)) removed += 1
+      else if (!firstError) firstError = item.name
+    }
+    if (removed) notify(removed === 1 ? '已删除' : `已删除 ${removed} 项`, 'success')
+    if (firstError) notify(`${firstError}${items.length - removed > 1 ? ` 等 ${items.length - removed} 项` : ''}删除失败`, 'error')
+  }, [deleteItem, notify])
 
   const saveFrame = useCallback(async (item, canvas) => {
     try {
@@ -229,131 +268,121 @@ export function App() {
     return saved
   }, [])
 
-  const afterCapture = useCallback(async (item, override) => {
-    if (!item) return
-    const action = override || settingsRef.current.captureAction
+  const afterCapture = useCallback(async ({ item, shotDataUrl }, display, action) => {
     try {
-      if (action === 'copy') {
-        await host.clipboard.writeImage(await itemDataUrl(item))
+      if (usesEditorWindow(action)) {
+        const saved = await openAnnotate({
+          display,
+          shotDataUrl,
+          preview: action === 'preview',
+          onSaved: result => libraryRef.current.addSaved({
+            kind: 'image',
+            fileId: result.fileId,
+            ext: 'png',
+            name: `${item.name} 标注`,
+            width: result.width,
+            height: result.height,
+            bytes: result.bytes,
+            source: 'edit',
+            originId: item.id
+          })
+        }).catch(error => {
+          if (action === 'annotate') setEditorId(item.id)
+          throw error
+        })
+        if (saved) {
+          await host.clipboard.writeImage(await fileToDataUrl(saved.fileId, 'image/png'))
+          notify('已复制截图', 'success')
+        }
+      } else if (action === 'copy') {
+        await host.clipboard.writeImage(shotDataUrl)
         notify('已复制截图', 'success')
       } else if (action === 'pin') {
-        await pinImage(await itemDataUrl(item), item.name)
+        await pinImage(shotDataUrl, item.name)
       } else {
         setEditorId(item.id)
       }
-    } catch (error) { notify(error?.message || error, 'error') }
-  }, [itemDataUrl, notify, pinImage])
+    } catch (error) { notify(`截图已保存：${error?.message || error}`, 'error') }
+  }, [notify, pinImage])
 
   /* ---------- 录制 / 长截图 ---------- */
-  const startLongshotFlow = useCallback(async (result, displayNow) => {
+  const startCaptureSession = useCallback(async (kind, selection, displayNow, quickOrigin) => {
     let session
-    try {
-      session = await startLongshot({
-        display: displayNow,
-        bounds: result.bounds,
-        library: libraryRef.current,
-        onState: state => {
-          if (state === 'running') setActive(prev => (prev ? { ...prev, startedAt: Date.now() } : prev))
-        }
-      })
-    } catch (error) {
-      void result.region?.proceed()
-      throw error
+    let status = 'preparing'
+    let startedAt = null
+    let elapsedMs = 0
+    const options = {
+      display: displayNow,
+      bounds: selection?.bounds ?? physicalDisplayBounds(displayNow),
+      quickOrigin,
+      library: libraryRef.current,
+      onState: (state, detail) => {
+        if (!['running', 'recording', 'paused', 'saving'].includes(state)) return
+        const now = Date.now()
+        if (Number.isFinite(detail?.elapsedMs)) elapsedMs = Math.max(0, detail.elapsedMs)
+        else if (startedAt !== null) elapsedMs = Math.max(0, now - startedAt)
+        status = state
+        startedAt = state === 'recording' || state === 'running' ? now - elapsedMs : null
+        if (session && activeRef.current?.session === session) showSession({ kind, status, startedAt, elapsedMs, session })
+      }
     }
-    void result.region?.proceed()
-    setActive({ kind: 'longshot', startedAt: Date.now(), session })
+    session = kind === 'record'
+      ? await startRecorder({ ...options, withAudio: (selection ? selection.withAudio : settingsRef.current.recordAudio) === true })
+      : await startLongshot(options)
+    showSession({ kind, status, startedAt, elapsedMs, session })
     session.done
       .then(item => {
-        if (item) {
-          notify('长截图已保存', 'success')
-          setEditorId(item.id)
-        }
+        if (!item) return
+        const label = kind === 'record' ? '录屏' : '长截图'
+        if (item.interruption) notify(`${item.interruption}，${kind === 'record' ? '已录片段' : '已采集的长图'}已保存`, 'warn')
+        else if (item.limitReached) notify('已达到长度上限，长截图已保存', 'info')
+        else notify(`${label}已保存`, 'success')
+        if (kind === 'longshot') setEditorId(item.id)
       })
       .catch(error => notify(error?.message || error, 'error'))
-      .finally(() => setActive(null))
-  }, [notify])
+      .finally(() => { if (activeRef.current?.session === session) showSession(null) })
+  }, [notify, showSession])
 
-  const startRecordFlow = useCallback(async (result, displayNow) => {
-    const bounds = result?.bounds || physicalDisplayBounds(displayNow)
-    let session
-    try {
-      session = await startRecorder({
-        display: displayNow,
-        bounds,
-        withAudio: settingsRef.current.recordAudio,
-        library: libraryRef.current,
-        onState: state => {
-          if (state === 'recording') {
-            setActive(prev => (prev ? { ...prev, startedAt: Date.now() } : prev))
-          }
-        }
-      })
-    } catch (error) {
-      void result?.region?.proceed()
-      throw error
-    }
-    void result?.region?.proceed()
-    setActive({ kind: 'record', startedAt: Date.now(), session })
-    session.done
-      .then(item => { if (item) notify('录屏已保存', 'success') })
-      .catch(error => notify(error?.message || error, 'error'))
-      .finally(() => setActive(null))
-  }, [notify])
-
-  const runRegion = useCallback(async (prefer = 'image', options = {}) => {
+  const withCaptureDisplay = useCallback(async operation => {
     if (activeRef.current) { notify('已有录制或长截图进行中', 'info'); return }
-    const displayNow = displayRef.current
-    if (!displayNow) { notify('没有可用显示器', 'error'); return }
-    setView('capture')
+    if (capturingRef.current) return
+    capturingRef.current = true
     setBusy(true)
     try {
-      const result = await openRegionSession({
+      await operation(await getCaptureDisplay())
+    } catch (error) {
+      notify(error?.message || error, 'error')
+    } finally {
+      capturingRef.current = false
+      setBusy(false)
+    }
+  }, [getCaptureDisplay, notify])
+
+  const takeStill = useCallback(async (displayNow, bounds, action = settingsRef.current.captureAction, quickHidden = false) => {
+    if (!quickHidden) await host.ui.dismissQuick()
+    const shot = await captureStill({ display: displayNow, bounds, library: libraryRef.current })
+    const completion = afterCapture(shot, displayNow, action)
+    if (!usesEditorWindow(action)) await completion
+  }, [afterCapture])
+
+  const runCapture = useCallback((action, options = {}) => {
+    return withCaptureDisplay(async displayNow => {
+      selectCaptureMode(action === 'record' || action === 'record-full' ? 'record' : 'image')
+      setView('capture')
+      if (action === 'full') return takeStill(displayNow, undefined, options.after)
+      if (action === 'record-full') return startCaptureSession('record', null, displayNow, modeRef.current === 'quick' ? 'visible' : null)
+      let quickHidden = false
+      const result = await openRegion({
         display: displayNow,
-        withAudio: settingsRef.current.recordAudio,
-        prefer
+        prefer: action,
+        ...(action === 'record' ? { withAudio: settingsRef.current.recordAudio === true } : {}),
+        beforeShow: async () => { quickHidden = await host.ui.dismissQuick() }
       })
       if (!result) return
-      if (result.action === 'image') {
-        const item = await libraryRef.current.addSaved(imageFromRegionResult(result))
-        await afterCapture(item, options.after)
-        return
-      }
-      if (result.action === 'longshot') { await startLongshotFlow(result, displayNow); return }
-      await startRecordFlow(result, displayNow)
-    } catch (error) {
-      notify(error?.message || error, 'error')
-    } finally {
-      setBusy(false)
-    }
-  }, [afterCapture, notify, startLongshotFlow, startRecordFlow])
-
-  const captureFull = useCallback(async () => {
-    const displayNow = displayRef.current
-    if (!displayNow) { notify('没有可用显示器', 'error'); return }
-    setBusy(true)
-    try {
-      const item = await captureFullscreen({ display: displayNow, library: libraryRef.current })
-      await afterCapture(item)
-    } catch (error) {
-      notify(error?.message || error, 'error')
-    } finally {
-      setBusy(false)
-    }
-  }, [afterCapture, notify])
-
-  const recordFull = useCallback(async () => {
-    if (activeRef.current) { notify('已有录制或长截图进行中', 'info'); return }
-    const displayNow = displayRef.current
-    if (!displayNow) { notify('没有可用显示器', 'error'); return }
-    setBusy(true)
-    try {
-      await startRecordFlow(null, displayNow)
-    } catch (error) {
-      notify(error?.message || error, 'error')
-    } finally {
-      setBusy(false)
-    }
-  }, [notify, startRecordFlow])
+      if (action === 'image') return takeStill(displayNow, result.bounds, options.after, quickHidden)
+      return startCaptureSession(action, result, displayNow, quickHidden ? 'dismissed' : null)
+    })
+  }, [selectCaptureMode, startCaptureSession, takeStill, withCaptureDisplay])
 
   const stopActive = useCallback(async () => {
     const current = activeRef.current
@@ -364,8 +393,8 @@ export function App() {
   /* ---------- 导入 / 打开方式 ---------- */
   const importImageToEditor = useCallback(async ({ dataUrl, name }) => {
     const blob = dataUrlToBlob(dataUrl)
-    const mime = blob.type || 'image/png'
-    const ext = mimeForExtension(mime)
+    const ext = extensionForMime(blob.type)
+    if (!blob.type.startsWith('image/') || mimeForExtension(ext) !== blob.type) throw new Error('仅支持 PNG、JPEG、WebP 或 GIF 图片')
     const url = URL.createObjectURL(blob)
     try {
       const image = await loadImageElement(url)
@@ -419,11 +448,8 @@ export function App() {
     const images = Array.isArray(event?.input?.images)
       ? event.input.images.map(image => ({ dataUrl: image.dataUrl, name: image.name || '图片' }))
       : []
-    if (code === 'capture') { setView('capture'); await runRegion('image'); return }
-    if (code === 'full') { setView('capture'); await captureFull(); return }
-    if (code === 'longshot') { setView('capture'); await runRegion('longshot'); return }
-    if (code === 'record') { setView('capture'); await runRegion('record'); return }
-    if (code === 'record-full') { setView('capture'); await recordFull(); return }
+    if (code === 'capture') return runCapture('image')
+    if (['full', 'longshot', 'record', 'record-full'].includes(code)) return runCapture(code)
     if (code === 'pin') { setView('pins'); void refreshPins(); return }
     if (code === 'tools') { setView('tools'); if (images.length) openToolsImages(images); return }
     if (code === 'library') { setView('library'); return }
@@ -433,8 +459,7 @@ export function App() {
       return
     }
     setView('capture')
-  }, [captureFull, importImageToEditor, openHandles, openToolsImages, recordFull, refreshPins, runRegion])
-  enterRef.current = handleEnterNow
+  }, [importImageToEditor, openHandles, openToolsImages, refreshPins, runCapture])
 
   /* ---------- 贴图 ---------- */
   const closePin = useCallback(async pinId => {
@@ -466,6 +491,11 @@ export function App() {
   }, [notify, pinImage])
 
   /* ---------- 导航 / 设置 ---------- */
+  const changeQuery = useCallback(value => {
+    setQuery(value)
+    kitRef.current?.setQuery(value)
+  }, [])
+
   const go = useCallback(next => {
     setView(next)
     setLightboxId(null)
@@ -478,10 +508,6 @@ export function App() {
     void kitRef.current?.setPref?.(key, value)
   }, [])
 
-  const toggleAudio = useCallback(() => {
-    updateSetting('recordAudio', !settingsRef.current.recordAudio)
-  }, [updateSetting])
-
   const navigateLightbox = useCallback(delta => {
     const list = filteredRef.current
     const index = list.findIndex(item => item.id === lightboxIdRef.current)
@@ -492,19 +518,20 @@ export function App() {
 
   const handleQuickAction = useCallback(action => {
     if (action === 'clear') { setQuery(''); return }
+    if (settingsOpenRef.current || editorIdRef.current) return
     if (action === 'next' || action === 'previous') { navigateLightbox(action === 'next' ? 1 : -1); return }
-    if (action === 'submit') {
-      if (viewRef.current === 'capture') { void runRegion('image'); return }
+    if (action === 'submit' && !lightboxIdRef.current) {
+      if (viewRef.current === 'capture') { void runCapture(captureModeRef.current); return }
+      if (viewRef.current !== 'library') return
       const first = filteredRef.current[0]
       if (first) setLightboxId(first.id)
     }
-  }, [navigateLightbox, runRegion])
+  }, [navigateLightbox, runCapture])
 
   useEffect(() => {
     const kit = window.PluginKit?.create?.({
       title: '屏幕助手',
-      height: 620,
-      quickPlaceholder: '截图、录屏或图片工具…',
+      quickPlaceholder: '搜索媒体库中的截图或录屏…',
       prefs: true,
       defaults: DEFAULT_SETTINGS,
       onQuery: value => {
@@ -554,18 +581,18 @@ export function App() {
     loadDisplays().then(list => {
       if (!alive) return
       setDisplays(list)
-      setDisplayId(prev => (prev && list.some(item => item.id === prev) ? prev : (list.find(item => item.primary) || list[0])?.id || null))
+      setDisplayId(prev => (list.some(item => item.id === prev) ? prev : (list.find(item => item.primary) || list[0])?.id ?? null))
     }).catch(error => notify(error?.message || error, 'error'))
     return () => { alive = false }
   }, [notify])
 
   useEffect(() => {
     if (!enterEvent) return
-    if (!prefsReady || !displays.length) return
+    if (!prefsReady || !library.ready) return
     const event = enterEvent
     setEnterEvent(null)
-    void handleEnterNow(event)
-  }, [enterEvent, prefsReady, displays.length, handleEnterNow])
+    void handleEnterNow(event).catch(error => notify(error?.message || error, 'error'))
+  }, [enterEvent, prefsReady, library.ready, handleEnterNow, notify])
 
   useEffect(() => {
     if (view === 'pins') void refreshPins()
@@ -597,20 +624,16 @@ export function App() {
                 displayId={displayId}
                 onDisplayChange={setDisplayId}
                 settings={settings}
-                onToggleAudio={toggleAudio}
+                captureMode={captureMode}
+                onCaptureModeChange={selectCaptureMode}
+                onToggleAudio={checked => updateSetting('recordAudio', checked === true)}
                 recent={library.items}
                 ensureThumb={library.ensureThumb}
                 busy={busy}
-                active={active ? { kind: active.kind, startedAt: active.startedAt } : null}
+                active={active}
                 onStop={() => { void stopActive() }}
-                onAction={action => {
-                  if (action === 'region') void runRegion('image')
-                  else if (action === 'full') void captureFull()
-                  else if (action === 'longshot') void runRegion('longshot')
-                  else if (action === 'record') void runRegion('record')
-                  else if (action === 'record-full') void recordFull()
-                }}
-                onOpenItem={item => { setFilter('all'); setQuery(''); setView('library'); setLightboxId(item.id) }}
+                onAction={runCapture}
+                onOpenItem={item => { setFilter('all'); changeQuery(''); setView('library'); setLightboxId(item.id) }}
                 onOpenLibrary={() => setView('library')}
                 onCaptureAction={value => updateSetting('captureAction', value)}
                 quick={mode === 'quick'}
@@ -623,14 +646,16 @@ export function App() {
                 filter={filter}
                 onFilter={setFilter}
                 query={query}
-                onQuery={setQuery}
+                onQuery={changeQuery}
+                onBack={mode === 'quick' ? () => { changeQuery(''); go('capture') } : undefined}
                 onOpen={item => setLightboxId(item.id)}
                 onEdit={item => { setLightboxId(null); setEditorId(item.id) }}
                 onExport={item => { void exportItem(item) }}
+                onDelete={deleteItems}
                 ensureThumb={library.ensureThumb}
                 totalBytes={library.totalBytes}
-                onCapture={() => { setView('capture'); void runRegion('image') }}
-                onClearSearch={() => setQuery('')}
+                onCapture={() => { void runCapture('image') }}
+                onClearSearch={() => changeQuery('')}
               />
             ) : null}
             {view === 'tools' ? (
@@ -648,7 +673,7 @@ export function App() {
                 onRefresh={() => { void refreshPins() }}
                 onClosePin={pinId => { void closePin(pinId) }}
                 onCloseAll={() => { void closeAllPins() }}
-                onPinCapture={() => { void runRegion('image', { after: 'pin' }) }}
+                onPinCapture={() => { void runCapture('image', { after: 'pin' }) }}
                 onPinClipboard={() => { void pinFromClipboard() }}
                 onPinFile={() => { void pinFromFile() }}
               />
@@ -678,7 +703,7 @@ export function App() {
             onExport={item => { void exportItem(item) }}
             onCopy={item => { void copyItem(item) }}
             onPin={item => { void pinItem(item) }}
-            onDelete={item => { void deleteItem(item) }}
+            onDelete={item => { void deleteItems([item]) }}
             onSaveFrame={saveFrame}
             onSaveGif={saveGif}
             gifDefaults={settings}
@@ -688,12 +713,12 @@ export function App() {
         ) : null}
       </div>
 
-      <SettingsDialog
-        open={settingsOpen}
+      {settingsOpen && <SettingsDialog
+        initialSection={captureMode}
         settings={settings}
         onChange={updateSetting}
         onClose={() => setSettingsOpen(false)}
-      />
+      />}
     </main>
   )
 }

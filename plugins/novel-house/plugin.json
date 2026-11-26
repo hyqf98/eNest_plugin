@@ -26,6 +26,7 @@
   "features": [
     {
       "code": "main",
+      "title": "小说屋",
       "explain": "小说屋：多源小说搜索、排行与舒适阅读",
       "cmds": [
         "小说",

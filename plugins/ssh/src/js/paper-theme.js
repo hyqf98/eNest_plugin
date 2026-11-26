@@ -26,18 +26,30 @@ export function resolvePaper(paper) {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'paper'
 }
 
-/** 应用纸面到 <html> 与 .app；返回实际生效的纸面 id。 */
+/**
+ * 应用纸面到 <html> 与 .app；返回实际生效的纸面 id。
+ * 值没有变化时不重写属性、不重发事件：term.js 观察 <html data-paper> 后会让 xterm 重排，
+ * xterm 改自身 class 又会唤醒 mountPaper 的观察者；同值重写会把这两边接成一个死循环。
+ */
 export function applyPaper(paper) {
   const resolved = resolvePaper(paper)
   const root = document.documentElement
-  root.dataset.paper = resolved
-  root.dataset.paperPref = paper
+  const changed = root.dataset.paper !== resolved || root.dataset.paperPref !== paper
+  if (changed) {
+    root.dataset.paper = resolved
+    root.dataset.paperPref = paper
+  }
+  let appsChanged = false
   for (const app of document.querySelectorAll('.app')) {
+    if (app.dataset.paper === resolved && app.dataset.paperPref === paper) continue
     app.dataset.paper = resolved
     app.dataset.paperPref = paper
+    appsChanged = true
   }
-  // 终端/xterm 观察器与设置页复用既有事件通道重取 CSS 变量
-  document.dispatchEvent(new CustomEvent('ssh-paper-theme', { detail: { paper: resolved } }))
+  if (changed || appsChanged) {
+    // 终端/xterm 观察器与设置页复用既有事件通道重取 CSS 变量
+    document.dispatchEvent(new CustomEvent('ssh-paper-theme', { detail: { paper: resolved } }))
+  }
   return resolved
 }
 

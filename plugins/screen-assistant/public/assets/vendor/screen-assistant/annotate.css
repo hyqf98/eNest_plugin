@@ -1,0 +1,75 @@
+:root {
+  color-scheme: light dark;
+  font-family: var(--font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+  --editor-surface: var(--surface, Canvas);
+  --editor-ink: var(--text, CanvasText);
+  --editor-muted: var(--text-2, color-mix(in srgb, var(--editor-ink) 70%, transparent));
+  --editor-line: var(--border, color-mix(in srgb, var(--editor-ink) 16%, transparent));
+  --editor-soft: color-mix(in srgb, var(--editor-ink) 8%, transparent);
+  --editor-accent: var(--accent, #356bcf);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--editor-surface); color: var(--editor-ink); user-select: none;
+}
+button { border: 0; border-radius: 6px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
+button:enabled:hover { background: var(--editor-soft); }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--editor-accent); outline-offset: 1px; }
+
+#titlebar {
+  display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 5px 10px 5px 14px;
+  border-bottom: 1px solid var(--editor-line); -webkit-app-region: drag;
+}
+.drag-grip { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.drag-grip i {
+  width: 9px; height: 13px; color: var(--editor-muted);
+  background: radial-gradient(circle, currentColor 1px, transparent 1.3px) 0 0 / 4.5px 4.5px;
+}
+h1 { margin: 0; font-size: 13px; font-weight: 600; }
+#size { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--editor-muted); }
+.actions { display: flex; gap: 6px; margin-left: auto; -webkit-app-region: no-drag; }
+.actions button { min-height: 30px; padding: 0 10px; white-space: nowrap; font-size: 12px; }
+#done { font-weight: 600; background: var(--editor-accent); color: var(--accent-contrast, #fff); }
+#done:enabled:hover { filter: brightness(1.08); }
+
+#workspace {
+  display: grid; place-items: center; min-width: 0; min-height: 0; padding: 12px;
+  container-type: size; background: color-mix(in srgb, var(--editor-ink) 6%, var(--editor-surface));
+}
+#stage {
+  position: relative; overflow: hidden; width: min(100cqw, calc(100cqh * var(--image-ratio, 1)));
+  aspect-ratio: var(--image-ratio, 1); box-shadow: 0 0 0 1px var(--editor-line), 0 3px 12px #0002;
+}
+body:not([data-ready]) #stage { visibility: hidden; }
+body:not([data-ready]) #bar { pointer-events: none; opacity: .5; }
+#base, #ink { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+#ink { cursor: crosshair; touch-action: none; }
+#ink[data-tool="text"] { cursor: text; }
+#text-input {
+  position: absolute; display: none; width: min(160px, 100%); height: 28px;
+  padding: 3px 5px; border: 1px solid var(--editor-accent); border-radius: 4px;
+  background: var(--editor-surface); color: var(--editor-ink); font: inherit; font-weight: 600;
+}
+
+#bar {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 12px;
+  max-height: 35vh; overflow: auto; padding: 6px 8px; border-top: 1px solid var(--editor-line);
+}
+#bar > span { display: inline-flex; align-items: center; gap: 2px; }
+#bar .tool, #bar .width { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; color: var(--editor-muted); }
+#bar .tool[aria-pressed="true"], #bar .width[aria-pressed="true"] { color: var(--editor-ink); background: var(--editor-soft); box-shadow: inset 0 0 0 1px var(--editor-line); }
+#bar .tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#bar .swatches { gap: 5px; padding: 5px 2px; }
+#bar .swatch { width: 17px; height: 17px; padding: 0; border: 2px solid var(--editor-surface); border-radius: 50%; }
+#bar .swatch[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--editor-ink); }
+#bar .width { width: 24px; }
+#bar .width i { display: block; width: 15px; border-radius: 999px; background: currentColor; }
+@media (max-width: 370px) {
+  #titlebar { padding-inline: 6px; gap: 6px; }
+  #size { display: none; }
+  #workspace { padding: 6px; }
+  #bar { gap: 2px 6px; }
+}

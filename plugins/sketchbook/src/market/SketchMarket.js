@@ -272,8 +272,9 @@ export function createMarketView(controller) {
   })
   const searchClear = h('button', { type: 'button', class: 'sk-search-clear', 'aria-label': '清除搜索', hidden: true }, icon('close', 14))
   const searchHint = h('kbd', null, `${mac ? '⌘' : 'Ctrl'}F`)
+  const filesButton = h('button', { type: 'button', class: 'sk-search-files', hidden: true, title: `单独检索本地文件 (${mac ? '⌘⇧F' : 'Ctrl+Shift+F'})`, 'aria-label': '打开本地文件检索', 'aria-keyshortcuts': `${mac ? 'Meta' : 'Control'}+Shift+F`, onClick: event => { if (event.isTrusted) void controller.openFileSearch() } }, icon('folder', 15), '文件')
   const searchResults = h('div', { id: 'sk-quick-results', class: 'sk-results', role: 'listbox', 'aria-label': '搜索结果', hidden: true })
-  const searchWrap = h('div', { class: 'sk-search' }, icon('search', 17), searchInput, searchClear, searchHint, searchResults)
+  const searchWrap = h('div', { class: 'sk-search' }, icon('search', 17), searchInput, searchClear, searchHint, filesButton, searchResults)
   page.append(headerSlot, searchWrap, contentSlot)
   searchInput.addEventListener('input', event => controller.setQuery(searchInput.value, { composing: composing || event.isComposing }))
   searchInput.addEventListener('compositionstart', () => {
@@ -300,7 +301,7 @@ export function createMarketView(controller) {
   })
   searchClear.addEventListener('click', () => { controller.setQuery(''); searchInput.focus({ preventScroll: true }) })
   function findSearch(event) {
-    if (modal || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'f') return
+    if (modal || event.shiftKey || event.altKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'f') return
     event.preventDefault()
     searchInput.focus()
     searchInput.select()
@@ -309,6 +310,7 @@ export function createMarketView(controller) {
 
   function updateSearch(state) {
     // query 与 quickResults 都参与局部刷新，不能再把正在输入当成固定 key。
+    filesButton.hidden = state.config?.fileSearchEnabled !== true
     const key = JSON.stringify([state.query, state.quickResults])
     if (key === lastSearchKey) return
     lastSearchKey = key

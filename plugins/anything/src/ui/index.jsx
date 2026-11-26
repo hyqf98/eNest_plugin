@@ -3,6 +3,8 @@
  * 行为来自 Radix UI，视觉来自 pk-ui.css（themeAware token 直读）。
  * 本文件与 pk-ui.css 作为模板整体复制到各官方插件 src/ui/，随壳组件层升级同步。
  */
+import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Slot } from '@radix-ui/react-slot'
 import * as SelectPrimitive from '@radix-ui/react-select'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
@@ -151,6 +153,44 @@ export function DialogDescription(props) {
   return <DialogPrimitive.Description className="pk-dialog-description" {...props} />
 }
 
+/* —— PromptDialog：单行文本输入对话框 ——
+   window.prompt 在 Electron 渲染进程里恒返回 null，取名、改时长这类输入一律用它。
+   resolve(null) 表示取消，其余情况 resolve 去掉首尾空白后的文本。 */
+export function PromptDialog({ title, description, defaultValue = '', placeholder, okText = '确定', onCancel, onSubmit }) {
+  const [value, setValue] = useState(defaultValue)
+  const inputRef = useRef(null)
+  const cancel = () => onCancel?.()
+  const submit = (event) => {
+    event.preventDefault()
+    onSubmit?.(value.trim())
+  }
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) cancel() }}>
+      <DialogOverlay />
+      <DialogContent
+        className="pk-prompt"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          const input = inputRef.current
+          if (!input) return
+          input.focus()
+          input.select()
+        }}
+      >
+        <DialogTitle>{title}</DialogTitle>
+        {description ? <DialogDescription>{description}</DialogDescription> : null}
+        <form className="pk-prompt-form" onSubmit={submit}>
+          <Input ref={inputRef} value={value} placeholder={placeholder} onChange={(event) => setValue(event.target.value)} />
+          <div className="pk-prompt-actions">
+            <Button variant="ghost" onClick={cancel}>取消</Button>
+            <Button variant="primary" type="submit">{okText}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 /* —— Slider —— */
 export function Slider({ className = '', ...props }) {
   return (
@@ -266,3 +306,31 @@ export function FloatingAction({
     </div>
   )
 }
+
+/* —— SettingsGear：设置齿轮 ——
+   桌面端原地渲染为工具栏里的 ghost 钮（位置由插件自己的顶栏决定）。
+   小窗口（quick）里顶栏空间有限，齿轮会把本该留给内容的头一行整条占掉，
+   所以改为 portal 到 body、悬浮在右下角；显隐只由 <html data-mode> 决定，
+   插件不需要订阅模式变化，shell ↔ quick 切换时也没有状态延迟。
+   portal 而不是 position: fixed：不少插件的顶栏带 backdrop-filter，
+   那会让 fixed 退化成相对顶栏定位，圆钮就落回顶部。 */
+const PK_GEAR = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51-1Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+  export function SettingsGear({ onClick, className = '' }) {
+    const extra = className ? ` ${className}` : ''
+    return (
+      <>
+        <button type="button" className={`pk-btn pk-btn-ghost pk-set-trigger pk-set-bar${extra}`} title="设置" aria-label="打开设置" onClick={onClick}>
+          {PK_GEAR}
+        </button>
+        {createPortal(
+          <button type="button" className="pk-set-fab" title="设置" aria-label="打开设置" onClick={onClick}>{PK_GEAR}</button>,
+          document.body
+        )}
+      </>
+    )
+  }

@@ -5,9 +5,8 @@
  * PluginKit.dataTable（DOM 工厂）在 useEffect 中等价触发；采样器卸载时清理。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoreMenu } from '../ui/index.jsx'
-import { PanelView } from './PanelView.jsx'
-import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
+import { MoreMenu, SettingsGear } from '../ui/index.jsx'
+import { SettingsDialog } from './SettingsDialog.jsx'
 import {
   formatKb, formatPct, isSystemProc, searchProc, searchPort,
   makeSampler, SampleRing, drawSparkline, shortName,
@@ -799,11 +798,6 @@ export function App() {
       )
     })
   }
-
-  if (mode === 'panel') return <PanelView procs={st.procs} ports={st.ports} portsError={st.portsError} sampledAt={st.sampledAt} error={st.error}
-    onRefresh={() => void refresh()}
-    onOpenShell={() => Promise.resolve(api?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}
-  />
 
   return (
     <main className="sg" id="app">

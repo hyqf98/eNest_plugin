@@ -6,10 +6,8 @@
   "author": "eNest Labs",
   "main": "index.html",
   "views": {
-    "layouts": ["quick", "shell", "panel"],
-    "default": "shell",
-    "panel": {
-      "preview": "assets/market/screenshots/panel.png", "size": { "width": 280, "height": 260 } }
+    "layouts": ["quick", "shell"],
+    "default": "shell"
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",
@@ -20,6 +18,7 @@
   "features": [
     {
       "code": "main",
+      "title": "待办清单",
       "explain": "打开待办清单",
       "cmds": [
         "todo",

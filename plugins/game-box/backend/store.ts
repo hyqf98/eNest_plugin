@@ -8,6 +8,9 @@
  * - tasks：下载任务记录（文件、进度、状态、目录），完成后保留供"下载管理"展示，可删除。
  */
 
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { DEFAULT_SETTINGS, LIMITS, type AppSettings, type SourceId } from './contracts.ts'
 import { storageGet, storageSet } from './runtime.ts'
 
@@ -78,8 +81,32 @@ function clampSettings(value: Partial<AppSettings>): AppSettings {
   return merged
 }
 
+/**
+ * 用户目录下的下载目录。Windows 中文系统里这个文件夹叫「下载」而不是「Downloads」，
+ * 所以按「真实存在」的那个来；两个都没有时用 ~/Downloads（之后选中时会自动创建）。
+ * 纯函数：存在性判定由调用方注入，mock 适配器下也能测。
+ */
+export function defaultDownloadsDir(home: string, exists: (path: string) => boolean = existsSync): string {
+  for (const name of ['Downloads', '下载']) {
+    const candidate = join(home, name)
+    if (exists(candidate)) return candidate
+  }
+  return join(home, 'Downloads')
+}
+
+let defaultDirCache: string | null = null
+/** 默认的下载 / 安装目录：用户目录下的 Downloads（见 defaultDownloadsDir） */
+export function defaultDir(): string {
+  if (!defaultDirCache) defaultDirCache = defaultDownloadsDir(homedir())
+  return defaultDirCache
+}
+
 export async function loadSettings(): Promise<AppSettings> {
-  return clampSettings(await read<Partial<AppSettings>>(KEYS.settings, {}))
+  const stored = await read<Partial<AppSettings>>(KEYS.settings, {})
+  // 没设置过目录（新装或老版本）时落到 Downloads，而不是留空
+  if (typeof stored.downloadDir !== 'string' || !stored.downloadDir.trim()) stored.downloadDir = defaultDir()
+  if (typeof stored.installDir !== 'string' || !stored.installDir.trim()) stored.installDir = defaultDir()
+  return clampSettings(stored)
 }
 
 export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {

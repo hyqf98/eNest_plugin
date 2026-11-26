@@ -6,10 +6,8 @@
   "author": "eNest Labs",
   "main": "index.html",
   "views": {
-    "layouts": ["quick", "shell", "panel"],
-    "default": "shell",
-    "panel": {
-      "preview": "assets/market/screenshots/panel.png", "size": { "width": 304, "height": 224 } }
+    "layouts": ["quick", "shell"],
+    "default": "shell"
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",
@@ -17,8 +15,7 @@
     "enest": ">=0.0.1"
   },
   "permissions": [
-    "clipboard.write",
-    "shell.openExternal"
+    "clipboard.write"
   ],
   "window": {
     "width": 760,
@@ -29,6 +26,7 @@
   "features": [
     {
       "code": "main",
+      "title": "计算器",
       "explain": "计算器 / 科学计算",
       "cmds": [
         "计算器",

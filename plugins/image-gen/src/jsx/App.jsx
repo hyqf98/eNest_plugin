@@ -7,12 +7,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SessionRail } from './SessionRail.jsx'
 import { ChatView } from './ChatView.jsx'
 import { LibraryView } from './LibraryView.jsx'
+import { InspirationView } from './InspirationView.jsx'
 import { Lightbox } from './Lightbox.jsx'
 import { SettingsDialog, loadTemplates, loadSaveDir } from './SettingsDialog.jsx'
 import {
-  ArrowUpRightIcon, GalleryIcon, MenuIcon, MessageIcon, SettingsIcon
+  ArrowUpRightIcon, GalleryIcon, LightbulbIcon, MenuIcon, MessageIcon, SettingsIcon
 } from '../ui/icons.jsx'
 import { loadProviders, getDefaultProvider } from '../js/providers.mjs'
+import { loadLlm, optimizePrompt, isLlmConfigured } from '../js/promptOptimizer.mjs'
 import { runGeneration, loadSessionIndex, loadSession, persistSession, deleteSession } from '../js/agent.mjs'
 import { loadRecords, removeRecord, deleteAsset, getAsset, assetPreviewUrl } from '../js/assets.mjs'
 import { saveAssetToDirectory } from '../js/backendBridge.mjs'
@@ -56,6 +58,9 @@ export function App() {
   const [templates, setTemplates] = useState([])
   const [saveDir, setSaveDir] = useState(null)
   const [prefs, setPrefs] = useState(null)
+  /* 「优化提示词」用的语言模型（地址/模型/secretRef/target），存插件 KV，密钥只在保险库 */
+  const [llm, setLlm] = useState(null)
+  const [optimizing, setOptimizing] = useState(false)
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState('providers')
@@ -76,6 +81,8 @@ export function App() {
   const runningRef = useRef(running); runningRef.current = running
   const abortRef = useRef(null)
   const persistTimer = useRef(0)
+  /* 需要「把光标放回输入框」时设置，Composer 监听它来聚焦（可附带选区） */
+  const [focusRequest, setFocusRequest] = useState(null)
 
   const toast = useCallback((message, kind = 'info') => {
     kitRef.current?.toast(message, kind)
@@ -99,11 +106,12 @@ export function App() {
         await kit.ready
         if (!alive) return
         setPrefs({ ...kit.settings })
-        const [prov, tpl, dir, index] = await Promise.all([loadProviders(), loadTemplates(), loadSaveDir(), loadSessionIndex()])
+        const [prov, tpl, dir, index, lm] = await Promise.all([loadProviders(), loadTemplates(), loadSaveDir(), loadSessionIndex(), loadLlm()])
         if (!alive) return
         setProviders(prov)
         setTemplates(tpl)
         setSaveDir(dir)
+        setLlm(lm)
         setSize(kit.settings.defaultSize ?? 'auto')
         setNCount(Math.min(4, Math.max(1, Number(kit.settings.defaultN) || 1)))
         setSessions(index)
@@ -351,16 +359,10 @@ export function App() {
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), 'error')
     }
-  }, [toast])
-
-  const imageAction = useCallback((action, assetId) => {
-    if (action === 'download') void downloadAsset(assetId)
-    else if (action === 'delete') void deleteImageAsset(assetId)
-    else if (action === 'continue') void continueWithImage(assetId)
-  }, [downloadAsset, deleteImageAsset])
+    }, [toast])
 
   /** 以此图继续：首图转 Composer 附件，占位切换 */
-  const continueWithImage = useCallback(async (assetId) => {
+    const continueWithImage = useCallback(async (assetId) => {
     try {
       const asset = await getAsset(assetId)
       if (!asset) { toast('图片不存在或已删除', 'error'); return }
@@ -376,6 +378,44 @@ export function App() {
     if (!text) return
     try { await kitRef.current?.copy(text); toast('已复制', 'success') } catch { /* 忽略 */ }
   }, [toast])
+
+  /** 复制图片到剪贴板：走浏览器自带的异步剪贴板（canvas → image/png），不需要宿主剪贴板权限。
+   *  资产图用 getAsset 取字节；用户自己附的图是 data: 地址，直接 fetch 成 blob。 */
+  const copyImage = useCallback(async (assetIdOrUrl) => {
+    try {
+      if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
+        toast('当前环境不支持复制图片，请改用下载', 'error'); return
+      }
+      let blob
+      if (typeof assetIdOrUrl === 'string' && assetIdOrUrl.startsWith('data:')) {
+        blob = await (await fetch(assetIdOrUrl)).blob()
+      } else {
+        const asset = await getAsset(assetIdOrUrl)
+        if (!asset) { toast('图片不存在或已删除', 'error'); return }
+        blob = await (await fetch(asset.dataUrl)).blob()
+      }
+      // 统一转成 PNG：部分来源是 JPEG/WebP，剪贴板只保证接受 PNG
+      const bitmap = await createImageBitmap(blob)
+      const canvas = document.createElement('canvas')
+      canvas.width = bitmap.width; canvas.height = bitmap.height
+      canvas.getContext('2d').drawImage(bitmap, 0, 0)
+      bitmap.close()
+      const png = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      toast('图片已复制', 'success')
+    } catch (err) {
+      toast(`复制图片失败：${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }, [toast])
+
+  /* 图片动作分发。必须定义在 downloadAsset / copyImage / deleteImageAsset / continueWithImage 之后：
+     useCallback 的依赖数组在定义那一行立即读取这些变量，写在它们前面会触发暂时性死区、整页白屏。 */
+  const imageAction = useCallback((action, assetId) => {
+    if (action === 'download') void downloadAsset(assetId)
+    else if (action === 'copy') void copyImage(assetId)
+    else if (action === 'delete') void deleteImageAsset(assetId)
+    else if (action === 'continue') void continueWithImage(assetId)
+  }, [downloadAsset, copyImage, deleteImageAsset, continueWithImage])
 
   const downloadAll = useCallback((message) => {
     for (const img of message?.images ?? []) void downloadAsset(img.assetId)
@@ -505,6 +545,10 @@ export function App() {
               title="会话" aria-label="会话" aria-pressed={view === 'chat'} onClick={() => setView('chat')}>
               <MessageIcon size={16} />
             </button>
+            <button type="button" className="ig-icon-btn" data-on={view === 'inspiration' ? '' : undefined}
+              title="灵感" aria-label="灵感" aria-pressed={view === 'inspiration'} onClick={() => setView('inspiration')}>
+              <LightbulbIcon size={16} />
+            </button>
             <button type="button" className="ig-icon-btn" data-on={view === 'library' ? '' : undefined}
               title="预览库" aria-label="预览库" aria-pressed={view === 'library'} onClick={() => setView('library')}>
               <GalleryIcon size={16} />
@@ -542,7 +586,8 @@ export function App() {
     onOpenSettings: () => openSettingsAt('providers'),
     hasProvider: providers.length > 0,
     historyPrompts,
-    onUsePrompt: text => setInput(text)
+    onUsePrompt: text => setInput(text),
+    focusRequest
   }
 
   /* 首屏骨架：本地加载通常极快，给一个同形状的占位而不是一句"正在准备…" */
@@ -598,6 +643,14 @@ export function App() {
           onCopyPrompt={copyPrompt}
           composerProps={composerProps}
         />
+      ) : view === 'inspiration' ? (
+        <InspirationView
+          topbar={topbar}
+          toast={toast}
+          onCopyPrompt={copyPrompt}
+          /* 带入后回到会话页，用户才能看到输入框里填好的提示词并继续编辑 */
+          onUsePrompt={(text, select) => { setInput(text); setView('chat'); setFocusRequest({ token: Date.now(), select }) }}
+        />
       ) : (
         <LibraryView
           records={records}
@@ -624,6 +677,7 @@ export function App() {
         open={settingsOpen} onOpenChange={setSettingsOpen}
         section={settingsSection} onSectionChange={setSettingsSection}
         providers={providers} onProvidersChanged={async () => setProviders(await loadProviders())}
+        llm={llm} onLlmChanged={setLlm} imageModel={currentProvider?.model ?? ''}
         prefs={prefs} onPrefsChanged={async next => {
           setPrefs(next)
           await kitRef.current?.setPref('defaultSize', next.defaultSize)
@@ -643,6 +697,7 @@ export function App() {
           onIndexChange={index => setLightbox(prev => ({ ...prev, index }))}
           onClose={() => setLightbox(null)}
           onContinue={item => { setLightbox(null); void item.assetId ? continueWithImage(item.assetId) : null }}
+          onCopyImage={item => void copyImage(item.assetId || item.url)}
           onDownload={item => item.assetId ? void downloadAsset(item.assetId) : toast('该图片无法直接下载（本地附件）', 'error')}
           onDelete={item => {
             if (!item.assetId) { setLightbox(null); return }

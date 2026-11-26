@@ -1,6 +1,6 @@
 /**
- * 设置：天翼云盘账号（扫码 / 账号密码登录）、下载设置、网盘搜索服务地址、关于。
- * 分组面板铺满宽度；所有修改即时保存。
+ * 设置：天翼云盘账号（扫码 / 账号密码登录）、网盘搜索服务地址、下载设置。
+ * 账号与搜索服务是使用前提，放在上面；下载参数是细节，放在下面。所有修改即时保存。
  */
 
 import { useEffect, useState } from 'react'
@@ -13,15 +13,14 @@ export function SettingsView() {
   // TooltipProvider 由 App 根部提供，这里不再嵌套，避免内层丢失延迟分组配置
   return (
     <div className="gh-set">
-      <DownloadSettings />
-      {/* 登录表单不宽，单独占一行会在右边空出一大块：账号面板占左列，网盘搜索与关于叠在右列 */}
+      {/* 登录表单不宽，单独占一行会在右边空出一大块：账号面板占左列，网盘搜索叠在右列 */}
       <div className="gh-set-columns">
         <AccountPanel />
         <div className="gh-set-column">
           <PanSouPanel />
-          <AboutPanel />
         </div>
       </div>
+      <DownloadSettings />
     </div>
   )
 }
@@ -65,17 +64,6 @@ function PanSouPanel() {
         />
         <p className="gh-field-hint">留空使用默认服务。搜索时如果连不上，网盘搜索页会给出提示。</p>
       </div>
-    </section>
-  )
-}
-
-/* ---------------- 关于 ---------------- */
-
-function AboutPanel() {
-  return (
-    <section className="gh-panel gh-set-panel" aria-label="关于">
-      <h2>关于</h2>
-      <div className="gh-set-about">本项目为非盈利项目，完全免费开源，禁止任何形式的商用行为</div>
     </section>
   )
 }

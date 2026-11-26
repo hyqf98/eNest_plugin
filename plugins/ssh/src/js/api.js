@@ -151,6 +151,32 @@ import { createSshHost } from '@enest/ssh-backend/client'
     }
   }
 
+  /* —— overview monitors —— */
+  /** Reconciles the background monitor set. Older hosts without the monitor API fail fast here. */
+  async function monitorSync(targets) {
+    const m = api?.ssh?.monitor
+    if (!has(m?.sync)) throw missing('ssh.monitor.sync')
+    return m.sync(targets)
+  }
+
+  async function monitorStop() {
+    const m = api?.ssh?.monitor
+    if (!has(m?.stop)) return false
+    return m.stop()
+  }
+
+  async function monitorRefresh(profileIds) {
+    const m = api?.ssh?.monitor
+    if (!has(m?.refresh)) return false
+    return m.refresh(profileIds)
+  }
+
+  async function monitorSetInterval(intervalMs) {
+    const m = api?.ssh?.monitor
+    if (!has(m?.setInterval)) return false
+    return m.setInterval(intervalMs)
+  }
+
   /* —— completion —— */
   /**
    * 宿主契约：suggest({ sessionId, line, cursor?, history?, snippets? })
@@ -519,6 +545,10 @@ import { createSshHost } from '@enest/ssh-backend/client'
     sshTest,
     metricsStart,
     metricsStop,
+    monitorSync,
+    monitorStop,
+    monitorRefresh,
+    monitorSetInterval,
     completionSuggest,
     sftpList,
     sftpUpload,

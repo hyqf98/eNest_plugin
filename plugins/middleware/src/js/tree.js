@@ -85,12 +85,7 @@ export function renderTree() {
     scroll.appendChild(group)
   }
 
-  if (!store.connections.length) {
-    const empty = document.createElement('div')
-    empty.className = 'tree-group'
-    empty.innerHTML = '<div class="g-label tree-empty-label">尚无连接，点击 ＋ 创建</div>'
-    scroll.appendChild(empty)
-  }
+  // 没有连接时侧栏留空：顶部「＋」常驻，主区空态也有「新建连接」，不再重复一句引导。
   if (store.connections.length && !scroll.childElementCount) scroll.textContent = '没有匹配的连接'
   root.appendChild(scroll)
 

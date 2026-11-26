@@ -5,8 +5,7 @@
  * Markdown 预览、相对时间、字数统计等纯函数原样搬运。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { PanelView } from './PanelView.jsx'
-import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
+import { SettingsDialog } from './SettingsDialog.jsx'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +13,7 @@ import {
   DropdownMenuTrigger,
   MoreMenu,
   FloatingAction,
+  SettingsGear,
 } from '../ui/index.jsx'
 
 const api = window.enest || window.zapi
@@ -159,7 +159,6 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    if (mode === 'panel') return
     const binding = PluginKit.bindHoverPanel(libraryToggleRef.current, libraryRef.current, {
       enabled: () => libraryCollapsed,
       onOpenChange: setLibraryPeek,
@@ -587,18 +586,6 @@ export function App() {
         ...(current.deletedAt ? [{ key: 'purge', label: '永久删除', danger: true, onSelect: () => purgeNote() }] : []),
       ]
     : []
-
-  if (mode === 'panel') {
-    const live = notes.filter(note => !note.deletedAt && !note.archived)
-    const note = live.find(note => note.id === selected)
-      || [...live].sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt - a.updatedAt)[0]
-    return <PanelView note={note} title={note ? noteTitle(note) : ''} count={live.length} ready={ready} error={loadError}
-      onCopy={() => copyNote(note.id)}
-      onOpen={() => {
-        if (note) open(note.id)
-        void api.ui.openInShell().catch(error => kitRef.current?.toast(error.message, 'error'))
-      }} />
-  }
 
   return (
     <div className={`app${grid ? ' grid-layout' : ''}${libraryCollapsed ? ' sidebar-collapsed' : ''}`} id="app"

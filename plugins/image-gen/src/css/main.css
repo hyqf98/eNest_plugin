@@ -913,6 +913,10 @@ body {
   max-height: 160px;
   padding: 12px 14px 4px;
 }
+/* 聚焦环只由外层卡片画一次（上面的 .ig-composer-card:focus-within）。
+   共享 kit 有一条 `:where(textarea):focus-visible { box-shadow: 0 0 0 3px … }` 给所有输入框兜底柔光环；
+   这里的 textarea 是透明、嵌在卡片里的，再画一圈就成了贴着文字的第二圈高亮。 */
+.ig-composer-textarea:focus-visible { box-shadow: none; }
 .ig-composer-textarea::placeholder { color: var(--ig-muted); }
 
 /* 参数与动作：卡片底行 */
@@ -1341,7 +1345,9 @@ body {
 .pk-dialog-content.ig-set-dialog {
   width: min(880px, calc(100vw - 48px));
   max-width: min(880px, calc(100vw - 48px));
-  height: min(600px, calc(100vh - 64px));
+  /* 高度随内容伸缩、以 600px 为上限。原先写死 600px：渠道这种短分区下面空一大片，
+     表单一展开又溢出被截断、底部按钮压在说明文字上。 */
+  height: auto;
   max-height: min(600px, calc(100vh - 64px));
   padding: 0;
   overflow: hidden;
@@ -1511,7 +1517,9 @@ body {
 }
 .ig-prov-status[data-state='ok'] { color: var(--ok, #2f9e6e); }
 .ig-prov-status[data-state='error'] { color: var(--danger, #b44c50); }
-.ig-prov-acts { display: flex; gap: 4px; flex: none; }
+/* 行内操作区向右抵消行自身的内边距（12px）与边框（1px），让「删除」的右缘
+   与下方「新增渠道」等区块级按钮的右缘对齐（原先缩进 13px）。 */
+.ig-prov-acts { display: flex; gap: 4px; flex: none; margin-right: -13px; }
 
 .ig-spin {
   width: 13px;
@@ -1544,8 +1552,10 @@ body {
   color: var(--ig-text);
   margin-bottom: 12px;
 }
-/* 单列：860px 宽弹窗里两列会把「协议」「模型」挤到换行 */
-.ig-form-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+/* 两列网格；需要整行的字段（协议、模型、API Key、长说明）加 .span2 跨满。
+   原先整张表单单列：名称 / 接口地址这类短字段全被拉成 600 多像素的长条，右侧一片空白。 */
+.ig-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.ig-form-grid > .span2 { grid-column: 1 / -1; }
 .ig-form-label {
   display: flex;
   flex-direction: column;
@@ -1573,8 +1583,10 @@ body {
 
 /* 模型下拉：输入 + 拉取按钮同高并排 */
 .ig-combo { position: relative; display: flex; flex-direction: column; gap: 6px; }
-.ig-combo-field { display: flex; gap: 6px; min-width: 0; }
+.ig-combo-field { display: flex; gap: 6px; min-width: 0; align-items: stretch; }
 .ig-combo-field .pk-input { flex: 1; min-width: 0; font-family: var(--ig-mono); font-size: 12px; }
+/* 「拉取列表」与左侧模型输入框同高（原为 24px 的 sm 档，比 32px 的输入框矮一截） */
+.ig-combo-field .pk-btn { min-height: 32px; align-self: stretch; }
 
 /* Segmented 的分段块在模板里固定成浅灰底（--wash 未注入 → fallback #f0f2f5），
    深色主题下会成一条亮带。这里按当前文字色重新推导，深浅色都成立。 */
@@ -1920,3 +1932,197 @@ html[data-mode='quick'] .ig-welcome {
 html[data-mode='quick'] .ig-welcome-mark { display: none; }
 html[data-mode='quick'] .ig-welcome-title { font-size: 17px; }
 html[data-mode='quick'] .ig-welcome-list { display: none; }
+
+/* ============================================================
+   灵感页（InspirationView）：示例图瀑布流 + 筛选 + 一键带入
+   ============================================================ */
+.ig-insp {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+/* 顶部工具条：标题与来源 / 筛选 / 搜索 / 计数 */
+.ig-insp-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--ig-line);
+  background: var(--ig-paper);
+}
+.ig-insp-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ig-text);
+}
+.ig-insp-title svg { color: var(--ig-accent); }
+.ig-insp-source {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ig-muted);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--ig-line);
+}
+.ig-insp-source:hover { color: var(--ig-accent); border-bottom-color: var(--ig-accent); }
+.ig-insp-filters { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--ig-r-control); background: var(--ig-paper-2); }
+.ig-insp-chip {
+  min-height: 24px;
+  padding: 2px 10px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--ig-r-control) - 3px);
+  background: transparent;
+  color: var(--ig-muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ig-insp-chip:hover { color: var(--ig-text); }
+.ig-insp-chip[aria-pressed='true'] { background: var(--ig-paper); color: var(--ig-text); border-color: var(--ig-line); box-shadow: var(--ig-shadow-1); font-weight: 500; }
+.ig-insp-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 180px;
+  max-width: 280px;
+  flex: 1 1 200px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--ig-line);
+  border-radius: var(--ig-r-control);
+  background: var(--ig-paper-2);
+  color: var(--ig-muted);
+}
+.ig-insp-search:focus-within { border-color: color-mix(in srgb, var(--ig-accent) 55%, var(--ig-line)); background: var(--ig-paper); }
+.ig-insp-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ig-text); font: inherit; font-size: 12.5px; }
+.ig-insp-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.ig-insp-search button { display: inline-grid; place-items: center; padding: 0; border: 0; background: none; color: var(--ig-muted); cursor: pointer; }
+.ig-insp-count { font-size: 11.5px; color: var(--ig-muted); font-variant-numeric: tabular-nums; }
+
+/* 瀑布流：滚动容器 + 若干「列容器」。列数与每张卡片进哪一列由 useMasonry 按实际高度算，
+   这里只负责排版。之前试过纯 CSS 的两种写法，都不成立：
+   - CSS 多列：容器有确定高度（flex:1 撑出）时，放不下的内容往「右边」生成新列而不是往下排，
+     实测 48 张卡排成 17 列、横向溢出到 4750px；
+   - Grid：同一行格子等高，一张竖图会把整行撑高，旁边留下大片空白；而且 auto 行轨道在
+     <img> 解码后不会重算（实测 450px 高的卡片行高只有 27px，整页叠在一起）。 */
+.ig-insp-masonry {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 24px 24px;
+}
+.ig-insp-columns { display: flex; align-items: flex-start; }
+.ig-insp-column { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; }
+/* 首次进入的骨架屏：只求和成品观感接近，用 Grid 即可 */
+.ig-insp-skeleton {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px 24px 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  align-content: start;
+}
+.ig-insp-card {
+  position: relative;
+  display: block;
+  min-width: 0;
+  border: 1px solid var(--ig-line);
+  border-radius: var(--ig-r-card);
+  background: var(--ig-paper);
+  box-shadow: var(--ig-shadow-1);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow var(--ig-speed) var(--ig-ease), border-color var(--ig-speed) var(--ig-ease), transform var(--ig-speed) var(--ig-ease);
+}
+.ig-insp-card:hover,
+.ig-insp-card:focus-visible { border-color: color-mix(in srgb, var(--ig-text) 22%, var(--ig-line)); box-shadow: var(--ig-shadow-2); transform: translateY(-1px); }
+.ig-insp-card:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: var(--ig-shadow-2), 0 0 0 3px var(--ig-accent-soft); }
+/* 图片区：加载中按 1:1 占位（示例图多为方图，估得越准、首次分配越接近最终排布），
+   图片取回后切到原始比例，卡片高度随之变化并重新上报给瀑布流。 */
+.ig-insp-fig {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--ig-sunken);
+}
+.ig-insp-fig .ig-lib-skel { display: block; width: 100%; height: 100%; border-radius: 0; }
+.ig-insp-fig img { display: block; width: 100%; height: auto; }
+.ig-insp-fig[data-state='failed'] { aspect-ratio: 4 / 3; }
+.ig-insp-fig-failed { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11.5px; color: var(--ig-muted); }
+.ig-insp-card-body { padding: 9px 11px 10px; }
+.ig-insp-card-title { margin: 0; font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--ig-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-insp-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
+.ig-insp-model {
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ig-accent);
+  background: var(--ig-accent-soft);
+  border-radius: 4px;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.ig-insp-flag { font-size: 10.5px; line-height: 1.6; padding: 0 6px; border-radius: 4px; border: 1px solid var(--ig-line); color: var(--ig-muted); white-space: nowrap; }
+.ig-insp-flag[data-kind='ref'] { color: var(--warn, #b07c2a); border-color: color-mix(in srgb, var(--warn, #b07c2a) 40%, var(--ig-line)); }
+.ig-insp-flag[data-kind='ph'] { color: var(--ig-text); border-color: color-mix(in srgb, var(--ig-text) 30%, var(--ig-line)); }
+/* hover 操作条：贴卡片右上角，默认隐藏 */
+.ig-insp-card-acts {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--ig-r-control);
+  background: color-mix(in srgb, var(--ig-paper) 92%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--ig-shadow-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ig-speed) var(--ig-ease);
+}
+.ig-insp-card:hover .ig-insp-card-acts,
+.ig-insp-card:focus-within .ig-insp-card-acts { opacity: 1; pointer-events: auto; }
+:root[data-anim='low'] .ig-insp-card { transition: none; }
+:root[data-anim='low'] .ig-insp-card:hover { transform: none; }
+.ig-insp-sentinel { height: 1px; }
+/* 加载 / 空态 / 错误态 */
+.ig-insp-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--ig-muted); font-size: 12.5px; text-align: center; padding: 40px 24px; }
+.ig-insp-state svg { color: var(--ig-text-3, var(--ig-muted)); }
+.ig-insp-state p { margin: 0; color: var(--ig-text); font-weight: 500; }
+.ig-insp-state span { font-size: 11.5px; }
+
+/* 详情弹层：大图 + 元信息 + 完整提示词 */
+.pk-dialog-content.ig-insp-detail { width: min(560px, 92vw); max-width: min(560px, 92vw); max-height: min(88vh, 820px); display: flex; flex-direction: column; gap: 12px; }
+.ig-insp-detail-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.ig-insp-fig.is-large { aspect-ratio: auto; border-radius: var(--ig-r-control); background: var(--ig-sunken); }
+.ig-insp-fig.is-large img { display: block; width: 100%; height: auto; max-height: 46vh; object-fit: contain; }
+.ig-insp-detail-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.ig-insp-author { font-size: 11px; color: var(--ig-muted); margin-left: auto; }
+.ig-insp-note { margin: 0; padding: 8px 10px; border-left: 2px solid color-mix(in srgb, var(--warn, #b07c2a) 60%, var(--ig-line)); background: var(--ig-paper-2); border-radius: 0 var(--ig-r-control) var(--ig-r-control) 0; font-size: 12px; line-height: 1.6; color: var(--ig-text); }
+.ig-insp-prompt { margin: 0; padding: 10px 12px; max-height: 34vh; overflow-y: auto; border: 1px solid var(--ig-line); border-radius: var(--ig-r-control); background: var(--ig-sunken); font: 12.5px/1.7 var(--ig-font); color: var(--ig-text); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.ig-insp-detail-acts { display: flex; align-items: center; gap: 8px; }
+.ig-insp-detail-acts .ig-act-btn { text-decoration: none; }
+.ig-insp-detail-spacer { flex: 1; }
+/* 窄窗：工具条换行、瀑布流收窄内边距（列数由 useMasonry 按容器宽度自算） */
+@media (max-width: 860px) {
+  .ig-insp-bar { padding: 8px 16px; }
+  .ig-insp-masonry { padding: 12px 16px 20px; }
+  .ig-insp-search { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ig-insp-card, .ig-insp-card-acts { transition: none; }
+  .ig-insp-card:hover { transform: none; }
+}

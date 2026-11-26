@@ -533,6 +533,7 @@
   "features": [
     {
       "code": "main",
+      "title": "画板",
       "explain": "在画板窗口里画草稿（多页、可导出）",
       "cmds": [
         "画板",
@@ -549,6 +550,7 @@
     },
     {
       "code": "desktop-canvas",
+      "title": "桌面画板",
       "explain": "不建窗口，直接在桌面上标注（右下角悬浮球）",
       "cmds": [
         "画布",
@@ -557,7 +559,8 @@
         "屏幕标注",
         "桌面涂画",
         "zmhb",
-        "pmbz"
+        "pmbz",
+        "desktop canvas"
       ],
       "activation": {
         "type": "command"

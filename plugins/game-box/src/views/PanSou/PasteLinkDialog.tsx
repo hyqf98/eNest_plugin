@@ -12,7 +12,7 @@ import { Spinner } from '../../components/base'
 import { Glyph } from '../../components/Glyph'
 import { useApp } from '../../js/state'
 import * as api from '../../js/api'
-import { formatBytes } from '../../js/format'
+import { formatBytes, joinDir, sanitizeLeaf } from '../../js/format'
 import { parseAccessCode } from '../../js/taskLabels'
 
 export function PasteLinkDialog({ open, onClose, initialUrl = '', initialCode = '' }: {
@@ -102,12 +102,14 @@ export function PasteLinkDialog({ open, onClose, initialUrl = '', initialCode = 
       const picked = await api.host.pickDirectory()
       if (picked) {
         const target: DirTarget = { handleId: picked.handleId, displayPath: picked.displayPath }
+        // 后端会在所选根目录下按分享标题建子目录；展示文本跟上，避免看起来和实际落盘位置不一致
+        const shown = joinDir(picked.displayPath, sanitizeLeaf(title.trim() || share?.title || 'Download'))
         if (kind === 'download') {
           setDownloadTarget(target)
-          setDownloadDir(picked.displayPath)
+          setDownloadDir(shown)
         } else {
           setInstallTarget(target)
-          setInstallDir(picked.displayPath)
+          setInstallDir(shown)
         }
       }
     } catch (error) {

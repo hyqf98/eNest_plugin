@@ -10,19 +10,14 @@ html, body {
   margin: 0; height: 100%; overflow: hidden; background: transparent;
   cursor: crosshair; user-select: none; -webkit-user-select: none;
 }
-#shot {
-  position: fixed; inset: 0; width: 100%; height: 100%;
-  object-fit: fill; pointer-events: none;
-}
+body:not([data-ready]), body[data-finished] { visibility: hidden; }
+body[data-ready]:not([data-finished])::before { content: ''; position: fixed; inset: 0; background: rgb(0 0 0 / .004); }
 #veil { position: fixed; inset: 0; z-index: 1; display: none; pointer-events: none; }
-#veil span { position: absolute; background: rgba(8, 10, 14, .46); }
+#veil span { position: absolute; background: rgba(8, 10, 14, .22); }
 #selection {
-  position: fixed; z-index: 2; display: none; overflow: hidden; border-radius: 2px;
-  border: 1.5px solid var(--accent);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .35) inset;
+  position: fixed; z-index: 2; display: none;
+  outline: 1px solid var(--accent); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35);
 }
-#live { position: absolute; inset: 0; overflow: hidden; display: none; pointer-events: none; }
-#live video { position: absolute; left: 0; top: 0; object-fit: fill; }
 .handle {
   position: absolute; width: 9px; height: 9px; border-radius: 2px;
   background: #fff; border: 1.5px solid var(--accent);
@@ -56,14 +51,12 @@ html, body {
   color: #e5e7eb; font: 12px/1 inherit; cursor: pointer;
 }
 #tools .tool svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-#tools .tool svg .fill { fill: currentColor; stroke: none; }
 #tools .tool:hover { background: rgba(255, 255, 255, .1); }
 #tools .tool[aria-pressed="true"] { color: #93c5fd; background: var(--accent-soft); }
+#tools .audio[aria-pressed="false"] .wave { opacity: .35; }
 #tools .tool.primary { background: var(--accent); color: #fff; padding: 0 12px; }
 #tools .tool.primary:hover { background: #2f74e8; }
-#tools .tool.icon { padding: 0 7px; }
 #tools .sep { width: 1px; height: 18px; background: rgba(255, 255, 255, .12); margin: 0 2px; }
-#tools .tool[hidden] { display: none; }
 #hint {
   position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
   padding: 6px 11px; border-radius: 7px;

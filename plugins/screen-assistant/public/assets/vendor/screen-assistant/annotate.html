@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>截图标注</title>
+  <link rel="stylesheet" href="annotate.css">
+  <script type="module" src="annotate.js"></script>
+</head>
+<body>
+  <header id="titlebar">
+    <div class="drag-grip" title="拖动以移动窗口"><i aria-hidden="true"></i><h1>截图标注</h1></div>
+    <span id="size" aria-live="polite">正在载入…</span>
+    <div class="actions">
+      <button type="button" id="cancel" title="取消（Esc）">取消</button>
+      <button type="button" id="done" title="完成并复制（Enter）" disabled>完成并复制</button>
+    </div>
+  </header>
+  <main id="workspace" aria-label="截图副本编辑区">
+    <div id="stage">
+      <canvas id="base" aria-label="截图副本"></canvas>
+      <canvas id="ink" data-tool="rect" aria-label="标注画布"></canvas>
+      <input id="text-input" type="text" placeholder="输入文字" aria-label="标注文字">
+    </div>
+  </main>
+  <footer id="bar" role="group" aria-label="标注工具" inert>
+    <span class="tools">
+      <button type="button" class="tool" data-tool="pen" title="画笔（P）" aria-label="画笔">
+        <svg viewBox="0 0 24 24"><path d="m4 20 4.5-1 12-12a2 2 0 0 0-3-3l-12 12L4 20zm11.5-14 3 3"/></svg>
+      </button>
+      <button type="button" class="tool" data-tool="rect" title="矩形（R）" aria-label="矩形">
+        <svg viewBox="0 0 24 24"><rect x="4.5" y="6.5" width="15" height="11" rx="1"/></svg>
+      </button>
+      <button type="button" class="tool" data-tool="arrow" title="箭头（A）" aria-label="箭头">
+        <svg viewBox="0 0 24 24"><path d="M5 19 19 5m0 0h-7m7 0v7"/></svg>
+      </button>
+      <button type="button" class="tool" data-tool="text" title="文字（T）" aria-label="文字">
+        <svg viewBox="0 0 24 24"><path d="M5 6h14M12 6v12M9 18h6"/></svg>
+      </button>
+      <button type="button" class="tool" data-tool="mosaic" title="马赛克（M）" aria-label="马赛克">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16"/></svg>
+      </button>
+    </span>
+    <span class="swatches" id="swatches" role="group" aria-label="标注颜色"></span>
+    <span class="widths" role="group" aria-label="线宽">
+      <button type="button" class="width" data-width="3" title="细" aria-label="细线"><i style="height:3px"></i></button>
+      <button type="button" class="width" data-width="6" title="中" aria-label="中线"><i style="height:6px"></i></button>
+      <button type="button" class="width" data-width="10" title="粗" aria-label="粗线"><i style="height:10px"></i></button>
+    </span>
+    <span class="history">
+      <button type="button" class="tool" id="undo" title="撤销（⌘Z / Ctrl+Z）" aria-label="撤销" disabled>
+        <svg viewBox="0 0 24 24"><path d="M9 7 4.5 11 9 15"/><path d="M4.5 11H14a5.5 5.5 0 0 1 0 11h-2"/></svg>
+      </button>
+      <button type="button" class="tool" id="redo" title="重做（⌘⇧Z / Ctrl+Shift+Z）" aria-label="重做" disabled>
+        <svg viewBox="0 0 24 24"><path d="m15 7 4.5 4L15 15"/><path d="M19.5 11H10a5.5 5.5 0 0 0 0 11h2"/></svg>
+      </button>
+    </span>
+  </footer>
+</body>
+</html>

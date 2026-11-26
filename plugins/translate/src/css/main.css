@@ -331,7 +331,6 @@ body,
         padding: 14px 15px;
         display: flex;
         align-items: center;
-        flex-wrap: wrap;
         gap: 5px;
       }
       .history-head button[data-history] {
@@ -339,10 +338,13 @@ body,
         min-height: 24px;
         font-size: 12px;
         border-radius: 999px;
+        white-space: nowrap;
       }
+      /* 关闭钮不参与换行：面板再窄也留在标题行右端，不会被两个 tab 挤到第二行悬在面板中间。 */
       .history-head #close-history {
         margin-left: auto;
         min-height: 24px;
+        flex: none;
       }
       .history-search {
         padding: 0 15px 12px;
@@ -396,12 +398,14 @@ body,
         padding: 8px;
         border-top: 1px solid var(--line);
         display: flex;
+        flex-wrap: wrap;
         gap: 6px;
       }
       .history-foot button {
-        flex: 1;
+        flex: 1 1 auto;
         font-size: 12px;
         padding: 4px 9px;
+        white-space: nowrap;
         border-color: transparent;
         background: color-mix(in srgb, var(--text, #252a32) 5%, transparent);
         color: var(--muted);

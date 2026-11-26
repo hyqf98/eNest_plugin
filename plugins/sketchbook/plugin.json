@@ -1,10 +1,13 @@
 {
   "id": "com.github.eNest.sketchbook",
   "name": "素描本",
-  "version": "1.2.0",
+  "version": "0.0.1",
   "description": "纸品手绘主题：桌面、索引卡、便签与牛皮纸各有纸色与投影高度，手抖描边与胶带拼贴；首页按不规则长宽陈列，设置页自带纸品与墨色调整。",
   "author": "eNest Labs",
   "main": "index.html",
+  "development": {
+    "main": "http://127.0.0.1:5210/"
+  },
   "category": "设计",
   "icon": "assets/market/icon.svg",
   "engines": {
@@ -20,6 +23,7 @@
   "features": [
     {
       "code": "main",
+      "title": "主题样式预览",
       "explain": "主题样式台：按钮、输入框、图标与小窗样式",
       "cmds": [
         "素描本",

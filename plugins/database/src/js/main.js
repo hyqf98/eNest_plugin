@@ -27,6 +27,7 @@ import {
   loadAll,
   persistNow,
   flushPendingPersist,
+  LIMITS,
   activeSession,
   activeEditor,
   getConnection,
@@ -270,6 +271,35 @@ function openDocument(sessionId, editorId) {
   if (!document) return
   setActiveSession(session.id); session.activeEditorId = document.id
   workbench.openQuery(session, document); renderAll()
+}
+
+/**
+ * 打开方式：把 .sql / .csv 文件读成文本放进一个 SQL 标签。
+ * 文件内容必须经宿主签发的只读句柄读取（路径字符串不能当授权）；超出编辑器上限的部分由 createEditorTab 截断。
+ */
+async function openSqlFile(handle) {
+  let text
+  try {
+    text = await api.localFiles.read({ handleId: handle.id, encoding: 'text' })
+  } catch (error) {
+    showLocalToast(`无法读取 ${handle.name || '文件'}：${error?.message || error}`, 'error')
+    return
+  }
+  // 新建控制台时 createSession 自带一个空白标签，直接复用它，避免多出一个空标签
+  let session = currentSession(), document = null
+  if (session) {
+    document = session.editors.find((item) => !item.dirty && !item.sql.trim())
+    document = document || createEditorTab(session, handle.name)
+  } else {
+    session = createSession()
+    document = session && (session.editors[0] || createEditorTab(session, handle.name))
+  }
+  if (!session || !document) return
+  document.title = handle.name || document.title
+  document.sql = String(text ?? '').slice(0, LIMITS.sqlBytes)
+  document.cursor = { line: 0, ch: 0 }
+  schedulePersistSessions()
+  openDocument(session.id, document.id)
 }
 function openCurrentQuery() { const session = currentSession(), document = currentEditor(); if (session && document) workbench?.openQuery(session, document) }
 async function newQueryDocument() {
@@ -609,14 +639,20 @@ async function boot() {
 
   api?.onEnter?.((event) => {
     if (event?.code === 'settings') workbench.navigate('settings')
-    // 打开方式：双击 .db/.sqlite 或 enest-db:// 进入，用宿主签发的只读句柄预填连接表单
+    // 打开方式：按文件类型分流。
+    //  - .sql / .csv：读成文本放进当前控制台的 SQL 标签（不需要连接）；
+    //  - .db / .sqlite 或 enest-db://：用宿主签发的只读句柄预填连接表单。
     if ((event?.code === 'open-file' || event?.code === 'open-url') && event?.payload?.handles?.length) {
       const handle = event.payload.handles[0]
-      const label = handle.displayPath || handle.name || 'SQLite 文件'
-      void openConnectionForm({
-        id: uid('conn'), name: handle.name || label, driver: 'sqlite', env: 'dev', options: {},
-        fileHandleId: handle.id, fileLabel: label, readOnly: true
-      })
+      if (event.code === 'open-file' && /\.(sql|csv)$/i.test(handle.name || '')) {
+        void openSqlFile(handle)
+      } else {
+        const label = handle.displayPath || handle.name || 'SQLite 文件'
+        void openConnectionForm({
+          id: uid('conn'), name: handle.name || label, driver: 'sqlite', env: 'dev', options: {},
+          fileHandleId: handle.id, fileLabel: label, readOnly: true
+        })
+      }
     }
     side?.render()
     renderAll()
@@ -1885,8 +1921,8 @@ async function openConnectionForm(existing) {
       <label class="span2" data-f="uri">连接 URI<input data-k="uri" value="${value('uri')}" placeholder="留空时使用主机与端口；密码请填写在下方"></label>
       <label class="span2" data-f="http">HTTP 端点<input data-k="endpoint" value="${value('endpoint')}" placeholder="https://database.example.com:8086"></label>
       <label data-f="net">数据库 / Keyspace<input data-k="database" value="${value('database')}"></label>
-      <h3 class="span2 form-section-title" data-f="net">身份与安全</h3>
       <label data-f="net">用户名<input data-k="username" value="${value('username')}" autocomplete="off"></label>
+      <h3 class="span2 form-section-title" data-f="net">身份与安全</h3>
       <label class="span2" data-f="net">密码 / Token<input data-k="secret" type="password" autocomplete="new-password" placeholder="${c.secretRef ? '已保存，留空保留' : '仅保存在本机凭据库'}"></label>
       <label class="span2" data-f="file">数据库文件<div class="row"><input data-k="fileLabel" readonly value="${esc(c.fileLabel || c.filePath || c.sqlitePath || '')}" placeholder="通过宿主选择文件并授权"><button class="btn" data-act="pick-sqlite">选择文件</button><button class="btn" data-act="create-sqlite">新建文件</button></div></label>
       <label data-f="influx">组织 Org<input data-k="org" value="${value('org')}"></label><label data-f="influx">Bucket<input data-k="bucket" value="${value('bucket')}"></label>

@@ -27,13 +27,20 @@
 .wb-tab.active:after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); opacity: .8; }
 .wb-tab.active > [role=tab] { color: var(--text); font-weight: 550; }
 .wb-tab-title { overflow: hidden; text-overflow: ellipsis; }
-.wb-tab-icon { font: 9px var(--mono); color: var(--text-3); flex: none; }
+/* 标签图标：原 9px 等宽字，比 12px 的标题小一圈、又继承 1.4 倍行高，视觉上偏上偏小。
+   字号提到 10px、行高设 1，字形盒直接由父级的 align-items:center 居中。
+   保留等宽字体：图标里有「SQL」这样的多字母文本（其余是 ▦ ◷ ↶ 等单字符），
+   等宽下宽度稳定；也正因如此不提到 12px——三字母会和标题一样重，看起来像标题的一部分。 */
+.wb-tab-icon { font: 10px/1 var(--mono); color: var(--text-3); flex: none; }
 .wb-tab-icon.running { color: var(--accent); }
 .wb-tab-transaction { color: var(--warn); }
 .wb-tab-close { display: grid; place-items: center; align-self: center; width: 24px; height: 24px; margin: 0 5px 0 2px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--text-3); font: 500 14px/1 var(--font); text-align: center; cursor: pointer; }
 .wb-tab-close:hover { color: var(--text); background: var(--surface-3); }
 .wb-tab-close:focus-visible, .wb-tab > [role=tab]:focus-visible { outline-offset: -3px; }
-.app .mid-chrome > .btn { font-size: 12px; }
+/* 工具条图标：字号与右侧「⋯」等全部统一，行高设为 1 让字形盒直接由 flex 居中。
+   原先继承 1.4 倍行高（12 × 1.4 = 16.8px），字形盒在这层行盒里偏上约 1px，
+   ≡ ＋ ⌄ ⋯ 四个图标的视觉重心因此高低不齐。 */
+.app .mid-chrome > .btn { font-size: 12px; line-height: 1; }
 .app .query-surface { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; flex-direction: column; }
 .app .query-surface .editor-pane { flex: 1 1 0; min-height: 65px; }
 .app .query-surface .editor-host { min-height: 65px; }
@@ -207,7 +214,10 @@ body:has(.app) .wb-design-column { grid-template-columns: minmax(100px,1.2fr) mi
 .nav-tree-row:hover .nav-object-type, .nav-tree-row:focus-within .nav-object-type { display: none; }
 .nav-connection-children { padding-left: 8px; }
 .nav-tree-children { padding-left: 13px; }
-.nav-empty { padding: 20px 12px; text-align: center; color: var(--text-3); font-size: 11px; line-height: 1.7; }
+/* 空态纵向排列：标题、说明、按钮各占一行。原先是行内元素靠 <p> 的块级性换行，
+   去掉说明文字后「还没有连接」会和按钮挤在同一行。 */
+.nav-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 12px; text-align: center; color: var(--text-3); font-size: 11px; line-height: 1.7; }
+.nav-empty p { margin: 0; }
 .nav-empty strong { color: var(--text-2); font-weight: 550; }
 .nav-scan-more { margin: 5px 0 5px 25px; border: 0; background: none; color: var(--text-2); font-size: 10px; padding: 5px; cursor: pointer; }
 .wb-query-context { max-width: 160px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 550; color: var(--text); }

@@ -7,7 +7,6 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { MoreMenu } from '../ui/index.jsx'
 import * as tk from '../js/textkit.js'
 import { createClipboardApi } from '../js/history-api.mjs'
-import { PanelView } from './PanelView.jsx'
 import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 
 const SNIPPET_KEY = 'clipboard.snippets.v1'
@@ -22,6 +21,8 @@ const age = (ts) => {
   return minutes < 1 ? '刚刚' : minutes < 60 ? `${minutes} 分钟前` : new Date(ts).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 const size = (bytes) => (bytes < 1024 ? `${bytes || 0} B` : bytes < 1024 ** 2 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 ** 2).toFixed(1)} MB`)
+/** 条目规模：文本按字符、文件按个数、图片按字节（与列表行 meta 同一口径） */
+const scale = (item) => (item.type === 'text' ? `${(item.text || item.preview || '').length} 字符` : item.type === 'files' ? `${item.files?.length || 0} 个文件` : Number.isFinite(item.bytes) && item.bytes > 0 ? size(item.bytes) : item.type === 'image' ? `${item.width || '?'} × ${item.height || '?'}` : '')
 
 const XFMT_BUTTONS = ['json', 'json-min', 'unique', 'sort', 'strip', 'upper', 'lower', 'camel', 'snake', 'kebab']
 const XFMT_LABELS = { json: '格式化 JSON', 'json-min': '压缩 JSON', unique: '行去重', sort: '行排序', strip: '去格式化', upper: '全部大写', lower: '全部小写', camel: 'camelCase', snake: 'snake_case', kebab: 'kebab-case' }
@@ -52,8 +53,6 @@ export function App() {
   const [mode, setMode] = useState(() => (window.enest || window.zapi)?.getLaunchMode?.() || 'shell')
   const [detail, setDetail] = useState({ kind: 'empty', text: '选择一条记录，查看完整内容' })
   const [snippets, setSnippets] = useState([])
-  const [snippetsReady, setSnippetsReady] = useState(false)
-  const [snippetsError, setSnippetsError] = useState('')
   const [toolsOpen, setToolsOpen] = useState(false)
   const [snipDialog, setSnipDialog] = useState(null) // { title, name, body, error }
   const [settingsDraft, setSettingsDraft] = useState({ excluded: '', collections: '' })
@@ -118,8 +117,9 @@ export function App() {
     return item && item.type === 'text' ? item.text || item.preview || '' : ''
   }
 
-  const saveView = () =>
-    run(() => kitRef.current.save('clipboard.view.v2', { query: stateRef.current.query, type: stateRef.current.type, current: stateRef.current.current, collection: stateRef.current.collection, scroll: listRef.current?.scrollTop ?? 0 }))
+  /** 保存列表视图。overrides 与 refresh 同理：刚改筛选条件的同一个 tick 里 stateRef 还是旧值。 */
+  const saveView = (overrides = {}) =>
+    run(() => kitRef.current.save('clipboard.view.v2', { query: stateRef.current.query, type: stateRef.current.type, current: stateRef.current.current, collection: stateRef.current.collection, ...overrides, scroll: listRef.current?.scrollTop ?? 0 }))
 
   const copy = useCallback(
     (id = stateRef.current.current, options) =>
@@ -143,7 +143,10 @@ export function App() {
       return dismissQuick()
     }
     const result = await api.clipboard.history.paste(id)
-    if (!result.pasted) kitRef.current?.toast(`已复制，请手动粘贴${result.reason ? ` · ${result.reason}` : ''}`)
+    // 宿主的 clipboard.paste 只回传结果、不负责收窗：回贴成功后由这里收起小窗。
+    // 失败时不能收——toast 画在插件页面内，窗口一收提示就没了，用户会以为已经贴进去。
+    if (result.pasted) return dismissQuick()
+    kitRef.current?.toast(`已复制，请手动粘贴${result.reason ? ` · ${result.reason}` : ''}`, 'warn')
   }, [api, copy])
 
   const batchCopy = useCallback(async () => {
@@ -168,12 +171,13 @@ export function App() {
     [], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  /** 列表刷新（等价原 refresh：requestId 竞态保护 + 分类收集 + 追加去重） */
+  /** 列表刷新（等价原 refresh：requestId 竞态保护 + 分类收集 + 追加去重）
+   *  overrides：刚改了筛选条件、同一个 tick 里就要刷新时，必须把新值直接传进来。
+   *  stateRef.current 只在下一次渲染才更新，此刻读到的还是旧分类——此前点「文本」tab
+   *  发出去的是上一个分类，列表永远比 tab 慢一拍（文字 tab 显示图片、图片 tab 显示全部）。 */
   const refresh = useCallback(
-    async (append = false) => {
-      // The widget only shows deliberately saved snippets, never live clipboard history.
-      if (kitRef.current?.mode === 'panel') return
-      const s = stateRef.current
+    async (append = false, overrides = {}) => {
+      const s = { ...stateRef.current, ...overrides }
       const revision = ++requestId.current
       try {
         const kindOf = ['text', 'image', 'files'].includes(s.type) ? s.type : undefined
@@ -320,7 +324,6 @@ export function App() {
 
   // —— 图片懒加载 IntersectionObserver（等价原 observer） ——
   useEffect(() => {
-    if (mode === 'panel') return
     observer.current = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -347,13 +350,12 @@ export function App() {
   /** 详情渲染（等价原 renderDetail：含图片异步加载与 revision 竞态保护） */
   useEffect(() => {
     const revision = ++detailRevision.current
-    if (mode === 'panel') return
     const item = items.find((i) => i.id === current)
     if (!item) {
       setDetail({ kind: 'empty', text: '选择一条记录，查看完整内容' })
       return
     }
-    const header = { label: label(item), time: esc(new Date(item.ts).toLocaleString()), size: size(item.bytes) }
+    const header = { label: label(item), time: esc(new Date(item.ts).toLocaleString()), size: scale(item) }
     setDetail({ kind: 'loading', header, item })
     let cancelled = false
     ;(async () => {
@@ -387,11 +389,13 @@ export function App() {
       await kit.setPref('excludedApps', excluded)
       const names = [...new Set(document.getElementById('collections').value.split('\n').map((v) => v.trim()).filter(Boolean))].slice(0, 30)
       const next = { ...stateRef.current.groups, names }
-      setGroups(next)
-      await kit.save('clipboard.groups.v2', next)
-      if (!names.includes(stateRef.current.collection)) setCollection('')
-      document.getElementById('manager').close()
-      await refreshRef.current()
+        setGroups(next)
+        await kit.save('clipboard.groups.v2', next)
+        // 当前分类被删时回到「所有分类」；把新值一并交给 refresh，避免它读到旧的 stateRef。
+        const collection = names.includes(stateRef.current.collection) ? stateRef.current.collection : ''
+        setCollection(collection)
+        document.getElementById('manager').close()
+        await refreshRef.current(false, { collection, groups: next })
       kit.toast('管理设置已保存')
     })
 
@@ -462,10 +466,11 @@ export function App() {
   const cycleType = (delta) => {
     const order = ['all', 'text', 'image', 'files', 'pinned']
     const index = order.indexOf(stateRef.current.type)
-    setType(order[(index + delta + order.length) % order.length])
+    const next = order[(index + delta + order.length) % order.length]
+    setType(next)
     setSelected(new Set())
-    void refreshRef.current()
-    void saveView()
+    void refreshRef.current(false, { type: next, selected: new Set() })
+    void saveView({ type: next })
   }
 
   useEffect(() => {
@@ -498,8 +503,7 @@ export function App() {
     })
     kit.onMode(() => {
       setMode(kit.mode)
-      if (kit.mode !== 'panel') void initialized.current.then(() => {
-        if (kit.mode === 'panel') return
+      void initialized.current.then(() => {
         void refreshRef.current()
         void run(capabilities)
       })
@@ -514,7 +518,6 @@ export function App() {
     })
     api?.onEnter?.(async (event) => {
       await initialized.current
-      if (kit.mode === 'panel') return
       if (event.code === 'manage') openManager()
       if (typeof event.payload?.historyId === 'string') {
         const entry = await api.clipboard.history.get(event.payload.historyId)
@@ -547,9 +550,7 @@ export function App() {
         const normalized = savedSnippets.slice(0, SNIPPET_MAX).map(value => tk.normalizeSnippet(value))
         if (alive) setSnippets(normalized)
       } catch (error) {
-        if (alive) setSnippetsError(error.message)
-      } finally {
-        if (alive) setSnippetsReady(true)
+        if (alive) kit.toast(error.message, 'error')
       }
       if (!alive) return
       const loadedGroups = await kit.load('clipboard.groups.v2', { names: [], entries: {} })
@@ -576,7 +577,7 @@ export function App() {
       requestAnimationFrame(() => {
         if (listRef.current) listRef.current.scrollTop = view.scroll || 0
       })
-      if (kit.mode !== 'panel') await capabilities()
+      await capabilities()
     })
     return () => {
       alive = false
@@ -598,7 +599,6 @@ export function App() {
   const initialized = useRef(Promise.resolve())
 
   const keyHandler = (event) => {
-    if (stateRef.current.mode === 'panel') return
     if (event.isComposing || event.defaultPrevented || document.querySelector('dialog[open]')) return
     if (stateRef.current.mode === 'quick' && event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey) {
       event.preventDefault()
@@ -632,15 +632,6 @@ export function App() {
   const currentItem = items.find((item) => item.id === current)
   const selectedLabel = many ? `已选 ${selected.size} 条` : currentItem ? `${label(currentItem)} · ${age(currentItem.ts)}` : '请选择记录'
 
-  if (mode === 'panel') {
-    return <PanelView snippets={snippets} ready={snippetsReady} error={snippetsError}
-      onCopy={snippet => { void run(async () => { await api.clipboard.writeText(snippet.body); kitRef.current?.toast('已复制片段', 'success') }) }}
-      onOpen={() => {
-        setToolsOpen(true)
-        void api.ui.openInShell().catch(error => kitRef.current?.toast(error.message, 'error'))
-      }} />
-  }
-
   return (
     <main className="app" data-density={density}>
       <header className="shell-only">
@@ -664,12 +655,12 @@ export function App() {
               key={id}
               data-type={id}
               className={type === id ? 'active' : ''}
-              onClick={() => {
-                setType(id)
-                setSelected(new Set())
-                void refresh()
-                void saveView()
-              }}
+                onClick={() => {
+                  setType(id)
+                  setSelected(new Set())
+                  void refresh(false, { type: id, selected: new Set() })
+                  void saveView({ type: id })
+                }}
             >
               {text}
             </button>
@@ -767,8 +758,8 @@ export function App() {
               onChange={(e) => {
                 setCollection(e.target.value)
                 setSelected(new Set())
-                void refresh()
-                void saveView()
+                void refresh(false, { collection: e.target.value, selected: new Set() })
+                void saveView({ collection: e.target.value })
               }}
             >
               <option value="">所有分类</option>
@@ -840,13 +831,7 @@ export function App() {
                       <span className="source" title={esc(item.sourceApp?.id || '')}>
                         {esc(item.sourceApp?.name || '未知来源')}
                       </span>
-                      <span className="size">
-                        {item.type === 'text'
-                          ? `${(item.text || item.preview).length} 字符`
-                          : item.type === 'files'
-                            ? `${item.files?.length || 0} 个文件`
-                            : size(item.bytes)}
-                      </span>
+                      <span className="size">{scale(item)}</span>
                     </div>
                   </div>
                   <div className="pk-row-actions" onClick={(event) => { if (!event.target.closest('[data-copy]')) event.stopPropagation() }} onDoubleClick={(event) => event.stopPropagation()}>
@@ -993,10 +978,10 @@ export function App() {
           <span id="selected-label">{selectedLabel}</span>
           <button
             id="select-all"
-            className="shell-only"
+            className="shell-only pk-btn pk-btn-ghost pk-btn-sm"
             onClick={() => setSelected(selected.size === items.length ? new Set() : new Set(items.map((item) => item.id)))}
           >
-            全选已载入
+            {selected.size === items.length && items.length > 0 ? '取消全选' : '全选'}
           </button>
         </div>
       </footer>

@@ -41,6 +41,9 @@ export function FacetBar({ facets, values, t, onChange, onReset }: FacetBarProps
 function FacetControl({ facet, value, t, onChange }: { facet: SourceFacet; value: SourceFilterValue | undefined; t: (key: I18nKey) => string; onChange: (value: SourceFilterValue) => void }) {
   if (facet.type === 'select' || facet.type === 'sort') {
     const options = facet.options ?? []
+    // Size to the longest option of this facet (about 12px per CJK glyph / 7px per latin char) instead of
+    // a flat minimum, so a source with many facets still fits on one row.
+    const longest = options.reduce((width, option) => Math.max(width, [...String(option.label)].reduce((sum, char) => sum + (char.charCodeAt(0) > 0x2e7f ? 12 : 7), 0)), 0)
     return (
       <label className="wh-facet wh-facet-select">
         <span>{facet.label}</span>
@@ -49,7 +52,7 @@ function FacetControl({ facet, value, t, onChange }: { facet: SourceFacet; value
           options={options}
           onChange={onChange}
           ariaLabel={facet.label}
-          minWidth={112}
+          minWidth={Math.min(72, longest) + 22}
         />
       </label>
     )

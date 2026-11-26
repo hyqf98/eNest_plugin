@@ -6,7 +6,7 @@ let send: ((message: unknown) => void) | undefined
 let owner = ''
 let sequence = 0
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>()
-const eventNames = new Set(['ssh.data', 'ssh.exit', 'ssh.error', 'ssh.auth', 'ssh.metrics', 'ssh.transfer'])
+const eventNames = new Set(['ssh.data', 'ssh.exit', 'ssh.error', 'ssh.auth', 'ssh.metrics', 'ssh.transfer', 'ssh.monitor'])
 
 export function configureHostBridge(pluginId: string, post: (message: unknown) => void): void { owner = pluginId; send = post }
 export function receiveHostReply(reply: Reply): void {

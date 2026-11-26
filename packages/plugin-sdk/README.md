@@ -153,4 +153,4 @@ packages/plugin-sdk/
 - [生命周期](../../docs/developer/lifecycle.md)
 - [MCP 工具贡献](../../docs/developer/mcp.md)
 
-`docs/developer/` 是壳仓 `docs/site/plugin/` 的同步副本，由插件仓 `docs:sync` / `docs:check` 管理。manifest schema 的权威源则是插件仓 `docs/plugin-manifest.schema.json`；修改贡献字段时先更新权威源，再由 `api:generate` 同步宿主与 SDK 副本，避免生成时删除另一仓新增的契约。
+`docs/developer/` 与 AI 技能 `skills/enest-development/references/` 是壳仓 `docs/site/plugin/` 的同一批同步副本，由插件仓 `docs:sync` / `docs:check` 管理。manifest schema 的权威源则是插件仓 `docs/plugin-manifest.schema.json`；修改贡献字段时先更新权威源，再由 `api:generate` 同步宿主与 SDK 副本，避免生成时删除另一仓新增的契约。

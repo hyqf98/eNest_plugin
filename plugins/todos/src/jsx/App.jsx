@@ -5,7 +5,6 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
-import { PanelView } from './PanelView.jsx'
 import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import { registerTodosMcp } from '../js/mcp.mjs'
 
@@ -83,7 +82,6 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    if (mode === 'panel') return
     const binding = PluginKit.bindHoverPanel(navToggleRef.current, navRef.current, {
       enabled: () => navCollapsed,
       onOpenChange: setNavPeek,
@@ -823,11 +821,6 @@ export function App() {
   const subDone = selectedTask ? selectedTask.subtasks.filter((s) => s.done).length : 0
   const subAll = selectedTask ? selectedTask.subtasks.length : 0
   const subPct = subAll ? Math.round((subDone / subAll) * 100) : 0
-
-  if (mode === 'panel') {
-    return <PanelView tasks={tasks} ready={ready} failed={failed} saveState={saveState} onComplete={toggle}
-      onOpen={() => { void api.ui.openInShell().catch(error => kitRef.current?.toast(error.message, 'error')) }} />
-  }
 
   return (
     <>

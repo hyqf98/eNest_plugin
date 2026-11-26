@@ -70,7 +70,14 @@ export function validateSource(directory, { release = true } = {}) {
 export function validateAllManifests(repositoryRoot = root) {
   return pluginIds(repositoryRoot).flatMap(id => {
     const directory = join(repositoryRoot, 'plugins', id), manifest = readManifest(directory)
-    return [...(manifest.id.split('.').pop() === id ? [] : [`${id}: id 末段必须等于目录名`]), ...validateSource(directory)]
+    const errors = validateSource(directory)
+    if (manifest.id.split('.').pop() !== id) errors.push(`${id}: id 末段必须等于目录名`)
+    if (Array.isArray(manifest.features)) for (const feature of manifest.features) {
+      if (Array.isArray(feature?.cmds) && feature.cmds.some(command => typeof command === 'string') && feature.title === undefined) {
+        errors.push(`${id}: 官方插件的文字入口 ${feature.code} 必须声明固定 title`)
+      }
+    }
+    return errors
   })
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

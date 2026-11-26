@@ -120,7 +120,8 @@ input:disabled { opacity: .45; }
 .rows { display: grid; gap: 6px; }
 .row {
   display: grid;
-  grid-template-columns: 22px minmax(88px, 110px) minmax(0, 1fr);
+  /* Value column is capped so a right-sized number sits next to its unit instead of hugging the far edge. */
+  grid-template-columns: 22px minmax(88px, 110px) minmax(0, 320px);
   align-items: center;
   gap: 10px;
   min-height: 40px;
@@ -130,7 +131,7 @@ input:disabled { opacity: .45; }
 .fav-btn.on { color: var(--mark); }
 .row-name { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.faved .row-name { color: var(--text); font-weight: 500; }
-.row input { width: 100%; text-align: right; font-size: 14px; letter-spacing: -0.01em; }
+.row input { width: 100%; text-align: left; font-size: 14px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .row-value { font-size: 14px; }
 
 .presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 4px; }
@@ -143,8 +144,11 @@ input:disabled { opacity: .45; }
 .fx-head label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .fx-head input { width: 110px; text-align: right; }
 .fx-row { cursor: pointer; border-radius: var(--radius-sm, 8px); padding: 2px 6px; }
+/* 汇率行只有「名称 / 数值」两格：不继承 .row 的三列网格，否则名称落进 22px 的收藏格被截成首字母。 */
+.fx-row.row { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
 .fx-row:hover { background: var(--wash); }
 .fx-row .row-name { font-family: var(--mono-font); }
+.fx-row .row-value { text-align: right; font-variant-numeric: tabular-nums; }
 .fx .rows { grid-template-columns: 1fr 1fr; gap: 2px 18px; }
 
 .rmb { border-top: 1px solid var(--line); padding: 10px 14px; display: grid; gap: 8px; }

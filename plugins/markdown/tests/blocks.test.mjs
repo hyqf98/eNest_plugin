@@ -1,13 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { resolve, dirname } from 'node:path'
-import { pathToFileURL, fileURLToPath } from 'node:url'
-import { execFileSync } from 'node:child_process'
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-// blocks.js 内含 TS 类型注解，经 esbuild tsx loader 转译后加载（与构建管线一致）
-const tmp = resolve(root, 'dist/.test-blocks.mjs')
-execFileSync('npx', ['esbuild', resolve(root, 'src/cm/blocks.js'), '--format=esm', '--platform=browser', '--loader:.js=tsx', '--outfile='.concat(tmp), '--allow-overwrite'], { cwd: root, stdio: 'pipe' })
-const { parseBlocks, blockAt } = await import(pathToFileURL(tmp))
+import { blockAt, parseBlocks } from '../src/cm/blocks.js'
 
 const F = String.fromCharCode(96, 96, 96)
 const doc = ['---', 'title: t', '---', '', '# H1', '', 'p1', 'p2', '', F + 'js', 'let a = 1', F, '', '| a | b |', '| --- | --- |', '| 1 | 2 |', '', '- x', '- y', '', '> q1', '> q2', '', '$$e=mc^2$$', '', '$', 'a+b', '$$', '', 'end.'].join('\n')
@@ -42,4 +35,24 @@ test('parseBlocks：未闭合 fence 吞到文档尾', () => {
 test('blockAt：命中包含光标的块', () => {
   const blocks = parseBlocks(doc)
   assert.equal(blockAt(blocks, 1).type, 'meta')
+})
+
+test('多行 Setext 标题包含下划线；引用和段落之间的真空行不归引用块', () => {
+  const text = '长标题\n第二行\n---\n\n> 引用\n\n> 下一条'
+  const [heading, first, second] = parseBlocks(text)
+  assert.deepEqual([heading.type, heading.style, heading.level, heading.text], ['heading', 'setext', 2, '长标题\n第二行\n---'])
+  assert.equal(blockAt([heading, first, second], text.lastIndexOf('\n\n') + 1), null)
+})
+
+test('表头列数必须匹配；转义竖线不分列；缩进四格的围栏不能提前关闭代码块', () => {
+  assert.equal(parseBlocks('| a | b |\n| -- |')[0].type, 'paragraph')
+  assert.equal(parseBlocks('| a\\|b |\n| -- |')[0].type, 'table')
+  const code = '```txt\n    ```\n# 仍然是代码\n```'
+  assert.equal(parseBlocks(code)[0].text, code)
+})
+
+test('HTML 原始文本块中的空行保留，闭合标签之外的正文仍然可编辑', () => {
+  const [pre, next] = parseBlocks('<pre>开头\n\n尾</pre>\n**正文**')
+  assert.equal(pre.text, '<pre>开头\n\n尾</pre>')
+  assert.equal(next.type, 'paragraph')
 })

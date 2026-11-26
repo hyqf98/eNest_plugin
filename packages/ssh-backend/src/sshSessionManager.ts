@@ -168,7 +168,7 @@ async function resolveAuthSecret(
   return null
 }
 
-async function buildConnectConfig(input: SshConnectInput & { password?: string }, pluginId: string): Promise<ConnectConfig> {
+export async function buildConnectConfig(input: SshConnectInput & { password?: string }, pluginId: string): Promise<ConnectConfig> {
   // 插件 UI 可能传 password 字段作为一次性口令；规范名为 ephemeralSecret
   const ephemeralSecret = input.ephemeralSecret ?? (input as { password?: string }).password
   const port = input.port && input.port > 0 ? input.port : 22
@@ -220,6 +220,10 @@ function fingerprintOf(key: Buffer): string {
     return ''
   }
 }
+
+/** Load ssh2 lazily so a plugin that never connects does not pay for the module. */
+export function loadSsh2(): Promise<typeof import('ssh2')> { return loadSshModule() }
+export { fingerprintOf }
 
 export async function sshConnect(
   pluginId: string,

@@ -17,6 +17,7 @@ import { BackendError } from '../adapters/types.ts'
 import type { CreateTaskRequest, Task } from '../contracts.ts'
 import { DownloadQueue } from '../downloader/queue.ts'
 import { ensureDir } from '../disk.ts'
+import { sanitizeSegment } from '../paths.ts'
 import { acquireActivity, resolveFileHandle } from '../runtime.ts'
 import { flushStore, loadSettings, loadTasks, saveTasks, type StoredTask, type StoredTaskFile } from '../store.ts'
 import { newId } from '../util.ts'
@@ -83,10 +84,13 @@ export class TaskService {
   }
 
   async create(request: CreateTaskRequest): Promise<{ taskId: string }> {
-    // 目录只认句柄：选择即授权，路径字符串不能当授权
-    const downloadDir = await authorizedDir(request.downloadTarget, '下载目录')
-    let installDir = downloadDir
-    if (request.installTarget) installDir = await authorizedDir(request.installTarget, '安装目录')
+    // 目录只认句柄：选择即授权，路径字符串不能当授权。
+    // 句柄换出的是用户选的根目录；每个条目在根目录下各占一个以标题命名的子目录，
+    // 下载、解压、安装都在这一个文件夹里，多个游戏下到同一根目录也不会混在一起。
+    // 请求里的 downloadDir / installDir 只用于界面展示，这里不信任它们。
+    const downloadRoot = await authorizedDir(request.downloadTarget, '下载目录')
+    let installRoot = downloadRoot
+    if (request.installTarget) installRoot = await authorizedDir(request.installTarget, '安装目录')
     if (request.autoInstall && !request.installTarget) {
       throw new BackendError('INVALID_ARGUMENT', '请选择安装目录')
     }
@@ -117,6 +121,10 @@ export class TaskService {
       cover = item.cover
       exeRel = item.exeRel
     }
+    // 标题可能含 Windows 非法字符、保留名或过长，按路径段规则清洗后再作文件夹名；目录不存在时 ensureDir 会创建
+    const folder = sanitizeSegment(title || 'Download', 'Download')
+    const downloadDir = getAdapter().path.join(downloadRoot, folder)
+    const installDir = getAdapter().path.join(installRoot, folder)
     const now = Date.now()
     const task: StoredTask = {
       id: newId('task'),

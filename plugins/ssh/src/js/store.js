@@ -232,9 +232,9 @@ import { sshLaunchIndex } from './launch-index.js'
         .toLowerCase()
       if (!hay.includes(q)) return false
     }
-    if (state.ui.filterEnv && profile.env !== state.ui.filterEnv) return false
-    if (state.ui.filterFavorite && !profile.favorite) return false
-    if (state.ui.filterTag && !(profile.tags || []).includes(state.ui.filterTag)) return false
+    // 只剩搜索词与「最近连接」两种筛选。按环境 / 收藏 / 标签筛选的按钮已移除，
+    // 而 ui 状态是持久化的：旧的 filterEnv 等值会留在 ssh.ui 里再也关不掉，列表被悄悄过滤。
+    // 所以这里不再读它们。注意搜索只匹配 env 的原始代码（prod / staging / dev），不匹配中文环境名。
     if (state.ui.filterRecent) {
       const cutoff = Date.now() - 7 * 24 * 3600 * 1000
       if (!(profile.lastConnectedAt && profile.lastConnectedAt >= cutoff)) return false

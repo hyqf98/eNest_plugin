@@ -43,6 +43,7 @@ function fixture(t, options = {}) {
     async getConfig() { return { locale: 'en-US' } },
     async getCatalog() { return { revision: 1, items: [detail] } },
     getDetail: options.getDetail ?? (async id => id === ID ? detail : null),
+    refresh: options.refresh,
     async search() { return { revision: 1, items: [] } },
     async ready(payload) {
       assert.equal(payload.workspaceVersion, 1)
@@ -70,6 +71,22 @@ function fixture(t, options = {}) {
     listeners: () => ({ command: Boolean(onCommand), appearance: Boolean(onAppearance) }),
   }
 }
+
+test('catalog notifications preserve cache-only refreshes while user refreshes request the market', async context => {
+  const reasons = []
+  const { controller, emit } = fixture(context, { refresh: async ({ reason }) => {
+    reasons.push(reason)
+    return { revision: reasons.length + 1, items: [] }
+  } })
+  await controller.start()
+  emit({ type: 'refresh', reason: 'boot', revision: 12 })
+  await nextTurn()
+  assert.deepEqual(reasons, ['boot'])
+  assert.equal(controller.getState().catalog.revision, 2)
+  emit({ type: 'refresh', reason: 'manual', revision: 13 })
+  await controller.refreshCatalog()
+  assert.deepEqual(reasons, ['boot', 'manual', 'manual'])
+})
 
 test('cold native-style startup advertises only catalog/detail and binds its initial generation', { timeout: 2000 }, async t => {
   const f = fixture(t)
@@ -230,7 +247,7 @@ test('plugin, package and workspace lock all identify the same version', async (
   const manifest = JSON.parse(await readFile(new URL('plugin.json', root), 'utf8'))
   const pkg = JSON.parse(await readFile(new URL('package.json', root), 'utf8'))
   const lock = JSON.parse(await readFile(new URL('../../package-lock.json', root), 'utf8'))
-  assert.equal(manifest.version, '1.2.0')
+  assert.equal(manifest.version, '0.0.1')
   assert.equal(pkg.version, manifest.version)
   assert.equal(lock.packages['plugins/sketchbook'].version, manifest.version)
   assert.equal(manifest.contributes.homePages[0].entry, 'homes/sketchbook.html')

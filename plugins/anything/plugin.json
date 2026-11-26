@@ -17,8 +17,7 @@
   "permissions": [
     "backend.node",
     "contribute",
-    "clipboard.write",
-    "shell.openExternal"
+    "clipboard.write"
   ],
   "contributes": {
     "mcpTools": [
@@ -217,6 +216,7 @@
   "features": [
     {
       "code": "find-selection",
+      "title": "文件搜索",
       "explain": "全局文件搜索与预览",
       "cmds": [
         "anything",

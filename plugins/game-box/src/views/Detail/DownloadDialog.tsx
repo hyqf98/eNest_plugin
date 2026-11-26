@@ -10,7 +10,7 @@ import { useApp } from '../../js/state'
 import { Button, Dialog, DialogContent, DialogDescription, DialogOverlay, DialogTitle, Switch } from '../../ui'
 import { PathField } from '../../components/ext'
 import * as api from '../../js/api'
-import { formatBytes } from '../../js/format'
+import { formatBytes, joinDir, sanitizeLeaf } from '../../js/format'
 
 export function DownloadDialog({ detail, packages, open, onClose, onCreated }: {
   detail: DetailData
@@ -147,15 +147,4 @@ export function DownloadDialog({ detail, packages, open, onClose, onCreated }: {
       </DialogContent>
     </Dialog>
   )
-}
-
-/** 去掉标题里不能做目录名的字符，与后端 sanitize 规则保持保守一致 */
-function sanitizeLeaf(title: string): string {
-  return title.replace(/[<>:"|?*\\/]/g, '_').trim() || 'Download'
-}
-
-function joinDir(root: string, leaf: string): string {
-  if (!root) return leaf
-  const separator = root.includes('\\') || /^[A-Za-z]:/.test(root) ? '\\' : '/'
-  return root.endsWith('\\') || root.endsWith('/') ? `${root}${leaf}` : `${root}${separator}${leaf}`
 }

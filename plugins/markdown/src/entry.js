@@ -1,8 +1,9 @@
 import './css/main.css'
+import './css/inline-editor.css'
+import './css/table-editor.css'
 import './css/motion.css'
 import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/style.css'
-import '@enest/plugin-kit/widget.css'
 import '@enest/plugin-kit'
 import 'katex/dist/katex.min.css'
 window.PluginKit.useAppearanceLayout({
@@ -12,8 +13,8 @@ window.PluginKit.useAppearanceLayout({
 import { createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './jsx/App.jsx'
+import { applyTheme, builtinThemeCss } from './render/theme.js'
 import './ui/pk-ui.css'
-import './css/panel.css'
 
 // Sidebar 等组件需要直接派发文档变更（避免 props drilling）
 Object.defineProperty(window, '__mdView', {
@@ -21,4 +22,6 @@ Object.defineProperty(window, '__mdView', {
   configurable: true,
 })
 
+const initialTheme = document.documentElement.dataset.theme === 'dark' ? 'enest-minimal-dark' : 'enest-minimal'
+applyTheme(initialTheme, builtinThemeCss(initialTheme))
 createRoot(document.getElementById('root')).render(createElement(App))

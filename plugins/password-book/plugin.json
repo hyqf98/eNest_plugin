@@ -197,6 +197,7 @@
   "features": [
     {
       "code": "main",
+      "title": "密码本",
       "explain": "密码本 / 账号密码管理",
       "cmds": [
         "密码本",

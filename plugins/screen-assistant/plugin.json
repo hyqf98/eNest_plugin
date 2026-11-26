@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.screen-assistant",
   "name": "屏幕助手",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "截图、长截图、区域/全屏录屏与统一媒体库，内置标注、GIF 导出、贴图和图片工具箱。",
   "author": "eNest Labs",
   "main": "index.html",
@@ -27,36 +27,43 @@
   "features": [
     {
       "code": "capture",
+      "title": "截图",
       "explain": "矩形区域截图",
       "cmds": ["截图", "截屏", "screenshot", "jt", "截图标注"]
     },
     {
       "code": "full",
+      "title": "全屏截图",
       "explain": "全屏截图",
-      "cmds": ["全屏截图", "fullscreen", "quanpingjietu"]
+      "cmds": ["全屏截图", "fullscreen", "quanpingjietu", "fullscreen screenshot"]
     },
     {
       "code": "longshot",
+      "title": "长截图",
       "explain": "滚动长截图",
-      "cmds": ["长截图", "滚动截图", "长截屏", "changjietu"]
+      "cmds": ["长截图", "滚动截图", "长截屏", "changjietu", "cjt", "scrolling screenshot"]
     },
     {
       "code": "record",
+      "title": "录屏",
       "explain": "矩形区域录屏",
       "cmds": ["录屏", "区域录屏", "record", "lp", "luping"]
     },
     {
       "code": "record-full",
+      "title": "全屏录屏",
       "explain": "全屏录屏",
-      "cmds": ["全屏录屏", "quanpingluping"]
+      "cmds": ["全屏录屏", "quanpingluping", "fullscreen recording"]
     },
     {
       "code": "pin",
+      "title": "贴图",
       "explain": "贴图到桌面",
       "cmds": ["贴图", "pin", "tt", "tietu"]
     },
     {
       "code": "tools",
+      "title": "图片工具箱",
       "explain": "图片压缩、转换与处理",
       "cmds": [
         "图片",
@@ -67,19 +74,22 @@
         "tp",
         "tupian",
         "yasuo",
-        { "type": "img", "label": "压缩这张图片" }
+        { "type": "img", "label": "压缩这张图片" },
+        "image tools"
       ]
     },
     {
       "code": "library",
+      "title": "截图与录屏历史",
       "explain": "截图与录屏历史",
-      "cmds": ["历史", "媒体库", "截图历史", "录制历史", "相册"]
+      "cmds": ["历史", "媒体库", "截图历史", "录制历史", "相册", "capture history"]
     }
   ],
   "contributes": {
     "openWith": [
       {
         "id": "image-files",
+        "label": "图片",
         "extensions": ["png", "jpg", "jpeg", "webp", "gif"],
         "mimeTypes": ["image/png", "image/jpeg", "image/webp", "image/gif"],
         "role": "Viewer"

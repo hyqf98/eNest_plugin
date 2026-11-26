@@ -1,36 +1,47 @@
 /* 纯视觉范围框：窗口 native passthrough，不接收任何指针事件。 */
+import { displayRectInViewport, sameDisplay } from './geometry.js'
+
 const api = window.enestAux
 const context = await api.getContext()
 const data = context.data || {}
-const bounds = data.bounds || { x: 0, y: 0, width: 0, height: 0 }
-const scale = Number(context.display?.scaleFactor) || 1
+const bounds = data.bounds
+const display = context.display
+let viewportBounds = context.viewportBounds
+let recording = data.recording === true
 const selection = document.getElementById('sel')
 const rec = document.getElementById('rec')
 
-const x = bounds.x / scale
-const y = bounds.y / scale
-const width = Math.max(1, bounds.width / scale)
-const height = Math.max(1, bounds.height / scale)
-selection.style.left = `${x}px`
-selection.style.top = `${y}px`
-selection.style.width = `${width}px`
-selection.style.height = `${height}px`
-
-const displayWidth = context.display?.width || innerWidth
-const displayHeight = context.display?.height || innerHeight
-if (width >= displayWidth - 2 && height >= displayHeight - 2) selection.classList.add('full')
-
-function placeRec(visible) {
-  rec.hidden = !visible
-  if (!visible) return
-  let recX = Math.min(innerWidth - 62, Math.max(4, x))
-  let recY = y - 22
-  if (recY < 4) recY = Math.min(innerHeight - 22, y + 6)
-  rec.style.left = `${recX}px`
-  rec.style.top = `${recY}px`
+function layoutFrame() {
+  const rect = displayRectInViewport(bounds, display, viewportBounds, { width: innerWidth, height: innerHeight })
+  Object.assign(selection.style, {
+    left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px`
+  })
+  rec.hidden = !recording
+  if (!recording) return
+  const gap = 5
+  const width = rec.offsetWidth, height = rec.offsetHeight
+  const left = Math.max(gap, Math.min(innerWidth - width - gap, rect.x))
+  const top = Math.max(gap, Math.min(innerHeight - height - gap, rect.y))
+  const position = [
+    { x: left, y: rect.y - height - gap },
+    { x: left, y: rect.y + rect.height + gap },
+    { x: rect.x - width - gap, y: top },
+    { x: rect.x + rect.width + gap, y: top }
+  ].find(point => point.x >= 0 && point.y >= 0 && point.x + width <= innerWidth && point.y + height <= innerHeight)
+  if (position) Object.assign(rec.style, { left: `${position.x}px`, top: `${position.y}px` })
+  else rec.hidden = true
 }
-placeRec(data.recording === true)
 
+layoutFrame()
+addEventListener('resize', layoutFrame)
 api.onMessage(message => {
-  if (message?.type === 'state') placeRec(message.recording === true)
+  if (message?.type === 'state') recording = message.recording === true
+  else if (message?.type === 'enest:surface-changed' && message.state?.display) {
+    if (!sameDisplay(display, message.state.display)) {
+      void api.close()
+      return
+    }
+    viewportBounds = message.state.viewportBounds ?? viewportBounds
+  } else return
+  layoutFrame()
 })

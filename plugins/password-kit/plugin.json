@@ -16,17 +16,20 @@
   "features": [
     {
       "code": "main",
+      "title": "随机密码生成",
       "explain": "随机密码",
       "cmds": [
         "密码",
         "password",
         "mm",
         "mima",
-        "随机密码"
+        "随机密码",
+        "password generator"
       ]
     },
     {
       "code": "uuid",
+      "title": "UUID 生成",
       "explain": "UUID v4 生成",
       "cmds": [
         "uuid",
@@ -35,12 +38,14 @@
     },
     {
       "code": "inspect",
+      "title": "密码强度检查",
       "explain": "密码强度检查",
       "cmds": [
         "强度",
         "strength",
         "mimadu",
-        "md"
+        "md",
+        "password strength"
       ]
     }
   ],

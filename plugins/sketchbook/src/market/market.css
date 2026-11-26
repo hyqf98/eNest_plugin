@@ -198,6 +198,8 @@
   cursor: pointer;
 }
 .sk-search-clear:hover { color: var(--sk-ink); background: var(--sk-paper-shade); }
+.sk-search-files:not([hidden]) { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 3px 7px; border: 1px solid var(--sk-ink-faint); border-radius: 3px; background: var(--sk-paper); color: var(--sk-ink); font: inherit; font-size: .85em; cursor: pointer; }
+.sk-search-files:hover { background: var(--sk-paper-shade); }
 
 /* 搜索结果：从便签下沿翻出来的一页 */
 .sk-results {

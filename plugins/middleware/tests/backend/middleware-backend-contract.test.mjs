@@ -282,7 +282,7 @@ test('frontend works with frozen host API, bounded timeout options and backend.e
 
 test('version-gated plugin entry bundles no host facade or production host contracts', async () => {
   const manifest = JSON.parse(readFileSync(root + '../plugin.json', 'utf8'))
-  assert.equal(manifest.version, '0.5.0'); assert.equal(manifest.engines.enest, '>=0.0.1')
+  assert.equal(manifest.version, '0.0.1'); assert.equal(manifest.engines.enest, '>=0.0.1')
   assert.ok(manifest.permissions.includes('backend.node'))
   const entry = await build({ entryPoints: [root + 'index.ts'], bundle: true, write: false, platform: 'node', format: 'cjs', tsconfig: root + 'tsconfig.json', external: ['amqplib', 'ioredis', 'kafkajs', 'mqtt', 'ws'], metafile: true, logLevel: 'silent' })
   assert.ok(Object.keys(entry.metafile.inputs).every(path => !path.includes('src/main/') && !path.includes('src/shared/')))

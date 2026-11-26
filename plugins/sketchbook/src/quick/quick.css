@@ -93,6 +93,7 @@ html, body, #quick-root { width: 100%; height: 100%; overflow: hidden; }
   translate: 0 -1px;
 }
 .skq-button-label { display: none; }
+.skq-tool.skq-update { color: var(--sk-marker); background: var(--sk-paper-shade); }
 
 /* 插件模式标题条 */
 .skq-plugin-bar {
@@ -102,6 +103,7 @@ html, body, #quick-root { width: 100%; height: 100%; overflow: hidden; }
   align-items: center;
   gap: 8px;
 }
+.skq-plugin-grip-slot { flex: 0 0 var(--skq-grip-size); width: var(--skq-grip-size); height: var(--skq-grip-size); }
 .skq-plugin-focus {
   display: flex;
   flex: 1;

@@ -377,7 +377,6 @@
   "permissions": [
     "notify",
     "clipboard.write",
-    "shell.openExternal",
     "sys.sshAgent",
     "backend.node"
   ],
@@ -390,6 +389,7 @@
   "features": [
     {
       "code": "main",
+      "title": "SSH 连接管理",
       "explain": "SSH 管理与远程终端",
       "cmds": [
         "ssh",

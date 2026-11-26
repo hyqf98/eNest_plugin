@@ -18,7 +18,6 @@
     "net.fetch",
     "notify",
     "clipboard.write",
-    "shell.openExternal",
     "backend.node"
   ],
   "contributes": {
@@ -724,6 +723,7 @@
     "openWith": [
       {
         "id": "sqlite-files",
+        "label": "SQLite 数据库",
         "extensions": [
           "db",
           "sqlite"
@@ -735,6 +735,19 @@
           "enest-db"
         ],
         "role": "Viewer"
+      },
+      {
+        "id": "sql-files",
+        "label": "SQL 脚本",
+        "extensions": [
+          "sql",
+          "csv"
+        ],
+        "mimeTypes": [
+          "application/sql",
+          "text/csv"
+        ],
+        "role": "Editor"
       }
     ]
   },
@@ -747,6 +760,7 @@
   "features": [
     {
       "code": "main",
+      "title": "数据库客户端",
       "explain": "数据库客户端",
       "cmds": [
         "数据库",

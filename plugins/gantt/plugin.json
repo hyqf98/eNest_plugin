@@ -19,6 +19,7 @@
   "features": [
     {
       "code": "main",
+      "title": "甘特图",
       "explain": "打开甘特图",
       "cmds": [
         "gantt",

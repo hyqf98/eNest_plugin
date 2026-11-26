@@ -1,7 +1,7 @@
 {
   "id": "com.github.eNest.middleware",
   "name": "中间件控制台",
-  "version": "0.5.0",
+  "version": "0.0.1",
   "description": "Kafka / RabbitMQ / MQTT / RocketMQ 统一控制台：连接管理、Topic 与队列、消息查询溯源与实时监听、消费组与监控",
   "author": "eNest Labs",
   "main": "index.html",
@@ -16,7 +16,6 @@
     "net.messaging.admin",
     "notify",
     "clipboard.write",
-    "shell.openExternal",
     "backend.node"
   ],
   "window": {
@@ -28,6 +27,7 @@
   "features": [
     {
       "code": "main",
+      "title": "中间件控制台",
       "explain": "消息中间件控制台",
       "cmds": [
         "中间件",

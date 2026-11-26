@@ -34,11 +34,13 @@
   "features": [
     {
       "code": "main",
+      "title": "壁纸社",
       "explain": "壁纸社：多源壁纸浏览、本地库、静态与动态壁纸",
       "cmds": ["壁纸", "壁纸社", "壁纸屋", "wallpaper", "bizhi", "wallpaper-wall", "wallpaper-house"]
     },
     {
       "code": "settings",
+      "title": "壁纸设置",
       "explain": "壁纸社设置：数据源 Key、壁纸目录、轮换与性能",
       "cmds": ["壁纸设置", "wallpaper settings"]
     },

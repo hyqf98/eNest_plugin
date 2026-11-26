@@ -23,6 +23,7 @@
   "features": [
     {
       "code": "main",
+      "title": "哈希与加密",
       "explain": "哈希 / 加解密 / JWT 解码",
       "cmds": [
         "哈希",

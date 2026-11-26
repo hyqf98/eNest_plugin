@@ -4,11 +4,10 @@
 
 # eNest 官方插件仓库
 
-[![Release](https://img.shields.io/github/v/release/hyqf98/eNest_plugin?label=Release&logo=github)](https://github.com/hyqf98/eNest_plugin/releases)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue)](https://github.com/hyqf98/eNest/blob/main/LICENSE)
 [![eNest Host](https://img.shields.io/badge/宿主-eNest%20%3E%3D0.0.1-6c5ce7?logo=electron&logoColor=white)](https://github.com/hyqf98/eNest/releases)
 [![Node](https://img.shields.io/badge/Node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Plugins](https://img.shields.io/badge/官方插件-43-ff7a1a)](#-插件目录)
+[![Plugins](https://img.shields.io/badge/官方插件-47-ff7a1a)](#-插件目录)
 
 **基于权限沙箱的插件化桌面壳 [eNest](https://github.com/hyqf98/eNest) 的官方插件市场。**
 
@@ -31,16 +30,16 @@
 
 ## 📦 安装插件
 
-**方式一 · 应用内市场（推荐）**：在 eNest 的「插件市场」中浏览、搜索并一键安装，宿主从 [市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，经 SHA-256 校验后安装到数据根目录（默认 `~/.eNest/plugins/`）。
+**公开发行已暂停。** 之前在 [Releases](https://github.com/hyqf98/eNest_plugin/releases) 提供的插件包和市场索引已撤下，暂不可在线安装。
 
-**方式二 · 手动安装**：从 [Releases](https://github.com/hyqf98/eNest_plugin/releases) 下载 `.enestplugin` 文件（本质是 ZIP，根目录即 `dist/` 内容），拖入 eNest 窗口安装。
+已有的 `.enestplugin` 包仍可拖入 eNest 窗口安装；也可在本机从源码[构建并打包](#-构建与发布)，无需发布。
 
 > ⚠️ Releases 页的 Source code 压缩包是仓库源码，**不能**作为插件安装。
 > 数据库插件按平台分发（macOS arm64/x64、Windows x64、Linux x64），请选择匹配本机的平台包，平台包不是额外插件。
 
 ## 🗂 插件目录
 
-已发布 37 个插件包 + 4 个数据库平台包；仓库现有 44 个插件源码目录。绿色 ✅ = 已随 v0.0.1 发布；未标注的为仓库新增、尚未随 Release 分发。
+目录展示插件源码。✅ 表示曾收录于已撤回的发行批次，不代表当前可下载。「图片工具箱」的功能已并入屏幕助手，该插件不再单独维护。
 
 ### ⚡ 效率（13）
 
@@ -92,25 +91,29 @@
 | [<img src="plugins/image-gen/public/assets/market/icon.svg" width="20" alt=""> **AI 生图**](plugins/image-gen) | 对话式生图：Images / Chat / Responses 三协议，会话流与预览库 |
 | [<img src="plugins/sketchbook/public/assets/market/icon.svg" width="20" alt=""> **素描本**](plugins/sketchbook) ✅ | 纸品手绘主题：桌面、索引卡、便签与牛皮纸，手抖描边与胶带拼贴 |
 
-### 🎬 媒体（5）
+### 🎬 媒体（6）
 
 | 插件 | 简介 |
 | --- | --- |
+| [<img src="plugins/media-browser/public/assets/market/icon.svg" width="20" alt=""> **媒体浏览**](plugins/media-browser) | 关联多个文件夹，树形浏览图片与视频：相机 RAW（NEF 等）、HEIC、视频缩略图，拖拽整理与批量删除 |
 | [<img src="plugins/comic-house/public/assets/market/icon.svg" width="20" alt=""> **漫画屋**](plugins/comic-house) | 聚合漫画阅读：多源管理、跨源搜索、沉浸式竖向阅读与整部缓存 |
 | [<img src="plugins/novel-house/public/assets/market/icon.svg" width="20" alt=""> **小说屋**](plugins/novel-house) | Legado 书源聚合阅读：多源搜索、舒适排版阅读器、整本缓存 |
 | [<img src="plugins/screen-assistant/public/assets/market/icon.svg" width="20" alt=""> **屏幕助手**](plugins/screen-assistant) ✅ | 截图、长截图、区域/全屏录屏、统一媒体库、GIF、贴图与图片工具 |
 | [<img src="plugins/tvbox/public/assets/market/icon.svg" width="20" alt=""> **影视仓**](plugins/tvbox) | TVBox 配置源导入：多仓线路、聚合搜索、hls.js 选集播放 |
 | [<img src="plugins/wallpaper-wall/public/assets/market/icon.svg" width="20" alt=""> **壁纸社**](plugins/wallpaper-wall) | 15 源壁纸聚合、本地库与轮换，静态/动态壁纸跨三平台，自研引擎与视频性能设置 |
 
-### 🧩 其它（3）
+### 🧩 其它（6）
 
 | 插件 | 简介 |
 | --- | --- |
 | [<img src="plugins/batch-rename/public/assets/market/icon.svg" width="20" alt=""> **批量重命名**](plugins/batch-rename) ✅ | 查找替换/序号/日期规则链实时预览，冲突检测与撤销 |
 | [<img src="plugins/lan-share/public/assets/market/icon.svg" width="20" alt=""> **局域网传件**](plugins/lan-share) ✅ | 同一 Wi-Fi 取件码 + 二维码向手机传文件，限时自动关闭 |
 | [<img src="plugins/memes/public/assets/market/icon.svg" width="20" alt=""> **表情包**](plugins/memes) | ChineseBQB + 发表情双数据源：分类浏览、关键词搜索、点击即复制（动图保动画）、收藏与本地导入 |
+| [<img src="plugins/game-box/public/assets/market/icon.svg" width="20" alt=""> **游戏盒子**](plugins/game-box) | 多数据源游戏库与下载器：分片并发、断点续传，自动解压安装，统一启动与卸载 |
+| [<img src="plugins/free-canvas/public/assets/market/icon.svg" width="20" alt=""> **自由画布**](plugins/free-canvas) | 在屏幕上框选区域，摆放自己的时钟、便签、待办、番茄钟、计算器与进程概览 |
+| [<img src="plugins/free-desktop/public/assets/market/icon.svg" width="20" alt=""> **自由桌面**](plugins/free-desktop) | 可退出的桌面工作区：文件收纳、便签、时钟与四边程序栏，需在插件内确认后才接管桌面 |
 
-> 未标注 ✅ 的插件（甘特图、AI 生图、漫画屋、小说屋、影视仓、壁纸社、表情包）已在仓库可用，将随下个 Release 分发。
+> 未标注 ✅ 的插件（甘特图、AI 生图、媒体浏览、漫画屋、小说屋、影视仓、壁纸社、表情包、游戏盒子、自由画布、自由桌面）已在仓库可用，将随下个 Release 分发。
 
 ## 🚀 快速开始
 
@@ -165,7 +168,9 @@ git clone https://github.com/hyqf98/eNest_plugin.git ~/Work/eNest_plugin
 ln -s ~/Work/eNest_plugin/skills/enest-development ~/.agents/skills/enest-development
 ```
 
-技能内按任务路由到对应权威文档：改壳窗口/IPC/安全 → `docs/developer/host-development.md`；新建插件 → `getting-started.md` + `structure.md`；UI → `ui-standard.md`；调试白屏/HMR → `debug.md`；构建发布 → `structure.md` + schema。类型签名以 `packages/plugin-sdk/index.d.ts` 为准。
+技能内的 `references/` 自带完整的官方指南（API 参考、TypeScript 类型、权限、存储、主题等），由同步脚本生成，所以软链或复制到任何技能目录后都能直接读取。技能按任务路由到对应文件：查 `window.enest` 方法与权限 → `references/api.md` 的「方法索引」；改壳窗口/IPC/安全 → `host-development.md`；新建插件 → `getting-started.md` + `structure.md`；UI → `ui-standard.md`；调试白屏/HMR → `debug.md`。类型签名以 `packages/plugin-sdk/index.d.ts` 为准。
+
+**维护文档**：宿主契约指南只在宿主仓库的 `docs/site/plugin/` 修改（它同时是官网网页版），插件仓自有指南改 `docs/developer/` 对应文件；然后在插件仓运行 `npm run docs:sync -- --host-root /path/to/eNest`，`docs/developer/` 与技能 `references/` 一起更新。不要直接改 `references/`，`npm run docs:check` 会把这类改动或陈旧副本判为失败。
 
 **人工开发**同样建议按此顺序入门：[开发入门](docs/developer/getting-started.md) → [工程结构](docs/developer/structure.md) → [manifest 参考](docs/developer/manifest.md) → [UI 标准](docs/developer/ui-standard.md)。
 
@@ -206,7 +211,7 @@ REPO=hyqf98/eNest_plugin TAG=plugins-local node scripts/prepare-release.mjs
 
 推送 `v*` / `plugins-*` 标签或手动触发已带标签的工作流才创建正式 Release。CI 要求源码校验、全部构建、发行检查、生产 CSP 检查、打包和索引生成全部通过；普通分支推送不触发发布工作流。
 
-`build-registry.mjs` 从最终 ZIP 提取 manifest 与市场资源生成 `dist/registry.json`；壳子从 [市场索引](https://github.com/hyqf98/eNest_plugin/releases/latest/download/registry.json) 发现版本，SHA-256 校验后安装。通用包命名 `{id}@{version}.enestplugin`，平台包 `{id}@{version}-{平台}.enestplugin`。
+`build-registry.mjs` 从最终 ZIP 提取 manifest 与市场资源生成 `dist/registry.json`。恢复发行后，宿主从 Release 市场索引发现版本，校验 SHA-256 后安装。通用包命名 `{id}@{version}.enestplugin`，平台包 `{id}@{version}-{平台}.enestplugin`。
 
 ## 🤝 参与贡献
 

@@ -1103,7 +1103,6 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
   }
 
   function mountActiveTerminal() {
-    if (document.documentElement.dataset.mode === 'panel') return
     const panel = $('panel-term'), active = activeSession()
     if (!panel) return
     const compact = document.documentElement.dataset.launchMode === 'quick'
@@ -1181,7 +1180,6 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
   }
 
   function termFocus() {
-    if (document.documentElement.dataset.mode === 'panel') return
     const s = activeSession()
     if (s?.term?.focus) s.term.focus()
   }
@@ -1455,6 +1453,8 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
           s.metrics.push({ ts: d.ts || Date.now(), ...normalizeMetrics(metrics) })
           if (s.metrics.length > 120) s.metrics = s.metrics.slice(-120)
           if (activeSessionId === s.tabId) renderMetrics()
+          // The server overview shows the same reading without opening a second connection.
+          window.dispatchEvent(new CustomEvent('ssh-session-sample', { detail: { profileId: s.profileId, sessionId: sid, sample: metrics } }))
         }
       }
     })
@@ -2448,43 +2448,9 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     if (!tree) return
     const ui = store.state.ui
 
-    const filterRow = $('filter-row')
-    if (filterRow) {
-      const showFilters =
-        document.activeElement === $('search-input') ||
-        !!(ui.filterEnv || ui.filterRecent || ui.filterFavorite || ui.filterTag || (ui.search || '').trim())
-      if (!showFilters) {
-        filterRow.innerHTML = ''
-      } else {
-        const envNames = { prod: '生产', staging: '预发', dev: '开发' }
-        const envs = ['', 'prod', 'staging', 'dev']
-        filterRow.innerHTML =
-          envs
-            .map(
-              (e) =>
-                '<button class="chip ' +
-                (ui.filterEnv === e ? 'active' : '') +
-                '" data-filter="env" data-value="' +
-                e +
-                '">' +
-                (envNames[e] || '全部') +
-                '</button>'
-            )
-            .join('') +
-          '<button class="chip ' +
-          (ui.filterRecent ? 'active' : '') +
-          '" data-filter="recent">最近</button>' + '<button class="chip ' + (ui.filterFavorite ? 'active' : '') + '" data-filter="favorite">收藏</button>'
-      }
-      filterRow.onclick = (ev) => {
-        const btn = ev.target.closest('.chip')
-        if (!btn) return
-        const kind = btn.dataset.filter
-        if (kind === 'env') store.setUi({ filterEnv: btn.dataset.value || '' })
-        else if (kind === 'recent') store.setUi({ filterRecent: !ui.filterRecent })
-        else if (kind === 'favorite') store.setUi({ filterFavorite: !ui.filterFavorite })
-        renderLeft()
-      }
-    }
+    // 搜索框下方原来有一排筛选按钮（全部 / 生产 / 预发 / 开发 / 最近 / 收藏），已按需求移除：
+    // 搜索保留，按环境筛选不再提供，「最近连接」仍可在侧栏 ⋯ 菜单里切换。
+    // #filter-row 容器留着（骨架里有这个节点），不再写入内容。
 
     const searchInput = $('search-input')
     if (searchInput && document.activeElement !== searchInput) searchInput.value = ui.search || ''
@@ -2529,7 +2495,8 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     const selected = ui.selectedGroupId === id
     const color = group?.color || ''
     const childGroups = group ? store.childrenOf(group.id) : store.childrenOf('')
-    const searching = !!((ui.search || '').trim() || ui.filterEnv || ui.filterRecent || ui.filterFavorite || ui.filterTag)
+    // 与 store.matchesFilters 保持一致：只剩搜索词与「最近连接」会过滤列表
+    const searching = !!((ui.search || '').trim() || ui.filterRecent)
     const isOpen = searching || !collapsed
     const profiles =
       directProfiles ||
@@ -3919,7 +3886,6 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     $('btn-sftp-refresh').onclick = () => void sftpRefresh()
     // F5：SFTP 面板可见时刷新目录（保留既有行为）
     window.addEventListener('keydown', (ev) => {
-      if (document.documentElement.dataset.mode === 'panel') return
       if (ev.key !== 'F5') return
       const panel = $('panel-sftp')
       if (!panel || !panel.classList.contains('active')) return

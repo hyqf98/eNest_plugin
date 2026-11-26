@@ -36,7 +36,7 @@ plugins/calculator/       # 目录短名等于 manifest.id 的末段
 
 选择文件夹后直接在该目录启动，不安装到源码仓库，也不复制到 `~/.eNest/plugins/`。声明的开发服务未运行时，壳子按插件 `package.json` 解析出的启动命令拉起并等待就绪（进程由壳子管理，忘记插件/退出时回收；端口被占时自动改用空闲端口）。命令解析零预设：包管理器按锁文件检测（pnpm/yarn/bun/npm）或 `enest.dev.manager` 显式声明，脚本按 `scripts.dev` → `scripts.start` 回退，非 node 工具链可写 `enest.dev.command` 原始命令逃生舱。无 `development` 声明且无可用脚本的纯静态插件直接预览源码并监听变更自动重载。含裸 npm import、Vue SFC 或 TypeScript 的源码必须走开发服务方式，壳子不代替框架编译。
 
-`development.main` 是完整 URL，例如 `http://192.168.1.20:5173/`，保持 `main: "index.html"` 不变。端口须与该插件启动脚本一致且全仓唯一（现按插件分配 5173–5208），加载时若端口被其它进程占用，壳子会自动换用空闲端口，无需手工避让。不能将磁盘路径放进 `development.main`，不能添加 `development.mode` 或 `development.url`（URL 覆盖写 `package.json` 的 `enest.dev.url`）。生产清单由构建脚本自动移除 development，发行检查拒绝它。
+`development.main` 是完整 URL，例如 `http://192.168.1.20:5173/`，保持 `main: "index.html"` 不变。端口须与该插件启动脚本一致且全仓唯一（新增插件时取当前最大端口号加一，先确认未被占用；清单校验只检查 URL 合法性，不比对端口重复），加载时若端口被其它进程占用，壳子会自动换用空闲端口，无需手工避让。不能将磁盘路径放进 `development.main`，不能添加 `development.mode` 或 `development.url`（URL 覆盖写 `package.json` 的 `enest.dev.url`）。生产清单由构建脚本自动移除 development，发行检查拒绝它。
 
 ## 构建与框架
 

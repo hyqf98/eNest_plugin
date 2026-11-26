@@ -282,7 +282,7 @@
       }
 
       const resizeNow = () => {
-        if (document.documentElement.dataset.mode === 'panel' || !container.clientWidth || !container.clientHeight) return
+        if (!container.clientWidth || !container.clientHeight) return
         const previousCols = term.cols
         try {
           if (fit) fit.fit()
@@ -293,12 +293,21 @@
         if (handlers && handlers.onResize) handlers.onResize(cols, rows)
       }
 
+      // 只有读到的值真的变了才写 term.options。每次写入都会让 xterm 重排并改自己的 class，
+      // 而 paper-theme 的观察者监听着 body 子树的 class，同值重写会把两边接成死循环。
+      let lastAppearance = ''
       const syncAppearance = () => {
-        term.options.theme = termThemeFromCss()
-        term.options.fontFamily = cssVar('--mono', fontFamily)
+        const theme = termThemeFromCss()
+        const nextFontFamily = cssVar('--mono', fontFamily)
         const base = parseFloat(cssVar('--font-size-base', '13'))
         const scale = Number.isFinite(base) ? Math.min(1.3, Math.max(.85, base / 13)) : 1
-        term.options.fontSize = (Number(SshStore?.state?.ui?.fontSize) || fontSize) * scale
+        const nextFontSize = (Number(SshStore?.state?.ui?.fontSize) || fontSize) * scale
+        const key = JSON.stringify(theme) + '\n' + nextFontFamily + '\n' + nextFontSize + '\n' + (document.documentElement.hasAttribute('data-appearance-layout') ? 1 : 0)
+        if (key === lastAppearance) return
+        lastAppearance = key
+        term.options.theme = theme
+        term.options.fontFamily = nextFontFamily
+        term.options.fontSize = nextFontSize
         resizeNow()
       }
       const appearanceObserver = new MutationObserver(syncAppearance)
@@ -515,7 +524,7 @@
     }
 
     function resizeNow() {
-      if (document.documentElement.dataset.mode === 'panel' || !container.clientWidth || !container.clientHeight) return
+      if (!container.clientWidth || !container.clientHeight) return
       const size = estimateSize(pre.parentElement || container)
       if (handlers && handlers.onResize) handlers.onResize(size.cols, size.rows)
     }

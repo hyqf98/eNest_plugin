@@ -22,6 +22,7 @@
   "features": [
     {
       "code": "main",
+      "title": "正则表达式调试",
       "explain": "正则测试与调试",
       "cmds": [
         "正则",

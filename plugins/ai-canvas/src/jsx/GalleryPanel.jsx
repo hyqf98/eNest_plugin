@@ -25,7 +25,7 @@ function dayKey(at) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function Tile({ item, selected, onToggle, onOpen, onRename, onDelete }) {
+function Tile({ item, selected, onToggle, onOpen, onRename, onDelete, askText }) {
   const [url, setUrl] = useState(null)
   useEffect(() => {
     let alive = true
@@ -47,9 +47,9 @@ function Tile({ item, selected, onToggle, onOpen, onRename, onDelete }) {
     </label>
     <figcaption className="ac-tile-meta">
       <span className="ac-tile-name" title={`${name}（双击重命名）`}
-        onDoubleClick={() => {
-          const next = window.prompt('重命名图片', name)
-          if (next && next.trim() && next.trim() !== name) onRename(item.assetId, next.trim())
+        onDoubleClick={async () => {
+          const next = await askText('重命名图片', name)
+          if (next && next !== name) onRename(item.assetId, next)
         }}>{name}</span>
       <span className="ac-tile-time">{formatTime(item.record?.at ?? item.createdAt)}</span>
     </figcaption>
@@ -59,7 +59,7 @@ function Tile({ item, selected, onToggle, onOpen, onRename, onDelete }) {
   </figure>
 }
 
-export function GalleryPanel({ onOpenImage, onClose, onChanged }) {
+export function GalleryPanel({ onOpenImage, onClose, onChanged, askText }) {
   const [items, setItems] = useState([])
   const [selected, setSelected] = useState(() => new Set())
   const [loading, setLoading] = useState(true)
@@ -138,7 +138,7 @@ export function GalleryPanel({ onOpenImage, onClose, onChanged }) {
                 <Tile key={item.assetId} item={item}
                   selected={selected.has(item.assetId)}
                   onToggle={toggle} onOpen={onOpenImage} onRename={rename}
-                  onDelete={removeOne} />
+                  onDelete={removeOne} askText={askText} />
               ))}
             </div>
           </section>

@@ -278,8 +278,10 @@ export function App() {
     }
   }, [saveHistory])
 
-  const savePrefs = useCallback(() => {
-    const prefs = { srcLang: srcRef.current, tgtLang: tgtRef.current, engine: engineRef.current }
+  /* next：调用方刚 setState 的新值。React 批处理下 ref 要到下一次渲染才更新，而 kit.setPref 会
+     同步触发 onSettings → applyPrefs()，读到过期 ref 就会把刚选的语言写回旧值并立刻回滚。 */
+  const savePrefs = useCallback((next = {}) => {
+    const prefs = { srcLang: srcRef.current, tgtLang: tgtRef.current, engine: engineRef.current, ...next }
     if (kitRef.current) Object.assign(kitRef.current.settings, prefs)
     preferenceQueueRef.current = preferenceQueueRef.current
       .catch(() => {})
@@ -290,11 +292,11 @@ export function App() {
       .catch((e) => kitRef.current?.toast('偏好保存失败：' + e.message, 'error'))
   }, [])
 
-  const changeDirection = useCallback(({ rerun = true } = {}) => {
+  const changeDirection = useCallback(({ rerun = true, ...next } = {}) => {
     invalidate()
     setResult(null)
     syncButtons()
-    savePrefs()
+    savePrefs(next)
     if (rerun && queryValueRef.current.trim()) void run()
   }, [invalidate, savePrefs, run, syncButtons])
 
@@ -523,7 +525,7 @@ export function App() {
       kitRef.current?.setQuery(result.text)
     }
     detectedRef.current = ''
-    changeDirection()
+    changeDirection({ srcLang: tgt, tgtLang: srcV })
   }
 
   /* renderLangChips 在原版是命令式刷新；React 下 chips 由渲染派生，保留空实现兼容初始化调用 */
@@ -541,12 +543,12 @@ export function App() {
           <div className="language-bar">
             {/* 原生 select + plugin-kit upgradeSelects 自动升级（复刻原版机制，内容自适应宽） */}
             <select id="src" className="lang-pick" aria-label="源语言" value={src}
-              onChange={(e) => { setSrc(e.target.value); changeDirection() }}>
+              onChange={(e) => { setSrc(e.target.value); changeDirection({ srcLang: e.target.value }) }}>
               {LANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <button id="swap" aria-label="交换语言" onClick={swap}>⇄</button>
             <select id="tgt" className="lang-pick" aria-label="目标语言" value={tgt}
-              onChange={(e) => { setTgt(e.target.value); changeDirection() }}>
+              onChange={(e) => { setTgt(e.target.value); changeDirection({ tgtLang: e.target.value }) }}>
               {LANG_OPTIONS_NO_AUTO.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <div className="common">
@@ -557,14 +559,14 @@ export function App() {
                     key={lang} data-lang={lang}
                     className={st.active ? 'active' : undefined}
                     disabled={st.disabled} title={st.title}
-                    onClick={() => { setTgt(lang); changeDirection() }}
+                    onClick={() => { setTgt(lang); changeDirection({ tgtLang: lang }) }}
                   >{lang === 'zh-CN' ? '中' : lang === 'en' ? '英' : lang === 'ja' ? '日' : lang === 'ko' ? '韩' : '法'}</button>
                 )
               })}
             </div>
             <span className="spacer"></span>
             <select id="engine" aria-label="翻译引擎" value={engine}
-              onChange={(e) => { setEngine(e.target.value); changeDirection() }}>
+              onChange={(e) => { setEngine(e.target.value); changeDirection({ engine: e.target.value }) }}>
               {ENGINE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <button className="quick-only" id="quick-history" onClick={() => setHistoryOpen(true)}>历史</button>
@@ -580,10 +582,10 @@ export function App() {
               </div>
               <textarea
                 id="input" ref={inputRef}
-                spellcheck="false"
+                spellCheck="false"
                 placeholder="输入或粘贴文本，点击翻译"
                 aria-label="待翻译文本"
-                maxlength="10000"
+                maxLength="10000"
                 value={input}
                 onChange={(e) => { setInput(e.target.value); queryValueRef.current = e.target.value; inputChanged() }}
                 onKeyDown={(e) => {

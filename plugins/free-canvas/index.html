@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>自由画布</title><script type="module" src="./src/entry.js"></script></head>
+<body><main><header><span class="eyebrow">ENEST / CANVAS</span><h1>自由画布</h1><p>框出一块自己的工作区。小组件只在这里运行，不改变系统桌面。</p></header>
+<section class="tools" aria-label="画布工具"><label>显示器 <select id="display"></select></label><label><input type="checkbox" id="top"> 窗口置顶</label><button id="select" class="primary">在屏幕上框选</button><button id="new">新建普通画布</button><button id="import">导入旧布局</button></section>
+<p id="status" role="status" aria-live="polite">正在读取私有画布…</p><section aria-label="我的画布" id="boards"></section></main></body></html>

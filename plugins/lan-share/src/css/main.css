@@ -56,22 +56,34 @@ html, body, #root { height: 100%; }
   box-shadow: 0 1px 3px color-mix(in srgb, var(--text, #292c2e) 14%, transparent);
 }
 
-/* —— 布局 —— */
+/* —— 布局：占满头部以下的全部高度，两列等高 —— */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(210px, 1fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 @container (max-width: 720px) {
   .layout { grid-template-columns: 1fr; }
 }
 
 .panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 16px;
   border: 1px solid var(--border, #d9dfe6);
   border-radius: 8px;
   background: var(--surface, #fff);
+}
+/* 视图撑满面板：投放区 / 分享中视图作为舞台吃掉剩余高度 */
+.view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .panel-head {
   display: flex;
@@ -92,6 +104,9 @@ html, body, #root { height: 100%; }
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 180px;
   gap: 6px;
   padding: 36px 20px 30px;
   border: 1.5px dashed var(--border-strong, #b8c2cf);
@@ -268,7 +283,7 @@ html, body, #root { height: 100%; }
 .btn:disabled { opacity: 0.45; }
 .btn:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #bd542b) 20%, transparent); }
 
-/* —— 分享中 —— */
+/* —— 分享中：码 + 二维码在上，日志吃掉剩余高度 —— */
 .live-grid {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -349,7 +364,13 @@ html, body, #root { height: 100%; }
 .live-meter .btn.danger { margin-left: auto; }
 
 /* —— 日志 —— */
-.log-block { margin-top: 16px; }
+.log-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-top: 16px;
+}
 .req-log {
   margin: 0;
   padding: 0;
@@ -357,7 +378,8 @@ html, body, #root { height: 100%; }
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 160px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   font-size: 11px;
 }
@@ -401,8 +423,10 @@ html, body, #root { height: 100%; }
 }
 .recv-dir-value.empty { color: var(--text-3, #82888b); }
 
-/* —— 侧栏 —— */
-.side { display: flex; flex-direction: column; gap: 14px; }
+/* —— 侧栏：设备名定高，历史面板吃掉剩余高度 —— */
+.side { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.device-panel { flex: none; }
+.history-panel { flex: 1; min-height: 0; }
 .device-input {
   width: 100%;
   min-height: 28px;
@@ -426,7 +450,8 @@ html, body, #root { height: 100%; }
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  max-height: 240px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 .history-list li {
@@ -450,6 +475,8 @@ html, body, #root { height: 100%; }
   font-variant-numeric: tabular-nums;
 }
 .history-list .empty { color: var(--text-3, #82888b); padding: 4px 0; }
+/* 空历史：提示在撑满的面板内居中，不让标题下一片空白 */
+.history-list:has(> .empty:only-child) { justify-content: center; }
 
 .status-line { margin: 0; min-height: 18px; font-size: 12px; color: var(--text-2, #666c70); }
 

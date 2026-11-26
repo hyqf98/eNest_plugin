@@ -1,0 +1,108 @@
+/**
+ * inspiration — 灵感数据源层（通用接口 + 适配器注册表）。
+ *
+ * 一个「灵感」= 一张示例图 + 一条可直接用的提示词。来源可以是任意站点或仓库，
+ * 只要提供一个适配器把它翻译成统一的条目结构。以后接新数据源只需新增一个适配器，
+ * 不必改灵感页。
+ *
+ * 宿主约束（决定了下面所有取数方式，不要绕开）：
+ * - 插件页 CSP 的 img-src 只放行 'self' / data: / blob:，所以示例图不能直接写外链 <img>，
+ *   必须经 net.fetch 取回字节再转成 blob: 地址（见 loadImage）。
+ * - net.fetch 非流式响应上限 2MB，并发上限 8（netFetch.mjs 自限 4）。索引文本走非流式；
+ *   图片走流式（32MB 上限）并按视口懒加载。
+ */
+
+import { downloadBinary } from '../netFetch.mjs'
+import { nanoBananaAdapter } from './nanoBananaAdapter.mjs'
+
+/** 适配器必须实现的形状：
+ *   {
+ *     id: string            // 稳定标识，用于缓存键
+ *     label: string         // 展示名
+ *     license: string       // 内容许可，灵感页标注来源时展示
+ *     homeUrl: string       // 来源主页
+ *     models: string[]      // 这批示例适用的生图模型（用于「对应的模型是什么」标注）
+ *     async loadIndex(): Promise<Inspiration[]>   // 拉取并解析全部条目（不含图片字节）
+ *     imageUrlOf(item): string                    // 条目示例图的原始地址
+ *   }
+ */
+export const adapters = new Map()
+
+export function registerAdapter(adapter) {
+  if (!adapter || typeof adapter.loadIndex !== 'function' || typeof adapter.imageUrlOf !== 'function') {
+    throw new Error('灵感数据源适配器缺少必要方法')
+  }
+  adapters.set(adapter.id, adapter)
+}
+
+export function getAdapter(id) {
+  return adapters.get(id) ?? null
+}
+
+/* —— 缓存：索引存进插件 KV（离线也能看文字），图片只放内存 —— */
+
+const INDEX_KEY = 'image-gen.inspiration.index.v1'
+const INDEX_TTL_MS = 12 * 36e5 // 12 小时内不重复拉索引
+
+function store() {
+  const enest = window.enest || window.zapi
+  if (!enest?.storage) throw new Error('宿主存储接口不可用')
+  return enest
+}
+
+/** 读索引：有新鲜缓存就直接用；否则调适配器拉取并落盘。force 跳过缓存。 */
+export async function loadInspirations({ force = false } = {}) {
+  const adapter = getAdapter('nano-banana')
+  if (!adapter) throw new Error('没有可用的灵感数据源')
+  let cached = null
+  if (!force) {
+    try { cached = await store().storage.get(INDEX_KEY) } catch { cached = null }
+    if (cached && cached.adapter === adapter.id && Date.now() - (cached.at ?? 0) < INDEX_TTL_MS && Array.isArray(cached.items)) {
+      return { items: cached.items, adapter, fromCache: true }
+    }
+  }
+  const items = await adapter.loadIndex()
+  const payload = { adapter: adapter.id, at: Date.now(), items }
+  try { await store().storage.set(INDEX_KEY, payload) } catch { /* 缓存写不进去不影响使用 */ }
+  return { items, adapter, fromCache: false }
+}
+
+/* —— 图片：经 net.fetch 取字节 → blob: 地址，按条目缓存 —— */
+
+const blobCache = new Map()     // imageUrl → blob:
+const pending = new Map()       // imageUrl → Promise<string>
+
+/** 把一张示例图取回并转成可显示的 blob: 地址；同一地址只取一次。 */
+export function loadImage(imageUrl) {
+  if (!imageUrl) return Promise.resolve('')
+  if (blobCache.has(imageUrl)) return Promise.resolve(blobCache.get(imageUrl))
+  if (pending.has(imageUrl)) return pending.get(imageUrl)
+  const work = downloadBinary(imageUrl)
+    .then(bytes => {
+      const blob = new Blob([bytes], { type: sniffImageMime(bytes) })
+      const url = URL.createObjectURL(blob)
+      blobCache.set(imageUrl, url)
+      return url
+    })
+    .finally(() => pending.delete(imageUrl))
+  pending.set(imageUrl, work)
+  return work
+}
+
+function sniffImageMime(bytes) {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) return 'image/png'
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return 'image/jpeg'
+  if (bytes[0] === 0x47 && bytes[1] === 0x49) return 'image/gif'
+  if (bytes[0] === 0x52 && bytes[8] === 0x57) return 'image/webp'
+  return 'application/octet-stream'
+}
+
+/** 释放全部图片缓存（离开灵感页时调用，避免 blob 地址常驻） */
+export function releaseImages() {
+  for (const url of blobCache.values()) URL.revokeObjectURL(url)
+  blobCache.clear()
+}
+
+/* 内置数据源：适配器只依赖 netFetch 与解析器，不依赖本模块，这里注册不会形成循环引用。
+   以后接入新的来源，在这里再 registerAdapter 一个适配器即可。 */
+registerAdapter(nanoBananaAdapter)

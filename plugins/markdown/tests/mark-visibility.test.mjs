@@ -1,48 +1,94 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { EditorSelection, EditorState, StateField } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
+import MarkdownIt from 'markdown-it'
+import { createInlinePlugin, inlineMarkDecorations, selectionTouches } from '../src/cm/inlineDecorations.js'
+import { InlineImage, InlineMath, TaskCheckbox } from '../src/cm/inlineWidgets.js'
+import { inlineMarkdownSyntax, renderTaskLists } from '../src/render/inlineSyntax.js'
 
-/**
- * 验证「光标碰到标记才显形」的判定语义（与 src/cm/live.js 的 touched 一致）。
- * touched = sel.from <= to + 1 && sel.to >= from - 1
- */
-function touched(sel, from, to) {
-  return sel.from <= to + 1 && sel.to >= from - 1
+const language = markdown({ base: markdownLanguage, extensions: [inlineMarkdownSyntax] })
+const live = { config: { enabled: true, editing: true }, blocks: [] }
+function entries(set) {
+  const result = []
+  for (const cursor = set.iter(); cursor.value; cursor.next()) {
+    result.push({ from: cursor.from, to: cursor.to, ...cursor.value.spec })
+  }
+  return result
+}
+function marks(doc, selection, model = live) {
+  const state = EditorState.create({ doc, selection, extensions: [language, EditorState.allowMultipleSelections.of(true)] })
+  return entries(inlineMarkDecorations(state, [{ from: 0, to: doc.length }], model, new Map()))
+}
+function media(doc, selection) {
+  const field = StateField.define({ create: () => live, update: previous => previous })
+  const state = EditorState.create({ doc, selection, extensions: [language, field, createInlinePlugin(field)] })
+  return state.facet(EditorView.decorations).filter(value => typeof value !== 'function').flatMap(entries)
 }
 
-test('光标在标记外 → 标记隐藏', () => {
-  // 标记是 ## (0-2)，光标在第 5 个字符
-  assert.equal(touched({ from: 5, to: 5 }, 0, 2), false)
+test('真实选区触及语法两端才揭示，不向左右多一字；非空选区按半开区间相交', () => {
+  assert.equal(selectionTouches([{ from: 1, to: 1 }], 2, 8), false)
+  assert.equal(selectionTouches([{ from: 8, to: 8 }], 2, 8), true)
+  assert.equal(selectionTouches([{ from: 8, to: 8 }], 2, 8, false), false)
+  assert.equal(selectionTouches([{ from: 8, to: 12 }], 2, 8), false)
+  assert.equal(selectionTouches([{ from: 0, to: 1 }, { from: 5, to: 9 }], 2, 8), true)
 })
 
-test('光标紧贴标记右边界 → 标记显形', () => {
-  // 标记 ## 后紧跟空格，光标落在第 3 位（空格处）
-  assert.equal(touched({ from: 3, to: 3 }, 0, 2), true)
+test('点在中文粗体第二个字始终是同一源码下标，两个定界符只成对展开', () => {
+  const doc = '前 **粗体** 后'
+  const source = marks(doc, { anchor: doc.indexOf('体') })
+  const syntax = source.filter(part => part.class === 'md-syntax-marker')
+  assert.deepEqual(syntax.map(({ from, to }) => [from, to]), [[2, 4], [6, 8]])
+  assert.deepEqual(source.find(part => part.class === 'md-strong'), { from: 4, to: 6, class: 'md-strong' })
+  const rendered = marks(doc, { anchor: 0 })
+  assert.deepEqual(rendered.filter(part => !part.class && !part.widget), [{ from: 2, to: 4 }, { from: 6, to: 8 }])
+  assert.deepEqual(marks(doc, { anchor: 5 }, { ...live, config: { enabled: true, editing: false } }), rendered)
 })
 
-test('光标在标记内部 → 显形', () => {
-  assert.equal(touched({ from: 1, to: 1 }, 0, 2), true)
+test('多选区可同时编辑高亮和强调，引用前缀永远是真实文字而非占位 widget', () => {
+  const doc = '> ==高亮== 和 *斜体*'
+  const selection = EditorSelection.create([EditorSelection.cursor(doc.indexOf('亮')), EditorSelection.cursor(doc.indexOf('体'))])
+  const parts = marks(doc, selection)
+  assert.equal(parts.filter(part => part.class === 'md-syntax-marker').length, 4)
+  assert.deepEqual(parts.find(part => part.class === 'md-quote-prefix'), { from: 0, to: 1, class: 'md-quote-prefix' })
+  assert.equal(marks(doc, { anchor: 0 }).find(part => part.from === 0).class, 'md-syntax-marker')
 })
 
-test('光标在标记左边界前一字符 → 显形（便于直接删）', () => {
-  // 标记从 2 开始，光标在 1
-  assert.equal(touched({ from: 1, to: 1 }, 2, 4), true)
+test('表格、元数据、代码块、行内代码中的标记不产生正文公式或高亮', () => {
+  const doc = '正文 `==保留== $x$`\n\n```md\n==字面量== $y$\n```\n\n| 值 |\n| --- |\n| $z$ |'
+  assert.ok(marks(doc, { anchor: 0 }).some(part => part.class === 'md-code'))
+  assert.ok(!marks(doc, { anchor: 0 }).some(part => part.class === 'md-highlight'))
+  assert.ok(!media(doc, { anchor: 0 }).some(part => part.widget instanceof InlineMath))
+  const source = '---\n标题: ==原样==\n---'
+  assert.ok(!marks(source, { anchor: 0 }, { ...live, blocks: [{ type: 'meta', from: 0, to: source.length }] }).some(part => part.class === 'md-highlight'))
 })
 
-test('光标远离两字符以上 → 隐藏', () => {
-  assert.equal(touched({ from: 0, to: 0 }, 3, 5), false)
+test('公式和重复引用图片保留各自源码范围；进入其中一个不影响另一处', () => {
+  const image = '![同图][id]{width=40%}', formula = '$e^{i\\pi}+1=0$'
+  const doc = `${image}\n\n${formula}\n\n${image}\n\n[id]: <assets/图.png>`
+  const values = media(doc, { anchor: doc.lastIndexOf(image) + 3 })
+  assert.deepEqual(values.filter(part => part.widget instanceof InlineImage).map(({ from, to }) => [from, to]), [[0, image.length]])
+  assert.equal(values.find(part => part.widget instanceof InlineImage).widget.image.url, 'assets/图.png')
+  assert.deepEqual(values.filter(part => part.widget instanceof InlineMath).map(({ from, to }) => doc.slice(from, to)), [formula])
 })
 
-test('选区跨越标记 → 显形', () => {
-  assert.equal(touched({ from: 0, to: 10 }, 2, 4), true)
+test('嵌套代码中的等号不截断高亮；转义、未闭合与美元价格保留原文', () => {
+  const doc = '😀 ==`a==b` **亮**==；\\$转义；$20 和 $30；==未闭合'
+  const parts = marks(doc, { anchor: 0 })
+  assert.equal(doc.slice(parts.find(part => part.class === 'md-highlight').from, parts.find(part => part.class === 'md-highlight').to), '`a==b` **亮**')
+  assert.ok(parts.some(part => part.class === 'md-code'))
+  assert.ok(parts.some(part => part.class === 'md-strong'))
+  assert.ok(!media(doc, { anchor: 0 }).some(part => part.widget instanceof InlineMath))
 })
 
-test('行内元素样式：光标在元素内 → 不套样式（纯文本可编辑）', () => {
-  // 与 live.js 中 `if (touched) return undefined` 对应
-  const insideEmphasis = touched({ from: 4, to: 4 }, 2, 8)
-  assert.equal(insideEmphasis, true) // → 不套 md-strong，显示 **粗体** 原文
-})
-
-test('行内元素样式：光标离开 → 套样式且标记隐藏', () => {
-  const outside = touched({ from: 20, to: 20 }, 2, 8)
-  assert.equal(outside, false) // → 套 md-strong + 隐藏 ** 
+test('只有 GFM 任务项呈现复选框；编辑列表前缀时保留完整的 Markdown 标记', () => {
+  const doc = '- [x] 完成\n- 普通 [x] 文本\n\n普通 [ ] 提示'
+  const preview = marks(doc, { anchor: doc.length })
+  assert.equal(preview.filter(part => part.widget instanceof TaskCheckbox).length, 1)
+  assert.ok(!marks(doc, { anchor: 0 }).some(part => part.widget instanceof TaskCheckbox))
+  const exported = new MarkdownIt().use(renderTaskLists).render(`${doc}\n\n[x]: /target`)
+  assert.equal(exported.match(/type="checkbox"/g).length, 1)
+  assert.match(exported, /disabled checked/)
+  assert.match(exported, /普通 <a href="\/target">x<\/a> 文本/)
 })

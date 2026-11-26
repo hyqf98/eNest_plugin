@@ -187,9 +187,9 @@
   min-width: 0;
 }
 
-/* 折叠态：两行高度 + 底部渐隐提示可展开 */
+/* 折叠态：两行高度 + 底部渐隐提示可展开（两行 chip 27×2 + 6 gap） */
 .mm-chips.is-clamped {
-  max-height: 58px;
+  max-height: 60px;
   overflow: hidden;
   position: relative;
 }
@@ -200,7 +200,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  height: 22px;
+  height: 12px;
   background: linear-gradient(to bottom, transparent, var(--bg));
   pointer-events: none;
 }
@@ -224,7 +224,11 @@
   background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--text);
   font-size: 12px;
-  padding: 4px 10px;
+  line-height: 17px;
+  height: 27px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;

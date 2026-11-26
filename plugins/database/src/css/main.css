@@ -808,7 +808,14 @@ body {
   color: var(--text-2);
   min-width: 0;
 }
-.form-grid label.span2 { grid-column: 1 / -1; }
+/* 下拉框撑满所在列。plugin-kit 会把 <select> 包进 <div class="pk-select">（inline-flex、宽度随内容）
+   并隐藏原生 select，所以下面那条 `select { width: 100% }` 管不到它——「数据库类型」「环境」
+   原先只有 120px 宽，在 254px 的格子里右边空出一大块，与同行的输入框不齐。 */
+.form-grid .pk-select { width: 100%; min-width: 0; }
+.form-grid .pk-select .pk-select-trigger { width: 100%; max-width: none; }
+/* 跨满整行。原规则只写 `label.span2`，而分区标题是 <div class="span2 form-section-title">，
+   命不中，于是「身份与安全」被排进 254px 的左格、挤在「用户名」下面。按 class 判定，不看标签名。 */
+.form-grid > .span2 { grid-column: 1 / -1; }
 .form-grid input,
 .form-grid select,
 .form-grid textarea,

@@ -1,8 +1,6 @@
 /** canvas / video 缩略图与视频元信息。 */
 
-export function thumbFromCanvas(canvas, { maxEdge = 320, quality = 0.72, topCrop = false } = {}) {
-  const sourceWidth = canvas.width
-  const sourceHeight = canvas.height
+function thumbnail(source, sourceWidth, sourceHeight, { maxEdge = 320, quality = 0.72, topCrop = false } = {}) {
   if (!sourceWidth || !sourceHeight) throw new Error('画布为空')
   let sx = 0, sy = 0, sw = sourceWidth, sh = sourceHeight
   if (topCrop) {
@@ -20,16 +18,16 @@ export function thumbFromCanvas(canvas, { maxEdge = 320, quality = 0.72, topCrop
   const target = document.createElement('canvas')
   target.width = width
   target.height = height
-  target.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, width, height)
+  target.getContext('2d').drawImage(source, sx, sy, sw, sh, 0, 0, width, height)
   return target.toDataURL('image/jpeg', quality)
 }
 
+export function thumbFromCanvas(canvas, options) {
+  return thumbnail(canvas, canvas.width, canvas.height, options)
+}
+
 export function thumbFromImage(image, options = {}) {
-  const canvas = document.createElement('canvas')
-  canvas.width = image.naturalWidth || image.width
-  canvas.height = image.naturalHeight || image.height
-  canvas.getContext('2d').drawImage(image, 0, 0)
-  return thumbFromCanvas(canvas, options)
+  return thumbnail(image, image.naturalWidth || image.width, image.naturalHeight || image.height, options)
 }
 
 export function thumbFromDataUrl(dataUrl, options = {}) {

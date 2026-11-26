@@ -36,6 +36,7 @@
   "features": [
     {
       "code": "main",
+      "title": "剪贴板",
       "explain": "查看历史记录，点选即复制回剪贴板",
       "cmds": [
         "剪贴板",
@@ -47,11 +48,13 @@
     },
     {
       "code": "manage",
+      "title": "剪贴板管理",
       "explain": "管理剪贴板历史",
       "cmds": [
         "剪贴板管理",
         "剪贴板历史",
-        "jtgl"
+        "jtgl",
+        "clipboard history"
       ]
     }
   ],

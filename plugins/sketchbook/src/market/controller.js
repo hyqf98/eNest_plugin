@@ -166,6 +166,12 @@ export function createController(bridge, hooks = {}) {
     catch (error) { patch({ notice: error.message }) }
   }
 
+  async function openFileSearch() {
+    if (disposed || state.config?.fileSearchEnabled !== true || typeof bridge.openFileSearch !== 'function') return
+    try { if (!await bridge.openFileSearch()) patch({ notice: zh('本地文件检索不可用。', 'Local file search is unavailable.') }) }
+    catch { patch({ notice: zh('未能打开本地文件检索。', 'Could not open local file search.') }) }
+  }
+
   function cancelReadme() { readmeAbort?.abort(); readmeAbort = undefined }
 
   async function loadDetailReadme(detail, seq, generation) {
@@ -290,7 +296,10 @@ export function createController(bridge, hooks = {}) {
         if (command.pluginId) void showDetail(command.pluginId)
         break
       }
-      case 'refresh': void refreshCatalog(); break
+      case 'refresh':
+        if (command.reason === 'manual') void refreshCatalog()
+        else void refreshCatalogSilently()
+        break
       case 'settingsChanged':
         void bridge.getConfig().then(config => { if (!disposed) patch({ config }) }).catch(() => undefined)
         break
@@ -351,7 +360,7 @@ export function createController(bridge, hooks = {}) {
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
     start, dispose,
     setQuery, setBasePage, setCategory: category => patch({ category }),
-    navigate, openPlugin, activateSearchHandle, manage,
+    navigate, openPlugin, activateSearchHandle, openFileSearch, manage,
     refreshCatalog, dismissNotice: () => patch({ notice: null }),
   }
 }

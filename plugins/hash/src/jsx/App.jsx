@@ -617,15 +617,11 @@ export function App() {
             </span>
           </div>
           <textarea
-            id="hash-input" rows="4" spellcheck="false"
+            id="hash-input" rows="4" spellCheck="false"
             placeholder="输入即算：同屏展示 SHA-1/224/256/384/512 与 MD5"
             value={hashText}
             onChange={(e) => setHashText(e.target.value)}
           />
-          <p id="hash-empty" className="empty-state" hidden={!!hashText}>
-            <span className="empty-title">输入即算</span>
-            在上方粘贴文本，六种算法并行出值；也可以把文件拖进下方虚线框算 SHA-256 摘要，用于校验下载完整性。
-          </p>
         </div>
 
         <section className="hash-file">
@@ -706,7 +702,7 @@ export function App() {
           </div>
           <div className="verify-row">
             <input
-              id="verify-input" className="mono" spellcheck="false"
+              id="verify-input" className="mono" spellCheck="false"
               placeholder="例如 3a985da74fe225b2 04a85f4c…"
               value={verifyInput}
               onChange={(e) => setVerifyInput(e.target.value)}
@@ -761,7 +757,7 @@ export function App() {
               <div className="grow">
                 <label htmlFor="hmac-key">密钥</label>
                 <div className="key-row">
-                  <input id="hmac-key" className="mono" spellcheck="false" placeholder="密钥文本"
+                  <input id="hmac-key" className="mono" spellCheck="false" placeholder="密钥文本"
                     value={hmacKey} onChange={(e) => setHmacKey(e.target.value)} />
                   <button id="hmac-gen-key" title="生成 32 字节随机密钥（base64）"
                     onClick={() => setHmacKey(randomB64(32))}>随机</button>
@@ -784,7 +780,7 @@ export function App() {
               <div className="grow">
                 <label htmlFor="aes-key">密钥（base64，16/24/32 字节）</label>
                 <div className="key-row">
-                  <input id="aes-key" className="mono" spellcheck="false" placeholder="留空则点击生成"
+                  <input id="aes-key" className="mono" spellCheck="false" placeholder="留空则点击生成"
                     value={aesKey} onChange={(e) => setAesKey(e.target.value)} />
                   <button id="aes-gen-key" onClick={() => { setAesKey(randomB64(32)); setAesError('') }}>生成密钥</button>
                 </div>
@@ -792,7 +788,7 @@ export function App() {
               <div className="grow">
                 <label htmlFor="aes-iv">IV（base64，12 字节）</label>
                 <div className="key-row">
-                  <input id="aes-iv" className="mono" spellcheck="false" placeholder="留空则点击生成"
+                  <input id="aes-iv" className="mono" spellCheck="false" placeholder="留空则点击生成"
                     value={aesIv} onChange={(e) => setAesIv(e.target.value)} />
                   <button id="aes-gen-iv" onClick={() => setAesIv(randomB64(12))}>生成 IV</button>
                 </div>
@@ -800,7 +796,7 @@ export function App() {
             </div>
             <div className="field">
               <label htmlFor="aes-text">明文 / 密文（base64）</label>
-              <textarea id="aes-text" rows="3" className="mono" spellcheck="false"
+              <textarea id="aes-text" rows="3" className="mono" spellCheck="false"
                 placeholder="加密时输入明文；解密时粘贴 base64 密文"
                 value={aesText} onChange={(e) => setAesText(e.target.value)} />
             </div>
@@ -826,7 +822,7 @@ export function App() {
             </div>
             <div className="field">
               <label htmlFor="rsa-text">明文 / 密文（base64）</label>
-              <textarea id="rsa-text" rows="2" className="mono" spellcheck="false"
+              <textarea id="rsa-text" rows="2" className="mono" spellCheck="false"
                 placeholder="公钥加密明文；私钥解密 base64 密文"
                 value={rsaText} onChange={(e) => setRsaText(e.target.value)} />
             </div>
@@ -858,7 +854,7 @@ export function App() {
         <p className="hint jwt-note">仅解码展示 header / payload（不验签）；签名段原样透出。</p>
         <div className="field">
           <label htmlFor="jwt-input">JWT</label>
-          <textarea id="jwt-input" rows="4" className="mono" spellcheck="false"
+          <textarea id="jwt-input" rows="4" className="mono" spellCheck="false"
             placeholder="eyJhbGciOi... 粘贴三段式 JWT"
             value={jwtInput} onChange={(e) => setJwtInput(e.target.value)} />
         </div>

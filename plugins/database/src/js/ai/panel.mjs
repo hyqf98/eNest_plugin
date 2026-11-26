@@ -17,6 +17,7 @@ import { state, setUiPref, getConnection } from '../store.js'
 import { createAgent, setBoundConnection, getBoundConnection } from './agent.mjs'
 import { summarizeArgs } from './confirm.mjs'
 import { mountPanelBody } from './a2ui/PanelBody.jsx'
+import { askText } from './a2ui/PromptDialog.jsx'
 import { createA2uiHost } from './a2ui/session.mjs'
 import { refreshCharts, watchThemeChanges, resizeChart } from './a2ui/charts.mjs'
 import { registerAiPanel } from './registry.mjs'
@@ -605,10 +606,13 @@ function createAiPanel() {
       bindWorkbenchConnection()
       syncConnection()
     }
-    titleBtn.onclick = () => {
+    titleBtn.onclick = async () => {
       if (!session) return
-      const next = window.prompt('重命名会话', session.title)
-      if (next !== null) { void renameSession(session.id, next); session = { ...session, title: session.title }; void getSession(session.id).then((s) => { session = s || session; renderHeader() }) }
+      // renameSession 原地改缓存里的 session 并返回它；空标题保留原名
+      const next = await askText({ title: '重命名会话', defaultValue: session.title })
+      if (next === null) return
+      session = (await renameSession(session.id, next)) || session
+      renderHeader()
     }
     sendBtn.onclick = () => void submit()
     stopBtn.onclick = () => agent?.stop()

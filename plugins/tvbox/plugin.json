@@ -17,6 +17,7 @@
   "features": [
     {
       "code": "main",
+      "title": "影视仓",
       "explain": "影视仓：导入配置源，聚合搜索与多线路播放",
       "cmds": [
         "影视",

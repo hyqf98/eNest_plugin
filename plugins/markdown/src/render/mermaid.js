@@ -74,17 +74,13 @@ function treeToHtml(state, code) {
   if (pos < code.length) html += esc(code.slice(pos));
   return html;
 }
-function highlightFence(code, info) {
-  return { html: `<pre class="cm-static-lines">${esc(code)}</pre>` };
+function highlightFence(code) {
+  return { html: `<div class="cm-static-lines">${esc(code)}</div>` };
 }
-/**
- * 异步补语法高亮：`highlightFence` 先给纯文本保证首帧立刻可读，
- * 语言包按需加载成功后再替换成带 token 的 HTML。
- * 实际结构是 `.CodeMirror[data-lang] > pre.cm-static-lines`（data-lang 在容器上）。
- */
-async function hydrateFence(container) {
-  const nodes = Array.from(container.querySelectorAll(".CodeMirror[data-lang] > pre.cm-static-lines"));
+async function hydrateFence(container, signal) {
+  const nodes = container.querySelectorAll(".CodeMirror[data-lang] > .cm-static-lines");
   for (const pre of nodes) {
+    if (signal?.aborted) return;
     const holder = pre.parentElement;
     const lang = holder?.getAttribute("data-lang") || "";
     if (!lang || pre.dataset.hydrated === "1") continue;
@@ -93,7 +89,7 @@ async function hydrateFence(container) {
     try {
       const support = await resolveLanguage(lang);
       if (!support) continue;
-      if (!pre.isConnected) continue;
+      if (signal?.aborted) return;
       const state = EditorState.create({ doc: code, extensions: [support, syntaxHighlighting(highlightStyle)] });
       const html = treeToHtml(state, code);
       if (html) pre.innerHTML = html;
@@ -149,19 +145,28 @@ function mermaidConfig(dark, look) {
     themeVariables: dark ? darkVars : lightVars
   };
 }
-async function renderMermaidBlock(code, holder, look = "handDrawn", dark = false) {
+let diagramQueue = Promise.resolve();
+async function renderDiagram(code, look, dark, signal) {
+  if (signal?.aborted) return null;
+  const cacheKey = `${look}|${dark ? 1 : 0}|${code}`;
+  let svg = svgCache.get(cacheKey);
+  if (!svg) {
+    const mermaid = await loadMermaid();
+    if (signal?.aborted) return null;
+    mermaid.initialize(mermaidConfig(dark, look));
+    const rendered = await mermaid.render(`md-mermaid-svg-${++mermaidSeq}`, code);
+    svg = rendered.svg;
+    if (svgCache.size >= SVG_CACHE_MAX) svgCache.delete(svgCache.keys().next().value);
+    svgCache.set(cacheKey, svg);
+  }
+  return svg;
+}
+async function renderMermaidBlock(code, holder, look = "handDrawn", dark = false, signal) {
   try {
-    const cacheKey = `${look}|${dark ? 1 : 0}|${code}`;
-    let svg = svgCache.get(cacheKey);
-    if (!svg) {
-      const mermaid = await loadMermaid();
-      const id = `md-mermaid-svg-${++mermaidSeq}`;
-      mermaid.initialize(mermaidConfig(dark, look));
-      const rendered = await mermaid.render(id, code);
-      svg = rendered.svg;
-      if (svgCache.size >= SVG_CACHE_MAX) svgCache.delete(svgCache.keys().next().value);
-      svgCache.set(cacheKey, svg);
-    }
+    const pending = diagramQueue.then(() => renderDiagram(code, look, dark, signal));
+    diagramQueue = pending.then(() => {}, () => {});
+    const svg = await pending;
+    if (!svg || signal?.aborted) return;
     holder.innerHTML = svg;
     holder.classList.add("md-mermaid-done");
     const svgEl = holder.querySelector("svg");
@@ -170,6 +175,7 @@ async function renderMermaidBlock(code, holder, look = "handDrawn", dark = false
       svgEl.style.maxWidth = "100%";
     }
   } catch (error) {
+    if (signal?.aborted) return;
     holder.classList.add("md-mermaid-error");
     const msg = error instanceof Error ? error.message : String(error);
     holder.innerHTML = `<div class="md-mermaid-error-card"><span class="md-mermaid-error-title">Mermaid \u56FE\u5F62\u6E32\u67D3\u5931\u8D25</span><pre>${esc(msg)}</pre></div>`;

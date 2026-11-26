@@ -14,11 +14,6 @@
     "net.socket",
     "clipboard.read",
     "clipboard.write",
-    "clipboard.readImage",
-    "clipboard.writeImage",
-    "pin.create",
-    "shell.openExternal",
-    "notify",
     "backend.node"
   ],
   "window": {
@@ -28,6 +23,7 @@
   "features": [
     {
       "code": "main",
+      "title": "远程桌面",
       "explain": "远程桌面连接与管理",
       "cmds": [
         "远程桌面",

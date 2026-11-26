@@ -1,11 +1,13 @@
 /* 录制 / 长截图控制条：自身持有 capture 流，页面只负责写私有文件。 */
+import { projectRect, rasterSize, sameDisplay } from './geometry.js'
+
 const api = window.enestAux
 const context = await api.getContext()
 const data = context.data || {}
-const mode = data.mode === 'longshot' ? 'longshot' : 'record'
-const display = context.display || { width: 0, height: 0, scaleFactor: 1 }
-const bounds = data.bounds || { x: 0, y: 0, width: 1, height: 1 }
-const withAudio = data.withAudio === true
+const mode = data.mode
+const displaySize = rasterSize(context.display)
+const bounds = data.bounds
+const withAudio = mode === 'record' && data.withAudio === true
 
 const bar = document.getElementById('bar')
 const label = document.getElementById('label')
@@ -13,6 +15,7 @@ const sub = document.getElementById('sub')
 const preview = document.getElementById('preview')
 const video = document.getElementById('video')
 const crop = document.getElementById('crop')
+const cropContext = crop.getContext('2d')
 const buttons = {
   start: document.getElementById('start'),
   pause: document.getElementById('pause'),
@@ -22,14 +25,9 @@ const buttons = {
 }
 
 const CHUNK = 512 * 1024
-const sourceWidth = Math.round((display.width || 0) * (display.scaleFactor || 1))
-const sourceHeight = Math.round((display.height || 0) * (display.scaleFactor || 1))
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
-const cropX = clamp(Math.round(bounds.x), 0, Math.max(0, sourceWidth - 1))
-const cropY = clamp(Math.round(bounds.y), 0, Math.max(0, sourceHeight - 1))
-const cropW = Math.max(1, Math.min(sourceWidth - cropX || bounds.width, Math.round(bounds.width)))
-const cropH = Math.max(1, Math.min(sourceHeight - cropY || bounds.height, Math.round(bounds.height)))
-const maxHeight = Math.max(240, Math.min(16000, Math.floor(32_000_000 / Math.max(1, cropW))))
+let frameWidth = 0, frameHeight = 0, frameCrop = null
+let cropW = 0, cropH = 0, maxHeight = 0
 
 let stream = null
 let output = null
@@ -42,8 +40,9 @@ let pausedAt = 0
 let pausedTotal = 0
 let manualPaused = false
 let stopping = false
-let audioLost = false
+let savingRecording = false
 let sequence = 0
+let writtenBytes = 0
 let pendingBytes = 0
 let writeChain = Promise.resolve()
 const acks = new Map()
@@ -55,7 +54,7 @@ let loopId = 0
 function setState(name, nextLabel, nextSub) {
   bar.dataset.state = name
   if (nextLabel !== undefined) label.textContent = nextLabel
-  if (nextSub !== undefined) sub.textContent = nextSub
+  if (nextSub !== undefined) { sub.textContent = nextSub; sub.title = nextSub }
 }
 
 function controls(names) {
@@ -70,11 +69,37 @@ function formatClock(ms) {
 }
 
 function videoRect() {
-  const vw = video.videoWidth || 1
-  const vh = video.videoHeight || 1
-  const sx = vw / (sourceWidth || vw)
-  const sy = vh / (sourceHeight || vh)
-  return { x: cropX * sx, y: cropY * sy, w: cropW * sx, h: cropH * sy }
+  const width = video.videoWidth, height = video.videoHeight
+  if (frameCrop && frameWidth === width && frameHeight === height) return frameCrop
+  if (!width || !height) throw new Error('未收到屏幕画面')
+  const fit = Math.min(width / displaySize.width, height / displaySize.height)
+  if (width - displaySize.width * fit > 2 || height - displaySize.height * fit > 2) {
+    throw new Error('采集画面与所选显示器比例不符，请重新选择范围')
+  }
+  const rect = projectRect(bounds, displaySize, { width, height })
+  const pixels = projectRect(bounds, displaySize, { width, height }, true)
+  if (pixels.width < 1 || pixels.height < 1) throw new Error('当前采集分辨率下选区过小，请扩大范围')
+  frameWidth = width
+  frameHeight = height
+  frameCrop = { ...rect, outputWidth: pixels.width, outputHeight: pixels.height }
+  return frameCrop
+}
+
+function endCapture(error) {
+  if (stopping) return
+  if (mode === 'record' && startedAt) void stopRecording(error.message)
+  else if (mode === 'longshot' && longshot?.totalH) void stopLongshot(false, error.message)
+  else fail(error)
+}
+
+function drawCropFrame() {
+  if (video.readyState < 2) return false
+  let rect
+  try { rect = videoRect() } catch (error) { endCapture(error); return false }
+  try {
+    cropContext.drawImage(video, rect.x, rect.y, rect.width, rect.height, 0, 0, cropW, cropH)
+    return true
+  } catch (error) { endCapture(error); return false }
 }
 
 function waitAck(sequenceId) {
@@ -106,39 +131,66 @@ function releaseStream() {
 }
 
 function fail(error) {
-  if (bar.dataset.state === 'saved') return
+  if (['saved', 'cancelled', 'error'].includes(bar.dataset.state)) return
   stopping = true
+  savingRecording = false
   releaseStream()
   const text = String(error?.message || error || '操作失败')
-  setState('error', '操作失败', text.slice(0, 40))
+  setState('error', '操作失败', text)
   controls(['cancel'])
   void api.post({ type: 'failed', message: text }).catch(() => {})
 }
 
-async function getStream(audio) {
-  return navigator.mediaDevices.getDisplayMedia({
-    video: { width: { max: 4096 }, height: { max: 4096 }, frameRate: { max: 30 } },
-    audio
-  })
-}
-
 async function ensureStream() {
-  if (stream) return
+  if (!sameDisplay(data.display, context.display)) {
+    throw new Error('显示器设置已变化，请重新选择录制范围')
+  }
+  if (withAudio && context.capture?.withAudio !== true) throw new Error('控制条未获系统声音采集授权，请重新发起录屏')
+  let acquired
   try {
-    stream = await getStream(withAudio)
+    acquired = await navigator.mediaDevices.getDisplayMedia({
+      video: { width: { max: 4096 }, height: { max: 4096 }, frameRate: { max: 30 } },
+      audio: withAudio,
+      systemAudio: withAudio ? 'include' : 'exclude'
+    })
   } catch (error) {
-    if (!withAudio) throw error
-    audioLost = true
-    stream = await getStream(false)
+    if (stopping) return false
+    if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
+      throw new Error(`未获${withAudio ? '屏幕或系统声音' : '屏幕'}采集授权，请检查 eNest 的屏幕录制权限后重试`)
+    }
+    if (withAudio) throw new Error(`无法开始带系统声音的录屏：${error?.message || '设备不可用'}。可关闭「录制系统声音」后重试`)
+    throw error
+  }
+  if (stopping) {
+    acquired.getTracks().forEach(track => track.stop())
+    return false
+  }
+  stream = acquired
+  const track = stream.getVideoTracks()[0]
+  if (!track || track.readyState === 'ended') throw new Error('屏幕采集已结束')
+  track.addEventListener('ended', () => endCapture(new Error('屏幕采集已结束')), { once: true })
+  if (withAudio) {
+    const audioTrack = stream.getAudioTracks().find(track => track.enabled && track.readyState === 'live')
+    if (!audioTrack) throw new Error('未取得系统音轨，录屏未开始。请检查系统声音采集权限，或关闭「录制系统声音」后重试')
+    audioTrack.addEventListener('ended', () => endCapture(new Error('系统声音采集已结束')), { once: true })
+  } else {
+    for (const audioTrack of stream.getAudioTracks()) { audioTrack.stop(); stream.removeTrack(audioTrack) }
   }
   video.srcObject = stream
   await video.play()
-  if (!video.videoWidth) {
+  if (stopping) return false
+  if (video.readyState < 2 || !video.videoWidth) {
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('未收到屏幕画面')), 8000)
       video.addEventListener('loadeddata', () => { clearTimeout(timer); resolve() }, { once: true })
     })
   }
+  if (stopping) return false
+  const rect = videoRect()
+  crop.width = cropW = rect.outputWidth
+  crop.height = cropH = rect.outputHeight
+  maxHeight = Math.max(240, Math.min(16000, Math.floor(32_000_000 / cropW)))
+  return true
 }
 
 function chooseMime(hasAudio) {
@@ -150,14 +202,18 @@ function chooseMime(hasAudio) {
 
 function elapsedNow() {
   if (!startedAt) return 0
-  const paused = pausedTotal + (manualPaused && pausedAt ? Date.now() - pausedAt : 0)
+  const paused = pausedTotal + (pausedAt ? Date.now() - pausedAt : 0)
   return Math.max(0, Date.now() - startedAt - paused)
+}
+
+function postTiming(type, elapsedMs = elapsedNow()) {
+  void api.post({ type, elapsedMs }).catch(() => {})
 }
 
 function startTimer() {
   clearInterval(timerId)
   timerId = setInterval(() => {
-    if (!stopping && startedAt) sub.textContent = `${formatClock(elapsedNow())}${audioLost ? ' · 无声' : ''}`
+    if (!stopping && startedAt) sub.textContent = `${formatClock(elapsedNow())}${!manualPaused && pausedAt ? ' · 等待写入' : ''}`
   }, 250)
 }
 
@@ -174,24 +230,23 @@ function thumbOfCrop() {
 async function writeBlob(blob) {
   const bytes = new Uint8Array(await blob.arrayBuffer())
   for (let offset = 0; offset < bytes.length; offset += CHUNK) {
+    if (stopping && !savingRecording) return
     const slice = bytes.slice(offset, offset + CHUNK)
     const id = sequence++
-    await api.post({ type: 'chunk', sequence: id, bytes: slice.buffer })
-    await waitAck(id)
+    await Promise.all([waitAck(id), api.post({ type: 'chunk', sequence: id, bytes: slice.buffer })])
+    writtenBytes += slice.byteLength
   }
   pendingBytes = Math.max(0, pendingBytes - blob.size)
   if (!stopping && !manualPaused && pendingBytes < 1024 * 1024 && recorder?.state === 'paused') {
-    try { recorder.resume() } catch { /* ignore */ }
+    resumeEncoder()
   }
 }
 
 /* ---------- 录屏 ---------- */
 function renderLoop() {
   if (stopping) return
-  try {
-    const rect = videoRect()
-    crop.getContext('2d').drawImage(video, rect.x, rect.y, rect.w, rect.h, 0, 0, cropW, cropH)
-  } catch { /* frame not ready */ }
+  drawCropFrame()
+  if (stopping) return
   if (video.requestVideoFrameCallback) videoFrame = video.requestVideoFrameCallback(renderLoop)
   else raf = requestAnimationFrame(renderLoop)
 }
@@ -200,33 +255,35 @@ async function countdown() {
   for (const value of [3, 2, 1]) {
     if (stopping) return
     setState('countdown', String(value), '准备录制')
-    await new Promise(resolve => setTimeout(resolve, 700))
+    await new Promise(resolve => setTimeout(resolve, 1000))
   }
 }
 
 async function startRecording() {
-  if (stopping) return
+  if (stopping || bar.dataset.state !== 'idle') return
   setState('preparing', '录屏', '正在准备…')
   controls(['cancel'])
   try {
-    await ensureStream()
-    crop.width = cropW
-    crop.height = cropH
+    if (!await ensureStream() || stopping) return
     renderLoop()
+    if (stopping) return
     output = crop.captureStream(30)
-    for (const track of stream.getAudioTracks()) output.addTrack(track)
+    if (withAudio) for (const track of stream.getAudioTracks()) output.addTrack(track)
     const hasAudio = output.getAudioTracks().length > 0
     const bitrate = Math.max(2_500_000, Math.min(10_000_000, Math.round(cropW * cropH * 2.4)))
     recorder = new MediaRecorder(output, { mimeType: chooseMime(hasAudio), videoBitsPerSecond: bitrate })
     recorder.onerror = event => fail(event.error || new Error('录制失败'))
-    recorder.onstop = () => { if (recorderStopped) { const resolve = recorderStopped; recorderStopped = null; resolve() } }
+    recorder.onstop = () => {
+      if (recorderStopped) recorderStopped()
+      else if (startedAt && !stopping) fail(new Error('录屏编码意外停止，未能生成完整的录屏文件'))
+    }
     recorder.ondataavailable = event => {
       const blob = event.data
-      if (!blob?.size || stopping) return
+      if (!blob?.size || (stopping && !savingRecording)) return
       pendingBytes += blob.size
       writeChain = writeChain.then(() => writeBlob(blob)).catch(error => fail(error))
       if (pendingBytes > 8 * 1024 * 1024 && recorder.state === 'recording') {
-        try { recorder.pause() } catch { /* ignore */ }
+        try { pauseEncoder() } catch (error) { fail(error) }
       }
     }
     await countdown()
@@ -235,48 +292,57 @@ async function startRecording() {
     startedAt = Date.now()
     pausedTotal = 0
     manualPaused = false
-    setState('recording', '正在录制', `00:00${audioLost ? ' · 无声' : ''}`)
+    setState('recording', '正在录制', '00:00')
     controls(['pause', 'stop', 'cancel'])
     startTimer()
     await api.post({ type: 'started' })
   } catch (error) {
-    fail(error)
+    if (!stopping) fail(error)
   }
 }
 
-async function stopRecording(save) {
+async function stopRecording(reason = '') {
   if (stopping) return
+  if (!startedAt || !recorder) return cancel()
   stopping = true
+  savingRecording = true
+  const durationMs = elapsedNow()
+  const audio = output?.getAudioTracks().length > 0
   clearInterval(timerId)
   clearInterval(loopId)
-  setState('saving', save ? '正在保存…' : '正在取消…', '')
+  setState('saving', '正在保存…', reason)
+  postTiming('saving', durationMs)
   controls([])
   try {
-    if (recorder && recorder.state !== 'inactive') {
-      const done = new Promise(resolve => { recorderStopped = resolve })
-      recorder.stop()
-      await done
-    }
-    await writeChain.catch(() => {})
-    if (!save) {
-      await api.post({ type: 'cancel' }).catch(() => {})
-      await api.close()
-      return
-    }
-    const durationMs = elapsedNow()
-    const thumb = thumbOfCrop()
+    if (recorder.state === 'inactive') throw new Error('录屏编码已提前停止，未能生成完整文件')
+    let timer
+    try {
+      await new Promise((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('录屏编码器未能完成收尾，文件未保存')), 8000)
+        recorderStopped = resolve
+        recorder.stop()
+      })
+    } finally { clearTimeout(timer); recorderStopped = null }
+    releaseStream()
+    await writeChain
+    if (!savingRecording) return
+    if (!writtenBytes) throw new Error('没有可保存的录制画面')
+    let thumb = ''
+    try { thumb = thumbOfCrop() } catch {}
     const savedPromise = waitSaved()
     await api.post({
       type: 'stopped',
       durationMs,
       width: cropW,
       height: cropH,
-      bytes: pendingBytes,
+      bytes: writtenBytes,
+      chunks: sequence,
+      interruption: reason,
       thumb,
-      audio: output?.getAudioTracks().length > 0
+      audio
     })
     const saved = await savedPromise
-    if (saved?.ok !== false) {
+    if (saved?.ok) {
       setState('saved', '已保存', formatClock(durationMs))
       controls([])
       setTimeout(() => { void api.close() }, 900)
@@ -291,20 +357,32 @@ async function stopRecording(save) {
   }
 }
 
+function pauseEncoder() {
+  if (recorder.state !== 'recording') return
+  recorder.pause()
+  pausedAt = Date.now()
+  postTiming('paused')
+}
+
+function resumeEncoder() {
+  if (recorder.state !== 'paused') return
+  recorder.resume()
+  if (pausedAt) pausedTotal += Date.now() - pausedAt
+  pausedAt = 0
+  postTiming('recording')
+}
+
 function togglePause(paused) {
   if (!recorder || stopping) return
   try {
     if (paused) {
-      recorder.pause()
+      pauseEncoder()
       manualPaused = true
-      pausedAt = Date.now()
       setState('paused', '已暂停', formatClock(elapsedNow()))
       controls(['resume', 'stop', 'cancel'])
     } else {
-      if (pausedAt) pausedTotal += Date.now() - pausedAt
-      pausedAt = 0
       manualPaused = false
-      if (pendingBytes < 1024 * 1024) recorder.resume()
+      if (pendingBytes < 1024 * 1024) resumeEncoder()
       setState('recording', '正在录制', formatClock(elapsedNow()))
       controls(['pause', 'stop', 'cancel'])
       startTimer()
@@ -401,9 +479,7 @@ async function longshotStep() {
   if (!state || state.busy || stopping) return
   state.busy = true
   try {
-    const ctx = crop.getContext('2d')
-    const rect = videoRect()
-    ctx.drawImage(video, rect.x, rect.y, rect.w, rect.h, 0, 0, cropW, cropH)
+    if (!drawCropFrame()) return
     const sig = signature()
     if (!state.previous) {
       appendRows(0, cropH)
@@ -443,43 +519,41 @@ async function longshotStep() {
         void api.post({ type: 'progress', height: state.totalH }).catch(() => {})
       }
     }
-  } catch { /* frame skip */ } finally {
+  } catch (error) { endCapture(error) } finally {
     state.busy = false
   }
 }
 
 async function startLongshot() {
-  if (stopping) return
+  if (stopping || bar.dataset.state !== 'idle') return
   setState('preparing', '长截图', '正在准备…')
   controls(['cancel'])
   try {
-    await ensureStream()
-    crop.width = cropW
-    crop.height = cropH
+    if (!await ensureStream() || stopping) return
     longshot = { strips: [], totalH: 0, offset: 0, maxOffset: 0, previous: null, busy: false, lastPost: 0, skipped: 0 }
     preview.hidden = false
     setState('longshot', '长截图', '滚动页面，完成后点停止')
     controls(['stop', 'cancel'])
     startedAt = Date.now()
     await longshotStep()
+    if (stopping) return
     loopId = setInterval(() => { void longshotStep() }, 150)
     void api.post({ type: 'started' }).catch(() => {})
     timerId = setInterval(() => {
       if (!stopping) sub.textContent = `已采集 ${longshot.totalH}px`
     }, 700)
   } catch (error) {
-    fail(error)
+    if (!stopping) fail(error)
   }
 }
 
-async function stopLongshot(auto = false) {
-  if (stopping || !longshot) return
+async function stopLongshot(auto = false, reason = '') {
+  if (stopping) return
+  if (!longshot?.totalH) return startedAt ? fail(new Error('尚未取得可保存的长截图画面')) : cancel()
   stopping = true
-  clearInterval(loopId)
-  clearInterval(timerId)
-  loopId = 0
-  timerId = 0
-  setState('saving', '正在生成…', auto ? '已达到长度上限' : '')
+  releaseStream()
+  setState('saving', '正在生成…', reason || (auto ? '已达到长度上限' : ''))
+  postTiming('saving')
   controls([])
   try {
     const height = Math.max(1, longshot.totalH)
@@ -509,13 +583,12 @@ async function stopLongshot(auto = false) {
     await api.post({ type: 'image-start', bytes: bytes.byteLength, width: cropW, height, bounds, thumb: thumb.toDataURL('image/jpeg', 0.72) })
     for (let offset = 0, seq = 0; offset < bytes.length; offset += CHUNK, seq += 1) {
       const slice = bytes.slice(offset, offset + CHUNK)
-      await api.post({ type: 'image-chunk', seq, bytes: slice.buffer })
-      await waitAck(seq)
+      await Promise.all([waitAck(seq), api.post({ type: 'image-chunk', seq, bytes: slice.buffer })])
     }
     const savedPromise = waitSaved()
-    await api.post({ type: 'image-end', width: cropW, height, bounds })
+    await api.post({ type: 'image-end', width: cropW, height, bounds, interruption: reason, limitReached: auto })
     const saved = await savedPromise
-    if (saved?.ok !== false) {
+    if (saved?.ok) {
       setState('saved', '已保存', `${cropW} × ${height}`)
       controls([])
       setTimeout(() => { void api.close() }, 900)
@@ -539,18 +612,18 @@ api.onMessage(message => {
   }
   if (message.type === 'saved') savedResolve?.({ ok: message.ok !== false })
   if (message.type === 'stop') {
-    if (mode === 'record') void stopRecording(true)
+    if (mode === 'record') void stopRecording()
     else void stopLongshot(false)
   }
-  if (message.type === 'cancel') {
-    if (mode === 'record') void stopRecording(false)
-    else void cancel()
-  }
+  if (message.type === 'cancel') void cancel()
 })
 
 async function cancel() {
+  if (bar.dataset.state === 'error') { await api.close(); return }
   if (stopping) return
   stopping = true
+  setState('cancelled', '正在取消…', '')
+  controls([])
   try { if (recorder && recorder.state !== 'inactive') recorder.stop() } catch { /* ignore */ }
   releaseStream()
   await api.post({ type: 'cancel' }).catch(() => {})
@@ -560,21 +633,27 @@ async function cancel() {
 buttons.start.addEventListener('click', () => { void (mode === 'record' ? startRecording() : startLongshot()) })
 buttons.pause.addEventListener('click', () => togglePause(true))
 buttons.resume.addEventListener('click', () => togglePause(false))
-buttons.stop.addEventListener('click', () => { void (mode === 'record' ? stopRecording(true) : stopLongshot(false)) })
+buttons.stop.addEventListener('click', () => { void (mode === 'record' ? stopRecording() : stopLongshot(false)) })
 buttons.cancel.addEventListener('click', () => { void cancel() })
 
 addEventListener('keydown', event => {
   if (event.key === 'Escape') {
     event.preventDefault()
-    if (mode === 'record' && startedAt) void stopRecording(true)
-    else void cancel()
+    if (!startedAt) void cancel()
+    else if (mode === 'record') void stopRecording()
+    else void stopLongshot(false)
   }
 })
 addEventListener('pagehide', () => {
   stopping = true
+  savingRecording = false
   releaseStream()
 }, { once: true })
 
-label.textContent = mode === 'record' ? '录屏' : '长截图'
-sub.textContent = mode === 'record' ? '点击开始后录制' : '滚动页面采集'
-controls(['start', 'cancel'])
+if (mode !== 'record' && mode !== 'longshot') {
+  fail(new Error('采集模式无效，请重新开始'))
+} else {
+  label.textContent = mode === 'record' ? '录屏' : '长截图'
+  sub.textContent = mode === 'record' ? `点击开始 · ${withAudio ? '含系统声音' : '无声录制'}` : '滚动页面采集'
+  controls(['start', 'cancel'])
+}

@@ -2,10 +2,30 @@
 import { base64ToBytes, StreamSink } from './files.js'
 import { stampName } from './format.js'
 import { thumbFromDataUrl } from './media.js'
-import { captureDisplay, closeWindow, openBar, openFrame, openRegion, setFrameState } from './surfaces.js'
+import { captureDisplay, closeWindow, loadDisplays, openBar, openFrame, setFrameState } from './surfaces.js'
 
 function safeError(error) {
   return new Error(String(error?.message || error || '操作失败'))
+}
+
+const positiveInteger = value => Number.isSafeInteger(value) && value > 0
+
+function reportTiming(message, onState) {
+  if (Number.isSafeInteger(message.elapsedMs) && message.elapsedMs >= 0) onState?.(message.type, { elapsedMs: message.elapsedMs })
+}
+
+function sessionControls(bar, done, settling, finish) {
+  return {
+    done,
+    stop: async () => {
+      if (!settling() && !await bar.send({ type: 'stop' }) && !settling()) throw new Error('停止命令未送达，请在悬浮控制条点击「停止」以保存')
+    },
+    cancel: async () => {
+      if (settling()) return
+      await Promise.all([bar.send({ type: 'cancel' }), finish(null)])
+    },
+    close: () => settling() ? done : finish(null)
+  }
 }
 
 async function writeDataUrl(dataUrl, extension) {
@@ -19,9 +39,15 @@ async function writeDataUrl(dataUrl, extension) {
   }
 }
 
-/** 全屏截图：直接走宿主原生 capture，不入选区覆盖层。 */
-export async function captureFullscreen({ display, library }) {
-  const shot = await captureDisplay({ displayId: display.id })
+export async function captureStill({ display, bounds, library }) {
+  if (bounds) {
+    const current = (await loadDisplays()).find(entry => entry.id === display.id)
+    if (!current || current.scaleFactor !== display.scaleFactor ||
+      ['x', 'y', 'width', 'height'].some(axis => current.bounds[axis] !== display.bounds[axis])) {
+      throw new Error('显示器已变化，请重新框选')
+    }
+  }
+  const shot = await captureDisplay({ displayId: display.id, bounds })
   const file = await writeDataUrl(shot.dataUrl, 'png')
   const thumb = await thumbFromDataUrl(shot.dataUrl).catch(() => '')
   const item = await library.addSaved({
@@ -29,81 +55,30 @@ export async function captureFullscreen({ display, library }) {
     fileId: file.id,
     ext: 'png',
     thumb,
-    name: stampName('全屏截图'),
+    name: stampName(bounds ? '截图' : '全屏截图'),
     width: shot.width,
     height: shot.height,
     bytes: file.size,
-    source: 'fullscreen'
+    source: bounds ? 'capture' : 'fullscreen'
   })
-  return item
-}
-
-/**
- * 区域会话：返回图片条目，或 { action:'longshot'|'record', bounds, withAudio, region }。
- * 调用方拿到 longshot/record 后必须先打开 frame/bar，再 region.proceed()。
- */
-export async function openRegionSession({ display, withAudio = false, prefer = 'image' }) {
-  let sink = null
-  const region = await openRegion({
-    display,
-    withAudio,
-    prefer,
-    onImageStart: () => { sink = new StreamSink('png'); return sink },
-    onImageChunk: async (target, bytes) => { await target.write(bytes) },
-    onImageEnd: async (target, meta) => {
-      const file = await target.finish()
-      return { fileId: file.id, bytes: file.size, thumb: meta.thumb, width: meta.width, height: meta.height }
-    }
-  })
-  let result
-  try {
-    result = await region.done
-  } catch (error) {
-    await sink?.abort().catch(() => {})
-    throw safeError(error)
-  }
-  if (!result) {
-    await sink?.abort().catch(() => {})
-    return null
-  }
-  if (result.action === 'image' && result.fallback) {
-    try {
-      const shot = await captureDisplay({ displayId: display.id, bounds: result.bounds })
-      const file = await writeDataUrl(shot.dataUrl, 'png')
-      const thumb = await thumbFromDataUrl(shot.dataUrl, { topCrop: false }).catch(() => '')
-      return { action: 'image', fileId: file.id, bytes: file.size, thumb, width: shot.width, height: shot.height }
-    } catch (error) {
-      throw safeError(error)
-    }
-  }
-  if (result.action === 'image') return result
-  return { ...result, region }
-}
-
-export function imageFromRegionResult(result) {
-  return {
-    kind: 'image',
-    fileId: result.fileId,
-    ext: 'png',
-    thumb: result.thumb,
-    name: stampName('截图'),
-    width: result.width,
-    height: result.height,
-    bytes: result.bytes,
-    source: 'capture'
-  }
+  return { item, shotDataUrl: shot.dataUrl }
 }
 
 /** 长截图：frame 显示范围，bar 取流拼接并回传 PNG 分片。 */
-export async function startLongshot({ display, bounds, library, onProgress, onState }) {
+export async function startLongshot({ display, bounds, library, onProgress, onState, quickOrigin }) {
   let frameId = ''
   let finished = false
   let resolveDone
   let rejectDone
   const done = new Promise((resolve, reject) => { resolveDone = resolve; rejectDone = reject })
+  void done.catch(() => {})
   const sink = new StreamSink('png')
   let chain = Promise.resolve()
   let bar = null
+  let header = null
+  let receivedBytes = 0
+  let nextSequence = 0
+  let finalizing = false
 
   const cleanup = async (keepFile = false) => {
     if (!keepFile) await sink.abort().catch(() => {})
@@ -122,34 +97,53 @@ export async function startLongshot({ display, bounds, library, onProgress, onSt
   const finish = async item => {
     if (finished) return
     finished = true
-    await cleanup(true)
+    await cleanup(Boolean(item))
     onState?.('done', item)
     resolveDone(item)
   }
 
   try {
     frameId = await openFrame({ display, bounds, recording: false })
-    bar = await openBar({
+    const opening = openBar({
       mode: 'longshot',
+      quickOrigin,
       display,
       bounds,
       onMessage: message => {
-        if (!message || typeof message !== 'object') return
+        if (finished || finalizing || !message || typeof message !== 'object') return
+        if (message.type === 'image-start') {
+          if (header || ![message.bytes, message.width, message.height].every(positiveInteger)) { void fail(new Error('长截图数据无效')); return }
+          header = { bytes: message.bytes, width: message.width, height: message.height, thumb: message.thumb }
+          return
+        }
         if (message.type === 'image-chunk') {
+          const size = message.bytes?.byteLength
+          if (!header || message.seq !== nextSequence || !positiveInteger(size) || receivedBytes + size > header.bytes) {
+            void fail(new Error('长截图分片不完整，文件未保存')); return
+          }
+          nextSequence++
+          receivedBytes += size
           chain = chain.then(async () => {
+            if (finished) return
             await sink.write(message.bytes)
-            await bar?.send({ type: 'ack', sequence: message.seq })
+            if (!await (await opening).send({ type: 'ack', sequence: message.seq })) throw new Error('长截图传输中断，文件未保存')
           }).catch(error => { void fail(error) })
           return
         }
         if (message.type === 'image-end') {
+          if (!header || receivedBytes !== header.bytes || message.width !== header.width || message.height !== header.height) {
+            void fail(new Error('长截图未完整传输，文件未保存')); return
+          }
+          finalizing = true
           chain = chain.then(async () => {
+            if (finished) return
+            if (sink.bytes !== header.bytes) throw new Error('长截图未完整写入')
             const file = await sink.finish()
             const item = await library.addSaved({
               kind: 'image',
               fileId: file.id,
               ext: 'png',
-              thumb: message.thumb,
+              thumb: header.thumb,
               name: stampName('长截图'),
               width: message.width,
               height: message.height,
@@ -157,7 +151,7 @@ export async function startLongshot({ display, bounds, library, onProgress, onSt
               source: 'longshot'
             })
             await bar?.send({ type: 'saved', ok: true })
-            await finish(item)
+            await finish(message.interruption ? { ...item, interruption: message.interruption } : message.limitReached ? { ...item, limitReached: true } : item)
           }).catch(error => { void fail(error) })
           return
         }
@@ -167,35 +161,36 @@ export async function startLongshot({ display, bounds, library, onProgress, onSt
           return
         }
         if (message.type === 'started') { onState?.('running'); return }
+        if (message.type === 'saving') { reportTiming(message, onState); return }
         if (message.type === 'failed') { void fail(new Error(message.message || '长截图失败')); return }
         if (message.type === 'cancel') { void finish(null); return }
-        if (message.type === 'closed') { if (!finished) void finish(null) }
+        if (message.type === 'closed') void fail(new Error('长截图控制条已提前关闭，未能保存长图'))
       }
     })
-    onState?.('preparing')
+    bar = await opening
+    if (finished) await closeWindow(bar.windowId)
+    else onState?.('preparing')
   } catch (error) {
     await cleanup(false)
     throw safeError(error)
   }
 
-  return {
-    done,
-    stop: () => bar?.send({ type: 'stop' }),
-    cancel: async () => { await bar?.send({ type: 'cancel' }); await finish(null) },
-    close: () => cleanup(false)
-  }
+  return sessionControls(bar, done, () => finished || finalizing, finish)
 }
 
 /** 录屏：frame 显示范围，bar 取流/编码并回传 WebM 分片。 */
-export async function startRecorder({ display, bounds, withAudio = false, library, onState }) {
+export async function startRecorder({ display, bounds, withAudio = false, library, onState, quickOrigin }) {
   let frameId = ''
   let finished = false
   let resolveDone
   let rejectDone
   const done = new Promise((resolve, reject) => { resolveDone = resolve; rejectDone = reject })
+  void done.catch(() => {})
   const sink = new StreamSink('webm')
   let chain = Promise.resolve()
   let bar = null
+  let nextSequence = 0
+  let finalizing = false
 
   const cleanup = async (keepFile = false) => {
     if (!keepFile) await sink.abort().catch(() => {})
@@ -214,35 +209,46 @@ export async function startRecorder({ display, bounds, withAudio = false, librar
   const finish = async item => {
     if (finished) return
     finished = true
-    await cleanup(true)
+    await cleanup(Boolean(item))
     onState?.('done', item)
     resolveDone(item)
   }
 
   try {
-    frameId = await openFrame({ display, bounds, recording: true })
-    bar = await openBar({
+    frameId = await openFrame({ display, bounds, recording: false })
+    const opening = openBar({
       mode: 'record',
+      quickOrigin,
       display,
       bounds,
-      withAudio,
+      withAudio: withAudio === true,
       onMessage: message => {
-        if (!message || typeof message !== 'object') return
+        if (finished || finalizing || !message || typeof message !== 'object') return
         if (message.type === 'started') {
           if (frameId) setFrameState(frameId, true)
           onState?.('recording')
           return
         }
+        if (['paused', 'recording', 'saving'].includes(message.type)) { reportTiming(message, onState); return }
         if (message.type === 'chunk') {
+          if (message.sequence !== nextSequence || !positiveInteger(message.bytes?.byteLength)) {
+            void fail(new Error('录屏分片不完整，文件未保存')); return
+          }
+          nextSequence++
           chain = chain.then(async () => {
+            if (finished) return
             await sink.write(message.bytes)
-            await bar?.send({ type: 'ack', sequence: message.sequence })
+            if (!await (await opening).send({ type: 'ack', sequence: message.sequence })) throw new Error('录屏分片传输中断，文件未保存')
           }).catch(error => { void fail(error) })
           return
         }
         if (message.type === 'stopped') {
+          finalizing = true
           chain = chain.then(async () => {
+            if (finished) return
             try {
+              if (!positiveInteger(sink.bytes) || message.bytes !== sink.bytes || message.chunks !== nextSequence) throw new Error('录屏分片未完整写入，文件未保存')
+              if (message.audio !== (withAudio === true)) throw new Error('录屏音轨与所选设置不符，未能保存录屏')
               const file = await sink.finish()
               const item = await library.addSaved({
                 kind: 'video',
@@ -257,7 +263,7 @@ export async function startRecorder({ display, bounds, withAudio = false, librar
                 source: 'record'
               })
               await bar?.send({ type: 'saved', ok: true })
-              await finish(item)
+              await finish(message.interruption ? { ...item, interruption: message.interruption } : item)
             } catch (error) {
               await bar?.send({ type: 'saved', ok: false }).catch(() => {})
               throw error
@@ -267,20 +273,17 @@ export async function startRecorder({ display, bounds, withAudio = false, librar
         }
         if (message.type === 'failed') { void fail(new Error(message.message || '录制失败')); return }
         if (message.type === 'cancel') { void finish(null); return }
-        if (message.type === 'closed') { if (!finished) void finish(null) }
+        if (message.type === 'closed') { void fail(new Error('录屏控制条已提前关闭，未能生成完整的录屏文件')); return }
         if (message.type === 'progress') onState?.('progress', message)
       }
     })
-    onState?.('preparing')
+    bar = await opening
+    if (finished) await closeWindow(bar.windowId)
+    else onState?.('preparing')
   } catch (error) {
     await cleanup(false)
     throw safeError(error)
   }
 
-  return {
-    done,
-    stop: () => bar?.send({ type: 'stop' }),
-    cancel: async () => { await bar?.send({ type: 'cancel' }); await finish(null) },
-    close: () => cleanup(false)
-  }
+  return sessionControls(bar, done, () => finished || finalizing, finish)
 }

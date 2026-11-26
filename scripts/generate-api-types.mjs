@@ -19,7 +19,7 @@ for(const file of files){
 }
 const printer=ts.createPrinter({newLine:ts.NewLineKind.LineFeed})
 // Manifest-only contributions are public even when no runtime method references their types.
-const queue=['EnestPluginApi','EnestHomeApi','EnestWorkspaceApi','EnestQuickApi','ThemeChromeApi','EnestSettingsApi','PluginBackgroundBridge','AuxiliaryPageApi','McpToolDeclaration','McpErrorCode','OpenWithContribution','OpenWithEnterPayload'],seen=new Set(queue),blocks=[]
+const queue=['EnestPluginApi','EnestHomeApi','EnestWorkspaceApi','EnestQuickApi','ThemeChromeApi','EnestSettingsApi','PluginBackgroundBridge','AuxiliaryPageApi','McpToolDeclaration','McpErrorCode','OpenWithContribution','OpenWithEnterPayload','PluginFeature'],seen=new Set(queue),blocks=[]
 while(queue.length){
  const name=queue.shift();const entry=declarations.get(name)
  if(!entry)throw new Error(`Missing public API type ${name}`)
@@ -67,6 +67,11 @@ const commandValidatorText='/** Generated from the host shared launch declaratio
 const commandValidatorPath=join(repository,'packages/plugin-sdk/src/plugin-commands.mjs')
 if(check){if(!fs.existsSync(commandValidatorPath)||fs.readFileSync(commandValidatorPath,'utf8')!==commandValidatorText){console.error(`Out of date: ${commandValidatorPath}`);stale=true}}
 else fs.writeFileSync(commandValidatorPath,commandValidatorText)
+const marketAssetSource=fs.readFileSync(join(host,'src/shared/pluginMarketAssets.ts'),'utf8')
+const marketAssetText='/** Generated from the host shared market asset standard (icon and screenshot). Do not edit. */\n'+ts.transpileModule(marketAssetSource,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText
+const marketAssetPath=join(repository,'packages/plugin-sdk/src/market-assets.mjs')
+if(check){if(!fs.existsSync(marketAssetPath)||fs.readFileSync(marketAssetPath,'utf8')!==marketAssetText){console.error(`Out of date: ${marketAssetPath}`);stale=true}}
+else fs.writeFileSync(marketAssetPath,marketAssetText)
 const schemaText=JSON.stringify(schema,null,2)+'\n'
 for(const schemaCopy of [join(host,'src/shared/pluginManifest.schema.json'),sdkSchema]){
  if(check){if(!fs.existsSync(schemaCopy)||fs.readFileSync(schemaCopy,'utf8')!==schemaText){console.error(`Out of date: ${schemaCopy}`);stale=true}}

@@ -12,12 +12,12 @@
   },
   "permissions": [
     "clipboard.read",
-    "clipboard.write",
-    "shell.openExternal"
+    "clipboard.write"
   ],
   "features": [
     {
       "code": "main",
+      "title": "编解码",
       "explain": "Base64/URL/Hex/Unicode 等多格式互转",
       "cmds": [
         "编解码",
@@ -28,54 +28,64 @@
     },
     {
       "code": "base64",
+      "title": "Base64 编解码",
       "explain": "Base64 编解码",
-      "cmds": ["base64", "Base64编解码"]
+      "cmds": ["base64", "Base64编解码", "b64"]
     },
     {
       "code": "base64url",
+      "title": "Base64URL 编解码",
       "explain": "Base64URL 编解码",
       "cmds": ["base64url", "Base64URL编解码"]
     },
     {
       "code": "url",
+      "title": "URL 编解码",
       "explain": "URL 百分号编解码",
-      "cmds": ["URL编码", "URL解码", "百分号编码"]
+      "cmds": ["URL编码", "URL解码", "百分号编码", "url encode", "url decode"]
     },
     {
       "code": "hex",
+      "title": "十六进制编解码",
       "explain": "Hex 十六进制编解码",
       "cmds": ["hex", "十六进制编解码", "十六进制"]
     },
     {
       "code": "unicode",
+      "title": "Unicode 转义",
       "explain": "Unicode 转义编解码",
       "cmds": ["unicode", "Unicode转义"]
     },
     {
       "code": "html",
+      "title": "HTML 实体编解码",
       "explain": "HTML 实体编解码",
-      "cmds": ["HTML实体", "HTML转义"]
+      "cmds": ["HTML实体", "HTML转义", "html entities"]
     },
     {
       "code": "dataurl",
+      "title": "Data URL 编解码",
       "explain": "Data URL 编解码与文件查看",
       "cmds": ["dataurl", "Data URL"]
     },
     {
       "code": "jwt",
+      "title": "JWT 解码",
       "explain": "离线查看 JWT",
       "cmds": [
         "jwt",
         "jwt解码",
-        "b64"
+        "jwt decode"
       ]
     },
     {
       "code": "query",
+      "title": "URL 参数解析",
       "explain": "URL 参数解析",
       "cmds": [
         "url参数",
-        "urlcs"
+        "urlcs",
+        "query string"
       ]
     }
   ],

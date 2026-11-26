@@ -1,11 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const core = await import(
   pathToFileURL(resolve(root, "plugins/codec/src/js/core.mjs"))
 );
+
+test("b64 opens the Base64 feature, not the JWT viewer", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../plugin.json", import.meta.url), "utf8"));
+  const matches = manifest.features.filter(feature => feature.cmds.includes("b64"));
+  assert.deepEqual(matches.map(({ code, title }) => [code, title]), [["base64", "Base64 编解码"]]);
+});
 
 test("base64 / base64url round-trip and strict errors", () => {
   assert.equal(core.encodeBase64("hello"), "aGVsbG8=");

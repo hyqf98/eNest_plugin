@@ -6,8 +6,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPomodoroController } from '../timer/pomodoro.js'
-import { PanelView } from './PanelView.jsx'
-import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
+import { SettingsDialog } from './SettingsDialog.jsx'
+import { SettingsGear } from '../ui/index.jsx'
 
 const api = window.enest || window.zapi
 const timer = createPomodoroController(api)
@@ -17,7 +17,6 @@ const RING = 339.292
 
 export function App() {
   const kitRef = useRef(null)
-  const [mode, setMode] = useState(() => api?.getLaunchMode?.() || 'shell')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState(null)
   const [snapshot, setSnapshot] = useState(null)
@@ -29,7 +28,6 @@ export function App() {
   const [legacy, setLegacy] = useState(null)
   const [ready, setReady] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [loadError, setLoadError] = useState('')
   const [todayStats, setTodayStats] = useState({ todayCount: 0, minutes: 0, weekCount: 0 })
   const [quickToday, setQuickToday] = useState('')
 
@@ -215,8 +213,6 @@ export function App() {
       },
     })
     kitRef.current = kit
-    setMode(kit.mode)
-    const offMode = kit.onMode(setMode)
     // 设置变化仅更新待启参数；运行中的计时归 deadlineTasks，按启动时快照走完本阶段
     kit.onSettings((next, key) => {
       setSettings({ ...next })
@@ -255,7 +251,6 @@ export function App() {
         if (legacyData && !(await kit.load('pomo_stats_v1_backup', null))) await kit.save('pomo_stats_v1_backup', legacyData)
         setReady(true)
       } catch (e) {
-        setLoadError(e.message)
         setHint(e.message)
         kit.toast(e.message, 'error')
       }
@@ -272,7 +267,6 @@ export function App() {
       offKey()
       offEnter?.()
       offClose?.()
-      offMode()
       kit.destroy?.()
     }
   }, [])
@@ -336,22 +330,6 @@ export function App() {
     : (s.phase === 'focus' ? opts.focusMin : s.phase === 'break' ? opts.breakMin : opts.longBreakMin) * 60000
   const remaining = total > 0 ? Math.min(1, Math.max(0, ms / total)) : 0
   const ringOffset = RING * (1 - remaining)
-
-  if (mode === 'panel') {
-    return <PanelView
-      timeText={timeText}
-      statusText={statusText}
-      task={status === 'idle' ? task : opts.task}
-      remaining={remaining}
-      ready={ready}
-      busy={busy}
-      error={loadError}
-      todayCount={todayStats.todayCount}
-      toggleText={toggleText}
-      onToggle={() => void toggle()}
-      onExpand={() => { void api.ui.openInShell().catch(error => kitRef.current?.toast(error.message, 'error')) }}
-    />
-  }
 
   if (!s) {
     // 等价原 render() 的 if (!snapshot) return：快照未就绪时呈现静态初始 DOM

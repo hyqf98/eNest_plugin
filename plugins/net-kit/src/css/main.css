@@ -87,6 +87,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .nk-env { display: flex; gap: 4px; align-items: center; }
 /* 原生 select 已由 kit 升级为 .pk-select（类名迁移到 wrapper），宽度约束迁到 wrapper */
 .nk-env .pk-select { max-width: 160px; }
+/* 顶栏分档是 .nk-modes 的 32px（26px 按钮 + 2px 内距 + 1px 边框）：环境选择钉到同一高度，
+   否则会跟着共享模板的 28px 基准比左边的模式分段矮一截。 */
+.nk-env .pk-select-trigger { min-height: 32px; }
 .nk-spacer { flex: 1; }
 /* 按钮统一走 .pk-btn（pk-ui.css），本插件不再自带按钮层级 */
 

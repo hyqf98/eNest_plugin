@@ -8,11 +8,8 @@ html, body {
   user-select: none; -webkit-user-select: none; pointer-events: none;
 }
 #sel {
-  position: fixed; border-radius: 1px;
+  position: fixed;
   box-shadow: 0 0 0 2px var(--accent), 0 0 0 9999px rgba(8, 10, 14, .16);
-}
-#sel.full {
-  box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 9999px rgba(8, 10, 14, .1);
 }
 #rec {
   position: fixed; display: inline-flex; align-items: center; gap: 5px;
@@ -22,3 +19,4 @@ html, body {
   letter-spacing: .04em; border: 1px solid rgba(255, 255, 255, .12);
 }
 #rec i { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, .18); }
+#rec[hidden] { display: none; }

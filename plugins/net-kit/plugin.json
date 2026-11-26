@@ -13,8 +13,7 @@
   "permissions": [
     "net.fetch",
     "net.socket",
-    "clipboard.write",
-    "shell.openExternal"
+    "clipboard.write"
   ],
   "net": {
     "allowInsecure": true
@@ -28,6 +27,7 @@
   "features": [
     {
       "code": "main",
+      "title": "网络调试台",
       "explain": "网络调试台：HTTP / TCP / WebSocket",
       "cmds": [
         "接口",
@@ -35,7 +35,9 @@
         "tcp",
         "jk",
         "jiekou",
-        "api测试"
+        "api测试",
+        "network tools",
+        "websocket"
       ]
     }
   ],

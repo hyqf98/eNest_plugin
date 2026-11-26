@@ -26,6 +26,7 @@
   "features": [
     {
       "code": "main",
+      "title": "漫画屋",
       "explain": "漫画屋：多源漫画搜索、排行与沉浸阅读",
       "cmds": [
         "漫画",

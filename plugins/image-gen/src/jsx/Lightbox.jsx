@@ -9,7 +9,7 @@ import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, DownloadIcon, PencilIcon, 
 const MIN_SCALE = 1
 const MAX_SCALE = 4
 
-export function Lightbox({ items, index, onIndexChange, onClose, onContinue, onDownload, onDelete, onCopyPrompt }) {
+export function Lightbox({ items, index, onIndexChange, onClose, onContinue, onCopyImage, onDownload, onDelete, onCopyPrompt }) {
   const wrapRef = useRef(null)
   const [scale, setScale] = useState(1)
   const scaleRef = useRef(1)
@@ -108,6 +108,11 @@ export function Lightbox({ items, index, onIndexChange, onClose, onContinue, onD
           {onContinue && (
             <button type="button" className="ig-lb-btn" onClick={() => onContinue(item)}>
               <PencilIcon size={13} />以此图继续
+            </button>
+          )}
+          {onCopyImage && (
+            <button type="button" className="ig-lb-btn" onClick={() => onCopyImage(item)}>
+              <CopyIcon size={13} />复制图片
             </button>
           )}
           {onDownload && (

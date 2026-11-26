@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="./surface.css"><title>自由画布</title></head><body>
+<aside id="selector" hidden><div>拖动框选画布区域 <kbd>Esc 取消</kbd></div></aside>
+<main id="board" hidden><header><span id="move" title="拖动以移动整个画布" aria-label="移动整个画布">⠿</span><strong id="title">自由画布</strong><button id="add" aria-label="添加组件">＋ 组件</button><button id="close" aria-label="关闭画布窗口">关闭</button></header>
+<section id="viewport" aria-label="画布区域"><div id="space"><p id="hint">在空白处拖出一个区域，或点击「＋ 组件」。</p></div></section><button id="window-size" aria-label="拖动以调整画布窗口大小" title="调整窗口大小">◢</button></main>
+<dialog id="palette" aria-labelledby="palette-title"><h2 id="palette-title">放置小组件</h2><div id="choices"></div><button id="cancel">取消</button></dialog>
+<div id="status" role="status" aria-live="polite"></div><script type="module" src="./surface.js"></script></body></html>

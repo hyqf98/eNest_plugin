@@ -368,8 +368,9 @@ export class DatabaseWorkbench {
   }
   update() { this.renderTabs(); if (['query', 'object'].includes(this.page)) this.renderQueryBar(); this.updateStatus(); this.navigation.update(); void this.ctx.editor().setSurface(this.mode, this.ctx.isConnected() && this.page === 'query') }
   renderEmpty() {
-    this.pageRoot.innerHTML = `<div class="wb-welcome"><div class="wb-welcome-symbol" aria-hidden="true">▦</div><h1>数据库工作台</h1><p>从左侧选择连接，打开数据表或开始一段查询。</p><div><button class="btn primary" data-new>新建连接</button><button class="btn" data-documents>打开文档</button></div><p class="wb-welcome-hint"><kbd>⌘ / Ctrl T</kbd> 新建查询 <span>·</span> <kbd>⌘ / Ctrl ⇧ P</kbd> 搜索命令</p></div>`
-    this.pageRoot.querySelector('[data-new]').onclick = () => this.newConnection(); this.pageRoot.querySelector('[data-documents]').onclick = () => this.navigate('documents')
+    // 新建连接的入口只在左侧（「连接」标题行的 ＋ 与空态卡片），右侧欢迎页不再重复放一个。
+    this.pageRoot.innerHTML = `<div class="wb-welcome"><div class="wb-welcome-symbol" aria-hidden="true">▦</div><h1>数据库工作台</h1><p>在左侧「连接」旁点 ＋ 新建连接，然后打开数据表或开始一段查询。</p><div><button class="btn" data-documents>打开文档</button></div><p class="wb-welcome-hint"><kbd>⌘ / Ctrl T</kbd> 新建查询 <span>·</span> <kbd>⌘ / Ctrl ⇧ P</kbd> 搜索命令</p></div>`
+    this.pageRoot.querySelector('[data-documents]').onclick = () => this.navigate('documents')
   }
   renderLibrary(kind) {
     // 文档与历史合并为一页，子标签存 tab.view（documents | history）

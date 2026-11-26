@@ -216,8 +216,11 @@ export function DetailView({ itemId }: { itemId: string }) {
                     <Glyph icon={ArrowSquareOut} size={14} /><span>打开下载页</span>
                   </button>
                 </>
-              ) : selectablePackages.length ? (
+              ) : detail.packages.length ? (
                 <>
+                  {/* 有资源就交给 PackagePicker：打包中 / 文件夹 / 可下载都由它逐行表达。
+                      此前按「有没有可下载的包」分流，PC 游戏站新上架的条目多半还在打包中，
+                      整块被换成「暂无可下载的资源」，用户看不到资源其实存在、只是没传完。 */}
                   <PackagePicker detail={detail} selectedId={selectedPackageId} onSelect={pkg => setSelectedPackageId(pkg.id)} />
                   <button type="button" className="pk-btn pk-btn-primary gh-detail-next-btn" disabled={!selectedPackageId} onClick={openDialog}>
                     下一步

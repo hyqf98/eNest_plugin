@@ -1,17 +1,14 @@
 /* Dense tool surfaces use the shell tokens. Motion is restricted to focus and hover. */
 :root { --ssh-ui-size: var(--font-size-base, 13px); --radius-md: 8px; --radius-sm: 6px; --radius-lg: 12px; }
 button:focus-visible,input:focus-visible,textarea:focus-visible,[tabindex]:focus-visible { outline: 2px solid transparent; outline-offset: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
-.wb-header { display: flex; align-items: center; border-bottom: 1px solid var(--border); }
-.wb-brand { display: flex; gap: 9px; align-items: center; white-space: nowrap; }
-.wb-brand strong { font-weight: 650; letter-spacing: -.4px; }
-.wb-mode-label { color: var(--text-3); font-size: calc(var(--ssh-ui-size) * 0.846154); }
-.wb-header nav { display: flex; gap: 2px; }
-.wb-header button,.wb-tool-tabs button,.wb-pane-title button,.wb-file-actions button,.wb-file-path button,.wb-data-table button,.wb-settings-page button,.wb-editor-tabs button,.wb-resource-strip button,.wb-table-actions button { border: 1px solid transparent; background: transparent; padding: 6px 9px; border-radius: 5px; font-size: calc(var(--ssh-ui-size) * 0.923077); cursor: pointer; white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .08s ease; }
-.wb-header button:hover,.wb-tool-tabs button:hover,.wb-pane-title button:hover,.wb-file-actions button:hover,.wb-file-path button:hover,.wb-data-table button:hover,.wb-settings-page button:hover,.wb-editor-tabs button:hover,.wb-table-actions button:hover { background: var(--surface-2); }
-.wb-header button:active,.wb-tool-tabs button:active,.wb-pane-title button:active,.wb-file-actions button:active,.wb-file-path button:active,.wb-data-table button:active,.wb-settings-page button:active,.wb-editor-tabs button:active,.wb-resource-strip button:active,.wb-table-actions button:active { transform: scale(.97); }
-.wb-header button.active,.wb-tool-tabs button.active,.wb-settings-page nav button.active,.wb-editor-tabs button.active { background: var(--accent-soft); color: var(--text); font-weight: 600; border-color: color-mix(in srgb, var(--brand, var(--accent)) 35%, transparent); }
-.wb-header-end { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.wb-header kbd { font: calc(var(--ssh-ui-size) * 0.769231) var(--font); opacity: .6; margin-left: 7px; }
+/* 原顶部标题行（.wb-header / .wb-brand / .wb-mode-label / .wb-header-end）已整体移除：
+   「服务器 / 右侧面板 / 在桌面展开」移入会话上下文条右端的 .wb-context-actions，
+   按钮外观沿用 .wb-session-context button（见下），这里只负责排布。 */
+.wb-context-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.wb-tool-tabs button,.wb-pane-title button,.wb-file-actions button,.wb-file-path button,.wb-data-table button,.wb-settings-page button,.wb-editor-tabs button,.wb-resource-strip button,.wb-table-actions button { border: 1px solid transparent; background: transparent; padding: 6px 9px; border-radius: 5px; font-size: calc(var(--ssh-ui-size) * 0.923077); cursor: pointer; white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .08s ease; }
+.wb-tool-tabs button:hover,.wb-pane-title button:hover,.wb-file-actions button:hover,.wb-file-path button:hover,.wb-data-table button:hover,.wb-settings-page button:hover,.wb-editor-tabs button:hover,.wb-table-actions button:hover { background: var(--surface-2); }
+.wb-tool-tabs button:active,.wb-pane-title button:active,.wb-file-actions button:active,.wb-file-path button:active,.wb-data-table button:active,.wb-settings-page button:active,.wb-editor-tabs button:active,.wb-resource-strip button:active,.wb-table-actions button:active { transform: scale(.97); }
+.wb-tool-tabs button.active,.wb-settings-page nav button.active,.wb-editor-tabs button.active { background: var(--accent-soft); color: var(--text); font-weight: 600; border-color: color-mix(in srgb, var(--brand, var(--accent)) 35%, transparent); }
 .wb-open-shell { display: none; }
 .app[data-workbench] .sidebar { grid-template-columns: minmax(0,1fr); border-right: 1px solid var(--border); }
 .app[data-workbench] .side-body { grid-column: 1; opacity: 1; pointer-events: auto; padding: 8px; }
@@ -151,11 +148,7 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-shortcut-list { max-width: 700px; margin-bottom: 16px; }
 .wb-shortcut-list label { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; gap: 20px; }
 .wb-shortcut-list input { width: 190px; border: 1px solid var(--border); background: var(--surface); padding: 6px 9px; border-radius: 4px; font: calc(var(--ssh-ui-size) * 0.846154) var(--mono); }
-:root[data-launch-mode=quick] .wb-header { padding: 0 10px; gap: 12px; }
-:root[data-launch-mode=quick] .wb-mode-label,:root[data-launch-mode=quick] .wb-header kbd { display: none; }
-:root[data-launch-mode=quick] .wb-header-end { gap: 0; }
 :root[data-launch-mode=quick] .wb-open-shell { display: block; }
-:root[data-launch-mode=quick] .wb-header button { padding: 5px 7px; font-size: calc(var(--ssh-ui-size) * 0.846154); }
 :root[data-launch-mode=quick] .app[data-workbench] { display: block; }
 :root[data-launch-mode=quick] .app[data-view=connections] > .sidebar { height: 100%; display: flex; }
 :root[data-launch-mode=quick] .app[data-view=connections] .side-body { width: 100%; }
@@ -181,8 +174,8 @@ button:disabled { opacity: .4; cursor: default !important; }
 :root[data-launch-mode=quick] .wb-settings-content { padding: 18px; }
 :root[data-launch-mode=quick] .wb-settings-page > header { gap: 12px; padding-inline: 12px; }
 :root[data-launch-mode=quick] .wb-settings-page > header span { display: none; }
-@media (max-width: 1100px) { :root:not([data-launch-mode=quick]) .app[data-workbench] { grid-template-columns: 190px minmax(0,1fr); } .wb-header { gap: 12px; } .wb-header kbd { display: none; } }
-@media (max-width: 600px) { .wb-header { gap: 8px !important; } .wb-header-end [data-command=palette] { display: none; } .wb-settings-layout { grid-template-columns: 112px minmax(0,1fr) !important; } .wb-shortcut-list label { flex-direction: column; align-items: flex-start; gap: 5px; } }
+@media (max-width: 1100px) { :root:not([data-launch-mode=quick]) .app[data-workbench] { grid-template-columns: 190px minmax(0,1fr); } }
+@media (max-width: 600px) { .wb-settings-layout { grid-template-columns: 112px minmax(0,1fr) !important; } .wb-shortcut-list label { flex-direction: column; align-items: flex-start; gap: 5px; } }
 @media (prefers-reduced-motion: reduce) { :root *,:root *::before,:root *::after { transition-duration: 0s !important; animation-duration: 0s !important; } }
 :root[data-anim=low] * { transition-duration: 0s !important; }
 #panel-term[data-layout="horizontal"] { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1px; background: var(--border-strong); }
@@ -237,10 +230,8 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-sidebar-resize:hover::after, .wb-sidebar-resize:focus-visible::after, .resizing-sidebar .wb-sidebar-resize::after { content: ''; position: absolute; inset: 0 2px; background: var(--brand, var(--ok)); }
 .side-collapsed .wb-sidebar-resize { display: none; }
 .resizing-sidebar { cursor: col-resize; user-select: none; }
-.wb-header { height: 40px; padding-inline: 14px; gap: 18px; background: var(--ssh-chrome); }
-.wb-header .wb-brand { gap: 7px; }
-.wb-header nav button { border-radius: 5px; font-size: calc(var(--ssh-ui-size) * 0.923077); }
-.app[data-workbench] { height: calc(100dvh - 40px); }
+/* 顶部标题行已移除，.app 直接占满视口高度（原为 header 让出 40px）。 */
+.app[data-workbench] { height: 100dvh; }
 .app[data-workbench] .main { position: relative; }
 .app[data-workbench] .session-tabs { order: 0; min-height: 34px; padding: 0; overflow-x: auto; scrollbar-width: thin; }
 /* 无会话时不保留这条底槽（workbench.css 的 min-height/背景会盖掉 main.css 的 :empty 规则）。 */
@@ -255,6 +246,9 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-session-context button { border: 1px solid var(--border); background: var(--surface-2); border-radius: 5px; padding: 4px 7px; font-size: calc(var(--ssh-ui-size) * 0.846154); cursor: pointer; flex-shrink: 0; transition: border-color .12s ease, background-color .12s ease; }
 .wb-session-context button:hover { border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border)); }
 .wb-session-context button[hidden] { display: none; }
+/* 未选中连接时整条不显示：里面的圆点、「SSH 工作区」占位标题、「从左侧选择连接」引导语
+   都是重复信息，唯一的「连接」动作在服务器卡片上已经有了。 */
+.wb-session-context[data-idle='true'] { display: none; }
 .app[data-workbench] .workspace { order: 3; }
 .app[data-workbench] .wb-statusbar { order: 5; }
 
@@ -333,9 +327,9 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-tool-body .wb-empty { padding-block: 28px; }
 .wb-statusbar { min-height: 24px; padding: 3px 10px; }
 .wb-connection-state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.app[data-workbench] .drawer { left: var(--ssh-rail); right: auto; top: 40px; width: min(340px, calc(100vw - 44px)); border: 1px solid var(--border-strong); border-block: 0; transform: translateX(-110%); box-shadow: 8px 0 28px color-mix(in srgb, var(--scrim) 13%, transparent); visibility: hidden; transition: transform 160ms cubic-bezier(.2,.8,.2,1), visibility 160ms; }
+.app[data-workbench] .drawer { left: var(--ssh-rail); right: auto; top: 0; width: min(340px, calc(100vw - 44px)); border: 1px solid var(--border-strong); border-block: 0; transform: translateX(-110%); box-shadow: 8px 0 28px color-mix(in srgb, var(--scrim) 13%, transparent); visibility: hidden; transition: transform 160ms cubic-bezier(.2,.8,.2,1), visibility 160ms; }
 .app[data-workbench] .drawer.open { transform: none; visibility: visible; }
-.app[data-workbench] .drawer-scrim { top: 40px; left: var(--ssh-rail); background: color-mix(in srgb, var(--scrim) 7%, transparent); }
+.app[data-workbench] .drawer-scrim { top: 0; left: var(--ssh-rail); background: color-mix(in srgb, var(--scrim) 7%, transparent); }
 .app[data-workbench] .wb-settings-page { inset: 0; background: var(--surface); z-index: 20; }
 .wb-settings-page[hidden] { display: none !important; }
 .wb-settings-page > header { min-height: 44px; height: 44px; padding: 6px 16px; }
@@ -360,7 +354,7 @@ button:disabled { opacity: .4; cursor: default !important; }
 .wb-navigation-scrim { position: absolute; inset: 0 0 0 var(--ssh-rail); background: color-mix(in srgb, var(--scrim) 13%, transparent); border: 0; z-index: 45; cursor: default; }
 .wb-navigation-scrim[hidden] { display: none; }
 .app[data-workbench][data-compact-navigation=true], :root[data-launch-mode=quick] .app[data-workbench][data-compact-navigation=true] { grid-template-columns: var(--ssh-rail) minmax(0,1fr); }
-.app[data-workbench][data-compact-navigation=true] .side-body { position: fixed; left: var(--ssh-rail); top: 40px; bottom: 0; width: min(var(--ssh-sidebar-width), calc(100vw - 44px)); z-index: 50; background: var(--ssh-chrome); border-right: 1px solid var(--border-strong); box-shadow: 8px 0 30px color-mix(in srgb, var(--scrim) 13%, transparent); }
+.app[data-workbench][data-compact-navigation=true] .side-body { position: fixed; left: var(--ssh-rail); top: 0; bottom: 0; width: min(var(--ssh-sidebar-width), calc(100vw - 44px)); z-index: 50; background: var(--ssh-chrome); border-right: 1px solid var(--border-strong); box-shadow: 8px 0 30px color-mix(in srgb, var(--scrim) 13%, transparent); }
 .app[data-workbench][data-compact-navigation=true][data-sidebar-open=false] .side-body { pointer-events: none; padding: 8px; }
 .app[data-workbench][data-compact-navigation=true] .wb-sidebar-resize { display: none; }
 :root[data-launch-mode=quick] .app[data-workbench][data-view=files] .workspace:has(.wb-editor-pane.open) .wb-right > .wb-files { display: none; }
@@ -370,7 +364,7 @@ button:disabled { opacity: .4; cursor: default !important; }
 @media (max-height: 340px) { .wb-statusbar:has(.hint-meta[data-state=warning]) { display: flex; } }
 :root[data-anim=high] .app[data-workbench] .drawer { transition-duration: 200ms; }
 :root[data-anim=medium] .app[data-workbench] .drawer { transition-duration: 140ms; }
-@media (prefers-reduced-transparency: reduce) { :root { --ssh-chrome: var(--surface); } .app[data-workbench] .sidebar, .wb-header, .drawer { backdrop-filter: none; } }
+@media (prefers-reduced-transparency: reduce) { :root { --ssh-chrome: var(--surface); } .app[data-workbench] .sidebar, .drawer { backdrop-filter: none; } }
 @media (prefers-contrast: more) { .app[data-workbench] { --border: var(--text-2); --border-strong: var(--text); --text-3: var(--text-2); } .app[data-workbench] .rail-btn.active, .app[data-workbench] .session-tab.active { outline: 1px solid currentColor; outline-offset: -2px; } }
 :root { --term-bg: var(--surface); --term-fg: var(--text); --term-cursor: var(--brand, var(--ok)); }
 .wb-selection-actions { display: inline-flex; gap: 4px; flex-shrink: 0; }

@@ -142,8 +142,12 @@ export function applyRules(entries, rules) {
     const key = `${d.dir}\u0000${d.newName}`
     const holder = seen.get(key)
     if (holder) {
+      // 谁改名谁担责：后来者改名 → 标后来者；后来者保持原名而先到者改了名 → 回标先到者，
+      // 否则「a.txt → b.txt 而队列里已有 b.txt」两条都不报错，漏掉注释承诺的「与现有文件同名」。
       if (d.changed) {
         d.error = holder.changed ? '冲突：同名目标' : '冲突：与现有文件同名'
+      } else if (holder.changed && !holder.error) {
+        holder.error = '冲突：与现有文件同名'
       }
     } else {
       seen.set(key, d)

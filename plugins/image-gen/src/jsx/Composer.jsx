@@ -21,7 +21,12 @@ export function Composer({
   size, onSizeChange, n, onNChange,
   templates, onOpenTemplateSettings,
   onPickFiles, onImageClick, toast, editMode,
-  onOpenSettings, hasProvider, historyPrompts = []
+  onOpenSettings, hasProvider, historyPrompts = [],
+  /* 外部请求聚焦输入框：「带入提示词」等操作后由 App 设置 { token, select?: [start, end] }。
+     不在调用处直接 .focus()——那时输入框可能还没挂载（刚从灵感页切回来）；
+     也不靠 requestAnimationFrame——窗口未获焦时它会被节流，实测 1.5s 内不触发。
+     select：聚焦后顺带选中的区间（带入的提示词里有占位符时选中第一个，直接打字即可替换）。 */
+  focusRequest = null
 }) {
   const taRef = useRef(null)
   const tplRef = useRef(null)
@@ -32,6 +37,14 @@ export function Composer({
 
   /* 输入内容变了（含切换会话）= 退出回溯状态 */
   useEffect(() => { cursorRef.current = -1 }, [historyPrompts.length])
+
+  useEffect(() => {
+    const ta = taRef.current
+    if (!focusRequest || !ta) return
+    ta.focus()
+    const range = focusRequest.select
+    if (range) ta.setSelectionRange(range[0], range[1])
+  }, [focusRequest])
 
   /* textarea 自动增高（1-6 行） */
   useEffect(() => {

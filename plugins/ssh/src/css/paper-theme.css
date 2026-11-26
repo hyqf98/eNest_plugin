@@ -43,24 +43,9 @@
   --surface: #ffffff !important;
   --surface-2: #f1f1ec !important;
   --surface-3: #e7e5e5 !important;
-  --border: rgba(51, 48, 43, 0.14) !important;
-  --border-strong: rgba(51, 48, 43, 0.24) !important;
-  --text: #33302b !important;
-  --text-2: #6f6a61 !important;
-  --text-3: #8a8579 !important;
-  --accent: #2f5f82 !important;
-  --accent-soft: rgba(47, 95, 130, 0.12) !important;
-  --accent-contrast: #ffffff !important;
-  --brand: #2f5f82 !important;
-  --brand-strong: #2f5f82 !important;
-  --brand-soft: rgba(47, 95, 130, 0.12) !important;
-  --ok: #3f9b57 !important;
-  --ok-soft: rgba(63, 155, 87, 0.12) !important;
-  --danger: #a63a34 !important;
-  --danger-soft: rgba(166, 58, 52, 0.12) !important;
-  --warn: #8e744c !important;
-  --warn-soft: rgba(176, 124, 42, 0.14) !important;
-  --link: #2f5f82 !important;
+  --brand: var(--accent, #bd542b) !important;
+  --brand-strong: var(--accent, #bd542b) !important;
+  --brand-soft: var(--accent-soft, color-mix(in srgb, #bd542b 12%, transparent)) !important;
   --line: rgba(51, 48, 43, 0.24) !important;
   --wash: #ffffff !important;
   --term-bg: #ffffff !important;
@@ -89,24 +74,9 @@
   --surface: #fdfcf8 !important;
   --surface-2: #efebe1 !important;
   --surface-3: #dcd9d1 !important;
-  --border: rgba(58, 54, 46, 0.14) !important;
-  --border-strong: rgba(58, 54, 46, 0.24) !important;
-  --text: #3a362e !important;
-  --text-2: #767065 !important;
-  --text-3: #918a7d !important;
-  --accent: #33607f !important;
-  --accent-soft: rgba(39, 96, 127, 0.12) !important;
-  --accent-contrast: #fdfcf8 !important;
-  --brand: #33607f !important;
-  --brand-strong: #33607f !important;
-  --brand-soft: rgba(39, 96, 127, 0.12) !important;
-  --ok: #4f8b3f !important;
-  --ok-soft: rgba(79, 139, 63, 0.12) !important;
-  --danger: #a8452f !important;
-  --danger-soft: rgba(176, 67, 31, 0.12) !important;
-  --warn: #91794e !important;
-  --warn-soft: rgba(179, 130, 44, 0.14) !important;
-  --link: #33607f !important;
+  --brand: var(--accent, #bd542b) !important;
+  --brand-strong: var(--accent, #bd542b) !important;
+  --brand-soft: var(--accent-soft, color-mix(in srgb, #bd542b 12%, transparent)) !important;
   --line: rgba(58, 54, 46, 0.24) !important;
   --wash: #fdfcf8 !important;
   --term-bg: #fdfcf8 !important;
@@ -134,24 +104,9 @@
   --surface: #2a2a27 !important;
   --surface-2: #32322e !important;
   --surface-3: #47423a !important;
-  --border: rgba(232, 229, 221, 0.16) !important;
-  --border-strong: rgba(232, 229, 221, 0.28) !important;
-  --text: #e8e5dd !important;
-  --text-2: #a5a094 !important;
-  --text-3: #8b877c !important;
-  --accent: #88b0cc !important;
-  --accent-soft: rgba(127, 178, 212, 0.16) !important;
-  --accent-contrast: #222220 !important;
-  --brand: #88b0cc !important;
-  --brand-strong: #88b0cc !important;
-  --brand-soft: rgba(127, 178, 212, 0.16) !important;
-  --ok: #83bd8a !important;
-  --ok-soft: rgba(131, 189, 138, 0.16) !important;
-  --danger: #d98070 !important;
-  --danger-soft: rgba(224, 112, 92, 0.16) !important;
-  --warn: #b9a67d !important;
-  --warn-soft: rgba(216, 178, 94, 0.16) !important;
-  --link: #88b0cc !important;
+  --brand: var(--accent, #e98654) !important;
+  --brand-strong: var(--accent, #e98654) !important;
+  --brand-soft: var(--accent-soft, color-mix(in srgb, #e98654 16%, transparent)) !important;
   --line: rgba(232, 229, 221, 0.28) !important;
   --wash: #2a2a27 !important;
   --term-bg: #222220 !important;
@@ -179,24 +134,9 @@
   --surface: #30372f !important;
   --surface-2: #383f37 !important;
   --surface-3: #4a584a !important;
-  --border: rgba(230, 229, 218, 0.16) !important;
-  --border-strong: rgba(230, 229, 218, 0.28) !important;
-  --text: #e6e5da !important;
-  --text-2: #a6ab9c !important;
-  --text-3: #8b9082 !important;
-  --accent: #a0c2d4 !important;
-  --accent-soft: rgba(160, 194, 212, 0.16) !important;
-  --accent-contrast: #293029 !important;
-  --brand: #a0c2d4 !important;
-  --brand-strong: #a0c2d4 !important;
-  --brand-soft: rgba(160, 194, 212, 0.16) !important;
-  --ok: #a8d0a0 !important;
-  --ok-soft: rgba(168, 208, 160, 0.16) !important;
-  --danger: #d79180 !important;
-  --danger-soft: rgba(215, 145, 128, 0.16) !important;
-  --warn: #c2b68e !important;
-  --warn-soft: rgba(214, 192, 122, 0.16) !important;
-  --link: #a0c2d4 !important;
+  --brand: var(--accent, #e98654) !important;
+  --brand-strong: var(--accent, #e98654) !important;
+  --brand-soft: var(--accent-soft, color-mix(in srgb, #e98654 16%, transparent)) !important;
   --line: rgba(230, 229, 218, 0.28) !important;
   --wash: #30372f !important;
   --term-bg: #293029 !important;
@@ -228,50 +168,41 @@
 
 /* ══════════════════════════════════════════════════════════════
    面板骨架：纸底点阵 + 纸片浮起（对齐 database 的三纸片语言）
-   面板模式（自由面板小组件）不接管：widget.css 有自己的透明底约束。
    ══════════════════════════════════════════════════════════════ */
-/* 纸底点阵：铺在 body/#root（.app 的 grid 子面板各自有底色，缝隙透出点阵）。
-   widget.css 给 #root 写了实底底色，必须 !important。 */
-:root[data-paper]:not([data-mode='panel']) body { background-color: var(--bg) !important; }
-:root[data-paper]:not([data-mode='panel']) body,
-:root[data-paper]:not([data-mode='panel']) #root {
+/* 纸底点阵：铺在 body/#root（.app 的 grid 子面板各自有底色，缝隙透出点阵）。 */
+:root[data-paper] body { background-color: var(--bg) !important; }
+:root[data-paper] body,
+:root[data-paper] #root {
   background-image: radial-gradient(circle, var(--bg-dot) 1px, transparent 1.2px) !important;
   background-size: 22px 22px !important;
   background-position: 6px 8px !important;
 }
-/* 四边留白：kit 的 padding 契约写在 .app 上，但 ssh 的 .wb-header 是 .app 的
-   前置兄弟（workbench.js 里 app.before(header)），只给 .app 留白会让顶栏贴窗口
-   顶边、与下方内缩的面板错位。改为 #root 统一留白 + .app 归零，上下左右一致。
+/* 四边留白：kit 的 padding 契约写在 .app 上，只给 .app 留白会让它内缩、与壳的窗口边错位。
+   改为 #root 统一留白 + .app 归零，上下左右一致。
    Quick 沿用 kit 的原门禁（小窗单任务不内缩）。 */
-:root[data-paper]:not([data-mode='quick']):not([data-launch-mode='quick']):not([data-mode='panel']) #root {
+:root[data-paper]:not([data-mode='quick']):not([data-launch-mode='quick']) #root {
   display: flex; flex-direction: column;
   padding: var(--appearance-inset);
 }
 :root[data-paper] .pk-appearance[data-plugin='ssh'] .app { padding: 0 !important; }
-/* 高度契约同步：原 .app[data-workbench] 是 calc(100dvh - 40px) 按贴边假设算的，
-   #root 留白后交给 flex 分配（header 40px + .app 吃剩余）。 */
-:root[data-paper]:not([data-mode='quick']):not([data-launch-mode='quick']):not([data-mode='panel']) .app[data-workbench] {
+/* 高度契约：#root 留白后交给 flex 分配，.app 吃掉全部剩余高度（顶部已无独立标题行）。 */
+:root[data-paper]:not([data-mode='quick']):not([data-launch-mode='quick']) .app[data-workbench] {
   height: auto; flex: 1; min-height: 0;
   gap: var(--workbench-gap, 12px);
-}
-/* 顶栏：透明浮在纸底上，只留一条手绘虚线分界（不再吃 --ssh-chrome 实底）。 */
-:root[data-paper] .wb-header {
-  background: transparent;
-  border-bottom: 1.5px dashed var(--ink-line);
 }
 /* 侧栏纸片：整张卡（rail + 列表），半透混色让点阵隐约透出。
    不加 overflow:hidden —— .wb-sidebar-resize 是 right:-3px 的外扩把手，裁了只剩一半。 */
 :root[data-paper] .app .sidebar {
   background: color-mix(in srgb, var(--surface) 84%, var(--bg));
-  border: 1.5px dashed var(--ink-line);
+  border: 1.5px solid var(--border);
   border-radius: var(--appearance-panel-radius, 10px);
   box-shadow: 2px 3px 0 var(--ac-shadow);
 }
-:root[data-paper] .app .side-rail { border-right: 1.4px dashed var(--ink-line-soft); background: transparent; }
+:root[data-paper] .app .side-rail { border-right: 1.4px solid var(--border); background: transparent; }
 /* 紧凑导航（窄屏）下 .side-body 是 fixed 浮层，自己成卡。 */
 :root[data-paper] .app[data-compact-navigation='true'] .side-body {
   background: color-mix(in srgb, var(--surface) 92%, var(--bg));
-  border: 1.5px dashed var(--ink-line);
+  border: 1.5px solid var(--border);
   border-radius: var(--appearance-panel-radius, 10px);
   box-shadow: 3px 5px 0 var(--ac-shadow) !important;
 }
@@ -279,7 +210,7 @@
    终端本身保持等宽矩形（xterm 铺满 .term-wrap，底色走 --ink-card-bg）。 */
 :root[data-paper] .app .main {
   background: var(--ink-card-bg);
-  border: 1.5px dashed var(--ink-line);
+  border: 1.5px solid var(--border);
   border-radius: var(--appearance-panel-radius, 10px);
   box-shadow: 2px 3px 0 var(--ac-shadow);
   overflow: hidden;
@@ -287,23 +218,23 @@
 /* 主区内的横向 chrome：各自纸片底 + 虚线分界（对齐 database 的 mid-chrome/wb-status）。 */
 :root[data-paper] .app .session-tabs {
   background: color-mix(in srgb, var(--surface) 80%, var(--bg));
-  border-bottom: 1.5px dashed var(--ink-line);
+  border-bottom: 1.5px solid var(--border);
 }
 :root[data-paper] .app .wb-session-context {
   background: color-mix(in srgb, var(--surface) 78%, var(--bg));
-  border-bottom: 1.4px dashed var(--ink-line);
+  border-bottom: 1.4px solid var(--border);
 }
 :root[data-paper] .app .wb-statusbar {
   background: color-mix(in srgb, var(--surface) 72%, var(--bg));
-  border-top: 1.5px dashed var(--ink-line);
+  border-top: 1.5px solid var(--border);
 }
 /* 文件视图右缘 / 工具坞顶缘分界换墨线。 */
-:root[data-paper] .app .wb-files { border-left: 1.4px dashed var(--ink-line); background: transparent; }
-:root[data-paper] .app .wb-dock { border-top: 1.5px dashed var(--ink-line); background: transparent; }
+:root[data-paper] .app .wb-files { border-left: 1.4px solid var(--border); background: transparent; }
+:root[data-paper] .app .wb-dock { border-top: 1.5px solid var(--border); background: transparent; }
 /* 右侧工作列：与侧栏/主区同级的第三张纸片（连接后出现）。 */
 :root[data-paper] .app .wb-right {
   background: color-mix(in srgb, var(--surface) 82%, var(--bg));
-  border: 1.5px dashed var(--ink-line);
+  border: 1.5px solid var(--border);
   border-radius: var(--appearance-panel-radius, 10px);
   box-shadow: 2px 3px 0 var(--ac-shadow);
 }
@@ -321,7 +252,7 @@
 :root[data-paper] .app .drawer,
 :root[data-paper] .app[data-workbench] .drawer {
   background: var(--surface);
-  border-left: 1.5px dashed var(--ink-line);
+  border-left: 1.5px solid var(--border);
   border-radius: var(--ink-radius-pop) 0 0 var(--ink-radius-pop);
   box-shadow: -3px 4px 0 var(--ac-shadow) !important;
 }

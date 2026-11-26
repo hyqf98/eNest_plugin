@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { Segmented } from '../ui/index.jsx'
+import { useEffect, useMemo, useState } from 'react'
+import { Segmented, Button } from '../ui/index.jsx'
 import { Icon } from '../components/Icon.jsx'
 import { MediaCard } from '../components/MediaCard.jsx'
 import { Empty } from '../components/Empty.jsx'
@@ -27,11 +27,17 @@ export function LibraryView({
   onOpen,
   onEdit,
   onExport,
+  onDelete,
   ensureThumb,
   totalBytes,
   onCapture,
-  onClearSearch
+  onClearSearch,
+  onBack
 }) {
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState(() => new Set())
+  const [clearTarget, setClearTarget] = useState(null)
+
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase()
     return items.filter(item => {
@@ -41,6 +47,49 @@ export function LibraryView({
       return `${item.name} ${date}`.toLowerCase().includes(text)
     })
   }, [items, filter, query])
+  const armClear = clearTarget === filtered
+
+  // 筛选或搜索变化后，已不在列表里的选中项自动剔除；列表清空则退出多选。
+  useEffect(() => {
+    const visible = new Set(filtered.map(item => item.id))
+    setSelected(current => {
+      const next = new Set([...current].filter(id => visible.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [filtered])
+  useEffect(() => {
+    if (!filtered.length && selecting) { setSelecting(false); setSelected(new Set()) }
+  }, [filtered.length, selecting])
+
+  const exitSelecting = () => { setSelecting(false); setSelected(new Set()); setClearTarget(null) }
+  const toggleSelect = item => setSelected(current => {
+    const next = new Set(current)
+    if (next.has(item.id)) next.delete(item.id)
+    else next.add(item.id)
+    return next
+  })
+  const selectAll = () => setSelected(new Set(filtered.map(item => item.id)))
+
+  // 批量操作先退出多选，再交给上层等待全部删除完成并汇总提示。
+  const removeSelected = () => {
+    const list = filtered.filter(item => selected.has(item.id))
+    if (!list.length) return
+    exitSelecting()
+    void onDelete(list)
+  }
+
+  // 「清空」同样两次点击确认：范围是当前筛选/搜索的结果，而不是整个媒体库。
+  const clearFiltered = () => {
+    if (!armClear) { setClearTarget(filtered); return }
+    const list = [...filtered]
+    exitSelecting()
+    void onDelete(list)
+  }
+  useEffect(() => {
+    if (!clearTarget) return undefined
+    const timer = setTimeout(() => setClearTarget(null), 3200)
+    return () => clearTimeout(timer)
+  }, [clearTarget])
 
   const groups = useMemo(() => {
     const list = []
@@ -56,22 +105,45 @@ export function LibraryView({
   return (
     <div className="sa-library">
       <div className="sa-lib-bar">
+        {onBack && (
+          <Button variant="ghost" size="sm" className="sa-lib-back" onClick={onBack}>
+            <Icon name="left" />返回拍摄
+          </Button>
+        )}
         <Segmented value={filter} options={FILTERS} onChange={onFilter} ariaLabel="媒体类型" />
-        <label className="sa-search">
-          <Icon name="search" />
-          <input
-            value={query}
-            onChange={event => onQuery(event.target.value)}
-            placeholder="搜索截图或录屏"
-            aria-label="搜索截图或录屏"
-          />
-          {query ? (
-            <button type="button" className="sa-icon-btn" style={{ width: 20, height: 20 }} aria-label="清空搜索" onClick={onClearSearch}>
-              <Icon name="close" size={12} />
-            </button>
-          ) : null}
-        </label>
+        {!onBack && (
+          <label className="sa-search">
+            <Icon name="search" />
+            <input
+              value={query}
+              onChange={event => onQuery(event.target.value)}
+              placeholder="搜索截图或录屏"
+              aria-label="搜索截图或录屏"
+            />
+            {query ? (
+              <button type="button" className="sa-icon-btn" style={{ width: 20, height: 20 }} aria-label="清空搜索" onClick={onClearSearch}>
+                <Icon name="close" size={12} />
+              </button>
+            ) : null}
+          </label>
+        )}
         <span className="sa-lib-meta">{filtered.length} 项 · {formatBytes(totalBytes)}</span>
+        {selecting ? (
+          <div className="sa-lib-select" role="toolbar" aria-label="批量操作">
+            <Button variant="ghost" size="sm" onClick={selectAll} disabled={!filtered.length}>全选</Button>
+            <Button variant="ghost" size="sm" onClick={exitSelecting}>取消</Button>
+            <Button variant="danger" size="sm" onClick={removeSelected} disabled={!selected.size}>
+              <Icon name="trash" size={14} /> 删除{selected.size ? ` (${selected.size})` : ''}
+            </Button>
+          </div>
+        ) : (
+          <div className="sa-lib-select">
+            <Button variant="ghost" size="sm" onClick={() => setSelecting(true)} disabled={!filtered.length}>多选</Button>
+            <Button variant="ghost" size="sm" className={armClear ? 'sa-btn-armed' : 'sa-btn-danger'} onClick={clearFiltered} disabled={!filtered.length}>
+              {armClear ? `确认清空 ${filtered.length} 项` : '清空'}
+            </Button>
+          </div>
+        )}
       </div>
       <div className={`sa-lib-scroll${filtered.length ? '' : ' is-empty'}`}>
         {loading ? (
@@ -94,6 +166,10 @@ export function LibraryView({
                 onOpen={onOpen}
                 onEdit={onEdit}
                 onExport={onExport}
+                onDelete={onDelete}
+                selectable={selecting}
+                selected={selected.has(entry.item.id)}
+                onToggleSelect={toggleSelect}
               />
             ))}
           </div>

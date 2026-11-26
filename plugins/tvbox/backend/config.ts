@@ -150,9 +150,11 @@ export async function readPreset(packagePath: string): Promise<{ raw: TvboxConfi
   }
 }
 
-/** preset 的 lives 若引用 ./xxx.txt 相对文件，读出来内联 */
+/** preset 的 lives 若引用 ./xxx.txt 相对文件，读出来内联。
+ *  url 来自用户导入的配置，只接受 ./ 加单个文件名：不给 `..`、路径分隔符或空字节留口子，
+ *  否则一份写成 ./../../x 的配置就能读到安装目录之外。 */
 export async function readPresetLive(packagePath: string, url: string): Promise<string | null> {
-  if (!url.startsWith('./')) return null
+  if (!/^\.\/(?!\.{1,2}$)[^/\\\0]+$/.test(url)) return null
   try {
     return await readFile(join(presetsDir(packagePath), url.slice(2)), 'utf-8')
   } catch {

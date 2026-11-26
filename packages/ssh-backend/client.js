@@ -1,5 +1,5 @@
 const clients = new WeakMap()
-const events = new Set(['ssh.data', 'ssh.exit', 'ssh.error', 'ssh.auth', 'ssh.metrics', 'ssh.transfer'])
+const events = new Set(['ssh.data', 'ssh.exit', 'ssh.error', 'ssh.auth', 'ssh.metrics', 'ssh.transfer', 'ssh.monitor'])
 
 /** Browser-only domain adapter. Never mutates the frozen preload bridge. */
 export function createSshHost(host) {
@@ -27,6 +27,13 @@ export function createSshHost(host) {
         start: (input, intervalMs) => call('ssh.metrics.start', [sessionId(input), typeof input === 'object' && input ? input.intervalMs : intervalMs]),
         stop: input => call('ssh.metrics.stop', [sessionId(input)]),
         latest: input => call('ssh.metrics.latest', [sessionId(input)])
+      },
+      monitor: {
+        sync: targets => call('ssh.monitor.sync', [targets]),
+        list: () => call('ssh.monitor.list', []),
+        refresh: profileIds => call('ssh.monitor.refresh', [profileIds]),
+        stop: profileIds => call('ssh.monitor.stop', [profileIds]),
+        setInterval: intervalMs => call('ssh.monitor.interval', [intervalMs])
       },
       completion: { suggest: input => call('ssh.completion.suggest', [input]) },
       sftp: {

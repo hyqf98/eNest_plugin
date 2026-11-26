@@ -8,7 +8,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fmtBytes, fmtTime, fmtRemain } from '../js/util.mjs'
 import { loadHistory, pushHistory, recordFromShare, historyLine, historyMeta } from '../js/history.mjs'
 import { createShareApi } from '../js/share-api.mjs'
-import { PanelView } from './PanelView.jsx'
 
 const api = window.enest || window.zapi
 const shareApi = createShareApi(api)
@@ -17,7 +16,6 @@ const DURATIONS = [5, 10, 30, 60]
 
 export function App() {
   const kitRef = useRef(null)
-  const [layoutMode, setLayoutMode] = useState(() => api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
 
   const [mode, setModeState] = useState('send') // send | receive
   const [picked, setPicked] = useState([])      // { handleId, name, size }
@@ -292,7 +290,6 @@ export function App() {
   /* —— Quick / 桌面双形态（等价原 kit.onMode） —— */
   const modeRef = useRef(null)
   modeRef.current = (nextMode) => {
-    setLayoutMode(nextMode)
     document.documentElement.dataset.mode = nextMode
     if (nextMode === 'quick') {
       const live = shareRef.current != null
@@ -337,16 +334,11 @@ export function App() {
   /* —— 分享中实时渲染二维码（等价原 renderLive 中的 drawQr） —— */
   const urls = useMemo(() => shareUrls(share), [share?.shareId, shareUrls])
   useEffect(() => {
-    if (layoutMode !== 'panel' && share && urls[0]) drawQr(urls[0])
-  }, [urls, drawQr, layoutMode])
+    if (share && urls[0]) drawQr(urls[0])
+  }, [urls, drawQr, share])
 
   const send = mode === 'send'
   const logRows = logs.slice(-50).reverse()
-
-  if (layoutMode === 'panel') return <PanelView share={share} now={now} status={statusText}
-    onCopyLink={() => { if (urls[0]) void kitRef.current?.copy(urls[0]) }}
-    onOpenShell={() => Promise.resolve(api?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))}
-  />
 
   return (
     <main className="lan-app">
@@ -499,6 +491,9 @@ export function App() {
                 }}>清空</button>
             </div>
             <ul id="history-list" className="history-list">
+              {history.length === 0 && (
+                <li className="empty">还没有分享记录</li>
+              )}
               {history.slice(0, 12).map((entry) => (
                 <li key={entry.id}>
                   <span className="h-files" title={entry.names}>{historyLine(entry)}</span>

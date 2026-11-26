@@ -152,7 +152,8 @@ input, textarea, select { font: inherit; color: var(--text); }
   padding: 10px 14px;
   flex: none;
 }
-.toolbar input[type="search"] { max-width: 300px; }
+/* 只设 max-width 时 search 输入框会退回 ~155px 的浏览器默认宽度，占位文字「搜索名称 / 端点 / 模型」被截断。 */
+.toolbar input[type="search"] { width: 220px; max-width: 300px; }
 
 .content {
   flex: 1; overflow-y: auto;

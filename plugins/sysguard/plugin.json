@@ -7,9 +7,7 @@
   "main": "index.html",
   "views": {
     "default": "shell",
-    "layouts": ["quick", "shell", "panel"],
-    "panel": {
-      "preview": "assets/market/screenshots/panel.png", "size": { "width": 320, "height": 248 } }
+    "layouts": ["quick", "shell"]
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",
@@ -30,6 +28,7 @@
   "features": [
     {
       "code": "main",
+      "title": "进程与端口",
       "explain": "进程与端口巡检",
       "cmds": [
         "进程",

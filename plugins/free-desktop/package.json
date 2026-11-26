@@ -1,0 +1,16 @@
+{
+  "name": "free-desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5274 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.free-desktop",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.free-desktop",
+    "native:mac": "sh native/macos/build.sh",
+    "native:linux": "sh native/linux/build.sh",
+    "native:windows": "powershell -NoProfile -File native/windows/build.ps1"
+  },
+  "enestBackend": { "entry": "backend/index.mjs", "dependencies": [] },
+  "enestBuild": { "entry": "scripts/build-hooks.mjs" }
+}

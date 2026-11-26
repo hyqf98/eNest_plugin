@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { planStats } from '../js/model.mjs'
 
-export function PlanSidebar({ state, activePlan, api, onExport }) {
+export function PlanSidebar({ state, activePlan, api, onExport, askText }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
@@ -51,8 +51,9 @@ export function PlanSidebar({ state, activePlan, api, onExport }) {
       ['delete', `删除计划（含 ${plan.tasks.length} 个任务）`, { danger: true, disabled: state.plans.length <= 1 }]
     ], (key) => {
       if (key === 'rename') {
-        const name = window.prompt('重命名计划', plan.name)
-        if (name && name.trim()) api.renamePlan(plan.id, name.trim())
+        void askText('重命名计划', plan.name).then((name) => {
+          if (name) api.renamePlan(plan.id, name)
+        })
       } else if (key === 'export') onExport(plan, 'xlsx')
       else if (key === 'exportHtml') onExport(plan, 'html')
       else if (key === 'delete') {

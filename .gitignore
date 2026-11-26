@@ -18,3 +18,9 @@ logs/
 /plugins/*/.cache/
 /plugins/*/native/**/.build/
 /plugins/*/native/**/build/
+# 插件测试运行期生成的临时入口与打包产物（如 codex-pets 测试用 esbuild 打平源码），不提交
+/plugins/*/tests/.*.tmp.*
+/plugins/image-gen/tests/__live/
+/plugins/image-gen/tests/__live-entry.js
+/plugins/image-gen/tests/__preview-entry.js
+/plugins/image-gen/tests/__shell.html

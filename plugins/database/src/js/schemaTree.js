@@ -230,7 +230,8 @@ export class SidePanel {
       groups.get(group).push({ conn, matches })
     }
     this.el.count.textContent = String(state.connections.length)
-    this.el.list.innerHTML = groups.size ? [...groups].map(([group, conns]) => `<section class="nav-group" role="group" aria-label="${esc(group === 'favorite' ? '收藏' : ENV_LABEL[group] || group)}"><div class="nav-group-label">${group === 'favorite' ? '收藏' : esc(ENV_LABEL[group] || group)}</div>${conns.map(({ conn, matches }) => this._renderConnection(conn, matches ? '' : query)).join('')}</section>`).join('') : `<div class="nav-empty"><strong>${query ? '没有匹配的连接或对象' : '添加第一个连接'}</strong><p>${query ? '搜索仅包含已加载的对象。' : '连接保留在这里，查询在右侧打开。'}</p>${query ? '' : '<button type="button" class="btn" data-new>新建连接</button>'}</div>`
+    // 空态只留标题与按钮；搜索无结果时多一句说明（那是有用的信息，不是填充）。
+    this.el.list.innerHTML = groups.size ? [...groups].map(([group, conns]) => `<section class="nav-group" role="group" aria-label="${esc(group === 'favorite' ? '收藏' : ENV_LABEL[group] || group)}"><div class="nav-group-label">${group === 'favorite' ? '收藏' : esc(ENV_LABEL[group] || group)}</div>${conns.map(({ conn, matches }) => this._renderConnection(conn, matches ? '' : query)).join('')}</section>`).join('') : `<div class="nav-empty"><strong>${query ? '没有匹配的连接或对象' : '还没有连接'}</strong>${query ? '<p>搜索仅包含已加载的对象。</p>' : '<button type="button" class="btn" data-new>新建连接</button>'}</div>`
     const items = [...this.el.list.querySelectorAll('[role=treeitem]')]
     const current = items.find((item) => item.dataset.focusKey === focus) || items.find((item) => item.getAttribute('aria-selected') === 'true') || items[0]
     for (const item of items) item.tabIndex = item === current ? 0 : -1

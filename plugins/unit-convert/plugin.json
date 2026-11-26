@@ -21,6 +21,7 @@
   "features": [
     {
       "code": "main",
+      "title": "单位与汇率换算",
       "explain": "单位与汇率换算",
       "cmds": [
         "换算",

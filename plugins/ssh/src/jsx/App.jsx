@@ -18,12 +18,8 @@
  * - 生成型 DOM（树/会话标签/SFTP 列表/右键菜单/补全浮层等）沿用批 1/2 验证过的
  *   等价 HTML 模式：引擎继续以 innerHTML 渲染到对应容器，React 不接管其子树。
  */
-import { useEffect, useRef, useState } from 'react'
-import { PanelView } from './PanelView.jsx'
+import { useEffect } from 'react'
 import { sshIndexedView } from '@ssh/js/launch-index.js'
-
-const host = window.enest || window.zapi
-const initialMode = () => host?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell'
 
 /** 原版静态骨架逐字复刻（不含 vendor script 与模块脚本，二者由 entry/index.html 承担） */
 function AppSkeleton() {
@@ -174,10 +170,10 @@ function AppSkeleton() {
                 <input id="f-name" type="text" placeholder="名称" />
               </label>
               <label className="field">环境
-                <select id="f-env" aria-label="环境">
+                <select id="f-env" aria-label="环境" defaultValue="dev">
                   <option value="prod">生产</option>
                   <option value="staging">预发</option>
-                  <option value="dev" selected>开发</option>
+                  <option value="dev">开发</option>
                   <option value="test">测试</option>
                   <option value="custom">自定义</option>
                 </select>
@@ -186,7 +182,7 @@ function AppSkeleton() {
                 <input id="f-host" type="text" placeholder="如 10.0.0.1 或 example.com" />
               </label>
               <label className="field">端口
-                <input id="f-port" type="number" value="22" min="1" max="65535" />
+                <input id="f-port" type="number" defaultValue="22" min="1" max="65535" />
               </label>
               <label className="field">用户名 *
                 <input id="f-username" type="text" placeholder="如 root" />
@@ -202,7 +198,7 @@ function AppSkeleton() {
               <label className="field span2">标签（逗号分隔）<input id="f-tags" type="text" placeholder="production, api" /></label>
               <label className="field"><span><input id="f-favorite" type="checkbox" /> 收藏连接</span></label>
               <label className="field" id="f-password-wrap">密码
-                <input id="f-password" type="password" placeholder="••••" autocomplete="new-password" />
+                <input id="f-password" type="password" placeholder="••••" autoComplete="new-password" />
               </label>
               <div className="field" id="f-keypath-wrap">
                 <span className="field-lbl">私钥文件</span>
@@ -212,7 +208,7 @@ function AppSkeleton() {
                 </div>
               </div>
               <label className="field" id="f-passphrase-wrap">口令
-                <input id="f-passphrase" type="password" placeholder="••••" autocomplete="new-password" />
+                <input id="f-passphrase" type="password" placeholder="••••" autoComplete="new-password" />
               </label>
               <div className="field span2 secret-state" id="secret-state"></div>
               <div className="field">
@@ -256,26 +252,26 @@ function AppSkeleton() {
               <summary>高级</summary>
               <div className="form-grid adv-grid">
                 <label className="field">保活（秒）
-                  <input id="f-keepalive" type="number" value="30" min="0" />
+                  <input id="f-keepalive" type="number" defaultValue="30" min="0" />
                 </label>
                 <label className="field">超时（毫秒）
-                  <input id="f-timeout" type="number" value="20000" min="1000" />
+                  <input id="f-timeout" type="number" defaultValue="20000" min="1000" />
                 </label>
                 <label className="field">终端类型
-                  <input id="f-term" type="text" value="xterm-256color" />
+                  <input id="f-term" type="text" defaultValue="xterm-256color" />
                 </label>
                 <label className="field">主机指纹策略
-                  <select id="f-fp" aria-label="主机指纹策略">
-                    <option value="tofu" selected>首次信任</option>
+                  <select id="f-fp" aria-label="主机指纹策略" defaultValue="tofu">
+                    <option value="tofu">首次信任</option>
                     <option value="accept-new">自动接受新主机</option>
                     <option value="strict">严格校验</option>
                   </select>
                 </label>
                 <label className="field">列数
-                  <input id="f-cols" type="number" value="120" />
+                  <input id="f-cols" type="number" defaultValue="120" />
                 </label>
                 <label className="field">行数
-                  <input id="f-rows" type="number" value="32" />
+                  <input id="f-rows" type="number" defaultValue="32" />
                 </label>
                 <label className="field span2">SSH Agent<small>使用系统 SSH Agent，连接时由宿主请求单独授权。</small></label>
                 <label className="field span2">此连接的网络代理
@@ -283,10 +279,10 @@ function AppSkeleton() {
                   <small>仅代理第一跳；有跳板时代理连接到首台跳板。不使用壳软件的 HTTP 代理设置。</small>
                 </label>
                 <div className="form-grid span2 wb-proxy-fields" id="f-proxy-fields" hidden>
-                  <label className="field">代理主机<input id="f-proxy-host" type="text" placeholder="127.0.0.1" autocomplete="off" /></label>
-                  <label className="field">代理端口<input id="f-proxy-port" type="number" min="1" max="65535" value="1080" /></label>
-                  <label className="field">代理用户名<input id="f-proxy-user" type="text" placeholder="留空表示不认证" autocomplete="off" /></label>
-                  <label className="field">代理密码<input id="f-proxy-password" type="password" placeholder="留空保留已保存密码" autocomplete="new-password" /></label>
+                  <label className="field">代理主机<input id="f-proxy-host" type="text" placeholder="127.0.0.1" autoComplete="off" /></label>
+                  <label className="field">代理端口<input id="f-proxy-port" type="number" min="1" max="65535" defaultValue="1080" /></label>
+                  <label className="field">代理用户名<input id="f-proxy-user" type="text" placeholder="留空表示不认证" autoComplete="off" /></label>
+                  <label className="field">代理密码<input id="f-proxy-password" type="password" placeholder="留空保留已保存密码" autoComplete="new-password" /></label>
                   <div className="field span2" id="proxy-secret-state"></div>
                   <small className="span2">密码仅保存在凭据库。HTTP CONNECT 使用 Basic 认证；SOCKS5 支持无认证和用户名密码认证。</small>
                 </div>
@@ -302,7 +298,7 @@ function AppSkeleton() {
                   <input id="f-jump-host" type="text" placeholder="如 jump.example.com" />
                 </label>
                 <label className="field">跳板端口
-                  <input id="f-jump-port" type="number" value="22" min="1" max="65535" />
+                  <input id="f-jump-port" type="number" defaultValue="22" min="1" max="65535" />
                 </label>
                 <label className="field">跳板用户
                   <input id="f-jump-user" type="text" placeholder="默认同连接用户" />
@@ -369,30 +365,14 @@ function AppSkeleton() {
 }
 
 export function App() {
-  const kitRef = useRef(null)
-  const [mode, setMode] = useState(initialMode)
-  // Keep live terminal DOM after its first mount; a cold panel never boots the workbench.
-  const [workbenchMounted, setWorkbenchMounted] = useState(() => initialMode() !== 'panel')
   useEffect(() => {
     const kit = PluginKit.create({ title: 'SSH', height: 420 })
-    kitRef.current = kit
-    const changeMode = next => {
-      setMode(next)
-      if (next !== 'panel') setWorkbenchMounted(true)
-      else {
-        PluginKit.closeMenu({ restoreFocus: false })
-        document.querySelectorAll('dialog.wb-dialog[open]').forEach(dialog => dialog.close())
-      }
-    }
-    changeMode(kit.mode)
-    const offMode = kit.onMode(changeMode)
-    return () => { offMode(); kit.destroy() }
+    return () => kit.destroy()
   }, [])
 
   /* 静态骨架就位后按原 script 执行顺序引导业务引擎（模块 import 去重，只会运行一次）。
      app.js 的 boot 依赖以上静态节点；workbench.js 等 ssh-workbench-ready 后自举。 */
   useEffect(() => {
-    if (!workbenchMounted) { sshIndexedView.ready(); return }
     let alive = true
     void (async () => {
       await import('@ssh/js/tips-global.js')
@@ -407,10 +387,7 @@ export function App() {
       await import('@ssh/js/workbench.js')
     })().catch(error => sshIndexedView.fail(error))
     return () => { alive = false }
-  }, [workbenchMounted])
+  }, [])
 
-  return <>
-    {workbenchMounted && <div className="ssh-workbench-surface" hidden={mode === 'panel'}><AppSkeleton /></div>}
-    {mode === 'panel' && <PanelView onOpenShell={() => Promise.resolve(host?.ui?.openInShell?.()).catch(error => kitRef.current?.toast(error.message, 'error'))} />}
-  </>
+  return <div className="ssh-workbench-surface"><AppSkeleton /></div>
 }

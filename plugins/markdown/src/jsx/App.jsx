@@ -3,21 +3,21 @@
  * shell 模式：侧栏（大纲/文件树/图片资产）+ 即时渲染编辑器 + 状态栏。
  * quick 模式：速记编辑器（提交落收件箱，dismissQuick 保活）。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createEditor, updateLiveOpts, extractOutline, computeStats, EditorView, setTypewriter as setTypewriterCm } from '../cm/live.js'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createEditor, resetEditorDocument, updateLiveOpts, toggleLive, extractOutline, computeStats, setTypewriter as setTypewriterCm } from '../cm/live.js'
+import { getImageSourceRange } from '../cm/inlineDecorations.js'
 import { wrapSelection, toggleLinePrefix, insertBlock, FENCE_TEXT, TABLE_TEXT, LINK_TEXT, IMAGE_TEXT } from '../cm/formatOps.js'
-import { call, onBackendEvent, resolveImageToDataUrl, dataUrlToParts, readClipboardImage } from '../js/rpc.js'
-import { applyTheme, builtinThemeCss, adaptTyporaCss, BUILTIN_THEMES } from '../render/theme.js'
-import { setMermaidLook } from '../render/render.js'
+import { call, onBackendEvent, resolveImageToDataUrl, dataUrlToParts } from '../js/rpc.js'
+import { applyTheme, builtinThemeCss, BUILTIN_THEMES } from '../render/theme.js'
+import { setMathDark, setMermaidLook } from '../render/render.js'
 import { resolveImageDir } from '../js/imageDir.js'
-import { applyContentMetrics, applyMotionSettings, loadUserThemes, applyUserTheme, deleteUserTheme } from '../js/preferences.js'
+import { applyContentMetrics, applyMotionSettings, loadUserThemes, applyUserTheme } from '../js/preferences.js'
 import { runLegacyMigration } from '../js/migration.js'
 import { modLabel } from '@enest/plugin-kit/workbench'
 import { Sidebar } from './Sidebar.jsx'
 import { SettingsPage } from './SettingsPage.jsx'
 import { UploadMenu } from './UploadMenu.jsx'
 import { ExportMenu } from './ExportMenu.jsx'
-import { PanelView } from './PanelView.jsx'
 
 const MOD = modLabel()
 const WELCOME = `# 未命名文档
@@ -27,7 +27,8 @@ const WELCOME = `# 未命名文档
 ## 语法速览
 
 - **加粗** 与 *斜体*，\`行内代码\`，==高亮==，~~删除线~~
-- 任务清单：- [ ] 未完成 / - [x] 已完成
+- [ ] 未完成
+- [x] 已完成
 - 数学：$e^{i\\pi} + 1 = 0$
 
 | 表格 | 支持 | 拖拽列宽 |
@@ -53,8 +54,6 @@ export function App() {
   const [kit, setKit] = useState(null)
   const [mode, setMode] = useState(() => api()?.getLaunchMode?.() || 'shell')
   const [page, setPage] = useState('editor')
-  const [documentsReady, setDocumentsReady] = useState(false)
-  const [documentError, setDocumentError] = useState('')
 
   /* —— 文档状态 —— */
   const [docPath, setDocPath] = useState('')
@@ -70,9 +69,10 @@ export function App() {
   const [conflict, setConflict] = useState(null)
   const [themeList, setThemeList] = useState(BUILTIN_THEMES)
   const [activeTheme, setActiveTheme] = useState('enest-minimal')
-  const [darkMode, setDarkMode] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.dataset.theme === 'dark')
   const [typewriter, setTypewriter] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  const [liveMode, setLiveMode] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [docVersion, setDocVersion] = useState(0) // 内容变化计数（资源面板 400ms 防抖重提取）
   const [moreOpen, setMoreOpen] = useState(false)
@@ -85,6 +85,10 @@ export function App() {
   const moreRef = useRef(null)
   const exportRef = useRef(null) // ExportMenu 暴露 { html, pdf, png }
   const viewRef = useRef(null)
+  const scratchViewRef = useRef(null)
+  const scratchSnapshotRef = useRef(null)
+  const darkModeRef = useRef(false)
+  const optionsRef = useRef(new Map())
   const editorStateRef = useRef(null)
   const editorScrollRef = useRef(0)
   const scratchDraftRef = useRef('')
@@ -117,7 +121,7 @@ export function App() {
     if (!draft.trim()) return false
     // Submission belongs to the shared model, not a layout that may unmount mid-save.
     const pending = call('scratch.append', draft.trim()).then(() => {
-      if (scratchDraftRef.current === draft) scratchDraftRef.current = ''
+      if (scratchDraftRef.current === draft) { scratchDraftRef.current = ''; scratchSnapshotRef.current = null }
       scratchSyncRef.current?.()
       api()?.setDirty?.(scratchDraftRef.current.trim().length > 0)
       return true
@@ -212,7 +216,7 @@ export function App() {
     setSidebarOpen((open) => !open)
   }
 
-  docPathRef.current = docPath
+  darkModeRef.current = darkMode
   imageDirRef.current = imageDir
   // 供 Sidebar 直接替换文内链接（避免把 EditorView 穿透 props）
   useEffect(() => { (window).__mdViewRef = viewRef })
@@ -220,6 +224,50 @@ export function App() {
   const toast = useCallback((message, type = "info") => {
     kitRef.current?.toast?.(message, type)
   }, [])
+
+  const jumpTo = useCallback((from, view = viewRef.current) => {
+    if (!view) return
+    const line = view.state.doc.lineAt(Math.min(from, view.state.doc.length))
+    const prefix = /^ {0,3}#{1,6}(?:[ \t]+|$)/.exec(line.text)?.[0].length || 0
+    view.dispatch({ selection: { anchor: line.from + prefix }, scrollIntoView: true, userEvent: 'select' })
+    view.focus()
+  }, [])
+
+  const openEditorLink = useCallback(url => {
+    if (/^https?:\/\//i.test(url)) { void api()?.shell?.openExternal?.(url); return }
+    const view = viewRef.current || scratchViewRef.current
+    if (!view || !url.startsWith('#')) return
+    let anchor
+    try { anchor = decodeURIComponent(url.slice(1)).toLowerCase() } catch { return }
+    const target = extractOutline(view.state.doc.toString()).find(heading => {
+      const title = heading.text.toLowerCase()
+      return title === anchor || title.replace(/\s+/g, '-') === anchor
+    })
+    if (target) jumpTo(target.from, view)
+  }, [jumpTo])
+
+  const optionsFor = useCallback(path => {
+    const { renderHtml = true, mermaidLook } = settingsRef.current
+    const diagramLook = ['rounded', 'classic'].includes(mermaidLook) ? mermaidLook : 'handDrawn'
+    const dark = darkModeRef.current
+    const cached = optionsRef.current.get(path)
+    if (cached && cached.renderHtml === renderHtml && cached.diagramLook === diagramLook && cached.dark === dark) return cached
+    const opts = { documentKey: path, renderHtml, diagramLook, dark, onLinkClick: openEditorLink,
+      resolveImage: cached?.resolveImage || (url => resolveImageToDataUrl(path, url)) }
+    optionsRef.current.set(path, opts)
+    if (optionsRef.current.size > 3) optionsRef.current.delete(optionsRef.current.keys().next().value)
+    return opts
+  }, [openEditorLink])
+
+  const refreshEditorOptions = useCallback(() => {
+    for (const [view, path] of [[viewRef.current, docPathRef.current], [scratchViewRef.current, '']]) {
+      if (!view) continue
+      updateLiveOpts(view, optionsFor(path))
+      setTypewriterCm(view, settingsRef.current.typewriterMode === true)
+    }
+  }, [optionsFor])
+
+  useEffect(() => { setMathDark(darkMode); refreshEditorOptions() }, [darkMode, refreshEditorOptions])
 
   /* ---------------- 设置应用 ---------------- */
 
@@ -253,13 +301,16 @@ export function App() {
   const flushSave = useCallback(async () => {
     if (!dirtyRef.current) return
     const text = textRef.current
-    if (!docPathRef.current) return // 未落盘文档：等用户保存
+    const path = docPathRef.current
+    if (!path) return
     setSaveState('saving')
     try {
-      await call('doc.save', docPathRef.current, text)
+      await call('doc.save', path, text)
+      if (docPathRef.current !== path || textRef.current !== text) return
       dirtyRef.current = false
       setSaveState('saved')
     } catch (e) {
+      if (docPathRef.current !== path || textRef.current !== text) return
       setSaveState('error')
       toast(`保存失败：${e.message}`, 'error')
     }
@@ -274,6 +325,26 @@ export function App() {
   }, [flushSave])
 
   /* ---------------- 打开/新建/另存 ---------------- */
+  const loadDocument = useCallback((text, path, preserveSelection = false) => {
+    clearTimeout(saveTimerRef.current)
+    clearTimeout(resTimerRef.current)
+    const view = viewRef.current
+    if (view) resetEditorDocument(view, text, { opts: optionsFor(path), preserveSelection })
+    textRef.current = view ? view.state.doc.toString() : text.replace(/\r\n?/g, '\n')
+    docPathRef.current = path
+    dirtyRef.current = false
+    editorStateRef.current = null
+    setImageMenu(null)
+    setCtxMenu(null)
+    setConflict(null)
+    setDocPath(path)
+    setDocName(path.split(/[\\/]/).pop() || '未命名')
+    setSaveState('saved')
+    setStats(computeStats(textRef.current))
+    setOutline(extractOutline(textRef.current))
+    setDocVersion(version => version + 1)
+  }, [optionsFor])
+
   const openFile = useCallback(async (path) => {
     const revision = ++docLoadRevisionRef.current
     try {
@@ -281,28 +352,13 @@ export function App() {
       if (revision !== docLoadRevisionRef.current) return
       const { text } = await call('doc.open', path)
       if (revision !== docLoadRevisionRef.current) return
-      dirtyRef.current = false
-      textRef.current = text
-      docPathRef.current = path
-      editorStateRef.current = null
-      setDocPath(path)
-      setDocName(path.split('/').pop() || '文档')
-      const view = viewRef.current
-      if (view) {
-        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
-      }
-      setSaveState('saved')
-      setDocumentError('')
-      setStats(computeStats(text))
-      setOutline(extractOutline(text))
-      setDocVersion((v) => v + 1)
+      loadDocument(text, path, path === docPathRef.current)
       api()?.ui?.setTitle?.(`${path.split('/').pop()} — Markdown`)
     } catch (e) {
       if (revision !== docLoadRevisionRef.current) return
-      setDocumentError(`打开失败：${e.message}`)
       toast(`打开失败：${e.message}`, 'error')
     }
-  }, [toast])
+  }, [toast, loadDocument])
 
   const openWithPicker = useCallback(async () => {
     const handles = await api()?.localFiles?.pick?.({ kind: 'file', multiple: false, access: 'read' })
@@ -312,34 +368,30 @@ export function App() {
 
   const newDoc = useCallback(() => {
     docLoadRevisionRef.current++
-    dirtyRef.current = false
-    textRef.current = ''
-    docPathRef.current = ''
-    editorStateRef.current = null
-    setDocPath('')
-    setDocName('未命名')
-    const view = viewRef.current
-    if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '' } })
-    setSaveState('saved')
-    setOutline([])
+    loadDocument('', '')
     viewRef.current?.focus()
-  }, [])
+  }, [loadDocument])
 
   const saveAs = useCallback(async () => {
     const handle = await api()?.localFiles?.pickSave?.({ defaultName: `${docName}.md` })
     const path = handle?.displayPath
     if (!path) return
     try {
-      const { path: saved } = await call('doc.saveAs', path, textRef.current)
-      dirtyRef.current = false
+      const revision = docLoadRevisionRef.current
+      const text = textRef.current
+      const { path: saved } = await call('doc.saveAs', path, text)
+      if (revision !== docLoadRevisionRef.current) return
+      docPathRef.current = saved
       setDocPath(saved)
       setDocName(saved.split('/').pop() || '文档')
-      setSaveState('saved')
+      refreshEditorOptions()
+      if (textRef.current === text) { dirtyRef.current = false; setSaveState('saved') }
+      else scheduleSave()
       toast('已保存', 'success')
     } catch (e) {
       toast(`保存失败：${e.message}`, 'error')
     }
-  }, [docName, toast])
+  }, [docName, toast, refreshEditorOptions, scheduleSave])
 
   const doSave = useCallback(async () => {
     if (docPathRef.current) await flushSave()
@@ -350,8 +402,7 @@ export function App() {
   const insertAtCursor = useCallback((text) => {
     const view = viewRef.current
     if (!view) return
-    const pos = view.state.selection.main.head
-    view.dispatch({ changes: { from: pos, to: pos, insert: text } })
+    view.dispatch(view.state.replaceSelection(text), { scrollIntoView: true, userEvent: 'input.paste' })
   }, [])
 
   /**
@@ -360,6 +411,7 @@ export function App() {
    * `shell.resolvePath` 解析后的绝对路径；解析失败时回退插件私有 assets。
    */
   const handleImage = useCallback(async (dataUrl, action) => {
+    const revision = docLoadRevisionRef.current
     if (action === 'base64') {
       insertAtCursor(`![](${dataUrl})`)
       return
@@ -370,10 +422,12 @@ export function App() {
       if (action === 'local') {
         const dir = imageDirRef.current?.path || undefined
         const result = await call('upload.local', docPathRef.current || '', 'pasted.png', mime, bytesB64, dir)
+        if (revision !== docLoadRevisionRef.current) return
         insertAtCursor(`\n${result.markdown}\n`)
         toast('图片已存到本地', 'success')
       } else {
         const result = await call('upload.run', docPathRef.current, 'pasted.png', mime, bytesB64)
+        if (revision !== docLoadRevisionRef.current) return
         insertAtCursor(`\n${result.markdown}\n`)
         try { await api()?.clipboard?.writeText?.(result.url) } catch { /* 可选 */ }
         toast('图片已插入', 'success')
@@ -393,37 +447,28 @@ export function App() {
     const menu = imageMenu
     setImageMenu(null)
     if (!view || !menu) return
-    const text = view.state.doc.toString()
-    const src = menu.src
-    if (!src) return
-    const idx = text.indexOf(src)
-    if (idx < 0) { toast('未能在文档中定位该图片', 'error'); return }
-    // 定位图片语法结束的右括号
-    let close = text.indexOf(')', idx + src.length)
-    const angle = text.lastIndexOf(']', idx)
-    if (close < 0 || angle < 0) { toast('图片语法不完整，无法设置尺寸', 'error'); return }
-    let end = close + 1
-    // 已有 {width=..} 覆盖时先删掉
-    const tail = /^\{[^}]*\}/.exec(text.slice(end))
-    if (tail) end += tail[0].length
+    const range = getImageSourceRange(view, menu.target)
+    if (!range) { toast('这张图片已发生变化，请重新选择'); return }
     const attrs = []
     if (width) attrs.push(`width=${width}`)
     if (height) attrs.push(`height=${height}`)
+    const align = /\balign\s*=\s*["']?(left|center|right)\b/i.exec(view.state.sliceDoc(range.imageTo, range.to))
+    if (align) attrs.push(`align=${align[1].toLowerCase()}`)
     const insert = attrs.length ? `{${attrs.join(' ')}}` : ''
-    view.dispatch({ changes: { from: close + 1, to: end, insert } })
-    view.focus()
-    toast(insert ? '已设置该图片尺寸' : '已清除该图片尺寸', 'success')
+    view.dispatch({ changes: { from: range.imageTo, to: range.to, insert }, userEvent: 'input.image' })
+    toast(width || height ? '已设置该图片尺寸' : '已清除该图片尺寸', 'success')
   }, [imageMenu, toast])
 
   /** 渲染态图片点击：弹出小工具设置单张宽高 */
   const onEditorClick = useCallback((e) => {
-    const img = e.target?.closest?.('.md-atomic img, .md-html-block img')
-    if (!img) return
+    const img = e.target?.closest?.('.md-image-widget img')
+    if (!e.altKey || !img || !viewRef.current || !getImageSourceRange(viewRef.current, img)) return
+    e.preventDefault()
     const rect = img.getBoundingClientRect()
     setImageMenu({
-      x: Math.min(e.clientX, window.innerWidth - 240),
-      y: Math.min(e.clientY + 12, window.innerHeight - 200),
-      src: img.getAttribute('data-src') || img.getAttribute('src') || '',
+      x: Math.max(0, Math.min(e.clientX, window.innerWidth - 240)),
+      y: Math.max(0, Math.min(e.clientY + 12, window.innerHeight - 200)),
+      target: img,
       width: Math.round(rect.width),
       height: Math.round(rect.height),
     })
@@ -433,7 +478,7 @@ export function App() {
     if (!imageMenu) return
     const close = (e) => {
       // 工具自身与触发它的图片都不关闭，避免 mousedown 先于 click 关掉面板
-      if (e.target?.closest?.('.md-img-tool, .md-atomic img, .md-html-block img')) return
+      if (e.target?.closest?.('.md-img-tool, .md-image-widget')) return
       setImageMenu(null)
     }
     const esc = (e) => { if (e.key === 'Escape') setImageMenu(null) }
@@ -448,7 +493,7 @@ export function App() {
     if (!view) return
     if (action.wrap) return void wrapSelection(view, action.wrap)
     if (action.line) return void toggleLinePrefix(view, action.line)
-    if (action.fence) return void insertBlock(view, FENCE_TEXT, 3)
+    if (action.fence) return void insertBlock(view, FENCE_TEXT, 4)
     if (action.table) return void insertBlock(view, TABLE_TEXT, 2)
     if (action.link) return void insertBlock(view, LINK_TEXT, 1)
     if (action.image) return void insertBlock(view, IMAGE_TEXT, 2)
@@ -456,15 +501,18 @@ export function App() {
 
   /* 编辑区右键菜单：格式操作收纳处（对齐 Typora 右键习惯） */
   const onEditorContextMenu = useCallback((e) => {
-    const host = editorHostRef.current
-    if (!host || !host.contains(e.target)) return
+    const view = viewRef.current
+    if (e.defaultPrevented || !acceptsEditorInput(view, e.target) || e.target.closest('.md-atomic')) return
     e.preventDefault()
+    const position = view.posAtCoords({ x: e.clientX, y: e.clientY })
+    const { from, to } = view.state.selection.main
+    if (position != null && (position < from || position > to)) view.dispatch({ selection: { anchor: position }, userEvent: 'select.pointer' })
     setCtxMenu({ x: e.clientX, y: e.clientY })
   }, [])
 
   useEffect(() => {
     if (!ctxMenu) return
-    const close = () => setCtxMenu(null)
+    const close = event => { if (!event.target.closest?.('.md-ctx-menu')) setCtxMenu(null) }
     const esc = (e) => { if (e.key === 'Escape') setCtxMenu(null) }
     document.addEventListener('mousedown', close)
     document.addEventListener('keydown', esc)
@@ -486,16 +534,19 @@ export function App() {
   }, [moreOpen])
 
   const onPaste = useCallback(async (e) => {
-    if (kitRef.current?.mode === 'panel') return
+    if (!acceptsEditorInput(viewRef.current, e.target)) return
+    const revision = docLoadRevisionRef.current
     const items = e.clipboardData?.items
     if (!items) return
     for (const item of items) {
       if (item.type.startsWith('image/')) {
         e.preventDefault()
+        e.stopPropagation()
         const file = item.getAsFile()
         if (!file) return
         const reader = new FileReader()
         reader.onload = () => {
+          if (revision !== docLoadRevisionRef.current) return
           const dataUrl = String(reader.result)
           const defaultAction = settingsRef.current.imageDefaultAction || 'ask'
           if (defaultAction === 'ask') {
@@ -513,6 +564,7 @@ export function App() {
     if (!text || text.includes('\n')) return
     if (/^(?:file:\/\/)?(?:\/|~\/|[A-Za-z]:[\\/]).+\.(?:png|jpe?g|gif|webp|svg|bmp)$/i.test(text)) {
       e.preventDefault()
+      e.stopPropagation()
       const url = text.replace(/^file:\/\//i, '')
       insertAtCursor(`![](${url})`)
       toast('已按本地图片插入', 'success')
@@ -522,16 +574,19 @@ export function App() {
   /* ---------------- 拖入打开 / 拖入图片 ---------------- */
 
   const onDrop = useCallback(async (e) => {
-    if (kitRef.current?.mode === 'panel') return
+    const view = viewRef.current
+    if (!acceptsEditorInput(view, e.target)) return
     const files = Array.from(e.dataTransfer?.files ?? [])
     if (!files.length) return
-    e.preventDefault()
     const images = files.filter((f) => /^image\//.test(f.type))
-    const md = files.find((f) => /\.md$/i.test(f.name))
+    const md = files.find((f) => /\.(?:md|markdown)$/i.test(f.name))
+    if (!md && !images.length) return
+    e.preventDefault()
+    e.stopPropagation()
     if (md) {
       try {
         const handles = await api()?.localFiles?.fromDrop?.(files.map((f) => (f).path || f.name))
-        const handle = handles?.find?.((h) => /\.md$/i.test(h.name))
+        const handle = handles?.find?.((h) => /\.(?:md|markdown)$/i.test(h.name))
         if (handle?.displayPath) await openFile(handle.displayPath)
       } catch {
         toast('拖入被取消', 'info')
@@ -540,6 +595,9 @@ export function App() {
     }
     // 拖入图片：与粘贴同一套动作（默认动作 / 询问）
     if (images.length) {
+      const revision = docLoadRevisionRef.current
+      const position = view.posAtCoords({ x: e.clientX, y: e.clientY })
+      if (position != null) view.dispatch({ selection: { anchor: position }, userEvent: 'select.pointer' })
       for (const file of images) {
         const dataUrl = await new Promise((resolve) => {
           const reader = new FileReader()
@@ -547,6 +605,7 @@ export function App() {
           reader.onerror = () => resolve('')
           reader.readAsDataURL(file)
         })
+        if (revision !== docLoadRevisionRef.current) return
         if (!dataUrl) continue
         const defaultAction = settingsRef.current.imageDefaultAction || 'ask'
         if (defaultAction === 'ask') window.dispatchEvent(new CustomEvent('md-ask-image', { detail: dataUrl }))
@@ -564,23 +623,17 @@ export function App() {
         setConflict({ path: data.path, deleted: !!data.deleted })
       } else if (!data.deleted) {
         // 干净文档：静默重载
+        const revision = docLoadRevisionRef.current
         void call('doc.read', data.path).then(({ text }) => {
-          if (docPathRef.current !== data.path || dirtyRef.current) return
-          const view = viewRef.current
-          textRef.current = text
-          if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
-          setStats(computeStats(text))
-          setOutline(extractOutline(text))
-          setDocVersion((v) => v + 1)
-          dirtyRef.current = false
-          setSaveState('saved')
+          if (docPathRef.current !== data.path || revision !== docLoadRevisionRef.current || dirtyRef.current || textRef.current === text) return
+          loadDocument(text, data.path, true)
         }).catch(() => {})
       } else {
         toast('文件已被外部删除', 'error')
       }
     })
     return off
-  }, [toast])
+  }, [toast, loadDocument])
 
   const resolveConflict = useCallback(async (choice) => {
     const c = conflict
@@ -591,15 +644,15 @@ export function App() {
       dirtyRef.current = true
       await flushSave()
     } else if (choice === 'disk') {
-      const { text } = await call('doc.read', c.path).catch(() => ({ text: textRef.current }))
-      const view = viewRef.current
-      if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
-      dirtyRef.current = false
-      setSaveState('saved')
+      const revision = docLoadRevisionRef.current
+      try {
+        const { text } = await call('doc.read', c.path)
+        if (c.path === docPathRef.current && revision === docLoadRevisionRef.current) loadDocument(text, c.path, true)
+      } catch (error) { toast(`读取失败：${error.message}`, 'error') }
     } else {
       await saveAs()
     }
-  }, [conflict, flushSave, saveAs])
+  }, [conflict, flushSave, saveAs, loadDocument, toast])
 
   /* ---------------- 主题 ---------------- */
   const applyThemeById = useCallback(async (themeId, dark) => {
@@ -615,6 +668,8 @@ export function App() {
       }
     }
     setActiveTheme(themeId)
+    viewRef.current?.requestMeasure()
+    scratchViewRef.current?.requestMeasure()
     // 持久化（浅/深各自记忆）
     void call('theme.setPrefs', dark ? themeId : undefined, dark ? undefined : themeId).catch(() => {})
   }, [])
@@ -638,49 +693,38 @@ export function App() {
     const host = editorHostRef.current
     if (!host || viewRef.current) return
 
-    const liveOpts = {
-      renderHtml: settingsRef.current.renderHtml !== false,
-      resolveImage: (url) => resolveImageToDataUrl(docPathRef.current, url),
-      onLinkClick: (url) => {
-        if (/^https?:\/\//i.test(url)) void api()?.shell?.openExternal?.(url)
-        else if (url.startsWith('#')) {
-          // 锚点：找标题
-          const view = viewRef.current
-          if (!view) return
-          const text = view.state.doc.toString()
-          const target = outline.find((o) => o.text === url.slice(1))
-          if (target) view.dispatch({ selection: { anchor: target.from }, scrollIntoView: true })
-        }
-      },
+    const liveOpts = optionsFor(docPathRef.current)
+    if (!textRef.current && !editorStateRef.current && !docPathRef.current && docLoadRevisionRef.current === 0) {
+      textRef.current = WELCOME
+      setStats(computeStats(WELCOME))
+      setOutline(extractOutline(WELCOME))
     }
 
     const view = createEditor({
       parent: host,
       initialText: textRef.current,
       opts: liveOpts,
-      onChange: (text) => {
+      onChange: (text, blocks) => {
         textRef.current = text
         scheduleSave()
         setStats(computeStats(text))
-        setOutline(extractOutline(text))
+        setOutline(extractOutline(text, blocks))
         // 资源面板防抖重提取（400ms 静默后才 +1，避免每键全量正则）
         clearTimeout(resTimerRef.current)
         resTimerRef.current = setTimeout(() => setDocVersion((v) => v + 1), 400)
       },
+      live: liveMode,
+      onLiveChange: setLiveMode,
       typewriter,
       focus: false,
     })
     viewRef.current = view
     if (editorStateRef.current?.doc.toString() === textRef.current) {
       view.setState(editorStateRef.current)
-      updateLiveOpts(view, liveOpts)
+      updateLiveOpts(view, liveOpts, true)
       view.scrollDOM.scrollTop = editorScrollRef.current
     }
-    if (!textRef.current && !editorStateRef.current && !docPathRef.current && docLoadRevisionRef.current === 0) {
-      textRef.current = WELCOME
-      view.dispatch({ changes: { from: 0, to: 0, insert: WELCOME } })
-    }
-    if (typewriter) setTypewriterCm(view, true)
+    setTypewriterCm(view, typewriter)
 
     return () => {
       editorStateRef.current = view.state
@@ -735,12 +779,7 @@ export function App() {
       applyPreferences(settings)
       // 手输图片目录：解析为绝对路径（宿主统一 API，跨平台）
       if (changedKey === undefined || changedKey === 'localImageDir') void refreshImageDir(settings)
-      const view = viewRef.current
-      if (view) updateLiveOpts(view, {
-        renderHtml: settings.renderHtml !== false,
-        resolveImage: (url) => resolveImageToDataUrl(docPathRef.current, url),
-        onLinkClick: liveLinkHandler,
-      })
+      refreshEditorOptions()
     })
 
     const booted = (async () => {
@@ -758,13 +797,9 @@ export function App() {
         const { list } = await call('recent.list')
         if (alive && list.length) {
           setRecentFiles(list)
-          // A cold widget reads the same document model without mounting CodeMirror.
-          if (k.mode === 'panel' && !textRef.current && !docPathRef.current && docLoadRevisionRef.current === 0) await openFile(list[0].path)
         }
       } catch (error) {
-        if (alive) setDocumentError(`读取文稿失败：${error.message}`)
-      } finally {
-        if (alive) setDocumentsReady(true)
+        if (alive) toast(`读取文稿失败：${error.message}`, 'error')
       }
       // 外观跟随
       try {
@@ -788,7 +823,10 @@ export function App() {
     // 全局事件
     document.addEventListener('paste', onPaste, true)
     document.addEventListener('drop', onDrop, true)
-    document.addEventListener('dragover', ((e) => e.preventDefault()))
+    const onDragOver = event => {
+      if (acceptsEditorInput(viewRef.current, event.target) && event.dataTransfer?.types?.includes('Files')) event.preventDefault()
+    }
+    document.addEventListener('dragover', onDragOver)
     const onAskImage = (e) => {
       const detail = e.detail
       window.dispatchEvent(new CustomEvent('md-show-upload-menu', { detail }))
@@ -796,7 +834,7 @@ export function App() {
     window.addEventListener('md-ask-image', onAskImage)
     // 快捷键
     const keys = (e) => {
-      if (e.isComposing || k.mode === 'panel') return
+      if (e.isComposing || e.defaultPrevented || !viewRef.current) return
       const mod = e.metaKey || e.ctrlKey
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void doSave() }
       if (mod && e.key.toLowerCase() === 'n') { e.preventDefault(); newDoc() }
@@ -832,6 +870,7 @@ export function App() {
       offScratchSave?.()
       document.removeEventListener('paste', onPaste, true)
       document.removeEventListener('drop', onDrop, true)
+      document.removeEventListener('dragover', onDragOver)
       window.removeEventListener('md-ask-image', onAskImage)
       document.removeEventListener('keydown', keys)
       k.destroy?.()
@@ -839,34 +878,16 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const liveLinkHandler = (url) => {
-    if (/^https?:\/\//i.test(url)) void api()?.shell?.openExternal?.(url)
-  }
-
   const toggleTypewriter = () => {
-    const next = !typewriter
-    setTypewriter(next)
-    void api()?.settings?.set?.('typewriterMode', next)
-    if (viewRef.current) setTypewriterCm(viewRef.current, next)
+    void kitRef.current?.setPref('typewriterMode', !settingsRef.current.typewriterMode)
   }
   const toggleFocus = () => {
-    const next = !focusMode
-    setFocusMode(next)
-    void api()?.settings?.set?.('focusMode', next)
-    document.querySelector('.md-scope')?.setAttribute('data-focus-mode', next ? 'on' : 'off')
+    void kitRef.current?.setPref('focusMode', !settingsRef.current.focusMode)
   }
 
   /* ---------------- quick 速记 ---------------- */
-  if (mode === 'panel') {
-    return <PanelView name={docName} text={textRef.current} stats={stats} ready={documentsReady}
-      error={documentError} dirty={saveState === 'dirty' || saveState === 'error'} conflict={conflict}
-      onOpen={() => {
-        setPage('editor')
-        void api().ui.openInShell().catch(error => toast(error.message, 'error'))
-      }} />
-  }
   if (mode === 'quick' || page === 'scratch') {
-    return <QuickScratch kit={kit} draftRef={scratchDraftRef} actionRef={scratchActionRef}
+    return <QuickScratch kit={kit} draftRef={scratchDraftRef} actionRef={scratchActionRef} viewRef={scratchViewRef} snapshotRef={scratchSnapshotRef} optionsFor={optionsFor} typewriter={typewriter}
       syncRef={scratchSyncRef} onSave={saveScratchDraft} />
   }
 
@@ -893,7 +914,7 @@ export function App() {
       <UploadMenu onHandle={handleImage} uploading={uploading} />
       <ExportMenu ref={exportRef} docPath={docPath} textRef={textRef} darkMode={darkMode} toast={toast} />
       {ctxMenu && (
-        <div className="md-ctx-menu" style={{ left: Math.min(ctxMenu.x, window.innerWidth - 230), top: Math.min(ctxMenu.y, window.innerHeight - 420) }} role="menu">
+        <div className="md-ctx-menu" onMouseDown={event => event.preventDefault()} style={{ left: Math.max(0, Math.min(ctxMenu.x, window.innerWidth - 230)), top: Math.max(0, Math.min(ctxMenu.y, window.innerHeight - 420)) }} role="menu">
           <div className="md-menu-label">格式</div>
           <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ wrap: '**' }) }}>加粗<kbd>{MOD}B</kbd></button>
           <button role="menuitem" onClick={() => { setCtxMenu(null); applyFormatAction({ wrap: '*' }) }}>斜体<kbd>{MOD}I</kbd></button>
@@ -965,7 +986,7 @@ export function App() {
               docVersion={docVersion}
               recentFiles={recentFiles}
               onOpenFile={(p) => { void openFile(p) }}
-              onJump={(pos) => viewRef.current?.dispatch({ selection: { anchor: pos }, scrollIntoView: true })}
+              onJump={jumpTo}
               toast={toast}
               viewRef={viewRef}
               imageDir={imageDir?.path || ''}
@@ -983,7 +1004,7 @@ export function App() {
           docVersion={docVersion}
           recentFiles={recentFiles}
           onOpenFile={(p) => void openFile(p)}
-          onJump={(pos) => viewRef.current?.dispatch({ selection: { anchor: pos }, scrollIntoView: true })}
+          onJump={jumpTo}
           toast={toast}
           viewRef={viewRef}
           imageDir={imageDir?.path || ''}
@@ -1035,7 +1056,7 @@ export function App() {
           }}
         />
         )}
-        <section className="md-editor-pane" onDrop={(e) => void onDrop(e.nativeEvent)} onDragOver={(e) => e.preventDefault()} onContextMenu={onEditorContextMenu} onClick={onEditorClick}>
+        <section className="md-editor-pane" onContextMenu={onEditorContextMenu} onClick={onEditorClick}>
           <div ref={editorHostRef} className="md-editor-host" />
           {/* 收起态左上角悬浮钮：悬停弹出快捷 peek 面板，点击常驻展开侧栏；peek 打开时淡出让位 */}
           {!sidebarOpen && (
@@ -1074,8 +1095,9 @@ export function App() {
                 <button className="pk-menu-item" role="menuitem" onClick={() => { setMoreOpen(false); void exportRef.current?.png() }}>PNG 长图</button>
                 <div className="md-menu-sep" />
                 <div className="md-menu-label">视图</div>
-                <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(toggleTypewriter)} aria-checked={typewriter}>{typewriter ? '✓ ' : ''}打字机模式<kbd>F8</kbd></button>
-                <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(toggleFocus)} aria-checked={focusMode}>{focusMode ? '✓ ' : ''}专注模式<kbd>F9</kbd></button>
+                <button className="pk-menu-item" role="menuitemcheckbox" aria-checked={!liveMode} onClick={() => closeMore(() => { const view = viewRef.current; if (view) { view.focus(); toggleLive(view) } })}>{!liveMode ? '✓ ' : ''}源码模式<kbd>{MOD}/</kbd></button>
+                <button className="pk-menu-item" role="menuitemcheckbox" onClick={() => closeMore(toggleTypewriter)} aria-checked={typewriter}>{typewriter ? '✓ ' : ''}打字机模式<kbd>F8</kbd></button>
+                <button className="pk-menu-item" role="menuitemcheckbox" onClick={() => closeMore(toggleFocus)} aria-checked={focusMode}>{focusMode ? '✓ ' : ''}专注模式<kbd>F9</kbd></button>
                 <button className="pk-menu-item" role="menuitem" onClick={() => closeMore(toggleSidebar)}>侧栏<kbd>{MOD}\</kbd></button>
                 <div className="md-menu-sep" />
                 <div className="md-menu-label">主题</div>
@@ -1108,18 +1130,17 @@ export function App() {
 
 /* ---------------- Quick 速记 ---------------- */
 
-function QuickScratch({ kit, draftRef, actionRef, syncRef, onSave }) {
+function QuickScratch({ kit, draftRef, actionRef, syncRef, onSave, viewRef, snapshotRef, optionsFor, typewriter }) {
   const hostRef = useRef(null)
-  const viewRef2 = useRef(null)
   const submittingRef = useRef(false)
   const [saved, setSaved] = useState(() => !draftRef.current)
 
   useEffect(() => {
-    if (!hostRef.current || viewRef2.current) return
+    if (!hostRef.current || viewRef.current) return
     const view = createEditor({
       parent: hostRef.current,
       initialText: draftRef.current,
-      opts: { renderHtml: true },
+      opts: optionsFor(''), typewriter,
       onChange: (text) => {
         draftRef.current = text
         setSaved(!text.trim())
@@ -1127,16 +1148,27 @@ function QuickScratch({ kit, draftRef, actionRef, syncRef, onSave }) {
       },
       focus: true,
     })
-    viewRef2.current = view
-    return () => { view.destroy(); viewRef2.current = null }
+    viewRef.current = view
+    const snapshot = snapshotRef.current
+    if (snapshot?.state.doc.toString() === draftRef.current) {
+      view.setState(snapshot.state)
+      updateLiveOpts(view, optionsFor(''), true)
+      setTypewriterCm(view, typewriter)
+      view.scrollDOM.scrollTop = snapshot.scrollTop
+    }
+    return () => {
+      snapshotRef.current = { state: view.state, scrollTop: view.scrollDOM.scrollTop }
+      view.destroy()
+      viewRef.current = null
+    }
   }, [])
 
   useEffect(() => {
     if (!kit) return
     const syncDraft = () => {
-      const view = viewRef2.current
+      const view = viewRef.current
       if (view && view.state.doc.toString() !== draftRef.current) {
-        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: draftRef.current } })
+        resetEditorDocument(view, draftRef.current)
       }
       setSaved(!draftRef.current.trim())
     }
@@ -1170,6 +1202,10 @@ function QuickScratch({ kit, draftRef, actionRef, syncRef, onSave }) {
       </footer>
     </main>
   )
+}
+
+function acceptsEditorInput(view, target) {
+  return !!view?.contentDOM.contains(target) && !target.closest?.('input, textarea, select, button, .md-table-cell-editor')
 }
 
 function api() { return (window).enest || (window).zapi }

@@ -3,10 +3,10 @@
 import '@enest/lxgw-font/lxgw.css'
 import '@ssh/css/main.css'
 import '@ssh/css/workbench.css'
+import '@ssh/css/server-overview.css'
 import '@ssh/css/completion.css'
 import '@enest/plugin-kit/responsive.css'
 import '@enest/plugin-kit/style.css'
-import '@enest/plugin-kit/widget.css'
 import '@enest/plugin-kit/workbench.css'
 import '@enest/plugin-kit'
 window.PluginKit.useAppearanceLayout({

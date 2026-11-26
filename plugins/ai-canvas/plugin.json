@@ -26,6 +26,7 @@
   "features": [
     {
       "code": "main",
+      "title": "AI 画布",
       "explain": "AI 画布 / 节点工作流",
       "cmds": [
         "AI画布",

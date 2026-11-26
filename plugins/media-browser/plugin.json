@@ -1,0 +1,63 @@
+{
+  "id": "com.github.eNest.media-browser",
+  "name": "媒体浏览",
+  "version": "0.0.1",
+  "description": "关联多个文件夹，树形浏览图片与视频：支持尼康 NEF 等相机 RAW、HEIC 与各类视频缩略图，拖拽整理、Shift 批量选择与批量删除。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "layouts": ["shell"],
+    "default": "shell"
+  },
+  "category": "媒体",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.0.1"
+  },
+  "permissions": [
+    "backend.node"
+  ],
+  "window": {
+    "width": 1200,
+    "height": 760,
+    "minWidth": 480,
+    "minHeight": 320
+  },
+  "features": [
+    {
+      "code": "main",
+      "title": "媒体浏览",
+      "explain": "媒体浏览：浏览文件夹里的图片与视频，支持相机 RAW、拖拽整理与批量删除",
+      "cmds": [
+        "图片",
+        "图片预览",
+        "照片",
+        "相册",
+        "看图",
+        "视频",
+        "媒体",
+        "media",
+        "media-browser",
+        "image-viewer",
+        "photo-viewer"
+      ]
+    }
+  ],
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "opaque",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": ["图片", "视频", "RAW", "NEF", "HEIC", "相册", "文件管理"],
+    "readme": "assets/market/README.md",
+    "screenshots": ["assets/market/screenshots/01-main.png", "assets/market/screenshots/02-browse.png"]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5227/"
+  },
+  "backend": {
+    "entry": "backend/index.cjs"
+  }
+}

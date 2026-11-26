@@ -1,9 +1,8 @@
-/** Shared calculator state, evaluator, memory and history across all three layouts. */
+/** Shared calculator state, evaluator, memory and history across Quick and the workbench. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { calculate, formatNumber, parseAssignment, isVariableName } from '../js/core.mjs'
-import { TooltipProvider, MoreMenu } from '../ui/index.jsx'
-import { PanelView } from './PanelView.jsx'
-import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
+import { TooltipProvider, MoreMenu, SettingsGear } from '../ui/index.jsx'
+import { SettingsDialog } from './SettingsDialog.jsx'
 
 const VARS_KEY = 'calculator.vars.v1'
 const KEYS = [
@@ -19,7 +18,6 @@ export function App() {
   const exprRef = useRef(null)
   const listRef = useRef(null)
 
-  const [mode, setMode] = useState(() => api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
   const [expr, setExpr] = useState('')
   const [result, setResult] = useState({ text: '即输即算', error: false, value: null })
   const [memoryText, setMemoryText] = useState('M = 0')
@@ -221,8 +219,6 @@ export function App() {
       },
     })
     kitRef.current = kit
-    setMode(kit.mode)
-    const offMode = kit.onMode(setMode)
     kit.onSettings(() => { setSettings({ ...kit.settings }) })
     api?.onEnter?.(({ payload }) => {
       const text = typeof payload === 'string' ? payload : payload?.text
@@ -251,23 +247,10 @@ export function App() {
         recomputeRef.current(exprRef.current?.value ?? '')
       }
     })()
-    return () => { alive = false; offMode() }
+    return () => { alive = false }
   }, [])
   const moveRef = useRef(move)
   moveRef.current = move
-
-  if (mode === 'panel') {
-    return <PanelView
-      expr={expr}
-      inputRef={exprRef}
-      result={result}
-      recent={history[0]}
-      onChange={(value) => { setExpr(value); setSelected(-1) }}
-      onConfirm={confirmEntry}
-      onCopy={() => result.value != null && copy(fmt(result.value))}
-      onOpen={() => api?.ui?.openInShell?.().catch((error) => kitRef.current?.toast(error.message, 'error'))}
-    />
-  }
 
   return (
     <TooltipProvider>
@@ -378,18 +361,16 @@ export function App() {
         <footer>
           <span id="selection-hint">↑ ↓ 选择历史</span>
         </footer>
-        {mode !== 'panel' && (
-          <SettingsDialog
-            open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-            settings={settings}
-            onChange={(key, value) => {
-              setSettings((prev) => ({ ...prev, [key]: value }))
-              kitRef.current?.setPref(key, value)
-              if (key === 'angleUnit') setDegrees(value === 'deg')
-            }}
-          />
-        )}
+        <SettingsDialog
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          settings={settings}
+          onChange={(key, value) => {
+            setSettings((prev) => ({ ...prev, [key]: value }))
+            kitRef.current?.setPref(key, value)
+            if (key === 'angleUnit') setDegrees(value === 'deg')
+          }}
+        />
       </main>
     </TooltipProvider>
   )

@@ -21,7 +21,7 @@ h2{font-size:15px;font-weight:600;letter-spacing:-0.01em}
 
 /* —— 顶栏：半透明材质，内容从其下滚过 —— */
 header{display:flex;gap:20px;align-items:center;padding:18px 24px 14px;background:color-mix(in srgb,var(--paper) 72%,transparent);backdrop-filter:blur(16px) saturate(160%);border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
-header input{margin-left:auto;flex:1;max-width:460px}
+header input{margin-left:auto;flex:1;max-width:460px;line-height:1.35;padding:4px 9px}
 
 /* —— 分类条 —— */
 .filters{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:0 16px;gap:8px;background:color-mix(in srgb,var(--paper) 60%,transparent)}

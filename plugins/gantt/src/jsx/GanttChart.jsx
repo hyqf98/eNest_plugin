@@ -26,7 +26,7 @@ const MAX_LEFT_COL = 420
 const EDGE_SCROLL_ZONE = 56
 const EDGE_SCROLL_STEP = 14
 
-export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, openTaskDialog, onCreateAt }) {
+export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, openTaskDialog, onCreateAt, askText }) {
   const summaries = useMemo(() => summarize(plan.tasks), [plan.tasks])
   const allRows = useMemo(() => flattenTasks(plan.tasks), [plan.tasks])
   const violations = useMemo(
@@ -109,15 +109,17 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
 
   /* ---------- 滚动投影与视口 ---------- */
   const scrollRef = useRef(null)
-  const [scrollState, setScrollState] = useState({ left: 0, width: 0 })
+  const [scrollState, setScrollState] = useState({ left: 0, width: 0, height: 0 })
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const onScroll = () => setScrollState({ left: el.scrollLeft, width: el.clientWidth })
+    // height 供下方补空行用：必须取 clientHeight（已扣除横向滚动条），不能用百分比高度，
+    // 否则内容会比可视区多出一条滚动条的高度，凭空冒出纵向滚动。
+    const onScroll = () => setScrollState({ left: el.scrollLeft, width: el.clientWidth, height: el.clientHeight })
     onScroll()
     el.addEventListener('scroll', onScroll, { passive: true })
     const ro = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(() => setScrollState({ left: el.scrollLeft, width: el.clientWidth }))
+      ? new ResizeObserver(() => setScrollState({ left: el.scrollLeft, width: el.clientWidth, height: el.clientHeight }))
       : null
     ro?.observe(el)
     return () => {
@@ -419,12 +421,12 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
       else if (key === 'duration') {
         const sum = summaries.get(task.id) || task
         const days = diffDays(sum.end, sum.start) + 1
-        const raw = window.prompt(`「${task.name}」时长（天，1-365）`, String(days))
-        if (raw === null) return
-        const n = Math.round(Number(raw))
-        if (!Number.isFinite(n) || n < 1) { api.toast('时长需为大于 0 的天数', 'warn'); return }
-        const capped = Math.min(365, n)
-        api.patchTask(plan.id, task.id, { end: addDays(sum.start, capped - 1) })
+        void askText(`「${task.name}」时长（天，1-365）`, String(days)).then((raw) => {
+          if (raw === null) return
+          const n = Math.round(Number(raw))
+          if (!Number.isFinite(n) || n < 1) { api.toast('时长需为大于 0 的天数', 'warn'); return }
+          api.patchTask(plan.id, task.id, { end: addDays(sum.start, Math.min(365, n) - 1) })
+        })
       } else if (key.startsWith('p')) api.patchTask(plan.id, task.id, { progress: Number(key.slice(1)) })
       else if (key === 'delete') {
         if (window.confirm(`删除任务「${task.name}」？`)) api.deleteTask(plan.id, task.id)
@@ -526,6 +528,13 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
   }
 
   const totalDays = frame.maxIndex - frame.minIndex + 1
+  /* 补位空行：任务少时表格只画到最后一行就断了，下面露出一片面板底色。
+     按可视高度把行数补满（向下取整，宁可差一点也不凭空多出纵向滚动），
+     空行沿用同一套列定义画网格，周末底色与「今天」高亮才能和任务行接上。
+     搜索无结果时「没有匹配」提示条自己占掉一块高度，补位要把它算进去。 */
+  const NO_MATCH_H = 88 // 与 main.css 的 .g-no-match 高度一致
+  const filledH = rows.length * ROW_H + (rows.length === 0 && plan.tasks.length > 0 ? NO_MATCH_H : 0)
+  const fillerRows = Math.max(0, Math.floor((scrollState.height - HEAD_H - filledH) / ROW_H))
   /* 缩略带几何：轨道铺满「左列右侧的可用宽度」，内部按百分比定位 */
   const mmLaneWidth = Math.max(0, scrollState.width - leftCol - 24)
   const mmVisible = mmLaneWidth > 40 && timelineWidth > 0
@@ -678,9 +687,30 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
                 )
               })}
 
+              {/* 搜索无结果：提示条占掉的高度已在 fillerRows 里扣除 */}
               {rows.length === 0 && (
                 <div className="g-no-match">没有匹配「{query}」的任务</div>
               )}
+
+              {/* 补位空行：延续列网格直到缩略带，右键/双击与任务行的空白泳道一致 */}
+              {Array.from({ length: fillerRows }, (_, k) => (
+                <div key={`filler-${k}`} className="g-row is-filler" aria-hidden="true">
+                  <div className="g-row-label" />
+                  <div className="g-lane" style={{ width: timelineWidth }}
+                    onContextMenu={laneMenu}
+                    onDoubleClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const idx = Math.floor((e.clientX - rect.left) / dayWidth) + frame.minIndex
+                      onCreateAt?.(indexToDate(idx))
+                    }}>
+                    {columns.map(col => (
+                      <div key={col.key}
+                        className={`lane-gridline${col.weekend ? ' is-weekend' : ''}${col.key === todayColKey ? ' is-today' : ''}`}
+                        style={{ left: (col.index - frame.minIndex) * dayWidth, width: col.width }} />
+                    ))}
+                  </div>
+                </div>
+              ))}
 
               {/* 今天线（贯穿全部行，随内容滚动） */}
               <div className="g-today-line" style={{ left: `calc(var(--gt-left-col) + ${todayX}px)`, top: 0, height: '100%' }} />

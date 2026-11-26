@@ -60,9 +60,11 @@ function AttThumb({ assetId }) {
   return url ? <img src={url} alt="附件" draggable={false} /> : null
 }
 
-function AssistantMessage({ message, onOpenImage, onImageAction, onRetry, onContinue, onDownloadAll, onStop }) {
+function AssistantMessage({ message, prompt, onOpenImage, onImageAction, onRetry, onContinue, onDownloadAll, onStop, onCopyPrompt }) {
   const [revisedOpen, setRevisedOpen] = useState(false)
   const [errorOpen, setErrorOpen] = useState(false)
+  /* 「复制提示词」复制实际发给模型的那条：模型改写过（revised）就是改写后的，否则是用户原话 */
+  const promptToCopy = message.revised || prompt || ''
 
   if (message.status === 'running') {
     const kb = Math.max(0, Math.round((message.receivedBytes ?? 0) / 1024))
@@ -152,6 +154,22 @@ function AssistantMessage({ message, onOpenImage, onImageAction, onRetry, onCont
       </div>
       {revisedOpen && message.revised && <div className="ig-revised-body">{message.revised}</div>}
       <div className="ig-result-acts">
+        {promptToCopy && (
+          <button type="button" className="ig-act-btn" title={message.revised ? '复制模型改写后的提示词' : '复制这条生成用的提示词'}
+            onClick={() => onCopyPrompt(promptToCopy)}>
+            <CopyIcon size={12} />复制提示词
+          </button>
+        )}
+        {images.length > 0 && (
+          <button type="button" className="ig-act-btn" onClick={() => onImageAction('copy', images[0].assetId)}>
+            <CopyIcon size={12} />复制图片
+          </button>
+        )}
+        {images.length > 0 && (
+          <button type="button" className="ig-act-btn" onClick={() => onImageAction('download', images[0].assetId)}>
+            <DownloadIcon size={12} />下载
+          </button>
+        )}
         <button type="button" className="ig-act-btn" onClick={onRetry}>
           <RotateIcon size={12} />重新生成
         </button>
@@ -190,6 +208,8 @@ function ImageCellWrap({ assetId, index, count, onOpen, onImageAction }) {
       <span className="ig-cell-bar" onClick={e => e.stopPropagation()}>
         <button type="button" className="ig-cell-act" title="以此图继续" aria-label="以此图继续"
           onClick={() => onImageAction('continue', assetId, url)}><PencilIcon size={14} /></button>
+        <button type="button" className="ig-cell-act" title="复制图片" aria-label="复制图片"
+          onClick={() => onImageAction('copy', assetId, url)}><CopyIcon size={14} /></button>
         <button type="button" className="ig-cell-act" title="下载" aria-label="下载"
           onClick={() => onImageAction('download', assetId, url)}><DownloadIcon size={14} /></button>
         <button type="button" className="ig-cell-act" data-danger title="删除" aria-label="删除"
@@ -265,6 +285,14 @@ export function ChatView({
     }
   }, [running, scrollToBottom])
 
+  /* 每条 AI 消息对应的用户提示词：往前找最近一条用户消息（「复制提示词」在模型没改写时用它） */
+  const promptFor = (index) => {
+    for (let i = index - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'user') return messages[i].prompt || ''
+    }
+    return ''
+  }
+
   return (
     <div className="ig-stage">
       {topbar}
@@ -276,13 +304,14 @@ export function ChatView({
                   hasProvider={composerProps.hasProvider} />
               : messages.map((m, i) => m.role === 'user'
                 ? <UserMessage key={m.id} message={m} onCopy={onCopyPrompt} onRecall={msg => composerProps.onRecall?.(msg)} />
-                : <AssistantMessage key={m.id} message={m}
+                : <AssistantMessage key={m.id} message={m} prompt={promptFor(i)}
                   onOpenImage={onOpenImage}
                   onImageAction={onImageAction}
                   onRetry={() => onRetry(i)}
                   onContinue={onContinue}
                   onDownloadAll={() => onDownloadAll(m)}
-                  onStop={() => composerProps.onStop?.()} />)}
+                  onStop={() => composerProps.onStop?.()}
+                  onCopyPrompt={onCopyPrompt} />)}
           </div>
         </div>
         {showJump && (

@@ -144,14 +144,15 @@ h1 {
 .color-filter {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 14px 2px;
+  gap: 6px;
+  /* 上内距要容得下色点右上角的计数角标（向上伸 7px），否则角标顶进上方 tabs 的滚动裁剪区。 */
+  padding: 10px 14px 4px;
 }
 .color-filter .dot {
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
   padding: 0;
-  min-height: 15px;
+  min-height: 18px;
   border-radius: 50%;
   background: var(--swatch) !important;
   position: relative;
@@ -168,8 +169,8 @@ h1 {
 }
 .color-filter .dot .c-count {
   position: absolute;
-  right: -4px;
-  top: -6px;
+  right: -5px;
+  top: -7px;
   font-size: 9px;
   line-height: 1;
   color: var(--muted);
@@ -178,12 +179,12 @@ h1 {
   padding: 1px 3px;
 }
 .color-filter .all-dot {
-  width: 15px;
-  height: 15px;
-  min-height: 15px;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
   border-radius: 50%;
   border: 1px dashed var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   padding: 0;
   background: transparent;
@@ -211,7 +212,8 @@ h1 {
 #notes {
   overflow: auto;
   flex: 1;
-  padding: 4px 10px 10px;
+  /* 底部留出悬浮新建钮（.pk-fab，84px）的高度，滚到底时最后一行不被它压住。 */
+  padding: 4px 10px 96px;
 }
 .note-row {
   padding: 12px;

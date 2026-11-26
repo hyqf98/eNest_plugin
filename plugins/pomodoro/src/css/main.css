@@ -17,7 +17,6 @@
       html, body, #root { height: 100%; }
       html, body { background: transparent !important; }
       #root { background: var(--bg); }
-      :root[data-mode='panel'] #root { background: transparent; }
       body {
         overflow: hidden;
         font-variant-numeric: tabular-nums;
@@ -474,9 +473,10 @@
         transition: none;
       }
       /* —— quick 模式 —— */
+      /* 小窗口里设置齿轮改为右下角悬浮（共享 SettingsGear），顶栏再没有别的内容：
+         整条隐藏，否则会留下一条只有内边距的空白，把计时器整体往下顶。 */
       [data-mode='quick'] header {
-        padding: 10px 15px;
-        border: 0;
+        display: none;
       }
       [data-mode='quick'] h1 {
         font-size: 14px;
@@ -527,38 +527,3 @@
           overflow: visible;
         }
       }
-
-.pomo-widget .pomo-widget-clock {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 10px;
-  min-height: 100px;
-}
-.pomo-widget .pomo-widget-track {
-  height: 3px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 12%, transparent);
-}
-.pomo-widget-track span {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: var(--accent);
-  transform-origin: left;
-}
-.pomo-widget .pomo-widget-task { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pomo-widget .pomo-widget-today { flex: 1; }
-@media (max-height: 195px) {
-  .pk-widget.pomo-widget { --pk-widget-padding: 8px; gap: 4px; }
-  .pomo-widget .pomo-widget-clock { min-height: 0; gap: 4px; }
-  .pomo-widget .pk-widget-value { font-size: 2rem; }
-  .pomo-widget .pomo-widget-task { display: none; }
-}
-@media (max-height: 150px) {
-  .pk-widget.pomo-widget { gap: 2px; }
-  .pomo-widget .pomo-widget-clock { gap: 2px; }
-  .pomo-widget .pk-widget-value { font-size: 1.8rem; }
-  .pomo-widget .pk-widget-caption { font-size: 11px; }
-}

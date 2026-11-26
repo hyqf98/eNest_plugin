@@ -16,6 +16,7 @@
   "features": [
     {
       "code": "main",
+      "title": "批量重命名",
       "explain": "批量重命名文件",
       "cmds": [
         "重命名",
@@ -23,7 +24,11 @@
         "批量改名",
         "mm",
         "zmm",
-        "piliang"
+        "piliang",
+        "批量重命名文件",
+        "batch rename",
+        "cmm",
+        "chongmingming"
       ]
     }
   ],

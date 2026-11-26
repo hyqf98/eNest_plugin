@@ -9,14 +9,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogOverlay, DialogTitle, DialogDescription, Button, Input, Segmented } from '../ui/index.jsx'
 import {
-  AlertIcon, CheckIcon, ChevronDownIcon, FolderIcon, KeyIcon, PencilIcon, RotateIcon, SlidersIcon, TrashIcon, XIcon
+  AlertIcon, CheckIcon, ChevronDownIcon, FolderIcon, KeyIcon, PencilIcon, RotateIcon, SlidersIcon, TrashIcon, WandIcon, XIcon
 } from '../ui/icons.jsx'
 import { normalizeBaseUrl, upsertProvider, removeProvider, API_KIND, API_KINDS, getProtocol, isLikelyImageModel } from '../js/providers.mjs'
+import { detectTarget, getStandard, isLlmConfigured, saveLlm, TARGETS, testLlm } from '../js/promptOptimizer.mjs'
 import { pickSaveDirectory } from '../js/backendBridge.mjs'
 import { SIZE_OPTIONS, QUALITY_OPTIONS } from '../js/params.mjs'
 
 const SECTIONS = [
   { id: 'providers', label: '渠道', desc: '接入地址、模型与密钥。密钥只存宿主保险库，页面不留明文。', Icon: KeyIcon },
+  { id: 'optimizer', label: '优化提示词', desc: '配置一门语言模型，输入框里一键把提示词按目标生图模型的标准扩写。', Icon: WandIcon },
   { id: 'saveDir', label: '保存位置', desc: '生成图默认落在插件资产库；选自定义目录后同时写一份到该目录。', Icon: FolderIcon },
   { id: 'templates', label: '提示词模板', desc: '常用提示词存成模板，在输入卡的模板菜单里一键追加。', Icon: PencilIcon },
   { id: 'defaults', label: '默认参数', desc: '新会话的初始生成参数，发送时可临时调整。', Icon: SlidersIcon }
@@ -261,7 +263,7 @@ function ProviderSection({ providers, onChange, toast }) {
               )}
             </div>
             <div className="ig-form-grid">
-              <label className="ig-form-label">协议
+              <label className="ig-form-label span2">协议
                 <Segmented value={draft.apiKind} onChange={v => setDraft({ ...draft, apiKind: v, model: '' })}
                   options={API_KINDS.map(k => ({ label: KIND_LABEL[k], value: k }))} ariaLabel="协议类型" />
                 <span className="ig-form-note">{KIND_DESC[draft.apiKind ?? API_KIND.IMAGES]}</span>
@@ -277,11 +279,11 @@ function ProviderSection({ providers, onChange, toast }) {
                   <span className="ig-form-note">生效地址：{effectiveBase}</span>
                 )}
               </label>
-              <label className="ig-form-label">模型
+              <label className="ig-form-label span2">模型
                 <ModelCombo value={draft.model} onChange={model => setDraft({ ...draft, model })}
                   provider={{ ...draft, secretRef: draft.id ? providers.find(p => p.id === draft.id)?.secretRef : '' }} apiKind={draft.apiKind} />
               </label>
-              <label className="ig-form-label">
+              <label className="ig-form-label span2">
                 API Key{draft.id ? '（留空即保持不变）' : ''}
                 <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
                   placeholder="sk-…" autoComplete="off" spellCheck={false} />
@@ -391,7 +393,7 @@ function TemplateSection({ templates, onChange }) {
             <Input value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })}
               placeholder="商品静物摄影" />
           </label>
-          <label className="ig-form-label">内容
+          <label className="ig-form-label span2">内容
             <textarea className="pk-input ig-form-textarea" value={draft.content} rows={3}
               onChange={e => setDraft({ ...draft, content: e.target.value })}
               placeholder="白底棚拍，柔和顶光，居中构图，高细节" />
@@ -415,7 +417,7 @@ function TemplateSection({ templates, onChange }) {
 function DefaultsSection({ prefs, onChange }) {
   return (
     <div className="ig-form-grid">
-      <label className="ig-form-label">默认尺寸
+      <label className="ig-form-label span2">默认尺寸
         <Segmented value={prefs.defaultSize} onChange={v => onChange({ ...prefs, defaultSize: v })}
           options={SIZE_OPTIONS.map(o => ({ label: o.label, value: o.value }))} ariaLabel="默认尺寸" />
       </label>
@@ -432,7 +434,136 @@ function DefaultsSection({ prefs, onChange }) {
   )
 }
 
-export function SettingsDialog({ open, onOpenChange, section, onSectionChange, providers, onProvidersChanged, prefs, onPrefsChanged, saveDir, onSaveDirChanged, templates, onTemplatesChanged, toast }) {
+/**
+ * OptimizerSection — 「优化提示词」用的语言模型。
+ * 任何 OpenAI 兼容的 /chat/completions 都可以用（官方、中转站、本地模型）；密钥只写保险库。
+ * 「优化标准」一栏如实写明每套标准的出处：只有 Gemini 那套来自厂商官方指南，其余是插件自撰。
+ */
+function OptimizerSection({ llm, imageModel, onChange, toast }) {
+  const [draft, setDraft] = useState({ baseUrl: '', model: '', target: 'auto' })
+  const [apiKey, setApiKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setDraft({
+      baseUrl: llm?.baseUrl ?? '',
+      model: llm?.model ?? '',
+      // 存储里没有 target（或为空）= 跟随当前生图模型自动判断
+      target: llm?.target || 'auto'
+    })
+  }, [llm])
+
+  const autoTarget = detectTarget(imageModel)
+  const activeTarget = draft.target === 'auto' ? autoTarget : draft.target
+  const standard = getStandard(activeTarget)
+  const hasKey = Boolean(llm?.secretRef)
+
+  async function save() {
+    setError('')
+    if (!draft.baseUrl.trim() || !draft.model.trim()) { setError('接口地址与模型必填'); return }
+    setBusy(true)
+    try {
+      const next = await saveLlm({
+        baseUrl: draft.baseUrl, model: draft.model.trim(),
+        secretRef: llm?.secretRef ?? '',
+        // auto 不落盘：留空即「自动」，以后换了生图模型也跟着变
+        target: draft.target === 'auto' ? '' : draft.target
+      }, apiKey)
+      setApiKey('')
+      onChange(next)
+      toast('语言模型已保存', 'success')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally { setBusy(false) }
+  }
+
+  async function test() {
+    setTesting(true); setError('')
+    try {
+      await testLlm({
+        baseUrl: draft.baseUrl, model: draft.model, secretRef: llm?.secretRef ?? ''
+      }, { plainKey: apiKey })
+      toast('连接正常', 'success')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally { setTesting(false) }
+  }
+
+  return (
+    <div>
+      <div className="ig-form-section">
+        <div className="ig-form-section-head">
+          <div className="ig-form-section-title" style={{ margin: 0 }}>语言模型</div>
+          {isLlmConfigured(llm) && (
+            <span className="ig-prov-status" data-state="ok"><CheckIcon size={12} />已配置{hasKey ? ' · 密钥已存' : ''}</span>
+          )}
+        </div>
+        <div className="ig-form-grid">
+          <label className="ig-form-label">接口地址
+            <input className="pk-input" type="text" value={draft.baseUrl} spellCheck={false}
+              placeholder="https://api.openai.com/v1"
+              onChange={e => setDraft({ ...draft, baseUrl: e.target.value })} />
+          </label>
+          <label className="ig-form-label">模型
+            <input className="pk-input" type="text" value={draft.model} spellCheck={false}
+              placeholder="gpt-4o-mini"
+              onChange={e => setDraft({ ...draft, model: e.target.value })} />
+          </label>
+          <label className="ig-form-label span2">API Key
+            <input className="pk-input" type="password" value={apiKey} spellCheck={false} autoComplete="off"
+              placeholder={hasKey ? '已保存，留空表示不修改' : 'sk-…（本地模型可留空）'}
+              onChange={e => setApiKey(e.target.value)} />
+            <span className="ig-form-note">只存宿主保险库，页面与配置里不留明文。</span>
+          </label>
+        </div>
+        <div className="ig-form-acts">
+          {error && <span className="ig-form-error" role="alert">{error}</span>}
+          <button type="button" className="ig-act-btn" disabled={testing || busy || !isLlmConfigured(draft)} onClick={() => void test()}>
+            {testing ? <span className="ig-spin" /> : '测试连接'}
+          </button>
+          <button type="button" className="pk-btn pk-btn-primary" disabled={busy} onClick={() => void save()}>保存</button>
+        </div>
+      </div>
+
+      <div className="ig-form-section">
+        <div className="ig-form-section-head">
+          <div className="ig-form-section-title" style={{ margin: 0 }}>优化标准</div>
+          <span className="ig-form-note">当前生图模型：{imageModel || '未选择'} → {standard.label}</span>
+        </div>
+        <div className="ig-form-grid">
+          <label className="ig-form-label span2">目标生图模型
+            <Segmented value={draft.target} onChange={v => setDraft({ ...draft, target: v })}
+              options={[{ label: '自动', value: 'auto' }, ...TARGETS.map(t => ({ label: t.label, value: t.id }))]}
+              ariaLabel="目标生图模型" />
+            <span className="ig-form-note">
+              {draft.target === 'auto'
+                ? '按当前生图渠道的模型名自动选择。'
+                : TARGETS.find(t => t.id === draft.target)?.hint}
+            </span>
+          </label>
+        </div>
+        <div className="ig-std-card">
+          <div className="ig-std-head">
+            <span className="ig-std-name">{standard.label}</span>
+            <span className="ig-std-src" data-official={activeTarget === 'nano-banana' ? '' : undefined}>
+              {activeTarget === 'nano-banana' ? '来源：Google 官方指南' : '来源：本插件整理'}
+            </span>
+          </div>
+          <ol className="ig-std-rules">
+            {standard.rules.map(rule => <li key={rule}>{rule}</li>)}
+          </ol>
+        </div>
+        {activeTarget === 'gpt-image' && (
+          <span className="ig-form-note">OpenAI 的官方提示词指南当时无法访问，以上是按通用原则整理的，不是 OpenAI 的官方文本。</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function SettingsDialog({ open, onOpenChange, section, onSectionChange, providers, onProvidersChanged, prefs, onPrefsChanged, saveDir, onSaveDirChanged, templates, onTemplatesChanged, toast, llm, onLlmChanged, imageModel }) {
   const [localTemplates, setLocalTemplates] = useState(templates)
   const [localSaveDir, setLocalSaveDir] = useState(saveDir)
 
@@ -468,6 +599,9 @@ export function SettingsDialog({ open, onOpenChange, section, onSectionChange, p
             </div>
             <div className="ig-set-content">
               {section === 'providers' && <ProviderSection providers={providers} onChange={onProvidersChanged} toast={toast} />}
+              {section === 'optimizer' && (
+                <OptimizerSection llm={llm} imageModel={imageModel} onChange={onLlmChanged} toast={toast} />
+              )}
               {section === 'saveDir' && (
                 <SaveDirSection saveDir={localSaveDir}
                   onChange={async next => { setLocalSaveDir(next); onSaveDirChanged(next) }}

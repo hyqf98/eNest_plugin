@@ -3,10 +3,10 @@
  * 目录索引：zhaoolee.com/ChineseBQB/catalog/{index,search}.json（GitHub Pages，随 release 自动更新）。
  * 索引字段：id,name,label,src,thumb,width,height,animated,bytes,category,categoryTitle,folder。
  * 图片直链（zhaoolee.com 与 raw.githubusercontent 均无防盗链）；jsDelivr 作加速镜像。
- * index.json 约 300KB / search.json 约 1.2MB，走流式拉取。
+ * index.json 约 70KB 走非流式；search.json 约 3.3MB，超过非流式 2MB 预算，必须走流式拉取。
  */
 
-import { fetchBytes, fetchText } from '../api.mjs'
+import { fetchBytes, fetchLargeText, fetchText } from '../api.mjs'
 
 const BASE = 'https://zhaoolee.com/ChineseBQB/'
 const INDEX_URL = `${BASE}catalog/index.json`
@@ -23,7 +23,7 @@ async function loadCatalog(force = false) {
     indexPromise = (async () => {
       const [indexText, searchText] = await Promise.all([
         fetchText({ url: INDEX_URL, timeoutMs: 30000 }),
-        fetchText({ url: SEARCH_URL, timeoutMs: 60000 }),
+        fetchLargeText({ url: SEARCH_URL, timeoutMs: 60000 }),
       ])
       const index = JSON.parse(indexText)
       const search = JSON.parse(searchText)

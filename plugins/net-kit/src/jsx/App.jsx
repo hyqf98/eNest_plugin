@@ -69,7 +69,6 @@ export function App() {
   const envStoreRef = useRef(null)
   const historyRef = useRef(null)
   const collectionsRef = useRef(null)
-  const customDecodersRef = useRef([])
   if (!envStoreRef.current) {
     envStoreRef.current = new EnvStore(DEFAULT_ENVS)
     historyRef.current = new HistoryStore()
@@ -113,8 +112,7 @@ export function App() {
     await Promise.allSettled([
       kit.save('netkit_envs', envStoreRef.current.toJSON()),
       kit.save('netkit_history', historyRef.current.toJSON()),
-      kit.save('netkit_collections', collectionsRef.current.toJSON()),
-      kit.save('netkit_decoders', customDecodersRef.current)
+      kit.save('netkit_collections', collectionsRef.current.toJSON())
     ])
   }, [])
 
@@ -870,18 +868,16 @@ export function App() {
     void (async () => {
       const kitInstance = kit
       try {
-        const [envs, hist, cols, decs] = await Promise.all([
+        const [envs, hist, cols] = await Promise.all([
           kitInstance.load('netkit_envs', null),
           kitInstance.load('netkit_history', []),
-          kitInstance.load('netkit_collections', null),
-          kitInstance.load('netkit_decoders', [])
+          kitInstance.load('netkit_collections', null)
         ])
         if (!alive) return
         if (envs) Object.assign(envStoreRef.current.vars, envs)
         envStoreRef.current.names = Object.keys(envStoreRef.current.vars)
         historyRef.current.items = Array.isArray(hist) ? hist : []
         if (cols?.groups?.length) collectionsRef.current.groups = cols.groups
-        if (Array.isArray(decs)) customDecodersRef.current.push(...decs.filter((d) => d?.id && typeof d?.code === 'string'))
       } catch { /* 首次运行无数据 */ }
       if (!alive) return
       setEnvNames([...envStoreRef.current.names])
@@ -899,7 +895,6 @@ export function App() {
   const active = getActive()
   const envStore = envStoreRef.current
   const collections = collectionsRef.current
-  const customDecoders = customDecodersRef.current
 
   /** KV 键值对编辑器（等价原 buildKvEditor） */
   const renderKvEditor = (kv, onChange, emptyHint) => {
@@ -1272,14 +1267,14 @@ export function App() {
 
   /** TCP 面板（等价原 buildTcpPanel + buildDuplex + renderDuplexStream） */
   const renderTcpPanel = (s) => {
-    const viewIds = [...BUILTIN_DECODERS.map((d) => [d.id, d.label.split('（')[0].split(' · ')[0]]), ...customDecoders.map((c) => [c.id, c.name])]
+    const viewIds = BUILTIN_DECODERS.map((d) => [d.id, d.label.split('（')[0].split(' · ')[0]])
     if (!viewIds.some(([id]) => id === s.decoderId)) s.decoderId = 'hexdump'
     const bytes = s.rx.snapshot()
     let streamOut
     try {
       streamOut = s.decoderId === 'hexdump'
         ? formatHexDump(bytes)
-        : applyDecoder(s.decoderId, bytes, customDecoders, { regexPattern: s.regexPattern })
+        : applyDecoder(s.decoderId, bytes, { regexPattern: s.regexPattern })
     } catch (err) {
       streamOut = null
       var decodeError = `解码失败（策略 ${s.decoderId}）：${err.message}`
@@ -1308,14 +1303,14 @@ export function App() {
           <div className="nk-card-body nk-card-body-flush">
             {!s.socketId && !s.rx.length ? (
               <div className="nk-empty nk-empty-flush"
-                dangerouslySetInnerHTML={{ __html: '尚未连接<br>连接后接收区默认以 Hex Dump 渲染<br>支持长度前缀 / 分隔符帧 / 正则 / 自定义 JS 解码器' }} />
+                dangerouslySetInnerHTML={{ __html: '尚未连接<br>连接后接收区默认以 Hex Dump 渲染<br>支持长度前缀 / 分隔符帧 / 正则解码' }} />
             ) : (
               <div className="nk-duplex">
                 <div className="nk-duplex-top">
                   <div className="nk-card-head">
                     <div className="nk-seg">
                       {viewIds.map(([id, label]) => (
-                        <button key={id} type="button" data-v={id} title={BUILTIN_DECODERS.find((d) => d.id === id)?.label ?? `自定义：${label}`}
+                        <button key={id} type="button" data-v={id} title={BUILTIN_DECODERS.find((d) => d.id === id)?.label}
                           className={s.decoderId === id ? 'active' : ''}
                           onClick={() => { s.decoderId = id; rerender() }}>{label}</button>
                       ))}

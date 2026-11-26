@@ -671,7 +671,8 @@
   pointer-events: none;
 }
 
-.gh-ps-inputwrap .pk-input { width: 100%; padding-left: 30px; }
+/* 与 .gh-field-row .pk-input 同为 --gh-row（32px）：不钉高度会跟着共享模板的 28px 基准变矮，和同一设置页其它输入框不齐。 */
+.gh-ps-inputwrap .pk-input { width: 100%; height: var(--gh-row); padding-left: 30px; }
 
 .gh-ps-inputwrap .pk-input + .gh-ps-eye { position: static; margin-left: -30px; }
 
@@ -916,15 +917,6 @@
 }
 
 .gh-set-note i { display: inline-flex; flex: 0 0 auto; }
-
-/* 关于提示条 */
-.gh-set-about {
-  padding: 10px 12px;
-  border-radius: var(--gh-ctl-radius, 8px);
-  background: var(--surface-2, #eeefed);
-  color: var(--text-2, #666c70);
-  font-size: var(--fs-caption);
-}
 
 /* ================= 窄窗适配 ================= */
 

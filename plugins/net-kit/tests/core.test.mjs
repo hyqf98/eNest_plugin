@@ -10,7 +10,7 @@ import {
   jsonPathQuery, jsonPathExists, runAssertions,
   envResolve, buildUrl,
   RingBuffer, formatHexDump, RX_BUFFER_MAX,
-  applyDecoder, encodeSend, hexDecode, base64Encode, base64Decode, testDecoder,
+  applyDecoder, encodeSend, hexDecode, base64Encode, base64Decode,
   classifyStatus, netError, formatBytes,
   HistoryStore, CollectionStore, wsUrlKind, flattenJson
 } from '../src/js/core.js'
@@ -166,7 +166,7 @@ test('encodeSend/applyDecoder：长度前缀帧（大端 4）往返', () => {
   assert.equal(bytes[1], 0)
   assert.equal(bytes[2], 0)
   assert.equal(bytes[3], 11)
-  const out = applyDecoder('len-be4', bytes, [])
+  const out = applyDecoder('len-be4', bytes)
   assert.match(out, /帧长 11 B/)
   assert.match(out, /PING: hello/)
 })
@@ -174,13 +174,13 @@ test('encodeSend/applyDecoder：长度前缀帧（大端 4）往返', () => {
 test('encodeSend/applyDecoder：长度前缀帧（小端 2）往返', () => {
   const bytes = encodeSend('AB', 'len-le2')
   assert.deepEqual([...bytes.slice(0, 2)], [2, 0])
-  const out = applyDecoder('len-le2', bytes, [])
+  const out = applyDecoder('len-le2', bytes)
   assert.match(out, /帧长 2 B/)
 })
 
 test('encodeSend/applyDecoder：分隔符帧（\\r\\n）多帧拆分', () => {
   const bytes = encodeSend('a\\r\\nb\\r\\n', 'sep-crlf')
-  const out = applyDecoder('sep-crlf', bytes, [])
+  const out = applyDecoder('sep-crlf', bytes)
   assert.match(out, /#1 1B a/)
   assert.match(out, /#2 1B b/)
 })
@@ -193,22 +193,12 @@ test('encodeSend：hex 字面与转义', () => {
 
 test('applyDecoder：utf8 / json / base64 / ascii', () => {
   const utf8 = new TextEncoder().encode('{"a":1}')
-  assert.match(applyDecoder('json', utf8, []), /"a": 1/)
-  assert.equal(applyDecoder('base64', utf8, []), Buffer.from('{"a":1}').toString('base64'))
-  assert.equal(applyDecoder('ascii', Uint8Array.from([0x41, 0x00, 0xff]), []), 'A..')
-  assert.equal(applyDecoder('utf8', utf8, []), '{"a":1}')
+  assert.match(applyDecoder('json', utf8), /"a": 1/)
+  assert.equal(applyDecoder('base64', utf8), Buffer.from('{"a":1}').toString('base64'))
+  assert.equal(applyDecoder('ascii', Uint8Array.from([0x41, 0x00, 0xff])), 'A..')
+  assert.equal(applyDecoder('utf8', utf8), '{"a":1}')
   // 非法 JSON 行内报错
-  assert.throws(() => applyDecoder('json', new TextEncoder().encode('nope'), []))
-})
-
-test('自定义解码器：编译与测试', () => {
-  const code = `return 'len=' + bytes.length`
-  const res = testDecoder(code, new Uint8Array([1, 2, 3]))
-  assert.equal(res.ok, true)
-  assert.equal(res.output, 'len=3')
-  const bad = testDecoder('return {{{', new Uint8Array(0))
-  assert.equal(bad.ok, false)
-  assert.match(bad.error, /语法错误|Unexpected/)
+  assert.throws(() => applyDecoder('json', new TextEncoder().encode('nope')))
 })
 
 // ———— 其它 ————

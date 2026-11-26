@@ -6,10 +6,8 @@
   "author": "eNest Labs",
   "main": "index.html",
   "views": {
-    "layouts": ["quick", "shell", "panel"],
-    "default": "shell",
-    "panel": {
-      "preview": "assets/market/screenshots/panel.png", "size": { "width": 240, "height": 240 } }
+    "layouts": ["quick", "shell"],
+    "default": "shell"
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",
@@ -22,6 +20,7 @@
   "features": [
     {
       "code": "main",
+      "title": "番茄钟",
       "explain": "专注计时：长短休息、完成提示音与统计",
       "cmds": [
         "番茄钟",

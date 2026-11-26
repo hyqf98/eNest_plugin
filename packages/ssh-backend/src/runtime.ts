@@ -1,4 +1,5 @@
 import * as ssh from './sshSessionManager'
+import * as monitor from './sshMonitor'
 import { sshWorkbench } from './sshWorkbench'
 import { configureHostBridge, receiveHostReply, disposeHostBridge, hostCall } from './hostBridge'
 import { createRuntimeScope, type PluginRuntimeScope } from './runtimeScope'
@@ -31,7 +32,11 @@ export function startSshWorker(createExtension?: (context: SshWorkerExtensionCon
     'ssh.sftp.download': ssh.sshSftpDownload, 'ssh.sftp.upload': ssh.sshSftpUpload,
     'ssh.sftp.mkdir': ssh.sshSftpMkdir, 'ssh.sftp.rename': ssh.sshSftpRename,
     'ssh.sftp.delete': ssh.sshSftpDelete, 'ssh.sftp.chmod': ssh.sshSftpChmod,
-    'ssh.workbench': sshWorkbench
+    'ssh.workbench': sshWorkbench,
+    // Background overview monitors: shell-less connections, reconciled as a set by the page.
+    'ssh.monitor.sync': monitor.sshMonitorSync, 'ssh.monitor.list': monitor.sshMonitorList,
+    'ssh.monitor.refresh': monitor.sshMonitorRefresh, 'ssh.monitor.stop': monitor.sshMonitorStop,
+    'ssh.monitor.interval': (_pluginId: string, intervalMs: number) => { monitor.setMonitorInterval(intervalMs); return true }
   }
   port.on('message', ({ data }) => {
     if (data?.type === 'host.response') { receiveHostReply(data); return }
@@ -59,6 +64,7 @@ export function startSshWorker(createExtension?: (context: SshWorkerExtensionCon
       closing = true
       scope?.markClosing()
       ssh.releaseSshSessions(owner)
+      monitor.releaseMonitors(owner)
       // Extensions close native resources synchronously; host release replies get a bounded grace.
       const disposeExtension = Promise.resolve().then(() => extension?.dispose?.())
       let timer: ReturnType<typeof setTimeout> | undefined

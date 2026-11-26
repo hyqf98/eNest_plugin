@@ -4,7 +4,7 @@
  * 业务核心复用 src/js/*（api/providers/history/mcp/sessions/usage/snapshot/presets，语义未改动）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoreMenu } from '../ui/index.jsx'
+import { MoreMenu, PromptDialog } from '../ui/index.jsx'
 import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import {
   toast as AToast, notify as ANotify, errMsg as AErrMsg,
@@ -147,6 +147,16 @@ export function App() {
   }, [])
   const settleConfirm = (val) => {
     setModalConfirm((cur) => { cur?.resolve?.(val); return null })
+  }
+  // 单行文本输入（取名等）。window.prompt 在 Electron 渲染进程里恒返回 null，不能用。
+  const [modalPrompt, setModalPrompt] = useState(null) // { title, defaultValue, resolve }
+  const promptDialog = useCallback(({ title, defaultValue = '' }) => {
+    return new Promise((resolve) => {
+      setModalPrompt({ title, defaultValue, resolve })
+    })
+  }, [])
+  const settlePrompt = (val) => {
+    setModalPrompt((cur) => { cur?.resolve?.(val); return null })
   }
 
   // 撤销删除 toast
@@ -911,7 +921,7 @@ export function App() {
   }, [])
 
   async function saveCurrentProject() {
-    const name = window.prompt('项目预设名称：')
+    const name = await promptDialog({ title: '项目预设名称：' })
     if (!name) return
     const providers = sortedProviders()
     const currentId = state.currentProvider.get(state.currentApp)
@@ -2073,6 +2083,15 @@ export function App() {
           </div>
         </div>
       </div>
+
+      {modalPrompt && (
+        <PromptDialog
+          title={modalPrompt.title}
+          defaultValue={modalPrompt.defaultValue}
+          onCancel={() => settlePrompt(null)}
+          onSubmit={(value) => settlePrompt(value || null)}
+        />
+      )}
 
       {/* 动态导入弹层（导入供应商 / 从 JSON 恢复） */}
       {promptModal && (

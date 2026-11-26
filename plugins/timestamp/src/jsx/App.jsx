@@ -1,9 +1,8 @@
 /** Shared controller: layout changes retain conversion state and saved world zones. */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button } from '../ui/index.jsx'
+import { Button, SettingsGear } from '../ui/index.jsx'
 import { parseTime, timeRows, formatZoned, formatTemplates, durationText, zoneOffsetText } from '../js/core.mjs'
-import { PanelView } from './PanelView.jsx'
-import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
+import { SettingsDialog } from './SettingsDialog.jsx'
 
 const api = window.enest || window.zapi
 const WORLD_KEY = 'timestamp.worldZones.v1'
@@ -15,7 +14,6 @@ export function App() {
   const zoneAddRef = useRef(null)
 
   const [mode, setMode] = useState(() => api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode') || 'shell')
-  const [liveNow, setLiveNow] = useState(Date.now)
   const [tab, setTab] = useState('convert')
   const [input, setInput] = useState('')
   const [unit, setUnit] = useState('auto')
@@ -48,8 +46,6 @@ export function App() {
   const nowRef = useRef(Date.now())
   const pausedRef = useRef(paused)
   pausedRef.current = paused
-  const modeRef = useRef(mode)
-  modeRef.current = mode
   const visibleRef = useRef(true)
   const timerRef = useRef(null)
   const stateRef = useRef({})
@@ -98,9 +94,7 @@ export function App() {
   const tick = useCallback(() => {
     const s = stateRef.current
     const now = Date.now()
-    setLiveNow(now)
     if (!pausedRef.current) nowRef.current = now
-    if (modeRef.current === 'panel') return
     try {
       const zoned = formatZoned(nowRef.current, s.zone)
       setClock(zoned)
@@ -117,7 +111,7 @@ export function App() {
 
   const start = useCallback(() => {
     clearInterval(timerRef.current)
-    if (visibleRef.current && (!pausedRef.current || modeRef.current === 'panel')) timerRef.current = setInterval(tick, 1000)
+    if (visibleRef.current && !pausedRef.current) timerRef.current = setInterval(tick, 1000)
     tick()
   }, [tick])
 
@@ -297,7 +291,6 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /* The widget stays live even when the converter's timestamp is paused. */
   useEffect(() => {
     start()
   }, [mode, paused, start])
@@ -322,16 +315,6 @@ export function App() {
 
   const pauseToggle = () => {
     setPaused((value) => !value)
-  }
-
-  if (mode === 'panel') {
-    return <PanelView
-      now={liveNow}
-      zone={zone}
-      worldZones={worldZones}
-      onCopy={copy}
-      onOpen={() => api?.ui?.openInShell?.().catch((error) => kitRef.current?.toast(error.message, 'error'))}
-    />
   }
 
   return (

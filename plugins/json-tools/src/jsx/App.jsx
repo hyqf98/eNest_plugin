@@ -834,7 +834,7 @@ export function App() {
           <textarea
             id="input"
             ref={inputRef}
-            spellcheck="false"
+            spellCheck="false"
             wrap={wrapOff ? 'off' : 'soft'}
             placeholder='{"message": "粘贴 JSON 开始"}'
             value={input}
@@ -902,7 +902,7 @@ export function App() {
             <textarea
               id="output"
               readOnly
-              spellcheck="false"
+              spellCheck="false"
               wrap={wrapOff ? 'off' : 'soft'}
               aria-label="JSON 结果"
               placeholder="结果将显示在这里"
@@ -931,7 +931,7 @@ export function App() {
               <code className="query-sign">$</code>
               <input
                 id="query"
-                spellcheck="false"
+                spellCheck="false"
                 placeholder=".users[*].name · ..id · .items[0]"
                 aria-label="路径查询"
                 value={queryText}
@@ -953,7 +953,7 @@ export function App() {
           <div className="view ts-view" data-content="ts" hidden={view !== 'ts'}>
             <div className="view-actions">
               <label className="ts-root" htmlFor="ts-root-name">根类型名
-                <input id="ts-root-name" value={tsRootName} spellcheck="false" onChange={(e) => onTsRootInput(e.target.value)} />
+                <input id="ts-root-name" value={tsRootName} spellCheck="false" onChange={(e) => onTsRootInput(e.target.value)} />
               </label>
               <span className="tool-gap"></span>
               <button id="ts-copy" onClick={() => {
@@ -980,7 +980,7 @@ export function App() {
           <div className="view diff-view" data-content="diff" hidden={view !== 'diff'}>
             <textarea
               id="compare"
-              spellcheck="false"
+              spellCheck="false"
               aria-label="比较 JSON"
               placeholder="粘贴另一份 JSON，与左侧输入比较"
               value={compareText}

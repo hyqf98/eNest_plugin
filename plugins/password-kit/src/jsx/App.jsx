@@ -143,10 +143,11 @@ export function App() {
   })()
 
   // —— 结果行展示文本（掩码 + 悬停临时揭示，等价原 row()）——//
+  // 掩码点数如实等于真实长度：此前截到 24 个点，长度设 32 时看着像没生效。
   const display = (value, isHistory) => {
     const s = stateRef.current
     return s.masked && (s.kind === 'password' || s.kind === 'passphrase' || s.kind === 'pin' || isHistory)
-      ? '•'.repeat(Math.min(24, value.length))
+      ? '•'.repeat(value.length)
       : value
   }
 

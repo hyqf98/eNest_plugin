@@ -40,7 +40,7 @@ export function EnvList({ snapshot, selected, onSelect, search, customEnvs, onRe
                   onClick={() => onSelect({ kind: 'family', family: family.family, id: instance.id })}
                 >
                   <span className="env-icon">{familyIcon(family.family)}</span>
-                  <span className="env-name">{instance.label}</span>
+                  <span className="env-name" title={instance.label}>{instance.label}</span>
                   {instance.version && <span className="badge">{instance.version.replace(/^v?(?:go )?/, '').split(' ')[0].slice(0, 14)}</span>}
                   <span className="env-remove" hidden={!instance.id.includes(':custom:') || !customEnvs.some(custom => instance.id.endsWith(`:${custom.id}`))}
                     role="button" tabIndex={0}
@@ -61,7 +61,7 @@ export function EnvList({ snapshot, selected, onSelect, search, customEnvs, onRe
                 className={'env-row' + (selectionEquals({ kind: 'pm', pm: pm.id }) ? ' active' : '')}
                 onClick={() => onSelect({ kind: 'pm', pm: pm.id })}>
                 <span className="env-icon">{familyIcon(pm.id)}</span>
-                <span className="env-name">{pm.label}</span>
+                <span className="env-name" title={pm.label}>{pm.label}</span>
                 {pm.prefix && <span className="badge mono-badge" title={pm.prefix}>{pm.prefix.split('/').pop()}</span>}
               </button>
             ))}

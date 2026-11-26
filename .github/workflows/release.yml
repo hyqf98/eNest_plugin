@@ -65,7 +65,7 @@ jobs:
           console.log(`Resolved ${ref} to ${head}`)
           NODE
 
-  build-wallpaper-helpers:
+  build-plugin-helpers:
     needs: resolve-source
     strategy:
       fail-fast: false
@@ -97,7 +97,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libjson-glib-dev libgtk-layer-shell-dev
+          sudo apt-get install -y cmake g++ pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libjson-glib-dev libgtk-layer-shell-dev libx11-dev
 
       - name: Build Windows helper
         if: runner.os == 'Windows'
@@ -122,8 +122,33 @@ jobs:
           path: plugins/wallpaper-wall/helper-cache
           if-no-files-found: error
 
+      - name: Build Free Desktop helper (Windows)
+        if: runner.os == 'Windows' && hashFiles('plugins/free-desktop/native/windows/build.ps1') != ''
+        working-directory: plugins/free-desktop
+        shell: pwsh
+        run: |
+          ./native/windows/prepare-sdk.ps1
+          ./native/windows/build.ps1
+
+      - name: Build Free Desktop helper (macOS)
+        if: runner.os == 'macOS' && hashFiles('plugins/free-desktop/native/macos/build.sh') != ''
+        working-directory: plugins/free-desktop
+        run: sh native/macos/build.sh
+
+      - name: Build Free Desktop helper (Linux)
+        if: runner.os == 'Linux' && hashFiles('plugins/free-desktop/native/linux/build.sh') != ''
+        working-directory: plugins/free-desktop
+        run: sh native/linux/build.sh
+
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('plugins/free-desktop/plugin.json') != ''
+        with:
+          name: desktop-helper-${{ matrix.target }}
+          path: plugins/free-desktop/helper-cache
+          if-no-files-found: error
+
   release:
-    needs: [resolve-source, build-wallpaper-helpers]
+    needs: [resolve-source, build-plugin-helpers]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -147,6 +172,14 @@ jobs:
 
       - name: Install deps
         run: npm ci
+
+      - name: Download native Free Desktop helpers
+        if: hashFiles('plugins/free-desktop/plugin.json') != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-helper-*
+          path: plugins/free-desktop/helper-cache
+          merge-multiple: true
 
       - name: Validate source contracts
         run: npm run validate

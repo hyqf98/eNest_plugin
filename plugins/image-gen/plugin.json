@@ -26,6 +26,7 @@
   "features": [
     {
       "code": "main",
+      "title": "AI 生图",
       "explain": "AI 生图 / 文生图 / 图生图",
       "cmds": [
         "生图",

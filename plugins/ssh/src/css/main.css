@@ -85,6 +85,7 @@
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
+.ssh-workbench-surface { display: flex; flex-direction: column; height: 100%; min-width: 0; min-height: 0; }
 body {
   font-family: var(--font);
   background: var(--bg);

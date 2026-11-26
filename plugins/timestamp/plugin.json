@@ -6,10 +6,8 @@
   "author": "eNest Labs",
   "main": "index.html",
   "views": {
-    "layouts": ["quick", "shell", "panel"],
-    "default": "shell",
-    "panel": {
-      "preview": "assets/market/screenshots/panel.png", "size": { "width": 320, "height": 240 } }
+    "layouts": ["quick", "shell"],
+    "default": "shell"
   },
   "category": "开发",
   "icon": "assets/market/icon.svg",
@@ -17,8 +15,7 @@
     "enest": ">=0.0.1"
   },
   "permissions": [
-    "clipboard.write",
-    "shell.openExternal"
+    "clipboard.write"
   ],
   "window": {
     "width": 760,
@@ -29,6 +26,7 @@
   "features": [
     {
       "code": "main",
+      "title": "时间戳转换",
       "explain": "时间戳与日期转换",
       "cmds": [
         "时间戳",

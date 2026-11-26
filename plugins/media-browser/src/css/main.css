@@ -1,0 +1,320 @@
+/*
+ * 媒体浏览布局样式。约定：
+ * - 颜色、圆角、间距、字体、阴影全部读宿主主题变量，只给与宿主默认主题一致的兜底值；
+ * - 左侧文件夹/文件树，右侧卡片网格；预览层覆盖其上；
+ * - 图片卡片与视频卡片共用同一套 .mb-card，视频只在缩略图上叠一个播放按钮；
+ * - 控件视觉由 src/ui/pk-ui.css 提供，这里只写布局与少量组件外观。
+ */
+
+/* ---------------- 根与占满 ---------------- */
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+}
+
+#root {
+  /* 与规范参考布局一致的正文字体与行高：字号读宿主，行高 1.5 */
+  font: var(--font-size-base, 14px) / 1.5 var(--font, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif);
+  --mb-side-width: 248px;
+  --mb-row: 28px;
+  --mb-gap: 4px;
+  --mb-indent: 14px;
+  --mb-radius: var(--appearance-control-radius, 8px);
+  --mb-card-radius: var(--appearance-card-radius, 12px);
+  --mb-card-size: 168px;
+  --fs-caption: calc(12px * var(--appearance-font-scale, 1));
+  --mb-line: var(--line, var(--border, #dfe3e8));
+  --mb-wash: var(--wash, var(--surface, #f4f6f8));
+}
+
+/* ---------------- 整体两栏 ---------------- */
+
+.mb-app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg, #f6f7f9);
+  color: var(--text, #252a32);
+}
+
+/* ---------------- 左侧树 ---------------- */
+
+.mb-side {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--mb-side-width);
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--mb-line);
+  background: var(--surface, #fff);
+}
+
+.mb-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 10px 10px 10px 12px;
+}
+
+.mb-side-title {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--text-2, #747c88);
+  letter-spacing: .02em;
+}
+
+.mb-side-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 6px 6px;
+}
+
+
+
+.mb-tree { display: flex; flex-direction: column; gap: var(--mb-gap); }
+
+.mb-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* 最小高度而非固定高度：字号放大时行高随内容增长，不会把文字挤在一起 */
+  min-height: var(--mb-row);
+  /* 每深一级缩进 14px；文件夹与其中的文件共用这条基准，文件靠 depth + 1 再进一级 */
+  padding: 0 8px 0 calc(6px + var(--mb-depth, 0) * var(--mb-indent));
+  border-radius: var(--mb-radius);
+  color: var(--text, #252a32);
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.mb-tree-row:hover { background: color-mix(in srgb, var(--text, #252a32) 6%, transparent); }
+.mb-tree-row:focus-visible { outline: none; box-shadow: var(--pk-focus-ring); }
+.mb-tree-row.is-selected { background: color-mix(in srgb, var(--accent, #3579dd) 16%, transparent); }
+.mb-tree-row.is-current { background: color-mix(in srgb, var(--accent, #3579dd) 10%, transparent); color: var(--accent, #3579dd); }
+.mb-tree-row.is-current.is-selected { background: color-mix(in srgb, var(--accent, #3579dd) 22%, transparent); }
+.mb-tree-row.is-drop-target { background: color-mix(in srgb, var(--accent, #3579dd) 22%, transparent); box-shadow: inset 0 0 0 1px var(--accent, #3579dd); }
+.mb-tree-row.is-root { font-weight: 600; }
+
+/* 文件行：结构与文件夹行相同（箭头占位 + 图标 + 名称），只改颜色 */
+.mb-tree-file { color: var(--text-2, #747c88); }
+.mb-tree-file.is-selected { color: var(--text, #252a32); }
+
+.mb-tree-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3, #9aa1ab);
+  cursor: pointer;
+}
+
+.mb-tree-caret:disabled { visibility: hidden; cursor: default; }
+.mb-tree-caret:not(:disabled):hover { background: color-mix(in srgb, var(--text, #252a32) 10%, transparent); color: var(--text, #252a32); }
+
+.mb-tree-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* 图标与箭头不参与收缩：名称再长也只有名称被截断 */
+.mb-tree-row > svg, .mb-tree-caret { flex: 0 0 auto; }
+.mb-tree-count { flex: 0 0 auto; font-size: calc(var(--fs-caption) - 1px); color: var(--text-2, #747c88); font-variant-numeric: tabular-nums; }
+
+/* ---------------- 右侧内容 ---------------- */
+
+.mb-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--mb-line);
+  background: var(--surface, #fff);
+}
+
+.mb-toolbar-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mb-toolbar-count { font-size: var(--fs-caption); color: var(--text-2, #747c88); }
+.mb-toolbar-spacer { flex: 1 1 auto; }
+
+.mb-error {
+  flex: 0 0 auto;
+  margin: 8px 14px 0;
+  padding: 8px 10px;
+  border-radius: var(--mb-radius);
+  background: color-mix(in srgb, var(--danger, #b44c50) 10%, transparent);
+  color: var(--danger, #b44c50);
+}
+
+/* ---------------- 卡片网格 ---------------- */
+
+.mb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--mb-card-size));
+  justify-content: start;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+  align-content: start;
+}
+
+.mb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border-radius: var(--mb-card-radius);
+  border: 1px solid transparent;
+  cursor: default;
+  user-select: none;
+}
+
+.mb-card:hover { background: color-mix(in srgb, var(--text, #252a32) 5%, transparent); }
+.mb-card:focus-visible { outline: none; box-shadow: var(--pk-focus-ring); }
+.mb-card.is-selected { background: color-mix(in srgb, var(--accent, #3579dd) 14%, transparent); border-color: color-mix(in srgb, var(--accent, #3579dd) 55%, transparent); }
+
+/* 图片与视频共用同一个取景框：正方形、居中裁切 */
+.mb-card-frame {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: calc(var(--mb-card-radius) - 3px);
+  background: var(--mb-wash);
+}
+
+.mb-card-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.mb-card-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: var(--text-3, #9aa1ab);
+}
+
+/* 播放按钮：只在视频卡片上出现，叠在缩略图正中 */
+.mb-card-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, #000 55%, transparent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / .25);
+}
+
+.mb-card-play svg { margin-left: 2px; }
+.mb-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-caption); color: var(--text-2, #747c88); }
+.mb-card.is-selected .mb-card-name { color: var(--text, #252a32); }
+
+/* ---------------- 空态 / 加载 / 缺失目录 ---------------- */
+
+.mb-empty {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+
+.mb-empty-side { justify-content: flex-start; padding-top: 28px; }
+.mb-empty-title, .mb-empty p { margin: 0; font-weight: 600; }
+.mb-empty-hint { max-width: 420px; font-weight: 400 !important; font-size: var(--fs-caption); color: var(--text-2, #747c88); line-height: 1.6; }
+
+.mb-loading { position: absolute; right: 16px; bottom: 14px; padding: 4px 10px; border-radius: 999px; background: var(--surface, #fff); border: 1px solid var(--mb-line); color: var(--text-2, #747c88); font-size: var(--fs-caption); }
+
+.mb-missing { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--mb-line); }
+.mb-missing-title { margin: 0 0 6px; padding: 0 8px; font-size: var(--fs-caption); color: var(--text-2, #747c88); }
+.mb-missing-item {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--mb-radius);
+  background: transparent;
+  color: var(--text-2, #747c88);
+  font: inherit;
+  font-size: var(--fs-caption);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mb-missing-item:hover { background: color-mix(in srgb, var(--text, #252a32) 6%, transparent); color: var(--text, #252a32); }
+
+/* ---------------- 预览层 ---------------- */
+
+.mb-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: min(92vw, 1280px);
+  max-width: none;
+  height: min(90vh, 900px);
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.mb-viewer-title { padding: 10px 12px; font-size: var(--fs-caption); font-weight: 500; color: var(--text-2, #747c88); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--mb-line); }
+
+.mb-viewer-stage { position: relative; flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; }
+.mb-viewer-media { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.mb-viewer-placeholder { color: #fff; font-size: 14px; letter-spacing: .1em; }
+
+.mb-viewer-bar { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 8px 12px; border-top: 1px solid var(--mb-line); }
+.mb-viewer-position { font-size: var(--fs-caption); color: var(--text-2, #747c88); font-variant-numeric: tabular-nums; }
+.mb-viewer-spacer { flex: 1 1 auto; }
+
+/* ---------------- 窄窗 ---------------- */
+
+@media (max-width: 720px) {
+  #root { --mb-side-width: 200px; --mb-card-size: 132px; }
+}
+
+@media (max-width: 560px) {
+  .mb-side { flex-basis: 168px; }
+  #root { --mb-card-size: 112px; }
+  .mb-grid { gap: 8px; padding: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mb-app *, .mb-app *::before, .mb-app *::after { transition: none !important; animation: none !important; }
+}

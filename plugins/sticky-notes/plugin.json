@@ -6,10 +6,8 @@
   "author": "eNest Labs",
   "main": "index.html",
   "views": {
-    "layouts": ["quick", "shell", "panel"],
-    "default": "shell",
-    "panel": {
-      "preview": "assets/market/screenshots/panel.png", "size": { "width": 280, "height": 240 } }
+    "layouts": ["quick", "shell"],
+    "default": "shell"
   },
   "category": "效率",
   "icon": "assets/market/icon.svg",
@@ -28,6 +26,7 @@
   "features": [
     {
       "code": "main",
+      "title": "备忘录",
       "explain": "打开备忘录",
       "cmds": [
         "备忘录",

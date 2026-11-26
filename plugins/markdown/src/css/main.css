@@ -294,9 +294,6 @@
 .md-editor-host .cm-editor { height: 100%; }
 .md-editor-host .cm-scroller { overflow: auto; }
 
-/* live 块 widget 视觉容器（点击进入编辑）；限宽由 #write（cm-content）统一负责，块不再套层 */
-.md-live-block { cursor: text; }
-
 /* ---------------- 表格交互（列宽拖拽 / 右键菜单） ---------------- */
 
 .md-live-table { position: relative; }

@@ -379,6 +379,10 @@ html, body, #root {
 
 .gh-toolbar-spacer { flex: 1 1 auto; }
 
+/* 本插件的控件档位是 --gh-row（32px），搜索框、分类/排序下拉与来源分段同高；共享模板的 28px 只作兜底。 */
+.gh-toolbar .pk-select-trigger,
+.gh-toolbar .pk-segmented-item { min-height: var(--gh-row); }
+
 .gh-hint {
   margin: 0 0 var(--gh-gap);
   padding: 8px 12px;
@@ -438,6 +442,9 @@ html, body, #root {
   color: var(--text-3, #82888b);
   font-size: 28px;
 }
+
+/* 绝对定位的占位在层叠顺序上压过普通流的 img：封面就绪后必须显式收起，否则图标一直浮在图上 */
+.gh-cover[data-loaded="true"] .gh-cover-fallback { display: none; }
 
 .gh-card-badges {
   position: absolute;

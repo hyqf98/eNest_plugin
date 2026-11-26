@@ -25,6 +25,7 @@
   "features": [
     {
       "code": "main",
+      "title": "Codex 宠物市场",
       "explain": "Codex 宠物市场：浏览 / 安装 / 管理桌面宠物",
       "cmds": [
         "宠物",

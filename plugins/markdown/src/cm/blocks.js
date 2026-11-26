@@ -1,161 +1,115 @@
-const isBlank = (line) => !line.trim();
-const isHeading = (line) => /^ {0,3}#{1,6}\s/.test(line) || /^ {0,3}#{1,6}$/.test(line);
-const isFenceStart = (line) => /^ {0,3}(`{3,}|~{3,})/.test(line);
-const isHr = (line) => /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line);
-const isQuote = (line) => /^ {0,3}>/.test(line);
-const isListItem = (line) => /^ {0,3}(?:[-*+]|\d{1,9}[.)])\s+/.test(line) || /^ {0,3}\[[ xX]\]\s+/.test(line);
-const isIndented = (line) => line.startsWith("  ") || line.startsWith("	");
-const isTableDelimiter = (line) => /^ {0,3}\|?(?:\s*:?-{1,}:?\s*\|)+[\s:|-]*$/.test(line) || /^ {0,3}\|?-{1,}[^|]*\|[\s:|-]*$/.test(line);
-const hasPipe = (line) => line.includes("|");
-const isHtmlBlockStart = (line) => /^ {0,3}<\/?(div|details|summary|center|figure|figcaption|table|img|video|audio|iframe|kbd|sub|sup|mark|span|section|article|aside|br|style|script)\b/i.test(line);
-const isListContinuation = (line) => isListItem(line) || isIndented(line);
-function parseBlocks(doc) {
-  if (!doc) return [];
-  const lines = doc.split("\n");
-  const blocks = [];
-  const lineStart = new Array(lines.length);
-  let pos = 0;
-  for (let i2 = 0; i2 < lines.length; i2++) {
-    lineStart[i2] = pos;
-    pos += lines[i2].length + 1;
+import { fenceClosing, fenceOpening } from './clickMap.js'
+import { parseTable } from '../render/tableOps.js'
+
+const atx = /^ {0,3}(#{1,6})(?:[ \t]+|$)/
+const setext = /^ {0,3}(=+|-+)[ \t]*$/
+const rule = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/
+const quote = /^ {0,3}>/
+const list = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/
+const indent = /^(?: {2,}|\t)/
+const openMath = /^ {0,3}\$\$[ \t]*$/
+const sameLineMath = /^ {0,3}\$\$(?!\$).+?\$\$[ \t]*$/
+const pipe = /(?:^|[^\\])\|/
+const divider = /^ {0,3}[:|\-][\t :|\-]*$/
+const html = /^ {0,3}(?:<\/?(?:address|article|aside|blockquote|center|details|div|dl|figure|figcaption|footer|form|h[1-6]|header|iframe|main|nav|ol|p|pre|script|section|style|summary|table|ul|video|audio)(?=[\s/>])|<(?:img|br)\b[^>]*\/?\s*>\s*$)/i
+const rawHtml = [
+  [/^ {0,3}<(?:pre|script|style|textarea)(?=[\s>]|$)/i, /<\/(?:pre|script|style|textarea)>/i],
+  [/^ {0,3}<!--/, /-->/], [/^ {0,3}<\?/, /\?>/], [/^ {0,3}<!\[CDATA\[/, /\]\]>/], [/^ {0,3}<![A-Za-z]/, />/],
+]
+const rawEnd = line => line.trimStart().startsWith('<') && rawHtml.find(([start]) => start.test(line))?.[1]
+
+export function parseBlocks(doc) {
+  const lines = doc.split('\n')
+  const offsets = []
+  let offset = 0
+  for (const line of lines) { offsets.push(offset); offset += line.length + 1 }
+  const blocks = []
+  let index = 0
+  const append = (type, last, attributes) => {
+    const from = offsets[index], to = offsets[last] + lines[last].length
+    blocks.push({ type, from, to, text: doc.slice(from, to), ...attributes })
+    index = last + 1
   }
-  const endOf = (i2) => lineStart[i2] + lines[i2].length;
-  const docEnd = doc.length;
-  let i = 0;
-  if (lines.length && lines[0] === "---") {
-    let end = -1;
-    for (let j = 1; j < lines.length; j++) {
-      if (lines[j] === "---" || lines[j] === "...") {
-        end = j;
-        break;
-      }
-    }
-    if (end > 0) {
-      blocks.push({ from: 0, to: Math.min(endOf(end), docEnd), type: "meta", text: lines.slice(0, end + 1).join("\n") });
-      i = end + 1;
-    }
+  const tableAt = row => row + 1 < lines.length && pipe.test(lines[row]) && divider.test(lines[row + 1]) && !!parseTable(`${lines[row]}\n${lines[row + 1]}`)
+  const interrupts = row => {
+    const line = lines[row]
+    return !line.trim() || atx.test(line) || quote.test(line) || list.test(line) || rule.test(line) || fenceOpening(line) || openMath.test(line) || sameLineMath.test(line) || html.test(line) || rawEnd(line) || tableAt(row)
   }
-  while (i < lines.length) {
-    const line = lines[i];
-    if (isBlank(line)) {
-      i++;
-      continue;
-    }
-    const start = lineStart[i];
-    if (isFenceStart(line)) {
-      const markerChar = line.trim()[0];
-      const markerLen = line.trim().match(/^(`{3,}|~{3,})/)[0].length;
-      const info = line.trim().slice(markerLen).trim();
-      let j = i + 1;
-      while (j < lines.length) {
-        const t = lines[j].trim();
-        if (t[0] === markerChar && t.match(new RegExp(`^\\${markerChar}{${markerLen},}\\s*$`))) break;
-        j++;
-      }
-      const closeTo = j < lines.length ? endOf(j) : docEnd;
-      blocks.push({ from: start, to: Math.min(closeTo, docEnd), type: "fence", text: lines.slice(i, Math.min(j + 1, lines.length)).join("\n"), info });
-      i = j + 1;
-      continue;
-    }
-    if (/^ {0,3}\$\$/.test(line)) {
-      if (/\$\$\s*$/.test(line) && line.trim().length > 4) {
-        blocks.push({ from: start, to: Math.min(endOf(i), docEnd), type: "math", text: line });
-        i++;
-        continue;
-      }
-      let j = i + 1;
-      while (j < lines.length && !/^ {0,3}\$\$\s*$/.test(lines[j])) j++;
-      if (j >= lines.length) {
-        blocks.push({ from: start, to: docEnd, type: "math", text: lines.slice(i).join("\n") });
-        i = lines.length;
-        continue;
-      }
-      const closeTo = endOf(j);
-      blocks.push({ from: start, to: Math.min(closeTo, docEnd), type: "math", text: lines.slice(i, j + 1).join("\n") });
-      i = j + 1;
-      continue;
-    }
-    if (isHeading(line)) {
-      const m = /^ {0,3}(#{1,6})/.exec(line);
-      blocks.push({ from: start, to: Math.min(endOf(i), docEnd), type: "heading", text: line, level: m[1].length });
-      i++;
-      continue;
-    }
-    if (isHr(line)) {
-      blocks.push({ from: start, to: Math.min(endOf(i), docEnd), type: "hr", text: line });
-      i++;
-      continue;
-    }
-    if (hasPipe(line) && i + 1 < lines.length && isTableDelimiter(lines[i + 1])) {
-      let j = i + 2;
-      while (j < lines.length && !isBlank(lines[j]) && (hasPipe(lines[j]) || isTableDelimiter(lines[j]))) j++;
-      blocks.push({ from: start, to: Math.min(endOf(j - 1), docEnd), type: "table", text: lines.slice(i, j).join("\n") });
-      i = j;
-      continue;
-    }
-    if (isQuote(line)) {
-      let j = i + 1;
-      while (j < lines.length) {
-        if (isQuote(lines[j])) {
-          j++;
-          continue;
-        }
-        if (isBlank(lines[j]) && j + 1 < lines.length && isQuote(lines[j + 1])) {
-          j++;
-          continue;
-        }
-        break;
-      }
-      blocks.push({ from: start, to: Math.min(endOf(j - 1), docEnd), type: "quote", text: lines.slice(i, j).join("\n") });
-      i = j;
-      continue;
-    }
-    if (isListItem(line)) {
-      let j = i + 1;
-      while (j < lines.length) {
-        if (isListContinuation(lines[j])) {
-          j++;
-          continue;
-        }
-        if (isBlank(lines[j])) {
-          let k = j;
-          while (k < lines.length && isBlank(lines[k])) k++;
-          if (k < lines.length && (isListItem(lines[k]) || isIndented(lines[k]) && !isBlank(lines[k]))) {
-            j = k;
-            continue;
-          }
-          break;
-        }
-        break;
-      }
-      blocks.push({ from: start, to: Math.min(endOf(j - 1), docEnd), type: "list", text: lines.slice(i, j).join("\n") });
-      i = j;
-      continue;
-    }
-    if (isHtmlBlockStart(line)) {
-      let j = i;
-      while (j < lines.length && !isBlank(lines[j])) j++;
-      if (j === i) j = i + 1;
-      blocks.push({ from: start, to: Math.min(endOf(j - 1), docEnd), type: "html", text: lines.slice(i, j).join("\n") });
-      i = j;
-      continue;
-    }
-    {
-      let j = i + 1;
-      while (j < lines.length && !isBlank(lines[j]) && !isHeading(lines[j]) && !isFenceStart(lines[j]) && !isQuote(lines[j]) && !isListItem(lines[j]) && !isHr(lines[j]) && !/^ {0,3}\$\$/.test(lines[j]) && !isHtmlBlockStart(lines[j]) && !(hasPipe(lines[j]) && j + 1 < lines.length && isTableDelimiter(lines[j + 1]))) j++;
-      blocks.push({ from: start, to: Math.min(endOf(j - 1), docEnd), type: "paragraph", text: lines.slice(i, j).join("\n") });
-      i = j;
-    }
+  if (lines[0] === '---') {
+    const close = lines.findIndex((line, row) => row > 0 && (line === '---' || line === '...'))
+    if (close > 0) append('meta', close)
   }
-  return blocks;
+  while (index < lines.length) {
+    const line = lines[index]
+    if (!line.trim()) { index++; continue }
+    const fence = fenceOpening(line)
+    if (fence) {
+      let end = index + 1
+      while (end < lines.length && !fenceClosing(lines[end], fence.marker)) end++
+      append('fence', Math.min(end, lines.length - 1), { info: fence.info, incomplete: end === lines.length })
+      continue
+    }
+    if (openMath.test(line)) {
+      let end = index + 1
+      while (end < lines.length && !openMath.test(lines[end])) end++
+      append('math', Math.min(end, lines.length - 1), { incomplete: end === lines.length })
+      continue
+    }
+    if (sameLineMath.test(line)) { append('math', index); continue }
+    const heading = atx.exec(line)
+    if (heading) { append('heading', index, { level: heading[1].length }); continue }
+    if (rule.test(line)) { append('hr', index); continue }
+    if (tableAt(index)) {
+      let end = index + 2
+      while (end < lines.length && pipe.test(lines[end]) && !interrupts(end)) end++
+      append('table', end - 1)
+      continue
+    }
+    if (quote.test(line)) {
+      let end = index + 1
+      while (end < lines.length && (quote.test(lines[end]) || !interrupts(end))) end++
+      append('quote', end - 1)
+      continue
+    }
+    if (list.test(line)) {
+      let end = index + 1
+      while (end < lines.length && lines[end].trim() && (list.test(lines[end]) || indent.test(lines[end]) || !interrupts(end))) end++
+      append('list', end - 1)
+      continue
+    }
+    const closeTag = rawEnd(line)
+    if (closeTag) {
+      let end = index
+      while (end + 1 < lines.length && !closeTag.test(lines[end])) end++
+      append('html', end, { incomplete: !closeTag.test(lines[end]) })
+      continue
+    }
+    if (html.test(line)) {
+      let end = index + 1
+      while (end < lines.length && lines[end].trim()) end++
+      append('html', end - 1)
+      continue
+    }
+    let end = index + 1
+    while (end < lines.length && !setext.test(lines[end]) && !interrupts(end)) end++
+    const underline = end < lines.length && setext.exec(lines[end])
+    if (underline && !/^(?: {4}|\t)/.test(line)) append('heading', end, { style: 'setext', level: underline[1][0] === '=' ? 1 : 2 })
+    else append('paragraph', end - 1)
+  }
+  return blocks
 }
-function blockAt(blocks, pos) {
-  for (const b of blocks) {
-    if (pos >= b.from && pos <= b.to) return b;
+
+export function firstBlockAtOrAfter(blocks, position) {
+  let low = 0, high = blocks.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (blocks[middle].to < position) low = middle + 1
+    else high = middle
   }
-  return null;
+  return low
 }
-export {
-  blockAt,
-  parseBlocks
-};
+
+export function blockAt(blocks, position) {
+  const block = blocks[firstBlockAtOrAfter(blocks, position)]
+  return block && block.from <= position ? block : null
+}

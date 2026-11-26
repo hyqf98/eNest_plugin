@@ -102,7 +102,7 @@ export function Cover({ token, alt, className = '', onRatio }: { token: string; 
     setLoaded(true)
   }
   return (
-    <div className={`gh-cover ${className}`.trim()}>
+    <div className={`gh-cover ${className}`.trim()} data-loaded={loaded ? 'true' : 'false'}>
       <div className="gh-cover-fallback"><Image size={28} /></div>
       {url && !loaded ? <div className="gh-skeleton" style={{ position: 'absolute', inset: 0 }} /> : null}
       {url ? <img src={url} alt={alt} decoding="async" referrerPolicy="no-referrer" onLoad={onLoad} style={{ opacity: loaded ? 1 : 0 }} /> : null}

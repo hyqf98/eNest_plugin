@@ -145,7 +145,7 @@ const PluginKit = (() => {
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
   const launchMode = value => {
     const mode = value && typeof value === 'object' ? value.mode : value
-    return mode === 'quick' || mode === 'shell' || mode === 'panel' ? mode : null
+    return mode === 'quick' || mode === 'shell' ? mode : null
   }
   function create(options = {}) {
     const api = window.enest || window.zapi

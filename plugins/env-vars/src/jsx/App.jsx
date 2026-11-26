@@ -293,6 +293,7 @@ export function App() {
             <button
               key={item.id} type="button"
               className={'scope-item' + (scope === item.id ? ' active' : '')}
+              title={item.label}
               onClick={() => { setScope(item.id); setExpanded(null); setPathParts(null) }}
             >
               <span className="scope-icon" aria-hidden="true">{SCOPE_ICONS[item.id] ?? SCOPE_ICONS.process}</span>

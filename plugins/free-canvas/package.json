@@ -1,0 +1,14 @@
+{
+  "name": "free-canvas",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5226 --strictPort",
+    "build": "node ../../scripts/build-plugin.mjs com.github.eNest.free-canvas",
+    "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.free-canvas",
+    "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.free-canvas"
+  },
+  "dependencies": { "@enest/plugin-kit": "0.0.1" },
+  "devDependencies": { "vite": "^8.3.4" }
+}

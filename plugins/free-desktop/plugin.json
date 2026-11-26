@@ -1,0 +1,13 @@
+{
+  "id": "com.github.eNest.free-desktop", "name": "自由桌面", "version": "0.0.1",
+  "description": "用可退出的桌面工作区整理文件、便签和常用程序。",
+  "author": "eNest Labs", "main": "index.html", "category": "效率",
+  "icon": "assets/market/icon.svg", "engines": {"enest": ">=0.0.1"},
+  "views": {"default": "shell", "layouts": ["shell"]},
+  "window": {"width": 1040, "height": 690, "minWidth": 480, "minHeight": 380},
+  "permissions": ["fs.read", "fs.write", "backend.node", "launcher.access"], "backend": {"entry": "backend/index.cjs"},
+  "features": [{"code": "desktop", "title": "自由桌面", "explain": "打开桌面工作区、管理壁纸、程序栏和收纳区域", "cmds": ["自由桌面", "桌面工作区", "free desktop"]}],
+  "ui": {"chrome": "none", "themeAware": true, "background": "opaque"},
+  "market": {"tags": ["桌面", "文件收纳", "程序栏"], "readme": "assets/market/README.md", "screenshots": ["assets/market/screenshots/01-workspace.png"]},
+  "development": {"main": "http://127.0.0.1:5274/"}
+}

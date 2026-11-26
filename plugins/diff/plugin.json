@@ -23,6 +23,7 @@
   "features": [
     {
       "code": "main",
+      "title": "文本对比",
       "explain": "两段文本差异对比",
       "cmds": [
         "对比",
@@ -57,6 +58,7 @@
     "openWith": [
       {
         "id": "text-compare",
+        "label": "文本与日志",
         "extensions": [
           "txt",
           "log"

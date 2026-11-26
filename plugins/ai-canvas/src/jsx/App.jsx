@@ -18,6 +18,7 @@ import { NodePicker } from './NodePicker.jsx'
 import { FloatingMenu } from './FloatingMenu.jsx'
 import { pickLocalImage } from './nodes/RegistryNode.jsx'
 import { pickSaveDirectory } from '../js/backendBridge.mjs'
+import { PromptDialog } from '../ui/index.jsx'
 import { loadDrafts, saveDrafts, newDraft, removeDraftRecord, onWriteError } from '../js/store.mjs'
 import { loadProviders } from '../js/providers.mjs'
 import { loadPreferences, savePreferences, resolvePaper, watchSystemScheme } from '../js/theme.mjs'
@@ -45,6 +46,8 @@ function Workbench() {
   const [activeId, setActiveId] = useState('')
   const [view, setView] = useState('canvas')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // 单行文本输入（重命名画布 / 图片）。window.prompt 在 Electron 渲染进程里恒返回 null，不能用。
+  const [prompt, setPrompt] = useState(null) // null | { title, defaultValue, resolve }
   const [providers, setProviders] = useState([])
   const [prefs, setPrefs] = useState(null)
   const [lightbox, setLightbox] = useState(null)
@@ -176,12 +179,16 @@ function Workbench() {
     runContextRef.current = null
   }, [snapshotActive, setNodes, setEdges])
 
-  const renameDraft = useCallback(id => {
+  const askText = useCallback((title, defaultValue = '') => new Promise(resolve => {
+    setPrompt({ title, defaultValue, resolve })
+  }), [])
+
+  const renameDraft = useCallback(async id => {
     const current = draftsRef.current.find(d => d.id === id)
-    const name = window.prompt('重命名画布', current?.name ?? '')
-    if (name === null || !name.trim()) return
-    setDrafts(prev => prev.map(d => d.id === id ? { ...d, name: name.trim() } : d))
-  }, [])
+    const name = await askText('重命名画布', current?.name ?? '')
+    if (name === null || !name) return
+    setDrafts(prev => prev.map(d => d.id === id ? { ...d, name } : d))
+  }, [askText])
 
   const deleteDraft = useCallback(id => {
     setDrafts(prev => {
@@ -747,7 +754,7 @@ function Workbench() {
           )}
           {logOpen && <RunLogPanel nodes={nodes} onClose={() => setLogOpen(false)} />}
           {view === 'gallery' && (
-            <GalleryPanel onOpenImage={openImage} onClose={() => setView('canvas')} />
+            <GalleryPanel onOpenImage={openImage} onClose={() => setView('canvas')} askText={askText} />
           )}
           {picker && (
             <NodePicker anchor={picker.anchor} groups={picker.groups} title={picker.title ?? '添加节点'}
@@ -767,6 +774,15 @@ function Workbench() {
         providers={providers} onProvidersChanged={reloadProviders}
         prefs={prefs} onPrefsChanged={changePrefs}
       />
+
+      {prompt && (
+        <PromptDialog
+          title={prompt.title}
+          defaultValue={prompt.defaultValue}
+          onCancel={() => { prompt.resolve(null); setPrompt(null) }}
+          onSubmit={(value) => { prompt.resolve(value); setPrompt(null) }}
+        />
+      )}
 
       {lightbox && (
         <div className="ac-lightbox" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>

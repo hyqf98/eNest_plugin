@@ -87,6 +87,9 @@
   color: inherit;
   transition: border-color 0.12s, box-shadow 0.12s;
 }
+/* 单行 input：font:inherit 把正文的 1.55 行高带进来，6px 内距下实际撑到 31–32px，
+   比同排的 .pk-btn / .pk-select-trigger（28px）高出一截。收紧行高让三者等高；textarea 不受影响。 */
+input.pk-input { line-height: 1.35; padding: 4px 9px; }
 .pk-input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent, #3579dd) 45%, var(--line, #dfe3e8)); }
 .pk-input:disabled { opacity: 0.4; }
 /* 文本输入：鼠标态只有细边框收紧，键盘态才给柔光环（避免"鼠标点一下就加粗"）。 */
@@ -182,9 +185,11 @@ select.pk-select-native { display: none !important; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
+  /* 与 .pk-input / .pk-btn 同为 28px 档：此前 32px 让同一工具栏里 select 比相邻 input 高 4px，
+     8 个插件各自在业务 CSS 里覆盖回 26–28px，根因在这里。 */
+  min-height: 28px;
   max-width: 100%;
-  padding: 4px 12px;
+  padding: 3px 10px;
   border: 1px solid var(--line, var(--border, #dfe3e8));
   border-radius: var(--pk-radius, 8px);
   background: var(--surface-2, #f0f2f5);
@@ -286,6 +291,10 @@ select.pk-select-native { display: none !important; }
 }
 .pk-dialog-title { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
 .pk-dialog-description { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-2, #747c88); }
+/* PromptDialog：标题下留 12px 接输入框，按钮靠右与输入框下沿留 14px */
+.pk-prompt-form { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+.pk-prompt-form .pk-input { width: 100%; }
+.pk-prompt-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* —— Slider —— */
 .pk-slider {

@@ -27,6 +27,7 @@
   "features": [
     {
       "code": "cockpit",
+      "title": "DSH 驾驶舱",
       "explain": "DSH 会话驾驶舱：进度查看 · 会话切换 · 快速对话",
       "cmds": [
         "dsh",
@@ -40,6 +41,7 @@
     },
     {
       "code": "manage",
+      "title": "DSH 管理中心",
       "explain": "DSH 管理中心：内核版本、Profiles、环境同步与维护",
       "cmds": [
         "dsh设置",
