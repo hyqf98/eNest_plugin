@@ -169,20 +169,23 @@ export function App() {
 
         <section className="entries" aria-label="条目列表">
           {loading ? (
-            <div className="state-view">正在加载密码本…</div>
+            <div className="pk-empty-state" role="status">正在读取密码本…</div>
           ) : loadError ? (
-            <div className="state-view error">
+            <div className="pk-empty-state state-error" role="alert">
               <p>加载失败：{loadError}</p>
               <Button onClick={() => { setLoading(true); setLoadError(''); void store.load().then(() => { refresh(); setLoading(false) }).catch((e) => { setLoadError(e.message); setLoading(false) }) }}>重试</Button>
             </div>
           ) : entries.length === 0 ? (
-            <div className="state-view empty">
-              <p className="empty-title">{Icon.shield(24)} 密码本还是空的</p>
-              <p className="empty-text">把常用网站的账号密码收进来：密码加密存入本机保险库，条目只保留元数据。<br />也可以通过 MCP 工具让 AI 助手在获得授权后替你读写。</p>
+            <div className="pk-empty-state">
+              <p className="pk-empty-title">暂无密码条目</p>
+              <p className="pk-empty-hint">密码加密存储在本机保险库。</p>
               <Button variant="primary" onClick={() => setEntryDialog({ open: true, entry: null })}>{Icon.plus(13)} 新建第一个条目</Button>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="state-view empty"><p className="empty-title">没有匹配的条目</p><p className="empty-text">换个关键词，或清除搜索再看全部条目。</p></div>
+            <div className="pk-empty-state">
+              <p className="pk-empty-title">没有匹配的条目</p>
+              <p className="pk-empty-hint">试试其他关键词，或切换分类。</p>
+            </div>
           ) : (
             <EntryList
               entries={filtered} activeId={selectedId}

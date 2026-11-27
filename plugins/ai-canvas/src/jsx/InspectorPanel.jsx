@@ -43,8 +43,13 @@ export function InspectorPanel({ nodes, getOutputs, onOverride, onCollapse }) {
       <div className="ac-inspector">
         <div className="ac-insp-head">
           <span className="ac-insp-title">变量检视</span>
-          <span className="ac-insp-hint">运行节点后，这里可查看并临时改写其输出</span>
           <button type="button" className="ac-insp-close" onClick={onCollapse}>收起</button>
+        </div>
+        <div className="ac-insp-rows">
+          <div className="pk-empty-state">
+            <strong className="pk-empty-title">暂无节点输出</strong>
+            <p className="pk-empty-hint">运行节点后可查看或临时修改输出。</p>
+          </div>
         </div>
       </div>
     )

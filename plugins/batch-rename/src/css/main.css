@@ -210,7 +210,6 @@ button.danger:disabled { opacity: 0.45; }
   color: var(--text-2, #747c88);
 }
 .rule-item .r-del:hover { color: var(--danger, #b44c50); border-color: color-mix(in srgb, var(--danger, #b44c50) 45%, transparent); }
-.rule-empty { margin: 0; color: var(--text-2, #747c88); font-size: 12px; }
 .rule-error {
   margin: 8px 0 0;
   padding: 6px 10px;
@@ -243,12 +242,6 @@ button.danger:disabled { opacity: 0.45; }
   min-height: 0;
   overflow: auto;
   font-size: 12px;
-}
-/* 空队列：提示在撑满的预览区内居中，不让右侧面板上半截空白 */
-.preview-table:has(> .rule-empty:only-child) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .pv-row {
   display: grid;
@@ -316,11 +309,10 @@ dialog menu {
 
 /* 响应式：中窄收为上下结构（堆叠后退回自然高度，预览表格定高滚动）；更窄单列 */
 @container (max-width: 1080px) {
-  .rn-workbench { grid-template-columns: 1fr; }
+  .rn-workbench { flex: 1 0 auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(140px, 1fr); }
   .queue-panel { flex: none; }
   .drop-zone { flex: none; }
-  .preview-panel { min-height: 0; }
-  .preview-table { max-height: 300px; }
+  .preview-table:not(:has(> .pk-empty-state)) { max-height: 300px; }
 }
 @container (max-width: 740px) {
   .rn-app { padding: 12px; }

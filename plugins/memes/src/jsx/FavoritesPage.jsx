@@ -141,7 +141,7 @@ export function FavoritesPage({ showToast, onFavoriteChange }) {
       entries === null && !error && createElement(SkeletonMasonry, { count: 12 }),
       error && createElement(ErrorState, { message: error, onRetry: reload }),
       entries && entries.length === 0 && createElement(EmptyState, {
-        text: '还没有收藏', hint: '在表情包页点击卡片复制，hover 点 ☆ 收藏；也可以直接拖入图片导入',
+        text: '暂无收藏', hint: '点击表情包上的 ☆ 收藏，或将图片拖入此处。',
       }),
       entries && entries.length > 0 && filtered.length === 0 && createElement(EmptyState, { text: '没有匹配的收藏' }),
       filtered && filtered.length > 0 && createElement('div', { className: `mm-masonry${dragOver ? ' is-drag' : ''}` },

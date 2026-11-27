@@ -32,10 +32,10 @@ export function Spinner({ label }: { label?: string }) {
 
 export function Empty({ title, body, action, icon, className = '' }: { title: string; body?: string; action?: ReactNode; icon?: ReactNode; className?: string }) {
   return (
-    <div className={`gh-empty ${className}`.trim()}>
-      {icon ? <i>{icon}</i> : null}
-      <strong>{title}</strong>
-      {body ? <p>{body}</p> : null}
+    <div className={`pk-empty-state gh-empty ${className}`.trim()}>
+      {icon ? <i aria-hidden="true">{icon}</i> : null}
+      <strong className="pk-empty-title">{title}</strong>
+      {body ? <p className="pk-empty-hint">{body}</p> : null}
       {action}
     </div>
   )

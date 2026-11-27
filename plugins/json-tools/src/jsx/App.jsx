@@ -823,7 +823,7 @@ export function App() {
         <span className="tool-gap"></span>
         <button id="paste" className="ghost" onClick={() => void paste()}>粘贴</button>
         <button id="clear" className="ghost" onClick={clearAll}>清空</button>
-        <SettingsGear onClick={() => setSettingsOpen(true)} />
+        <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
       </div>
       <div id="error" role="alert">{errorText}</div>
       <section className="editors">
@@ -993,9 +993,9 @@ export function App() {
             </div>
             <div id="diff-results" dangerouslySetInnerHTML={{ __html: diffHtml }}></div>
           </div>
-          <div className="result-empty" id="result-empty" hidden={!emptyVisible}>
-            <p className="empty-title">还没有结果</p>
-            <p className="empty-desc">在左侧粘贴 JSON，选择上方模式</p>
+          <div className="result-empty pk-empty-state" id="result-empty" hidden={!emptyVisible}>
+            <p className="pk-empty-title">暂无结果</p>
+            <p className="pk-empty-hint">输入 JSON 后，选择需要的处理方式。</p>
           </div>
         </div>
       </section>

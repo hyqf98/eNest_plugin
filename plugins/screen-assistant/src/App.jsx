@@ -615,7 +615,7 @@ export function App() {
       />
       <div className="sa-main">
         {loading ? (
-          <div className="sa-empty"><span className="sa-spinner" /> 正在加载…</div>
+          <div className="pk-empty-state" role="status"><span className="sa-spinner" />正在加载…</div>
         ) : (
           <>
             {view === 'capture' ? (

@@ -84,27 +84,29 @@ button:focus-visible, input:focus-visible { outline: 2px solid transparent; outl
 /* ———— Quick 形态 ———— */
 .sg-quick {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
 }
-.sg-quick-bar {
-  display: flex; gap: 6px; padding: 8px;
-  border-bottom: 1px solid var(--border, rgba(41, 44, 46, 0.08)); background: var(--surface, #ffffff);
+:root[data-mode='quick'] .sg { grid-template-rows: minmax(0, 1fr); }
+.sg-quick-list { overflow: auto; min-height: 0; scrollbar-gutter: stable; }
+.sg-quick-spark {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto auto;
+  align-items: center;
+  gap: clamp(6px, 1.6vw, 16px);
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface, #fff);
+  color: var(--text-2, #666c70);
+  font-size: 11px;
 }
-.sg-quick-bar input {
-  flex: 1; min-width: 0; padding: 6px 10px;
-  border: 1px solid var(--border, rgba(41, 44, 46, 0.08)); border-radius: calc(var(--radius) - 2px);
-  background: var(--bg, #f6f6f4); color: var(--text, #292c2e);
-}
-.sg-quick-list { overflow: auto; min-height: 0; }
-.sg-quick-spark { border-top: 1px solid var(--border, rgba(41, 44, 46, 0.08)); background: var(--surface, #ffffff); padding: 4px 8px 6px; }
-.sg-quick-spark canvas { width: 100%; display: block; }
-.sg-quick-legend { display: flex; gap: 16px; font-size: 11px; color: var(--text-2, #666c70); margin-top: 2px; align-items: baseline; }
-.sg-quick-legend b { font-family: var(--mono); color: var(--text, #292c2e); font-weight: 500; }
-.sg-quick-legend .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
-.sg-quick-legend .dot-accent, .sg-chart-legend .dot-accent { background: var(--accent, #bd542b); }
-.sg-quick-legend .dot-ok, .sg-chart-legend .dot-ok { background: var(--ok, #318469); }
-.sg-quick-procs { margin-left: auto; color: var(--text-3, #82888b); }
+.sg-quick-metric { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sg-quick-metric > span { flex: none; white-space: nowrap; }
+.sg-quick-spark canvas { display: block; flex: 1; min-width: 0; width: 0; height: 24px; }
+.sg-quick-metric b { font-variant-numeric: tabular-nums; color: var(--text, #292c2e); font-weight: 550; }
+.sg-chart-legend .dot-accent { background: var(--accent, #bd542b); }
+.sg-chart-legend .dot-ok { background: var(--ok, #318469); }
+.sg-quick-procs { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* Quick 结果行（36px 行高） */
 .sg-row36 { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border-bottom: 1px solid var(--border, rgba(41, 44, 46, 0.08)); }
@@ -115,7 +117,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid transparent; outl
 .sg-row36.sg-kill-cmd { background: var(--surface-2, #eeefed); font-size: 12px; }
 .sg-row36.sg-kill-cmd .mono:first-child { color: var(--accent, #bd542b); font-weight: 600; }
 .sg-row36 .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sg-row36 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; min-width: 64px; }
+.sg-row36 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sg-row36 > .pk-btn { justify-self: end; flex: none; }
+.sg-port-row > .mono:nth-child(2) { max-inline-size: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sg-process-columns { display: grid; grid-template-columns: 60px minmax(0, 1fr) 54px 65px 46px; }
+.sg-process-columns > :nth-child(3), .sg-process-columns > :nth-child(4) { text-align: right; }
+.sg-process-head { position: sticky; z-index: 1; top: 0; color: var(--text-2, #666c70); }
+.sg-process-head > :last-child { justify-self: end; }
+.sg-process-row { content-visibility: auto; contain-intrinsic-block-size: 35px; }
+@media (max-width: 340px) {
+  .sg-process-columns { grid-template-columns: 49px minmax(0, 1fr) 43px 53px 40px; gap: 4px; }
+  .sg-quick-procs { display: none; }
+  .sg-quick-spark { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto; }
+}
 
 /* ———— 概览仪表盘 ————
    卡片无阴影纯 hairline 分隔（数据仪表密度优先）；大数字负字距 + tabular-nums；
@@ -240,7 +254,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid transparent; outl
 .sg-table td .proc-name { display: inline-block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 
 /* 曲线 */
-.sg-chart { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 8px; height: 100%; min-height: 0; }
+.sg-chart { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)) auto; gap: 8px; height: 100%; min-height: 0; }
 .sg-chart-card {
   border: 1px solid var(--border, rgba(41, 44, 46, 0.08)); border-radius: var(--radius); background: var(--surface, #ffffff);
   display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0;
@@ -258,7 +272,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid transparent; outl
 .chart-swatch.ok { color: var(--ok, #318469); }
 
 /* 三态 */
-.sg-empty { padding: 32px 16px; text-align: center; color: var(--text-3, #82888b); font-size: 12px; line-height: 1.9; }
 .sg-error {
   margin: 8px; padding: 8px 12px; border-radius: calc(var(--radius) - 2px);
   border: 1px solid color-mix(in srgb, var(--danger, #c54f46) 40%, var(--border, rgba(41, 44, 46, 0.08)));

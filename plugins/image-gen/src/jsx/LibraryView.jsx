@@ -10,7 +10,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, Select
 } from '../ui/index.jsx'
 import {
-  CheckIcon, DownloadIcon, ExpandIcon, GalleryIcon, MoreIcon, TrashIcon, XIcon
+  CheckIcon, DownloadIcon, ExpandIcon, MoreIcon, TrashIcon, XIcon
 } from '../ui/icons.jsx'
 import { assetPreviewUrl } from '../js/assets.mjs'
 
@@ -91,6 +91,9 @@ function LibCell({ record, selected, onToggle, onOpen, onAction, onCopy }) {
             <DropdownMenuItem onSelect={() => onCopy(record)}>
               <span className="pk-menu-check" aria-hidden="true" /><span className="pk-menu-label">复制提示词</span>
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onAction('saveRecipe', record)}>
+              <span className="pk-menu-check" aria-hidden="true" /><span className="pk-menu-label">存为配方</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem danger onSelect={() => onAction('delete', record)}>
               <span className="pk-menu-check" aria-hidden="true" /><span className="pk-menu-label">删除</span>
@@ -160,14 +163,13 @@ export function LibraryView({ records, topbar, onOpen, onAction, onCopy, onBulkD
         </div>
         <div className="ig-lib-inner">
           {filtered.length === 0 ? (
-            <div className="ig-empty">
-              <span className="ig-empty-icon" aria-hidden="true"><GalleryIcon size={20} /></span>
-              <span className="ig-empty-title">{records.length ? '当前筛选没有图片' : '预览库还是空的'}</span>
-              <span className="ig-empty-desc">
+            <div className="pk-empty-state" role="status">
+              <strong className="pk-empty-title">{records.length ? '没有匹配的图片' : '暂无图片'}</strong>
+              <p className="pk-empty-hint">
                 {records.length
-                  ? '换一个渠道或模型筛选，或者回到会话继续生成。'
-                  : '每次生成都会自动留一份原图在这里，可以随时下载、续作或复制提示词。'}
-              </span>
+                  ? '换一个渠道或模型试试。'
+                  : '生成后的图片会自动保存到预览库。'}
+              </p>
               {!records.length && (
                 <button type="button" className="pk-btn pk-btn-primary" onClick={onGoChat}>去生成第一张</button>
               )}

@@ -157,6 +157,7 @@ export function modSource(): SourceAdapter {
         installedSizeText: '',
         minConfig: '',
         recommendConfig: '',
+        configSpec: { min: [], recommend: [] },
         officialUrl: text(mod.mods_web_url) || `${BASE}/mods/${siteId}`,
         // 包 id 是资源下载地址：任务模块靠"包 id 是不是链接"判断它是直链，不能填资源 id
         packages: resource

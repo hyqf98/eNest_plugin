@@ -1,4 +1,5 @@
 import { Icon } from '../components/Icon.jsx'
+import { Empty } from '../components/Empty.jsx'
 
 export function PinsView({ pins, loading, onRefresh, onClosePin, onCloseAll, onPinCapture, onPinClipboard, onPinFile }) {
   return (
@@ -31,7 +32,7 @@ export function PinsView({ pins, loading, onRefresh, onClosePin, onCloseAll, onP
             </button>
           </div>
           {loading ? (
-            <div className="sa-empty"><span className="sa-spinner" /> 正在读取贴图…</div>
+            <div className="pk-empty-state" role="status"><span className="sa-spinner" />正在读取贴图…</div>
           ) : pins?.length ? pins.map((pin, index) => (
             <div key={pin.pinId} className="sa-pin-row">
               <span>贴图 {index + 1}</span>
@@ -41,7 +42,7 @@ export function PinsView({ pins, loading, onRefresh, onClosePin, onCloseAll, onP
               </button>
             </div>
           )) : (
-            <div className="sa-empty"><Icon name="pin" />还没有贴图</div>
+            <Empty icon="pin" text="暂无贴图" />
           )}
         </div>
       </div>

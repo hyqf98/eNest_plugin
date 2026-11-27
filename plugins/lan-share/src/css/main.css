@@ -383,16 +383,16 @@ html, body, #root { height: 100%; }
   overflow: auto;
   font-size: 11px;
 }
-.req-log li {
+.req-log li:not(.pk-empty-state) {
   display: flex;
   gap: 10px;
   padding: 4px 8px;
   border-radius: 5px;
 }
-.req-log li:nth-child(odd) { background: color-mix(in srgb, var(--text, #292c2e) 4%, transparent); }
+.req-log li:not(.pk-empty-state):nth-child(odd) { background: color-mix(in srgb, var(--text, #292c2e) 4%, transparent); }
 .req-log .r-file { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .req-log .r-ip { color: var(--text-3, #82888b); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.req-log .empty { color: var(--text-3, #82888b); }
+.req-log .pk-empty-state { font-family: var(--font, system-ui, sans-serif); }
 
 /* —— 接收面板 —— */
 .steps {
@@ -454,7 +454,7 @@ html, body, #root { height: 100%; }
   min-height: 0;
   overflow: auto;
 }
-.history-list li {
+.history-list li:not(.pk-empty-state) {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -474,9 +474,6 @@ html, body, #root { height: 100%; }
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-.history-list .empty { color: var(--text-3, #82888b); padding: 4px 0; }
-/* 空历史：提示在撑满的面板内居中，不让标题下一片空白 */
-.history-list:has(> .empty:only-child) { justify-content: center; }
 
 .status-line { margin: 0; min-height: 18px; font-size: 12px; color: var(--text-2, #666c70); }
 

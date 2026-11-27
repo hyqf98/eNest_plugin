@@ -12,7 +12,7 @@ import { getAdapter } from '../adapters/current.ts'
 import { BackendError } from '../adapters/types.ts'
 import { caesar3 } from '../crypto.ts'
 import type { DetailData, LibraryItem, LibraryQuery, MediaRef, Page, ResourcePackage } from '../contracts.ts'
-import { asArray, asRecord, formatSize, parseSize, text, textOrNumber } from '../util.ts'
+import { asArray, asRecord, formatSize, parseConfigFields, parseSize, text, textOrNumber } from '../util.ts'
 import type { SourceAdapter, SourceFacets } from './registry.ts'
 
 const BASES = ['https://www.uy5.net', 'https://www.kelongwo.cn']
@@ -159,6 +159,10 @@ function mapDetail(itemId: string, section: string, data: Record<string, unknown
   const item = mapListItem(data, section)
   item.id = itemId
   item.sourceId = parseItemId(itemId).sourceId
+  // 站点把配置要求写成一段 JSON 文本（键是「操作系统」「处理器」这类中文字段名）；解析成键值对，
+  // 解析不出（纯文本或空）时页面回退显示原文
+  const minConfig = text(data.MinimumConfiguration)
+  const recommendConfig = text(data.recommendConfiguration)
   const video = asRecord(data.carouselVideoInfo)
   const media: MediaRef[] = []
   const videoUrls = Array.isArray(video?.videoUrl) ? (video.videoUrl as unknown[]) : []
@@ -182,8 +186,9 @@ function mapDetail(itemId: string, section: string, data: Record<string, unknown
     datetime: text(data.datetime),
     sizeText: text(data.filesize_z),
     installedSizeText: '',
-    minConfig: text(data.MinimumConfiguration),
-    recommendConfig: text(data.recommendConfiguration),
+    minConfig,
+    recommendConfig,
+    configSpec: { min: parseConfigFields(minConfig), recommend: parseConfigFields(recommendConfig) },
     officialUrl: text(data.offcialUrl) || text(data.gfurl),
     packages,
     trainerOptions: [],

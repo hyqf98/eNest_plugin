@@ -1,18 +1,17 @@
 /**
  * 备忘录主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
  * 存储（plugin-kit storage notes_v2 / v1 迁移与备份）逻辑原样复用；
  * Markdown 预览、相对时间、字数统计等纯函数原样搬运。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { SettingsDialog } from './SettingsDialog.jsx'
 import {
+  Button,
+  Input,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
   MoreMenu,
-  FloatingAction,
   SettingsGear,
 } from '../ui/index.jsx'
 
@@ -96,23 +95,8 @@ function markdown(text) {
   )
 }
 
-const emptyArt = (
-  <svg viewBox="0 0 96 96" aria-hidden="true">
-    <rect x="22" y="16" width="52" height="66" rx="6" fill="none" stroke="var(--line)" strokeWidth="2.5" transform="rotate(-4 48 48)" />
-    <rect x="26" y="20" width="52" height="66" rx="6" fill="none" stroke="var(--warm)" strokeWidth="2.5" transform="rotate(3 52 52)" />
-    <path d="M38 44h28M38 56h22M38 68h16" stroke="var(--warm)" strokeWidth="2.5" strokeLinecap="round" opacity=".55" />
-  </svg>
-)
-const editorEmptyArt = (
-  <>
-    <svg viewBox="0 0 96 96" aria-hidden="true">
-      <rect x="24" y="14" width="48" height="68" rx="6" fill="none" stroke="var(--line)" strokeWidth="2.5" />
-      <path d="M34 32h28M34 44h28M34 56h18" stroke="var(--warm)" strokeWidth="2.5" strokeLinecap="round" opacity=".55" />
-      <path d="M62 62l14 14m0-14L62 76" stroke="var(--line)" strokeWidth="2.5" strokeLinecap="round" />
-    </svg>
-    选择一条笔记，或新建开始记录
-  </>
-)
+const FILTERS = { all: '全部', pinned: '置顶', archive: '归档', trash: '回收站' }
+const EMPTY_FILTERS = { all: '暂无笔记', pinned: '暂无置顶笔记', archive: '暂无归档笔记', trash: '回收站为空' }
 
 const TEMPLATES = {
   meeting: ['会议记录', '# 议题\n\n## 讨论\n\n## 决定\n\n## 待办\n- [ ] '],
@@ -148,7 +132,8 @@ export function App() {
   const libraryRef = useRef(null)
   const libraryToggleRef = useRef(null)
   const libraryBindingRef = useRef(null)
-  const compact = mode === 'quick' || narrow
+  const quick = mode === 'quick'
+  const compact = quick || narrow
   const libraryCollapsed = compact ? editorOpen && !libraryPinned : sidebarCollapsed
 
   useEffect(() => {
@@ -159,6 +144,7 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    if (mode === 'quick') return
     const binding = PluginKit.bindHoverPanel(libraryToggleRef.current, libraryRef.current, {
       enabled: () => libraryCollapsed,
       onOpenChange: setLibraryPeek,
@@ -537,10 +523,19 @@ export function App() {
   const onQuickSubmit = (e) => {
     e.preventDefault()
     const text = quickText.trim()
-    if (text) {
+    if (ready && text) {
       create(text)
       setQuickText('')
     }
+  }
+
+  const closeQuickEditor = () => {
+    setEditorOpen(false)
+    requestAnimationFrame(() => {
+      const row = libraryRef.current?.querySelector(`[data-id="${CSS.escape(selectedRef.current)}"]`)
+      if (row) row.focus()
+      else document.getElementById('quick-input')?.focus()
+    })
   }
 
   const exportNote = (note, ext) => {
@@ -586,33 +581,53 @@ export function App() {
         ...(current.deletedAt ? [{ key: 'purge', label: '永久删除', danger: true, onSelect: () => purgeNote() }] : []),
       ]
     : []
+  const libraryMenu = [
+    { key: 'export-all', label: '导出备份 JSON', onSelect: exportAll },
+    { key: 'export-md', label: '导出全部 Markdown', onSelect: exportMd },
+    { key: 'import', label: '导入…', onSelect: () => void importNotes() },
+  ]
+  const hasSearchFilter = Boolean(query.trim() || tag || color)
+  const emptyTitle = hasSearchFilter ? '没有匹配的笔记' : EMPTY_FILTERS[filter]
+  const emptyHint = hasSearchFilter ? '换个关键词或调整筛选。'
+    : filter === 'all' ? (quick ? '在上方记录一条笔记。' : '新建一条笔记开始记录。') : '切换到「全部」查看其他笔记。'
 
   return (
     <div className={`app${grid ? ' grid-layout' : ''}${libraryCollapsed ? ' sidebar-collapsed' : ''}`} id="app"
       data-compact={compact ? 'true' : 'false'} data-library-pinned={libraryPinned ? 'true' : 'false'}>
-      <button ref={libraryToggleRef} type="button" className="pk-btn pk-btn-ghost pk-btn-sm library-toggle" hidden={compact && !editorOpen}
+      <button ref={libraryToggleRef} type="button" className="pk-btn pk-btn-ghost pk-btn-sm library-toggle" hidden={quick || (compact && !editorOpen)}
         aria-label={libraryCollapsed ? '展开笔记列表' : '收起笔记列表'} aria-controls="note-library"
         aria-expanded={!libraryCollapsed || libraryPeek} title={libraryCollapsed ? '展开笔记列表' : '收起笔记列表'}
         onClick={toggleLibrary}>☰</button>
       <section className="library" id="note-library" ref={libraryRef} aria-label="笔记导航">
-        <header>
-          <span></span><button className="pk-btn new" id="new" onClick={() => create()}>＋ 新建</button>
-          <SettingsGear onClick={() => setSettingsOpen(true)} />
+        <header className="shell-only library-head">
+          <Button className="new" id="new" disabled={!ready} onClick={() => create()}>＋ 新建</Button>
+          <MoreMenu ariaLabel="备忘录操作" items={libraryMenu} />
+          {!quick && <SettingsGear onClick={() => setSettingsOpen(true)} />}
         </header>
         <div className="search-wrap shell-only">
           <input id="search" type="search" placeholder="搜索笔记、标签" aria-label="搜索笔记" onInput={onSearchInput} />
         </div>
-        <form className="quick-composer quick-only" id="quick-form" onSubmit={onQuickSubmit}>
-          <input id="quick-input" placeholder="记下一句话…" aria-label="快速记录" value={quickText}
-            onChange={(e) => setQuickText(e.target.value)} />
-          <button className="pk-btn new">记录</button>
-        </form>
-        <div className="tabs" id="tabs">
-          {loadError ? null : Object.entries({ all: '全部', pinned: '置顶', archive: '归档', trash: '回收站' }).map(([key, label]) => (
-            <button key={key} data-filter={key} className={filter === key ? 'active' : ''} onClick={() => toggleFilter(key)}>
-              {label}{countFor(key) ? <span className="t-count">{countFor(key)}</span> : ''}
-            </button>
-          ))}
+        <div className="library-command">
+          <form className="quick-composer quick-only" id="quick-form" onSubmit={onQuickSubmit}>
+            <Input id="quick-input" placeholder="记下一句话…" aria-label="快速记录" value={quickText} disabled={!ready}
+              onChange={(e) => setQuickText(e.target.value)} />
+            <Button className="new" type="submit" disabled={!ready || !quickText.trim()}>记录</Button>
+            <MoreMenu ariaLabel="备忘录操作" items={[
+              { key: 'new', label: '新建空白笔记', disabled: !ready, onSelect: () => create() },
+              { key: 'settings', label: '设置', onSelect: () => setSettingsOpen(true) },
+              { sep: true },
+              ...libraryMenu,
+            ]} />
+          </form>
+          <div className="tabs" id="tabs" aria-label="笔记筛选" role="group" hidden={Boolean(loadError)}>
+            {Object.entries(FILTERS).map(([key, label]) => {
+              const count = countFor(key)
+              return <button key={key} type="button" data-filter={key} aria-pressed={filter === key}
+                className={filter === key ? 'active' : ''} onClick={() => toggleFilter(key)}>
+                {label}{count ? <span className="t-count">{count}</span> : ''}
+              </button>
+            })}
+          </div>
         </div>
         <div className="color-filter shell-only" id="color-filter">
           {loadError ? null : (
@@ -638,11 +653,19 @@ export function App() {
             <option value="idea">想法草稿</option>
           </select>
         </div>
-        <div id="notes" role="list" className={grid ? 'grid' : ''}>
+        <div id="notes" role={rows.length ? 'list' : undefined} className={grid && rows.length ? 'grid' : ''}>
           {loadError ? (
-            <div className="empty">{loadError}</div>
+            <div className="pk-empty-state" role="alert">
+              <strong className="pk-empty-title">无法读取笔记</strong>
+              <p className="pk-empty-hint">{loadError}</p>
+            </div>
+          ) : !ready ? (
+            <div className="pk-empty-state" role="status">正在读取笔记…</div>
           ) : !rows.length ? (
-            <div className="empty">{emptyArt}没有匹配的笔记<br /><small>记录一句话，让想法有个落点</small></div>
+            <div className="pk-empty-state">
+              <strong className="pk-empty-title">{emptyTitle}</strong>
+              <p className="pk-empty-hint">{emptyHint}</p>
+            </div>
           ) : (
             rows.map((n) => (
               <article key={n.id}
@@ -654,21 +677,22 @@ export function App() {
                   if (e.defaultPrevented || e.isComposing || e.target !== e.currentTarget) return
                   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(n.id) }
                 }}>
-                <div className="note-title">{n.pinned ? '⌑ ' : ''}{noteTitle(n)}</div>
-                <div className="note-excerpt">{n.text || '还没有内容'}</div>
-                <div className="note-meta">
-                  <span>{n.tags.map((t) => '#' + t).join(' ')}</span>
-                  <time>{relTime(n.updatedAt)}</time>
+                <div className="note-summary">
+                  <div className="note-title">{n.pinned ? '⌑ ' : ''}{noteTitle(n)}</div>
+                  <div className="note-excerpt">{n.text || '还没有内容'}</div>
+                  <div className="note-meta">
+                    <span>{n.tags.map((t) => '#' + t).join(' ')}</span>
+                    <time>{relTime(n.updatedAt)}</time>
+                  </div>
                 </div>
                 <div className="pk-row-actions note-actions" onClick={(e) => e.stopPropagation()}>
                   <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" title="复制内容"
                     onClick={() => copyNote(n.id)}>复制</button>
-                  <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm" title={n.pinned ? '取消置顶' : '置顶'}
-                    onClick={() => mutateNote(n.id, (draft) => { draft.pinned = !draft.pinned }, { immediate: true })}>{n.pinned ? '取消置顶' : '置顶'}</button>
                   <MoreMenu
                     buttonClassName="pk-btn-sm"
                     ariaLabel="更多笔记操作"
                     items={[
+                      { key: 'pin', label: n.pinned ? '取消置顶' : '置顶', onSelect: () => mutateNote(n.id, (draft) => { draft.pinned = !draft.pinned }, { immediate: true }) },
                       { key: 'archive', label: n.archived ? '取消归档' : '归档', onSelect: () => archiveNote(n.id) },
                       n.deletedAt
                         ? { key: 'restore', label: '恢复笔记', onSelect: () => toggleTrash(n.id) }
@@ -681,25 +705,18 @@ export function App() {
             ))
           )}
         </div>
-        {/* 底栏只有一个管理菜单：合并为右下悬浮「⋯」，不再占一条常驻高度。 */}
-        <FloatingAction
-          className="shell-only"
-          icon={<span className="fab-glyph">✎</span>}
-          label="新建笔记"
-          onPrimary={() => create()}
-          items={[
-            { key: 'export-all', label: '导出备份 JSON', onSelect: exportAll },
-            { key: 'export-md', label: '导出全部 Markdown', onSelect: exportMd },
-            { key: 'import', label: '导入…', onSelect: () => void importNotes() },
-          ]}
-        />
       </section>
       <section className={`editor${editorOpen ? ' open' : ''}`} id="editor">
         {!current ? (
-          <div className="editor-empty" id="editor-empty">{loadError ? '' : editorEmptyArt}</div>
+          <div className="pk-empty-state" id="editor-empty">
+            <strong className="pk-empty-title">{loadError ? '暂无笔记可显示' : ready ? '尚未选择笔记' : '正在读取笔记…'}</strong>
+            {ready && <p className="pk-empty-hint">从列表选择一条笔记，或新建一条开始记录。</p>}
+            {quick && <Button variant="ghost" onClick={closeQuickEditor}>返回列表</Button>}
+          </div>
         ) : (
           <>
             <div className="editor-top">
+              {quick && <Button variant="ghost" onClick={closeQuickEditor}>返回列表</Button>}
               <DropdownMenu open={colorMenuOpen} onOpenChange={setColorMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <button type="button" className="pk-btn pk-btn-ghost color-trigger" aria-label="切换便签颜色" title="切换便签颜色"

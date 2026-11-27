@@ -98,7 +98,7 @@ export function WallpaperGrid({
   if (!items.length) {
     return (
       <div className="wh-grid-scroll" ref={parentRef}>
-        {error ? <EmptyState title={t('state.error')} body={error} action={emptyAction} /> : <EmptyState title={emptyTitle} body={emptyBody} action={emptyAction} />}
+        <EmptyState title={error ? t('state.error') : emptyTitle} body={error || emptyBody} action={emptyAction} error={Boolean(error)} />
       </div>
     )
   }

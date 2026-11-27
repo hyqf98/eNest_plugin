@@ -269,12 +269,51 @@ export function ChatView({
     if (stickRef.current) scrollToBottom(false)
   }, [messages, scrollToBottom])
 
+  /* 图片解码后高度突变：messages 变化那一刻图还是占位块，effect 滚的是占位的高度；
+     等图真正加载出来长到几百像素，messages 没再变，没人补滚——图的下沿和元信息就被输入框盖住。
+     这里观察内容区的实际尺寸，只要用户还在贴底就跟着滚。 */
+  useEffect(() => {
+    const el = streamRef.current
+    const inner = el?.firstElementChild
+    if (!inner || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => { if (stickRef.current) scrollToBottom(false) })
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [scrollToBottom])
+
+  /* scroll 事件分不清是用户滚的还是程序滚的。在 scroll 里更新贴底状态会和 ResizeObserver 抢跑：
+     多图陆续解码时内容一次次长高，程序刚滚到底、内容又长了一截，距离 >120 就被误判成
+     「用户上滚了」→ 之后不再跟随，图留在输入框后面。所以贴底状态只在用户的真实输入上判定。 */
+  useEffect(() => {
+    const el = streamRef.current
+    if (!el) return
+    const settle = () => {
+      stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 120
+    }
+    const onWheel = () => { setTimeout(settle, 0) }
+    const onTouch = () => { setTimeout(settle, 0) }
+    const onKey = (e) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key) && e.target === el) setTimeout(settle, 0)
+    }
+    // 拖滚动条：pointerdown 落在滚动容器自身（不是子元素）上
+    const onPointer = (e) => { if (e.target === el) setTimeout(settle, 0) }
+    el.addEventListener('wheel', onWheel, { passive: true })
+    el.addEventListener('touchmove', onTouch, { passive: true })
+    el.addEventListener('keydown', onKey)
+    el.addEventListener('pointerdown', onPointer)
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchmove', onTouch)
+      el.removeEventListener('keydown', onKey)
+      el.removeEventListener('pointerdown', onPointer)
+    }
+  }, [])
+
+  /* 「回到最新」只管按钮显隐，用 scroll 实时算即可（它不参与贴底判定） */
   const onScroll = () => {
     const el = streamRef.current
     if (!el) return
-    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
-    stickRef.current = distance <= 120
-    setShowJump(distance > 120)
+    setShowJump(el.scrollHeight - el.scrollTop - el.clientHeight > 120)
   }
 
   /* 生成中持续贴底（KB 计数更新） */

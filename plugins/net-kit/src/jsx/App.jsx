@@ -1,6 +1,5 @@
 /**
  * main.jsx — 网络调试台 · React 版（原 src/js/main.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
  * 业务核心复用 ./core.js（纯逻辑，未改动）；backend 宿主 API 调用语义不变。
  * 会话数据流经 latest-ref 桥接（TCP 收流 / WS 帧高频回调直接读 refs）。
  */
@@ -23,6 +22,15 @@ const fmtTime = (ts) => new Date(ts).toLocaleTimeString('zh-CN', { hour12: false
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']
 const MODES = [['http', 'HTTP'], ['tcp', 'TCP'], ['ws', 'WebSocket']]
 const RESP_PAGE = 512 * 1024
+
+function PanelEmpty({ title, hint, role }) {
+  return (
+    <div className="pk-empty-state" role={role}>
+      <strong className="pk-empty-title">{title}</strong>
+      {hint && <p className="pk-empty-hint">{hint}</p>}
+    </div>
+  )
+}
 
 function base64ToBytes(b64) {
   const bin = atob(b64)
@@ -663,6 +671,7 @@ export function App() {
     head.className = 'nk-dlg-head'
     const span = document.createElement('span'); span.textContent = `历史（最近 ${Math.min(history.items.length, HISTORY_LIMIT)} 条）`; head.append(span)
     const clear = document.createElement('button'); clear.className = 'x pk-btn pk-btn-ghost pk-btn-sm'; clear.type = 'button'; clear.textContent = '清空'
+    clear.disabled = !history.items.length
     clear.addEventListener('click', () => { history.clear(); void persistAll(); rerender(); dlg.close() })
     const x = document.createElement('button'); x.className = 'x'; x.type = 'button'; x.title = '关闭'; x.textContent = '✕'
     x.addEventListener('click', () => dlg.close())
@@ -670,7 +679,7 @@ export function App() {
     const list = document.createElement('ul')
     list.className = 'nk-hist nk-dlg-body'
     if (!history.items.length) {
-      const empty = document.createElement('div'); empty.className = 'nk-empty'; empty.textContent = '暂无历史'; list.append(empty)
+      const empty = document.createElement('li'); empty.className = 'pk-empty-state'; empty.textContent = '暂无请求历史'; list.append(empty)
     }
     for (const h of history.items) {
       const li = document.createElement('li')
@@ -725,6 +734,9 @@ export function App() {
         row.append(m, u, del)
         body.append(row)
       }
+    }
+    if (!collectionsRef.current.groups.some((group) => group.requests.length)) {
+      const empty = document.createElement('div'); empty.className = 'pk-empty-state'; empty.textContent = '暂无收藏的请求'; body.append(empty)
     }
     root.append(head, body)
     dlg.replaceChildren(root)
@@ -1012,7 +1024,7 @@ export function App() {
               </select>
               <input
                 className="nk-input nk-mono grow" placeholder="https://api.example.com/path 或 {{host}}/path"
-                value={s.url} data-input-context="editor"
+                aria-label="请求 URL" value={s.url} data-input-context="editor"
                 onInput={(e) => { s.url = e.target.value }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendHttpRef.current(s) } }}
               />
@@ -1132,7 +1144,7 @@ export function App() {
       return card(
         <>
           <div className="nk-card-head"><span>响应</span></div>
-          <div className="nk-card-body nk-empty">发送请求后在此查看响应{'\n'}支持流式渲染 · SSE 逐事件 · 断言自动执行</div>
+          <div className="nk-card-body"><PanelEmpty title="暂无响应" hint="发送请求后在此查看响应。" /></div>
         </>
       )
     }
@@ -1140,7 +1152,7 @@ export function App() {
       return card(
         <>
           <div className="nk-card-head"><span>响应</span></div>
-          <div className="nk-error">{r.error}</div>
+          <div className="nk-card-body"><PanelEmpty title="请求失败" hint={r.error} role="alert" /></div>
         </>
       )
     }
@@ -1189,6 +1201,8 @@ export function App() {
               <div className="nk-skeleton nk-skeleton-line"></div>
               <div className="nk-skeleton nk-skeleton-line"></div>
             </>
+          ) : r.sse && !r.sseEvents.length ? (
+            <PanelEmpty title={r.pending ? '等待事件…' : '暂无事件'} role={r.pending ? 'status' : undefined} />
           ) : r.sse ? (
             <div className="nk-sse">
               {r.sseEvents.map((ev, i) => (
@@ -1197,8 +1211,9 @@ export function App() {
                   <div className="d">{ev.data}</div>
                 </div>
               ))}
-              {!r.sseEvents.length && r.pending && <div className="nk-empty">等待事件…</div>}
             </div>
+          ) : !r.pending && !r.chunks.length && !r.bodyText ? (
+            <PanelEmpty title="响应无内容" />
           ) : (
             <>
               <div className="nk-seg">
@@ -1227,9 +1242,6 @@ export function App() {
             })}>+ 分组</button>
         </div>
         <div className="nk-tree nk-card-body" onContextMenu={onTreeContextMenu}>
-          {!collections.groups.length && (
-            <div className="nk-tree-empty">{'暂无集合\n在请求区点击「存入集合」保存常用请求'}</div>
-          )}
           {collections.groups.map((g) => (
             <div className="nk-tree-group" key={g.id} data-group-id={g.id}>
               <div className="nk-tree-group-head" data-row-actions>
@@ -1260,6 +1272,9 @@ export function App() {
               ))}
             </div>
           ))}
+          {!collections.groups.some((group) => group.requests.length) && (
+            <PanelEmpty title="暂无收藏的请求" hint="在请求区使用「存入集合」保存常用请求。" />
+          )}
         </div>
       </div>
     </div>
@@ -1284,9 +1299,9 @@ export function App() {
         <div className="nk-card">
           <div className="nk-card-head">
             <span>TCP</span>
-            <input className="nk-input nk-mono nk-input-narrow" placeholder="host" value={s.host}
+            <input className="nk-input nk-mono nk-input-narrow" placeholder="host" aria-label="TCP 主机" value={s.host}
               data-input-context="editor" onInput={(e) => { s.host = e.target.value }} />
-            <input className="nk-input nk-mono nk-input-xs" type="number" placeholder="port" value={s.port}
+            <input className="nk-input nk-mono nk-input-xs" type="number" placeholder="port" aria-label="TCP 端口" value={s.port}
               data-input-context="editor" onInput={(e) => { s.port = Number(e.target.value) || 0 }} />
             <label className="nk-check">
               <input type="checkbox" checked={s.tls} onChange={(e) => { s.tls = e.target.checked; rerender() }} />TLS
@@ -1302,8 +1317,7 @@ export function App() {
           </div>
           <div className="nk-card-body nk-card-body-flush">
             {!s.socketId && !s.rx.length ? (
-              <div className="nk-empty nk-empty-flush"
-                dangerouslySetInnerHTML={{ __html: '尚未连接<br>连接后接收区默认以 Hex Dump 渲染<br>支持长度前缀 / 分隔符帧 / 正则解码' }} />
+              <PanelEmpty title="尚未连接" hint="连接后在此查看接收的数据。" />
             ) : (
               <div className="nk-duplex">
                 <div className="nk-duplex-top">
@@ -1327,7 +1341,7 @@ export function App() {
                     <button className="pk-btn pk-btn-ghost pk-btn-sm" type="button" onClick={() => { s.rx.clear(); rerender() }}>清空</button>
                   </div>
                   <div className="nk-stream">
-                    <div className="nk-viewer nk-viewer-plain">
+                    {!bytes.length && !decodeError ? <PanelEmpty title="暂无接收数据" /> : <div className="nk-viewer nk-viewer-plain">
                       {decodeError ? (
                         <div className="nk-error">{decodeError}</div>
                       ) : s.rx.dropped ? (
@@ -1340,7 +1354,7 @@ export function App() {
                       ) : s.decoderId === 'hexdump' && s.showTimestamp ? (
                         <span className="nk-hexline"><span className="hx-time">{fmtTime(Date.now()) + ' '}</span><span className="hx-byte">{streamOut}</span></span>
                       ) : streamOut}
-                    </div>
+                    </div>}
                   </div>
                 </div>
                 <div className="nk-duplex-bottom">
@@ -1399,7 +1413,7 @@ export function App() {
         <div className="nk-card">
           <div className="nk-card-head">
             <span>WS</span>
-            <input className="nk-input nk-mono grow" placeholder="wss://host/path（ws:// 明文走宿主桥）"
+            <input className="nk-input nk-mono grow" placeholder="wss://host/path（ws:// 明文走宿主桥）" aria-label="WebSocket 地址"
               value={s.wsUrl} data-input-context="editor" onInput={(e) => { s.wsUrl = e.target.value }} />
             <button className="pk-btn pk-btn-primary" type="button" onClick={() => void connectWs(s)}>{s.ws ? '已连接' : '连接'}</button>
             <button className="pk-btn pk-btn-danger" type="button" disabled={!s.ws}
@@ -1408,7 +1422,7 @@ export function App() {
           </div>
           <div className="nk-card-body nk-card-body-flush-col">
             {!s.ws && !s.wsFrames.length ? (
-              <div className="nk-empty">{'尚未连接\nWebSocket 连接通过宿主权限与代理；明文连接需显式授权'}</div>
+              <PanelEmpty title="尚未连接" hint="连接后在此查看消息。明文连接需要授权。" />
             ) : (
               <div className="nk-ws-body">
                 <div className="nk-card-head">
@@ -1424,6 +1438,7 @@ export function App() {
                   <button className="pk-btn pk-btn-ghost pk-btn-sm" type="button" onClick={() => { s.wsFrames = []; rerender() }}>清空</button>
                 </div>
                 <div className="nk-sse nk-sse-fill">
+                  {!s.wsFrames.length && <PanelEmpty title="暂无消息" />}
                   {s.wsFrames.slice(-200).map((f, i) => {
                     const dirLabel = f.dir === 'in' ? '↓ 收' : f.dir === 'out' ? '↑ 发' : '· '
                     const cls = f.dir === 'in' ? 'ok' : f.dir === 'out' ? 'accent' : 'neutral'
@@ -1518,6 +1533,7 @@ export function App() {
 
       {/* 内容区 */}
       <section className={`nk-body ${bodyClass}`} id="body">
+        {!active && <PanelEmpty title="正在读取工作台…" role="status" />}
         {active && modeRef.current === 'shell' && active.kind === 'http' && (
           <>
             {renderTreeCol()}
@@ -1546,7 +1562,7 @@ export function App() {
 
       <footer className="nk-foot">
         <span id="foot-status">{foot}</span>
-        <span className="nk-foot-hint">出站连接由宿主代理 · 单插件 8 并发 · 收流 4MB 环形缓冲</span>
+        <span className="nk-foot-hint shell-only">出站连接由宿主代理 · 单插件 8 并发 · 收流 4MB 环形缓冲</span>
       </footer>
 
       {/* 通用浮层宿主（原 index.html body 直挂 dialog#dlg） */}

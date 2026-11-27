@@ -21,8 +21,14 @@ export function ErrorBox({ error, onRetry }) {
   )
 }
 
-export function Empty({ children }) {
-  return <div className="tb-empty">{children}</div>
+export function Empty({ title, hint, children }) {
+  return (
+    <div className="pk-empty-state">
+      <strong className="pk-empty-title">{title}</strong>
+      {hint && <p className="pk-empty-hint">{hint}</p>}
+      {children}
+    </div>
+  )
 }
 
 /** 骨架卡片行（+ 顶部转圈提示，避免长时间聚合加载时看不出在进行中） */

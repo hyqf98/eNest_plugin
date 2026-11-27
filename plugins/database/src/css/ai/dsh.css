@@ -14,6 +14,10 @@
   --dbai-neutral-75: rgb(241, 243, 245);
   --dbai-neutral-100: rgb(235, 238, 242);
   --dbai-neutral-200: rgb(225, 229, 238);
+  /* 300 是深色主题 --dbai-text-2 的引用目标；原先色板从 200 直接跳到 400，
+     缺失导致深色下 --dbai-text-2 整条声明失效，正文继承外层 --text（深色）
+     压在同色面板上，几乎看不见。按 200/400 之间插值补齐。 */
+  --dbai-neutral-300: rgb(199, 203, 211);
   --dbai-neutral-400: rgb(173, 178, 184);
   --dbai-neutral-500: rgb(151, 157, 166);
   --dbai-neutral-600: rgb(129, 133, 140);
@@ -147,7 +151,11 @@ html[data-scheme='dark'],
   box-shadow: var(--dbai-shadow);
   overflow: hidden;
   min-width: 280px;
+  /* 面板自带字体栈：纸面主题把 --font 换成手写体，面板继承后会连输入框、
+     按钮、消息正文一起变手写，11–13px 下读不清。DSH 层保持无衬线。 */
+  font-family: "Inter", "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
+.dbai-fab { font-family: inherit; }
 .dbai-panel.narrow {
   border-radius: 0;
   width: 100vw;
@@ -221,7 +229,10 @@ html[data-scheme='dark'],
 .dbai-sessions-btn::before { content: '☰ '; opacity: 0.6; }
 .dbai-model-chip::before { content: '◈ '; opacity: 0.6; }
 .dbai-conn-chip::before { content: '◉ '; color: var(--dbai-ok); }
-.dbai-model-chip.empty, .dbai-conn-chip.empty { color: var(--dbai-text-3); border-style: dashed; }
+/* 未配置态用 dbai-unset 而不是 empty：`.empty` 是插件全局空态类
+   （main.css: padding 32px 16px; display:flex; align-items:center），
+   挂到 chip 上会把它撑成 83px 高的椭圆徽章，并压住整个头部标题行。 */
+.dbai-model-chip.dbai-unset, .dbai-conn-chip.dbai-unset { color: var(--dbai-text-3); border-style: dashed; }
 .dbai-sessions-btn:hover, .dbai-model-chip:hover, .dbai-conn-chip:hover { background: var(--dbai-hover); }
 
 .dbai-collapse {

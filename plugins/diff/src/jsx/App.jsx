@@ -88,7 +88,7 @@ export function App() {
 
     if (!a && !b) {
       setDiffHtml(
-        '<div class="diff-empty">在两侧粘贴文本，或把文件拖到任意一侧</div>',
+        '<div class="pk-empty-state"><p class="pk-empty-title">暂无对比结果</p><p class="pk-empty-hint">粘贴文本，或将文件拖到任意一侧。</p></div>',
       )
       setStatsHtml('')
       setNavPos({ visible: false, text: '' })

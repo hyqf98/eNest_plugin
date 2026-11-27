@@ -315,7 +315,7 @@ export function App() {
         <span className="grow"></span>
         <button id="mask" className="pk-btn ghost shell-only" aria-pressed={masked} hidden={kind === 'inspect'}
           onClick={() => setMasked((m) => !m)}>{masked ? '显示内容' : '隐藏内容'}</button>
-        <SettingsGear onClick={() => setSettingsOpen(true)} />
+        <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
       </header>
 
       <div className="layout">

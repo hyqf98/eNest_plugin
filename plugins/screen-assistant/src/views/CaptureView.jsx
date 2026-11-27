@@ -196,9 +196,9 @@ export function CaptureView({
                 ))}
               </div>
             ) : (
-              <div className="sa-side-empty horizontal">
+              <div className="pk-empty-state">
                 <Icon name="image" />
-                <span>暂无截图或录屏</span>
+                <strong className="pk-empty-title">暂无截图或录屏</strong>
                 {!quick && <button type="button" className="pk-btn pk-btn-primary pk-btn-sm" disabled={disabled} onClick={() => onAction(actions[0].id)}>{actions[0].label}</button>}
               </div>
             )}

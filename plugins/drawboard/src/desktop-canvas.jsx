@@ -20,6 +20,8 @@ function DesktopCanvas() {
   const [settings, setSettings] = useState(normalizeSettings(null))
   const [tool, setTool] = useState('pen'), [drawing, setDrawing] = useState(false)
   const [selection, setSelection] = useState([]), [editing, setEditing] = useState(null)
+  // 选中只在选择工具下存在：切到任何绘制工具就清空（退格不再误删上一个选中项）
+  useEffect(() => { if (tool !== 'select') setSelection([]) }, [tool])
   const [images, setImages] = useState(new Map()), imageCache = useRef(new Map())
   const [waiting, setWaiting] = useState(true), [error, setError] = useState('')
   const [space, setSpace] = useState(false), latest = useRef({})
@@ -59,11 +61,11 @@ function DesktopCanvas() {
     void post({ type: 'patch', requestId, draftId: base.draftId, revision: base.revision, upsert, remove, order: next.map(item => item.id) })
   }
   const mutate = mutator => { if (!pending.current) { const result = mutator(objects.current); if (Array.isArray(result)) objects.current = result; changed() } }
-  const add = (object, options = {}) => {
+  // 加入对象不改变当前工具：绘制工具选上后一直用到手动切换，选中只在选择工具下发生
+  const add = (object) => {
     if (pending.current) return
     const item = { ...object, id: object.id || uid() }
     objects.current.push(item); changed()
-    if (options.select) { setSelection([item.id]); setTool('select'); void post({ type: 'tool-current', tool: 'select' }) }
   }
   const commitText = value => {
     const session = latest.current.editing

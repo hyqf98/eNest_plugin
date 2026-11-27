@@ -127,22 +127,23 @@ export function createDesktopController(api, model) {
       await api.auxiliary.send(toolsId, { type: 'moved' }, { bounds: next })
       return
     }
-    if (data.type === 'tool-current' && id === canvasId && DESKTOP_TOOLS.some(([key]) => key === data.tool)) {
-      tool = data.tool; await send(toolsId, toolsState()); return
-    }
     if (data.type === 'tool' && DESKTOP_TOOLS.some(([key]) => key === data.tool)) {
-      tool = data.tool
-      if (tool === 'image') {
+      if (data.tool === 'image') {
+        // 插图是一次性动作，不是可以持续使用的工具：进入前记住当前工具，导入或取消后回到它，
+        // 不要把用户固定切到选择工具（那会让正在用的绘制工具丢掉）。
+        const previous = tool
         // Capture belongs to the toolbar gesture, not to a later file-dialog completion.
         await setDrawing(true)
         try {
           const imported = await model.current.importImage()
-          tool = 'select'; await snapshot(false)
+          // 成功插入后由用户放置 / 调整这张图，回到选择工具更顺手；取消则原样恢复
+          tool = imported ? 'select' : previous; await snapshot(false)
           await send(canvasId, { type: 'tool', tool })
           if (!imported) await setDrawing(false)
         } catch (error) { await setDrawing(false); throw error }
         return
       }
+      tool = data.tool
       await send(canvasId, { type: 'tool', tool })
       await setDrawing(true)
       return

@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { call, saveSearchKeyword } from '../js/api.js'
 import { HomePage } from './HomePage.jsx'
 import { VodPage } from './VodPage.jsx'
 import { CollectPage } from './CollectPage.jsx'
 import { DetailPage } from './DetailPage.jsx'
-import { PlayerPage } from './PlayerPage.jsx'
-import { LivePage } from './LivePage.jsx'
 import { ConfigPage, ListPage } from './ConfigPage.jsx'
 import { CloudPage } from './CloudPage.jsx'
 import { SearchBox } from './SearchBox.jsx'
 import { useKit } from './widgets.jsx'
+
+const PlayerPage = lazy(() => import('./PlayerPage.jsx').then(module => ({ default: module.PlayerPage })))
+const LivePage = lazy(() => import('./LivePage.jsx').then(module => ({ default: module.LivePage })))
+const loadingPlayer = <div role="status">正在加载播放器…</div>
 
 /** 左侧导航项（icon 字符 + 文案，参照漫画屋悬浮竖向胶囊） */
 const RAIL = [
@@ -25,6 +27,8 @@ const RAIL = [
 /**
  * 应用：左侧悬浮竖向导航 + 内容区（view 状态机 home/vod/collect/detail/live/keep/history/config）；
  * player 全屏覆盖层。
+ * 悬浮窗形态（floating）：宿主把本插件视图迁入了置顶小窗，此时只渲染播放器；
+ * 退出悬浮窗视图迁回主窗，自动恢复到之前的浏览页。
  */
 export function App() {
   const [view, setView] = useState({ name: 'home' })
@@ -33,14 +37,28 @@ export function App() {
   const [keyword, setKeyword] = useState('')
   const [notice, setNotice] = useState('')
   const [reloadSeq, setReloadSeq] = useState(0)   // 手动刷新：递增强制当前页重挂载重拉
+  const [floating, setFloating] = useState(false)
   const kit = useKit()
-  const siteDropRef = useRef(null)
+
+  /* 挂载位置：订阅宿主 placement-change（非宿主环境或旧宿主无此 API 时保持 false） */
+  useEffect(() => {
+    const host = window.enest
+    if (typeof host?.ui?.onPlacementChange !== 'function') return
+    const sync = (placement) => setFloating(placement === 'float')
+    const off = host.ui.onPlacementChange(event => sync(event?.placement))
+    if (typeof host.ui.getPlacement === 'function') host.ui.getPlacement().then(sync).catch(() => {})
+    return () => { off?.() }
+  }, [])
+
+  /* 悬浮窗里没有浏览界面可退：播放器退出 = 先还原到主窗（视图迁回后播放页仍在） */
+  const exitFloatToHost = useCallback(() => {
+    window.enest?.ui?.exitFloat?.().catch(() => {})
+  }, [])
 
   const refreshSites = useCallback(async () => {
     try {
       const list = await call('site.list')
       setSites(list)
-      setActiveSite(prev => (prev && list.some(s => s.key === prev && !s.disabled)) ? prev : (list.find(s => !s.disabled)?.key ?? ''))
       try {
         const current = await call('config.current')
         setNotice(current?.notice ?? '')
@@ -80,6 +98,24 @@ export function App() {
     void saveSearchKeyword(kw).catch(() => {})
     setView({ name: 'collect', keyword: kw, sites })
   }, [keyword, sites])
+
+  /* 悬浮窗形态：只渲染播放器（视图已被宿主迁入置顶小窗，浏览页留给主窗形态） */
+  if (floating) {
+    return (
+      <div className="tb-app tb-app-floating" data-floating="true">
+        {player ? (
+          <Suspense fallback={loadingPlayer}><PlayerPage params={player} floating onExit={exitFloatToHost}
+            onSwitchEpisode={i => setPlayer(p => p ? { ...p, episodeIndex: i } : p)}
+            onSwitchFlag={i => setPlayer(p => p ? { ...p, flagIndex: i } : p)} /></Suspense>
+        ) : (
+          // 边界：视图在悬浮窗里但当前没有播放页（如重载后）——给一个还原入口，不留黑屏
+          <div className="tb-floating-empty">
+            <button className="tb-player-icon-btn" onClick={exitFloatToHost}>还原到主窗口</button>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="tb-app">
@@ -126,14 +162,14 @@ export function App() {
         {view.name === 'vod' ? <VodPage params={view} onOpenVod={item => { setView({ name: 'detail', siteKey: item.siteKey || item.sources?.[0]?.siteKey, vodId: String(item.vodId ?? item.vod_id ?? item.sources?.[0]?.vodId), siteName: item.siteName ?? item.sources?.[0]?.siteName ?? '', from: 'vod' }) }} /> : null}
         {view.name === 'collect' ? <CollectPage params={view} onOpenVod={openVod} onBack={() => setView({ name: 'home' })} /> : null}
         {view.name === 'detail' ? <DetailPage params={{ ...view, onOpenVod: openVod }} onBack={() => setView(view.from === 'vod' ? { name: 'vod' } : { name: 'home' })} onPlay={openPlayer} /> : null}
-        {view.name === 'live' ? <div style={{ height: 'calc(100% - 0px)' }}><LivePage onBack={() => setView({ name: 'home' })} /></div> : null}
+        {view.name === 'live' ? <div style={{ height: 'calc(100% - 0px)' }}><Suspense fallback={loadingPlayer}><LivePage onBack={() => setView({ name: 'home' })} /></Suspense></div> : null}
         {view.name === 'cloud' ? <CloudPage /> : null}
         {view.name === 'keep' ? <ListPage mode="keep" onOpenVod={openVod} /> : null}
         {view.name === 'history' ? <ListPage mode="history" onOpenVod={openVod} onPlayResume={resumeHistory} /> : null}
         {view.name === 'config' ? <ConfigPage onConfigChanged={refreshSites} /> : null}
       </main>
 
-      {player ? <PlayerPage params={player} onExit={closePlayer} onSwitchEpisode={i => setPlayer(p => p ? { ...p, episodeIndex: i } : p)} onSwitchFlag={i => setPlayer(p => p ? { ...p, flagIndex: i } : p)} /> : null}
+      {player ? <Suspense fallback={loadingPlayer}><PlayerPage params={player} onExit={closePlayer} onSwitchEpisode={i => setPlayer(p => p ? { ...p, episodeIndex: i } : p)} onSwitchFlag={i => setPlayer(p => p ? { ...p, flagIndex: i } : p)} /></Suspense> : null}
     </div>
   )
 }

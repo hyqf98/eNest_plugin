@@ -41,8 +41,8 @@ export class SqlEditor extends LightweightEditor {
     if (this.usingMonaco) { this.activateModel(); this.instance.updateOptions({ lineNumbers: surface === 'quick' ? 'off' : 'on', ...this.editorFontOptions(), padding: { top: surface === 'quick' ? 5 : 14, bottom: surface === 'quick' ? 5 : 14 } }); this.instance.layout() }
   }
   async enhance() {
-    const [{ monaco }, { format }] = await Promise.all([loadRuntime(), import('sql-formatter')])
-    this.monaco = monaco; this.format = format
+    const { monaco } = await loadRuntime()
+    this.monaco = monaco
     if (!monaco.languages.getLanguages().some((language) => language.id === 'flux')) {
       monaco.languages.register({ id: 'flux' })
       monaco.languages.setMonarchTokensProvider('flux', { tokenizer: { root: [[/\/\/.*$/, 'comment'], [/"(?:[^"\\]|\\.)*"/, 'string'], [/\b(?:from|range|filter|map|yield|aggregateWindow|group|pivot|keep|drop|sort|limit|join|union)\b/, 'keyword'], [/\b\d+(?:\.\d+)?(?:ms|s|m|h|d|w)?\b/, 'number'], [/[|>=!:]+/, 'operator']] } })
@@ -154,16 +154,21 @@ export class SqlEditor extends LightweightEditor {
         { beforeText: /\(\s*$/, action: { indentAction: monaco.languages.IndentAction.Indent } }
       ]
     }))
-    const formattingEdits = (model, range) => {
+    const formattingEdits = async (model, range, token) => {
       if (model !== this.instance.getModel()) return []
-      try { return [{ range, text: this.formatSql(model.getValueInRange(range)) }] }
+      const version = model.getVersionId()
+      try {
+        await this.loadFormatter()
+        if (token.isCancellationRequested || model !== this.instance?.getModel() || model.getVersionId() !== version) return []
+        return [{ range, text: this.formatSql(model.getValueInRange(range)) }]
+      }
       catch (error) { void toast(`格式化失败：${error.message}`, 'error'); return [] }
     }
     this.disposables.push(monaco.languages.registerDocumentFormattingEditProvider('sql', {
-      provideDocumentFormattingEdits: model => formattingEdits(model, model.getFullModelRange())
+      provideDocumentFormattingEdits: (model, _options, token) => formattingEdits(model, model.getFullModelRange(), token)
     }))
     this.disposables.push(monaco.languages.registerDocumentRangeFormattingEditProvider('sql', {
-      provideDocumentRangeFormattingEdits: (model, range) => formattingEdits(model, range)
+      provideDocumentRangeFormattingEdits: (model, range, _options, token) => formattingEdits(model, range, token)
     }))
     const syncTheme = () => {
       const app = document.querySelector('#app')
@@ -284,6 +289,9 @@ export class SqlEditor extends LightweightEditor {
     if (this.usingMonaco) { this.instance.focus(); return this.instance.getAction(replace ? 'editor.action.startFindReplaceAction' : 'actions.find').run() }
     return super.openFind(replace)
   }
+  async loadFormatter() {
+    if (!this.format && queryLanguage(this.getDialect()) === 'sql') this.format = (await import('sql-formatter')).format
+  }
   formatSql(value) {
     const language = queryLanguage(this.getDialect())
     if (language === 'json') return JSON.stringify(JSON.parse(value), null, 2)
@@ -295,7 +303,7 @@ export class SqlEditor extends LightweightEditor {
     const model = this.instance?.getModel(), selection = this.instance?.getSelection()
     const ta = this.el.ta, start = model ? model.getOffsetAt(selection.getStartPosition()) : ta.selectionStart, end = model ? model.getOffsetAt(selection.getEndPosition()) : ta.selectionEnd
     if (selectionOnly && start === end) throw new Error('请先选择需要格式化的查询文本')
-    if (!this.format) { const { format } = await import('sql-formatter'); this.format = format }
+    await this.loadFormatter()
     if (this.documentId !== documentId || this.getValue() !== source || (model && model !== this.instance?.getModel())) throw new Error('查询文档已切换或改变，请重新格式化')
     const from = selectionOnly ? start : 0, to = selectionOnly ? end : source.length
     let text

@@ -2,6 +2,9 @@
 .app .results .grid-body { --rg-line: color-mix(in srgb, var(--border) 65%, var(--surface)); min-width: 0; }
 .app .results .grid-head { align-self: flex-start; max-width: 100%; background: var(--surface-2); border-bottom: 1px solid var(--border-strong); }
 .app .results .grid-viewport { min-width: 0; scrollbar-gutter: stable; scrollbar-width: auto; scrollbar-color: auto; overscroll-behavior: contain; }
+.rg-empty { pointer-events: none; }
+.grid-body:has(> .rg-empty:not([hidden])) { display: grid; grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); }
+.grid-body > :is(.grid-viewport, .rg-empty) { grid-area: 2 / 1; }
 .app .results .grid-viewport::-webkit-scrollbar { width: 10px; height: 10px; }
 .app .results .grid-viewport::-webkit-scrollbar-track,
 .app .results .grid-viewport::-webkit-scrollbar-corner { background: var(--surface-2); }

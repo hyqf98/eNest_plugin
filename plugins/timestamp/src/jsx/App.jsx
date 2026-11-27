@@ -328,7 +328,7 @@ export function App() {
           <button type="button" data-tab="date" role="tab" aria-selected={tab === 'date'} onClick={() => setTab('date')}>日期计算</button>
         </nav>
         <Button id="pause" variant="ghost" size="sm" pressed={paused} onClick={pauseToggle}>{paused ? '继续' : '暂停'}</Button>
-        <SettingsGear onClick={() => setSettingsOpen(true)} />
+        <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
       </header>
       <div className="workspace">
         <aside className="clock-panel">
@@ -425,9 +425,10 @@ export function App() {
         <section className="pane-scroll">
           <section className="converter" data-page="convert" hidden={tab !== 'convert'}>
             <div className="query">
-              <label className="eyebrow" htmlFor="input">时间戳 / 日期 / 相对时间</label>
+              <label className="eyebrow shell-only" htmlFor="input">时间戳 / 日期 / 相对时间</label>
               <input
                 id="input"
+                className="shell-only"
                 ref={inputRef}
                 placeholder="例如 1720000000、2026-10-13 09:30、+2h"
                 autoComplete="off"

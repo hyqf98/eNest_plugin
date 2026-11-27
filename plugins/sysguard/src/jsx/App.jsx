@@ -56,8 +56,7 @@ export function App() {
   const [tab, setTab] = useState('dash')
   const [hideSys, setHideSys] = useState(false)
   const [intervalMs, setIntervalMs] = useState(1500)
-  const [quickQuery, setQuickQuery] = useState('')
-  const [quickList, setQuickList] = useState({ kind: 'rows', rows: [] }) // 渲染快照
+  const [quickRows, setQuickRows] = useState([{ kind: 'empty-text', text: '正在读取进程…' }])
   const [dashVersion, setDashVersion] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState({ intervalMs: 1500, cpuWarn: 70, cpuDanger: 90, memWarn: 70, memDanger: 90 })
@@ -86,25 +85,25 @@ export function App() {
     samplingRef.current = true
     try {
       if (!silent) setStatus('采样中…')
-      const [procs, portResult] = await Promise.all([
+      const [procs, portResult, cpu] = await Promise.all([
         api.sys.processes(),
         api.sys.ports().then(ports => ({ ports, error: '' }), error => ({ ports: [], error: error?.message || '端口数据不可用' })),
+        api.sys.cpuUsage?.().catch(() => null),
       ])
       if (!aliveRef.current) return false
       st.procs = procs ?? []
       st.ports = portResult.ports ?? []
       st.portsError = portResult.error
       st.sampledAt = Date.now()
+      if (Number.isFinite(cpu)) st.cpuRing.push(cpu)
+      else if (st.cpuRing.length) st.cpuRing.clear()
       if (st.procs.length) {
-        const totalCpu = Math.min(100, st.procs.reduce((n, p) => n + (p.pcpu ?? 0), 0))
-        const totalMemKb = st.procs.reduce((n, p) => n + (p.rss ?? 0), 0)
-        st.cpuRing.push(totalCpu)
-        st.memRing.push(totalMemKb)
-      }
+        st.memRing.push(st.procs.reduce((total, proc) => total + (proc.rss ?? 0), 0))
+      } else if (st.memRing.length) st.memRing.clear()
       setStatus(`进程 ${st.procs.length} · 监听端口 ${st.ports.length} · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`)
       // 触发当前视图更新（表格/仪表盘/quick 由各自 effect 消费）
       st.error = null
-      if (modeRef.current === 'quick') renderQuickList(st._quickInput ?? '')
+      if (modeRef.current === 'quick') renderQuickListRef.current(st._quickInput ?? '')
       else setDashVersion((v) => v + 1)
       rerender()
       return true
@@ -112,6 +111,9 @@ export function App() {
       if (!aliveRef.current) return false
       setStatus('采样失败')
       st.error = err?.message ?? String(err)
+      st.cpuRing.clear()
+      st.memRing.clear()
+      setDashVersion((version) => version + 1)
       rerender()
       return false
     } finally {
@@ -150,8 +152,9 @@ export function App() {
   const applyMode = useCallback((m) => {
     modeRef.current = m
     setModeState(m)
+    if (m === 'quick') renderQuickListRef.current(st._quickInput ?? '')
     restartSampler()
-  }, [restartSampler])
+  }, [restartSampler, st])
 
   // —— 进程/端口行 ——
   function procRows() {
@@ -165,13 +168,12 @@ export function App() {
     return searchPort(st.ports, st.search)
   }
 
-  // —— Quick 形态列表（等价原 renderQuickList；支持 kill/k 命令词直达端口结束）——
   const renderQuickList = useCallback((q) => {
     st._quickInput = q
     const list = []
     const query = String(q ?? '').trim()
-    if (!query) {
-      setQuickList({ kind: 'empty', rows: [] })
+    if (!st.sampledAt) {
+      setQuickRows([{ kind: 'empty-text', text: '正在读取进程…' }])
       return
     }
     // 命令词 kill/k <port>：进入端口 kill 模式（占用时首行提供一键结束全部）
@@ -179,20 +181,22 @@ export function App() {
     const killPort = killCmd ? killCmd[1] : null
     const effQuery = killPort ?? query
     const asPort = /^\d{1,5}$/.test(effQuery)
+    const procHits = killPort ? [] : [...searchProc(st.procs, effQuery)].sort((before, after) => before.pid - after.pid)
     if (asPort) {
       const hits = st.ports.filter((p) => String(p.port) === effQuery)
       if (killPort) {
         if (!hits.length) {
-          list.push({ kind: 'empty-text', text: `端口 ${effQuery} 当前无监听进程，无需结束` })
-          setQuickList({ kind: 'rows', rows: list })
+          setQuickRows([{ kind: 'empty-text', text: st.portsError ? '暂时无法读取监听端口' : `端口 ${effQuery} 当前无监听进程` }])
           return
         }
         list.push({
           kind: 'kill-all', port: effQuery, count: hits.length,
           procs: hits.map((p) => ({ ...p, command: p.command || p.name, rss: 0, pcpu: 0 })),
         })
-      } else if (!hits.length) {
-        list.push({ kind: 'empty-text', text: `端口 ${query} 当前无监听进程` })
+      } else if (!hits.length && !procHits.length) {
+        list.push({ kind: 'empty-text', text: st.portsError ? '暂时无法读取监听端口' : `端口 ${query} 当前无监听进程` })
+      } else if (hits.length) {
+        list.push({ kind: 'head', text: `监听端口 ${effQuery} · ${hits.length} 条` })
       }
       for (const p of hits) {
         list.push({
@@ -202,14 +206,13 @@ export function App() {
         })
       }
     }
-    const procHits = searchProc(st.procs, effQuery).slice(0, asPort ? 8 : 30)
-    if (procHits.length && asPort && !killPort) list.push({ kind: 'head', text: '相关进程' })
+    if (procHits.length) list.push({ kind: 'process-head' })
     for (const p of procHits) {
       list.push({ kind: 'proc', pid: p.pid, name: shortName(p.command), cpu: formatPct(p.pcpu), mem: formatKb(p.rss), proc: p })
     }
-    if (!asPort && !procHits.length) list.push({ kind: 'empty-text', text: `未找到匹配「${query}」的进程` })
-    setQuickList({ kind: 'rows', rows: list })
-  }, [st]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!asPort && !procHits.length) list.push({ kind: 'empty-text', text: query ? `未找到匹配「${query}」的进程` : '暂无进程' })
+    setQuickRows(list)
+  }, [st])
   const renderQuickListRef = useRef(renderQuickList)
   renderQuickListRef.current = renderQuickList
 
@@ -340,7 +343,8 @@ export function App() {
   const portTableRef = useRef(null)
   const chartCpuRef = useRef(null)
   const chartMemRef = useRef(null)
-  const quickCanvasRef = useRef(null)
+  const quickCpuRef = useRef(null)
+  const quickMemRef = useRef(null)
   const dashCardRefs = useRef({})
 
   const decorateProcRows = useCallback(() => {
@@ -463,10 +467,10 @@ export function App() {
     const ok = css.getPropertyValue('--ok').trim() || '#318469'
     const accentSoft = css.getPropertyValue('--accent-soft').trim() || 'transparent'
     const okSoft = css.getPropertyValue('--ok-soft').trim() || 'transparent'
-    const cpuLevel = thresholdLevel(s.totalCpu, th.cpuWarn, th.cpuDanger)
-    const memLevel = thresholdLevel(s.memPct, th.memWarn, th.memDanger)
     const cpuLast = st.cpuRing.items.at(-1)
     const memLast = st.memRing.items.at(-1)
+    const cpuLevel = thresholdLevel(cpuLast, th.cpuWarn, th.cpuDanger)
+    const memLevel = thresholdLevel(s.memPct, th.memWarn, th.memDanger)
     const updateCard = (card, { text, value, series, color, fill, max, level, sub }) => {
       if (!card) return
       if (card.value.textContent !== text) card.value.textContent = text
@@ -475,7 +479,7 @@ export function App() {
       if (series) drawSparkline(card.spark, [{ data: series, color, fill }], { max, grid: false })
     }
     updateCard(cards.cpu, {
-      text: formatPct(cpuLast ?? s.totalCpu),
+      text: cpuLast == null ? '—' : formatPct(cpuLast),
       level: cpuLevel,
       series: st.cpuRing.items, color: accent, fill: accentSoft, max: 100,
       sub: `阈值 ${th.cpuWarn}% / ${th.cpuDanger}%`,
@@ -515,25 +519,16 @@ export function App() {
     fillTopList(cards.memList, topProcesses(st.procs, 'rss', 5), (v) => formatKb(v), () => 'ok')
   }, [tab, mode, dashVersion, st])
 
-  // —— Quick spark 重绘 ——
   useEffect(() => {
     if (mode !== 'quick') return
-    const cv = quickCanvasRef.current
-    if (!cv) return
+    const cpu = quickCpuRef.current
+    const mem = quickMemRef.current
+    if (!cpu || !mem) return
     const css = getComputedStyle(document.documentElement)
-    drawSparkline(cv, [
-      { data: st.cpuRing.items, color: css.getPropertyValue('--accent').trim() || '#bd542b' },
-      { data: st.memRing.items, color: css.getPropertyValue('--ok').trim() || '#318469', fill: 'transparent' },
-    ], { max: Math.max(100, Math.max(1, ...st.memRing.items)), grid: false })
-    const cpuLast = st.cpuRing.items.at(-1)
-    const memLast = st.memRing.items.at(-1)
-    const cpuEl = document.getElementById('q-cpu')
-    const memEl = document.getElementById('q-mem')
-    if (cpuEl) cpuEl.textContent = cpuLast != null ? formatPct(cpuLast) : '-'
-    if (memEl) memEl.textContent = memLast != null ? formatKb(memLast) : '-'
-    const procsEl = document.getElementById('q-procs')
-    if (procsEl) procsEl.textContent = st.procs.length ? `${st.procs.length} 进程` : ''
-  }, [mode, quickList, dashVersion, st])
+    const cpuMax = Math.max(10, Math.ceil(Math.max(0, ...st.cpuRing.items) / 10) * 10)
+    drawSparkline(cpu, [{ data: st.cpuRing.items, color: css.getPropertyValue('--accent').trim() || '#bd542b' }], { max: cpuMax, grid: false })
+    drawSparkline(mem, [{ data: st.memRing.items, color: css.getPropertyValue('--ok').trim() || '#318469' }], { max: Math.max(1, ...st.memRing.items), grid: false })
+  }, [mode, quickRows, dashVersion, st])
 
   // —— 生命周期 / 启动 ——
   useEffect(() => {
@@ -541,10 +536,12 @@ export function App() {
     aliveRef.current = true
     const kit = PluginKit.create({
       title: '进程与端口',
-      quickPlaceholder: '端口号查占用 / 进程名搜索',
+      quickPlaceholder: '端口号、进程名或 PID',
       height: 460,
       prefs: true,
       defaults: { intervalMs: 1500, cpuWarn: 70, cpuDanger: 90, memWarn: 70, memDanger: 90 },
+      onQuery: value => renderQuickListRef.current(value),
+      onAction: action => { if (action === 'submit') renderQuickListRef.current(st._quickInput ?? '') },
     })
     kitRef.current = kit
     modeRef.current = kit.mode
@@ -743,31 +740,18 @@ export function App() {
   }
   const onInterval = (e) => { void applyInterval(e.target.value) }
 
-  let quickDeb = 0
-  const onQuickInput = (e) => {
-    clearTimeout(quickDeb)
-    const value = e.target.value
-    quickDeb = setTimeout(() => renderQuickListRef.current(value), 160)
-  }
-  const onQuickKeydown = (e) => {
-    if (e.key === 'Enter' && !e.isComposing) {
-      e.preventDefault()
-      renderQuickListRef.current(e.target.value)
-    }
-  }
-
-  // —— 渲染 ——
-  const quick = quickList
   const renderQuickRows = () => {
-    if (!quick || quick.kind !== 'rows' || !Array.isArray(quick.rows)) {
-      return <div className="sg-empty">{'输入端口号查占用 / kill 端口 一键结束\n或输入进程名 / pid 搜索并结束进程'}</div>
-    }
-    return quick.rows.map((r, i) => {
-      if (r.kind === 'empty-text') return <div className="sg-empty" key={i}>{r.text}</div>
-      if (r.kind === 'head') return <div className="sg-row36 sg-row-head" key={i}><span className="pk-muted">{r.text}</span></div>
+    return quickRows.map((r) => {
+      if (r.kind === 'empty-text') return <div className="pk-empty-state" key={r.kind}>{r.text}</div>
+      if (r.kind === 'process-head') return (
+        <div className="sg-row36 sg-process-columns sg-row-head sg-process-head" key={r.kind}>
+          <span>PID</span><span>进程</span><span>CPU</span><span>内存</span><span>操作</span>
+        </div>
+      )
+      if (r.kind === 'head') return <div className="sg-row36 sg-row-head" key={r.kind}>{r.text}</div>
       if (r.kind === 'kill-all') {
         return (
-          <div className="sg-row36 sg-kill-cmd" key={i}>
+          <div className="sg-row36 sg-kill-cmd" key={r.kind}>
             <span className="pk-muted mono">kill</span>
             <span className="mono">{`:${r.port}`}</span>
             <span className="name">{`结束占用端口的 ${r.count} 个进程`}</span>
@@ -778,7 +762,7 @@ export function App() {
       }
       if (r.kind === 'port') {
         return (
-          <div className="sg-row36" key={i}>
+          <div className="sg-row36 sg-port-row" key={`${r.pid}-${r.protocol}-${r.address}`}>
             <span className="pk-muted mono">{r.protocol}</span>
             <span className="mono">{r.address}</span>
             <span className="name">{r.name}</span>
@@ -788,9 +772,9 @@ export function App() {
         )
       }
       return (
-        <div className="sg-row36" key={i}>
+        <div className="sg-row36 sg-process-columns sg-process-row" key={r.pid}>
           <span className="num pk-muted">{`#${r.pid}`}</span>
-          <span className="name">{r.name}</span>
+          <span className="name" title={r.proc.command}>{r.name}</span>
           <span className="num">{r.cpu}</span>
           <span className="num">{r.mem}</span>
           <button className="pk-btn pk-btn-danger pk-btn-sm" type="button" onClick={() => killRef.current(r.proc)}>结束</button>
@@ -798,32 +782,32 @@ export function App() {
       )
     })
   }
+  const cpuLast = st.cpuRing.items.at(-1)
+  const memLast = st.memRing.items.at(-1)
 
   return (
     <main className="sg" id="app">
       {/* Quick：单列表 */}
       <section className="sg-quick" id="quick-view" hidden={mode !== 'quick'}>
-        <div className="sg-quick-bar">
-          <input id="q-input" type="search" placeholder="端口号查占用 · kill 端口 · 进程名 / pid"
-            onInput={onQuickInput} onKeyDown={onQuickKeydown}
-          />
-          <button type="button" className="pk-btn pk-btn-primary" id="q-search"
-            onClick={(e) => renderQuickListRef.current(e.target.previousElementSibling?.value ?? '')}>查询</button>
-        </div>
         <div className="sg-quick-list" id="q-list">
           {mode === 'quick' && st.error ? (
             <div className="sg-error">{`采样失败：${st.error}\n请确认宿主已授权 sys.inspect 权限`}</div>
           ) : renderQuickRows()}
         </div>
         <div className="sg-quick-spark" id="q-spark">
-          <div className="sg-quick-meter" aria-hidden="true">
-            <canvas id="q-canvas" ref={quickCanvasRef} height="56" aria-label="CPU / 内存曲线"></canvas>
+          <div className="sg-quick-metric">
+            <span>CPU <b id="q-cpu">{cpuLast == null ? '—' : formatPct(cpuLast)}</b></span>
+            <canvas id="q-canvas" ref={quickCpuRef} aria-hidden="true"></canvas>
           </div>
-          <div className="sg-quick-legend">
-            <span><i className="dot dot-accent"></i>CPU <b id="q-cpu">-</b></span>
-            <span><i className="dot dot-ok"></i>内存 <b id="q-mem">-</b></span>
-            <span className="sg-quick-procs" id="q-procs"></span>
+          <div className="sg-quick-metric">
+            <span>进程内存 <b id="q-mem">{memLast == null ? '—' : formatKb(memLast)}</b></span>
+            <canvas ref={quickMemRef} aria-hidden="true"></canvas>
           </div>
+          <span className="sg-quick-procs" id="q-procs">{st.sampledAt ? `${st.procs.length} 进程` : ''}</span>
+          <MoreMenu ariaLabel="进程与端口选项" buttonClassName="pk-btn-sm" items={[
+            { key: 'refresh', label: '刷新', onSelect: () => void refresh() },
+            { key: 'settings', label: '设置', onSelect: () => setSettingsOpen(true) },
+          ]} />
         </div>
       </section>
 
@@ -858,7 +842,7 @@ export function App() {
               },
             ]}
           />
-          <SettingsGear onClick={() => setSettingsOpen(true)} />
+          {mode === 'shell' && <SettingsGear onClick={() => setSettingsOpen(true)} />}
         </header>
         <div className="sg-body" id="tab-body">
           {mode === 'shell' && st.error ? (
@@ -875,7 +859,7 @@ export function App() {
                   <div className="sg-card-sub"></div>
                 </article>
                 <article className="sg-card" data-card="mem">
-                  <div className="sg-card-label">物理内存合计</div>
+                  <div className="sg-card-label">进程内存合计</div>
                   <div className="sg-card-value mono">—</div>
                   <canvas className="sg-card-spark" aria-hidden="true"></canvas>
                   <div className="sg-card-sub"></div>
@@ -942,7 +926,7 @@ export function App() {
               <div className="sg-chart-card">
                 <div className="sg-chart-head">
                   <span className="chart-swatch ok">■</span>
-                  {' 物理内存合计 '}
+                  {' 进程内存合计 '}
                   <b id="sg-mem-v">-</b>
                 </div>
                 <canvas id="sg-mem-cv" ref={chartMemRef}></canvas>
@@ -959,7 +943,7 @@ export function App() {
         </div>
       </section>
 
-      <footer className="sg-foot">
+      <footer className="sg-foot shell-only">
         <span id="foot">{foot}</span>
         <span className="sg-foot-hint">宿主 1s 采样缓存 · 结束进程需二次确认</span>
       </footer>

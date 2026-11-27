@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { call } from '../js/api.js'
 import { Card } from './HomePage.jsx'
+import { Empty } from './widgets.jsx'
 
 /**
  * 聚合搜索：并行搜全部可搜站点；结果 tab 随到达动态追加（FongMi 交互），
@@ -39,7 +40,7 @@ export function CollectPage({ params, onOpenVod, onBack }) {
     : results.find(r => r.siteKey === activeTab)?.list ?? []
 
   return (
-    <div>
+    <div className="tb-empty-page">
       {onBack ? (
         <div className="tb-section-title" style={{ marginTop: 0 }}>
           <button className="pk-btn pk-btn-sm" onClick={onBack}>← 返回</button>
@@ -81,7 +82,7 @@ export function CollectPage({ params, onOpenVod, onBack }) {
           />
         ))}
       </div>
-      {!searching && !activeList.length ? <div className="tb-empty">没有找到「{keyword}」相关内容</div> : null}
+      {!searching && !activeList.length ? <Empty title="暂无搜索结果" hint="试试缩短关键词，或搜索影片的其他名称。" /> : null}
     </div>
   )
 }

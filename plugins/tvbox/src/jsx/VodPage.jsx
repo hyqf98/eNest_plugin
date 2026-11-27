@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { call } from '../js/api.js'
 import { Card } from './HomePage.jsx'
-import { ErrorBox, FilterRows, LoadMore, SkeletonRow, useKit } from './widgets.jsx'
+import { Empty, ErrorBox, FilterRows, LoadMore, SkeletonRow, useKit } from './widgets.jsx'
 
 /** 标准板块（与后端 STANDARD_SECTIONS 一致） */
 const SECTIONS = [
@@ -102,7 +102,7 @@ export function VodPage({ params, onOpenVod }) {
   }, [onScroll])
 
   return (
-    <div ref={mainRef}>
+    <div className="tb-empty-page" ref={mainRef}>
       <div className="tb-section-title" style={{ marginTop: 0 }}>分类 · 多源聚合</div>
       <div className="tb-types">
         {SECTIONS.map(s => (
@@ -125,7 +125,7 @@ export function VodPage({ params, onOpenVod }) {
         ))}
       </div>
       {loading && !list.length ? <SkeletonRow count={8} label="正在加载分类内容…" /> : null}
-      {!loading && !list.length && !error ? <div className="tb-empty">这个分类暂时没有内容</div> : null}
+      {!loading && !list.length && !error ? <Empty title="当前分类暂无内容" hint="可以切换分类或调整筛选条件。" /> : null}
       <LoadMore loading={loading} hasMore={list.length > 0 && list.length % 40 === 0} onLoad={loadMore} />
     </div>
   )

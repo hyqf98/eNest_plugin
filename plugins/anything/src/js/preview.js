@@ -22,7 +22,7 @@ export function createPreview(root) {
 
   function placeholder(text) {
     seq++
-    root.replaceChildren(node('div', 'empty', text))
+    root.replaceChildren(node('div', 'pk-empty-state', text))
   }
 
   function renderHeader(file, metaText) {
@@ -36,13 +36,13 @@ export function createPreview(root) {
     const metaBits = [formatSize(file.size, file.isDirectory), formatWhen(file.mtimeMs)].filter(Boolean).join(' · ')
     if (file.isDirectory) {
       const head = renderHeader(file, metaBits)
-      const body = node('div', 'empty', '目录双击或回车在访达中打开')
+      const body = node('div', 'pk-empty-state', '双击或按 Enter 在文件管理器中打开目录')
       root.replaceChildren(head, body)
       return
     }
     const kind = fileKind(file)
     if (kind === 'image') {
-      root.replaceChildren(renderHeader(file, metaBits), node('div', 'preview-loading', '读取图片…'))
+      root.replaceChildren(renderHeader(file, metaBits), node('div', 'pk-empty-state', '读取图片…'))
       try {
         const { dataUrl } = await backend.readImage(file.path)
         if (token !== seq) return
@@ -52,12 +52,12 @@ export function createPreview(root) {
         root.replaceChildren(renderHeader(file, metaBits), image)
       } catch (error) {
         if (token !== seq) return
-        root.replaceChildren(renderHeader(file, metaBits), node('div', 'empty', error.message))
+        root.replaceChildren(renderHeader(file, metaBits), node('div', 'pk-empty-state', error.message))
       }
       return
     }
     if (textReadable(file.ext)) {
-      root.replaceChildren(renderHeader(file, metaBits), node('div', 'preview-loading', '读取内容…'))
+      root.replaceChildren(renderHeader(file, metaBits), node('div', 'pk-empty-state', '读取内容…'))
       try {
         const { content, encoding, truncated, size } = await backend.readText(file.path)
         if (token !== seq) return
@@ -67,11 +67,11 @@ export function createPreview(root) {
         root.replaceChildren(renderHeader(file, metaBits), pre, foot)
       } catch (error) {
         if (token !== seq) return
-        root.replaceChildren(renderHeader(file, metaBits), node('div', 'empty', error.message))
+        root.replaceChildren(renderHeader(file, metaBits), node('div', 'pk-empty-state', error.message))
       }
       return
     }
-    root.replaceChildren(renderHeader(file, metaBits), node('div', 'empty', '该类型暂不支持内嵌预览，回车用系统应用打开'))
+    root.replaceChildren(renderHeader(file, metaBits), node('div', 'pk-empty-state', '该文件类型不支持预览。按 Enter 使用系统应用打开。'))
   }
 
   placeholder('选择左侧文件查看预览')

@@ -518,9 +518,9 @@ export function GanttChart({ plan, granularity, dayWidth, setDayWidth, api, open
     return (
       <div className="gantt-stage">
         <div className="gt-panel">
-          <div className="gt-empty">
-            <div className="gt-empty-mark">▤</div>
-            <p>还没有任务，点击右上「新建任务」或在时间轴空白处右键添加</p>
+          <div className="pk-empty-state">
+            <strong className="pk-empty-title">暂无任务</strong>
+            <p className="pk-empty-hint">点击右上角「新建任务」开始排期。</p>
           </div>
         </div>
       </div>

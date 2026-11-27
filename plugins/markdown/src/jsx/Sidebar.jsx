@@ -178,7 +178,7 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
 
       {tab === 'outline' && (
         <div className="md-sidebar-panel md-outline">
-          <div className="md-outline-search">
+          {outline.length > 0 && <div className="md-outline-search">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4.2"/><path d="m10.2 10.2 3 3"/></svg>
             <input type="text" placeholder="检索标题定位" value={outlineQuery}
               onChange={(e) => setOutlineQuery(e.target.value)}
@@ -189,10 +189,10 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
                 }
                 if (e.key === 'Escape') setOutlineQuery('')
               }} aria-label="大纲检索" />
-          </div>
-          <div role="tree">
-            {outline.length === 0 && <p className="md-sidebar-empty">暂无标题</p>}
-            {outlineQuery && !visibleOutline.length && <p className="md-sidebar-empty">无匹配标题</p>}
+          </div>}
+          {!visibleOutline.length ? (
+            <p className="pk-empty-state">{outline.length ? '没有匹配的标题' : '暂无标题'}</p>
+          ) : <div role="tree">
             {visibleOutline.map(({ level, text, from, idx, hidden }) => hidden ? null : (
               <div key={idx} className={`md-outline-item md-outline-l${Math.min(level, 6)}`}
                 role="treeitem">
@@ -220,7 +220,7 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
                 <button className="md-outline-text" onClick={() => onJump(from)} title={text}>{text}</button>
               </div>
             ))}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -234,9 +234,11 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
             {!compact && <button className="pk-btn pk-btn-sm" onClick={() => void pickRoot()} title="打开目录">＋</button>}
             <button className="pk-btn pk-btn-sm" onClick={() => void loadTree(activeRoot)} title="刷新">⟳</button>
           </div>
-          <div className="md-file-tree" role="tree">
-            <TreeNodes nodes={tree} expanded={expanded} setExpanded={setExpanded} onOpenFile={onOpenFile} activePath={docPath} />
-          </div>
+          {tree.length > 0 ? (
+            <div className="md-file-tree" role="tree">
+              <TreeNodes nodes={tree} expanded={expanded} setExpanded={setExpanded} onOpenFile={onOpenFile} activePath={docPath} />
+            </div>
+          ) : <p className="pk-empty-state">{activeRoot ? '目录为空' : '尚未选择目录'}</p>}
           {recentFiles.length > 0 && (
             <div className="md-recent">
               <div className="md-sidebar-label">最近</div>
@@ -250,7 +252,7 @@ export function Sidebar({ panelRef, tab, onTab, outline, docPath, textRef, docVe
 
       {tab === 'assets' && (
         <div className="md-sidebar-panel md-assets">
-          {resources.length === 0 && <p className="md-sidebar-empty">{docPath ? '本文档没有链接或图片' : '先打开一个文档'}</p>}
+          {resources.length === 0 && <p className="pk-empty-state">{docPath ? '本文档没有链接或图片' : '尚未打开文档'}</p>}
           {KIND_ORDER.map((kind) => {
             const items = grouped[kind]
             if (!items || !items.length) return null

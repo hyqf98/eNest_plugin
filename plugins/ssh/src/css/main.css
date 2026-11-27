@@ -163,8 +163,8 @@ button, input, select, textarea {
 .rail-btn.active { color: var(--brand-strong); background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
 
 .side-body {
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   min-width: 0;
   padding: 8px 8px 8px 0;
@@ -187,28 +187,23 @@ button, input, select, textarea {
 
 .side-tools {
   display: grid;
+  flex: none;
   gap: 6px;
   padding: 0 2px 8px;
 }
 .side-tools input[type="search"] {
   width: 100%;
+  height: 32px;
   border: 1px solid transparent;
   background: var(--surface);
   color: var(--text);
   border-radius: var(--radius-sm);
-  padding: 7px 10px;
+  padding: 0 10px;
   font-size: 12px;
   outline: none;
 }
 .side-tools input:focus { border-color: color-mix(in srgb, var(--brand, var(--accent)) 55%, var(--border-strong)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, var(--accent)) 18%, transparent); }
 .side-tools input::placeholder { color: var(--text-3); }
-
-.filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.filter-row:empty { display: none; }
 
 .chip {
   appearance: none;
@@ -235,6 +230,7 @@ button, input, select, textarea {
 /* selection toolbar — only when a connection is selected */
 .sel-bar {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 2px;
   padding: 4px 2px 8px;
@@ -254,6 +250,7 @@ button, input, select, textarea {
 }
 
 .tree {
+  flex: 1;
   overflow: auto;
   padding: 2px 0 12px;
   min-height: 0;
@@ -435,12 +432,9 @@ label.field,
   border-color: color-mix(in srgb, var(--brand, var(--accent)) 45%, var(--border));
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-/* 下拉菜单是 absolute 挂在 .pk-select 上，会被滚动容器裁切：
-   打开期间把滚动权交回整框（内容高度已由菜单 maxHeight 约束），关闭后恢复。 */
-.modal:has(.pk-select-menu:not([hidden])) .modal-body,
-dialog:has(.pk-select-menu:not([hidden])) .wb-dialog-body {
-  overflow: visible;
-}
+/* 下拉菜单挂在滚动中的弹窗体里时的显示，由 plugin-kit 的下拉按裁剪祖先内的空间
+   自动上翻 / 限高处理。不要在这里把弹窗体改成 overflow: visible：那样连表单本身
+   也不再裁剪，内容会画到底部按钮上，滚动位置还会被重置。 */
 .modal .pk-select-menu { z-index: 400; }
 /* 高级折叠区与动态 wb 弹窗里的 select：宽度跟随原生契约 */
 .wb-settings-form .pk-select {
@@ -742,10 +736,6 @@ dialog .pk-select.wb-split-target {
   font-size: 12px;
   line-height: 1.6;
 }
-.empty .empty-act {
-  margin-top: 10px;
-  pointer-events: auto;
-}
 
 .spacer { flex: 1; }
 
@@ -925,18 +915,10 @@ dialog .pk-select.wb-split-target {
 .term-empty {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  color: var(--text-3);
-  font-size: 12px;
+  overflow: auto;
   pointer-events: none;
-  text-align: center;
-  padding: 20px;
-  /* 底部让出补全/快捷命令面板区（bottom:28px + 面板高），避免空态按钮与面板零间距贴边 */
-  padding-bottom: 120px;
   z-index: 1;
 }
-.term-empty .empty-act { pointer-events: auto; }
 .term-empty.hidden { display: none; }
 .term-banner {
   position: absolute;
@@ -1032,6 +1014,7 @@ dialog .pk-select.wb-split-target {
   border-radius: var(--radius-md);
   padding: 10px;
 }
+.metrics-body:has(> .pk-empty-state) { display: flex; flex-direction: column; }
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1619,25 +1602,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 
 .session-tab .status-dot.disconnected,
 .session-tab .status-dot.exited { background: var(--danger); }
 
-/* —— 终端空状态：快速连接引导 —— */
-.term-empty {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 10px;
-}
-.term-empty::before {
-  content: ">_";
-  font-family: var(--mono);
-  font-size: 28px;
-  font-weight: 600;
-  color: color-mix(in srgb, var(--text-3) 55%, transparent);
-  letter-spacing: -0.04em;
-}
-.term-empty .empty-copy {
-  color: var(--text-3);
-  font-size: 12px;
-}
 .term-banner {
   background: color-mix(in srgb, var(--danger) 12%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);

@@ -130,6 +130,31 @@ export function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * 配置要求的一行：键是站点原文（操作系统 / 处理器 / 显卡 / DirectX版本…各站不统一，不做枚举）。
+ * 站点把最低 / 推荐配置放在一段 JSON 文本里（键值对）；解析不出就返回空数组，页面改用纯文本显示。
+ */
+export function parseConfigFields(raw: string): Array<{ label: string; value: string }> {
+  const source = raw.trim()
+  if (!source.startsWith('{')) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(source)
+  } catch {
+    return []
+  }
+  const record = asRecord(parsed)
+  if (!record) return []
+  const fields: Array<{ label: string; value: string }> = []
+  for (const [label, cell] of Object.entries(record)) {
+    // 值可能是字符串，也可能是站点塞进来的数字 / 嵌套对象；非字符串一律转成可读文本
+    const value = typeof cell === 'string' ? cell : JSON.stringify(cell) ?? ''
+    const clean = stripHtml(value).replace(/&quot;/g, '"').trim()
+    if (label.trim() && clean) fields.push({ label: label.trim(), value: clean })
+  }
+  return fields
+}
+
 /** 把事件推送限制在约 interval 一次；可选立即冲刷 */
 export function createThrottle<T>(fn: (value: T) => void, intervalMs: number): {
   push(value: T): void

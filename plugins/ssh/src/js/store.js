@@ -223,14 +223,14 @@ import { sshLaunchIndex } from './launch-index.js'
     return Array.from(set).sort()
   }
 
-  function matchesFilters(profile) {
-    const q = (state.ui.search || '').trim().toLowerCase()
-    if (q) {
+  function matchesFilters(profile, { search = state.ui.search } = {}) {
+    const query = (search || '').trim().toLowerCase()
+    if (query) {
       const hay = [profile.name, profile.host, profile.username, profile.note, profile.env, ...(profile.tags || [])]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
-      if (!hay.includes(q)) return false
+      if (!hay.includes(query)) return false
     }
     // 只剩搜索词与「最近连接」两种筛选。按环境 / 收藏 / 标签筛选的按钮已移除，
     // 而 ui 状态是持久化的：旧的 filterEnv 等值会留在 ssh.ui 里再也关不掉，列表被悄悄过滤。

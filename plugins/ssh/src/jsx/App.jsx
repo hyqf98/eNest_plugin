@@ -55,13 +55,12 @@ function AppSkeleton() {
               {/* 新建连接的常驻入口：工作台里 FAB 与 rail 都被接管，这里是唯一显性入口。 */}
               <div className="side-search-row">
                 <input id="search-input" type="search" placeholder="搜索" aria-label="搜索连接" />
-                <button type="button" className="icon-btn" id="btn-new-connection" title="新建连接" aria-label="新建连接">＋</button>
+                <button type="button" className="icon-btn" id="btn-new-connection" aria-label="新建连接">＋<span className="side-new-label">新建连接</span></button>
               </div>
-              <div className="filter-row" id="filter-row"></div>
             </div>
             <div className="sel-bar" id="sel-bar" hidden></div>
             <div className="tree" id="tree">
-              <div className="empty">加载中…</div>
+              <div className="pk-empty-state" role="status">加载中…</div>
             </div>
           </div>
         </aside>
@@ -90,7 +89,7 @@ function AppSkeleton() {
             <section className="panel active" id="panel-term">
               <div className="term-wrap" id="term-wrap">
                 <div className="term-banner" id="term-banner"></div>
-                <div className="term-empty" id="term-empty">选择连接后开始</div>
+                <div className="term-empty pk-empty-state" id="term-empty">选择连接后开始</div>
                 <div id="term-host" className="term-host"></div>
                 {/* 补全浮层叠在终端上，不再单独提供命令输入条 */}
                 <div className="completion-list" id="completion-list"></div>
@@ -108,7 +107,7 @@ function AppSkeleton() {
                 <span className="session-status" id="metrics-status"></span>
               </div>
               <div className="metrics-body" id="metrics-body">
-                <div className="empty">未开启监控</div>
+                <div className="pk-empty-state">未开启监控</div>
               </div>
             </section>
 
@@ -121,7 +120,7 @@ function AppSkeleton() {
               </div>
               <div className="sftp-meta" id="sftp-meta"></div>
               <div className="sftp-list" id="sftp-list">
-                <div className="empty">未连接</div>
+                <div className="pk-empty-state">未连接</div>
               </div>
             </section>
           </div>
@@ -145,7 +144,7 @@ function AppSkeleton() {
             <button className="icon-btn" id="btn-drawer-more" title="设置" aria-label="设置">⋯</button>
           </div>
           <div className="right-body" id="right-body">
-            <div className="empty">加载中…</div>
+            <div className="pk-empty-state" role="status">加载中…</div>
           </div>
         </aside>
         <div className="drawer-scrim" id="drawer-scrim" hidden></div>

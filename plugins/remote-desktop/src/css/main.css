@@ -57,10 +57,6 @@ button:disabled { cursor: default; opacity: 0.45; }
   flex: none;
 }
 
-.brand { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.brand-mark { color: var(--accent, #3579dd); }
-.mode-label { color: var(--text-3, #9aa2ac); font-size: 12px; }
-
 .tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
@@ -150,7 +146,6 @@ button:disabled { cursor: default; opacity: 0.45; }
 }
 .tree-item .tunnel { color: var(--text-3, #9aa2ac); font-size: 11px; }
 .tree-item .pk-row-actions { flex: none; }
-.tree-empty-new { margin-left: 8px; }
 
 .side-foot { padding: 8px; border-top: 1px solid var(--border, #d9dfe6); }
 /* select 由 kit 升级为 .pk-select（类名留在 wrapper 上）：宽度约束迁到 wrapper 与 trigger */
@@ -159,21 +154,16 @@ button:disabled { cursor: default; opacity: 0.45; }
 /* 侧栏底部下拉菜单向上翻时不受侧栏裁切影响（kit 自适应上翻；侧栏 overflow 不裁绝对定位层） */
 .side-foot .pk-select-menu { z-index: 70; }
 
-.empty { padding: 24px 12px; text-align: center; color: var(--text-3, #9aa2ac); }
-
 /* ── 主区 ─────────────────────────────── */
 .main { flex: 1; display: flex; min-width: 0; min-height: 0; position: relative; }
 
 .welcome { flex: 1; overflow-y: auto; padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
 .hero { text-align: center; width: 100%; max-width: 520px; }
-.hero h2 { margin: 0 0 8px; font-size: 20px; }
-.hero p { margin: 0 0 16px; color: var(--text-3, #9aa2ac); }
-.quick-uri { display: flex; gap: 8px; }
+.hero > p { margin: 0 0 10px; color: var(--text-2, #747c88); }
+.hero.pk-empty-state { padding-inline: 0; }
+.hero.pk-empty-state > p { margin: 0 0 4px; }
+.quick-uri { display: flex; gap: 8px; width: 100%; }
 
-/* shell 模式下壳标题栏已显示插件名与图标：顶栏品牌位和空态大标题都属重复，收起。 */
-.app[data-mode="shell"] .topbar .brand { display: none; }
-.app[data-mode="shell"] .hero h2 { display: none; }
-.app[data-mode="shell"] .hero p { margin-bottom: 10px; }
 .quick-uri input {
   flex: 1;
   min-width: 0;
@@ -206,8 +196,6 @@ button:disabled { cursor: default; opacity: 0.45; }
 .recent-row .recent-addr { color: var(--text-3, #9aa2ac); }
 .recent-row .when { color: var(--text-3, #9aa2ac); font-size: 11px; }
 .recent-row .dur { color: var(--text-3, #9aa2ac); font-size: 11px; }
-
-.empty-guide { text-align: center; color: var(--text-3, #9aa2ac); padding: 16px; }
 
 /* ── 会话 ─────────────────────────────── */
 .sessions { position: absolute; inset: 0; display: flex; flex-direction: column; }
@@ -357,9 +345,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
 .form-row .pk-select { width: 100%; }
 .form-row .pk-select-trigger { width: 100%; }
 .form-row .pk-select-menu { z-index: 80; }
-/* dialog 内下拉菜单弹出期间放开滚动裁切，避免菜单被 .dlg-body / dialog 切掉 */
-dialog:has(.pk-select-menu:not([hidden])) { overflow: visible; }
-.dlg-body:has(.pk-select-menu:not([hidden])) { overflow: visible; }
+/* 下拉在滚动中的 .dlg-body 里的显示由 plugin-kit 的下拉处理（按裁剪祖先内的空间上翻 / 限高）。
+   不要在菜单打开期间把 dialog / .dlg-body 改成 overflow: visible：那样表单本身也不再裁剪，
+   字段会画到底部按钮上、提示文字会溢出到对话框外，圆角边框也会被撑开。 */
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .form-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .form-check input { accent-color: var(--accent, #3579dd); }
@@ -387,7 +375,6 @@ dialog:has(.pk-select-menu:not([hidden])) { overflow: visible; }
 .app[data-mode="quick"] .side { display: none; }
 .app[data-mode="quick"] .workspace { flex-direction: column; }
 .app[data-mode="quick"] .welcome { padding: 16px; }
-.app[data-mode="quick"] .hero h2 { font-size: 16px; }
 .app[data-mode="quick"] .recent { max-width: none; }
 
 /* The dialog is a sibling of .main; query the form's own available width. */

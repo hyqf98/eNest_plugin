@@ -675,27 +675,9 @@ textarea:focus {
 .result-empty {
   position: relative;
   min-height: 0;
-  min-width: 0;
   overflow: hidden;
-  display: grid;
-  place-content: center;
-  gap: 4px;
-  text-align: center;
   pointer-events: none;
   background: linear-gradient(transparent, color-mix(in srgb, var(--bg, #fcfcfd) 92%, transparent) 40%);
-}
-.empty-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.empty-desc {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--muted);
 }
 
 /* ── 底栏 ── */

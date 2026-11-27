@@ -12,6 +12,9 @@ export interface DbDriverDescriptor {
   transport: 'native' | 'http' | 'websocket' | 'file'
   compatibility?: string
   capabilities: Record<string, DbCapability>
+  editor?: Record<string, unknown>
+  connectionFields?: Array<{ key: string; label: string; type?: 'text' | 'number' | 'checkbox'; placeholder?: string }>
+  views?: Array<{ id: string; label: string }>
 }
 export interface DbWorkbenchExecuteInput extends DbExecuteInput {
   executionId?: string
@@ -58,6 +61,7 @@ export interface DbCompareResult {
 }
 export type DbWorkbenchRequest =
   | { action: 'drivers.list'; input?: Record<string, never> }
+  | { action: 'driver.view'; input: { sessionKey: string; viewToken: string; operation: string; input?: unknown } }
   | { action: 'browse'; input: { sessionKey: string; table: TableRef; maxRows?: number; surface?: 'quick' | 'shell' } }
   | { action: 'redis.scan'; input: { sessionKey: string; cursor?: string; match?: string; count?: number } }
   | { action: 'table.page'; input: DbTablePage & { sessionKey: string; surface?: 'quick' | 'shell' } }

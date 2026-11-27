@@ -30,18 +30,15 @@ export function api() {
 
 /** 逐片 base64 → 字节拼接（宿主对每块独立 base64，块边界任意对齐） */
 export function decodeBase64Chunks(chunks) {
-  let total = 0
-  const buffers = chunks.map(chunk => {
-    const binary = atob(chunk)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
-    total += bytes.length
-    return bytes
-  })
-  const out = new Uint8Array(total)
+  const capacity = chunks.reduce((total, chunk) => total + Math.floor(chunk.length * 3 / 4)
+    - (chunk.endsWith('==') ? 2 : chunk.endsWith('=') ? 1 : 0), 0)
+  const out = new Uint8Array(capacity)
   let offset = 0
-  for (const buffer of buffers) { out.set(buffer, offset); offset += buffer.length }
-  return out
+  for (const chunk of chunks) {
+    const binary = atob(chunk)
+    for (let index = 0; index < binary.length; index++) out[offset++] = binary.charCodeAt(index)
+  }
+  return out.subarray(0, offset)
 }
 
 export function toBase64(bytes) {
@@ -175,6 +172,7 @@ export async function requestJsonStreamed({ url, method = 'POST', headers = {}, 
 export async function downloadBinary(url, { timeoutMs = 120000, signal } = {}) {
   if (signal?.aborted) throw new DOMException('已取消', 'AbortError')
   return schedule(() => new Promise((resolve, reject) => {
+    signal?.throwIfAborted()
     const enest = api()
     const parts = []
     let settled = false

@@ -54,12 +54,8 @@ export function HomePage({ sites, onOpenVod, onGoConfig, onPlayResume, onGoCateg
 
   if (!sites.length) {
     return (
-      <Empty>
-        <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--text, #1d2126)' }}>欢迎使用影视仓</div>
-        <div>还没有可用的影视配置源</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="pk-btn" onClick={onGoConfig}>导入配置地址</button>
-        </div>
+      <Empty title="暂无影视源" hint="导入配置后，即可浏览和搜索影片。">
+        <button className="pk-btn" onClick={onGoConfig}>导入配置地址</button>
       </Empty>
     )
   }
@@ -104,7 +100,7 @@ export function HomePage({ sites, onOpenVod, onGoConfig, onPlayResume, onGoCateg
           onMore={() => onGoCategory?.(sec.key ?? sec.typeId)}
         />
       ))}
-      {!loading && !sections.length && !error ? <Empty>暂无内容</Empty> : null}
+      {!loading && !sections.length && !error ? <Empty title="暂无推荐内容" /> : null}
     </>
   )
 }

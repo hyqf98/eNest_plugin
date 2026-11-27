@@ -4,9 +4,10 @@ import { createRequire } from 'node:module'
 import { createHash } from 'node:crypto'
 import { basename, dirname, join, resolve, relative, sep } from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
-import { repositoryRoot, localFile } from './plugin-contract.mjs'
-import { normalizeTarget, packageMatchesTarget, platformPackagePlan } from './distribution-target.mjs'
+import { repositoryRoot, localFile, resolvePluginSource } from './plugin-contract.mjs'
+import { normalizeTarget, packageMatchesTarget, platformPackagePlan, distributionDirectory } from './distribution-target.mjs'
 import { backendPackageFileExclusions, backendRuntimeExclusions, assertPackageFilesCanBeExcluded } from './backend-package-files.mjs'
 
 const packageName = /^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i
@@ -172,4 +173,27 @@ export async function buildBackend(source, destination, { root = repositoryRoot,
     await copyPackage(join(unpack, 'package'), join(target, location), name, excludedFiles.get(name))
   }
   await writeFile(join(target, 'dependency-inventory.json'), JSON.stringify({ node: '>=24', target: distributionTarget, supportedTargets: platformPlan.supportedTargets, dependencies: [...copied.values()], runtimeExcluded: skipped.map(pkg => ({ name: pkg.name, version: pkg.version, path: pkg.path })), platformPackages: platformPlan.packages.map(pkg => pkg.name), nativePackages: platformInventory }, null, 2) + '\n')
+}
+
+/**
+ * 只构建插件后端（CLI）：`node scripts/build-backend.mjs <pluginId> [--target=…]`
+ *
+ * 存在的意义是让开发态能在「后端源码变了但产物没变」时只重建后端：
+ * 走完整的 build-plugin.mjs 会连前端一起打包，还要过市场素材校验（截图尺寸等），
+ * 一处不合规就整条构建失败，与后端改动毫无关系。这里只做后端该做的那部分。
+ */
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const input = process.argv.slice(2)
+  const target = normalizeTarget(input.find(value => value.startsWith('--target='))?.slice('--target='.length))
+  const ids = input.filter(value => !value.startsWith('--target='))
+  if (!ids.length) {
+    console.error('usage: build-backend.mjs <pluginId> [--target=universal|darwin-arm64|…]')
+    process.exit(1)
+  }
+  for (const id of ids) {
+    const { source } = resolvePluginSource(id, repositoryRoot)
+    const destination = distributionDirectory(source, target, repositoryRoot)
+    await buildBackend(source, destination, { root: repositoryRoot, target })
+    console.log(`Built backend ${id}: ${destination}`)
+  }
 }

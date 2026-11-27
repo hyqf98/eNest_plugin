@@ -81,8 +81,8 @@ function CockpitView({ state, onGoSettings, onGoShell, onNewSession, onPickSessi
         <button className="icon-btn" title="打开完全体" aria-label="打开完全体" onClick={onGoShell}><IconExternal /></button>
         <button className="icon-btn" title="管理中心" aria-label="管理中心" onClick={onGoSettings}><IconGear /></button>
       </header>
-      <div className="sessions" aria-label="会话列表">
-        {state.sessions.length ? state.sessions.map((session) => (
+      {state.sessions.length > 0 && <div className="sessions" aria-label="会话列表">
+        {state.sessions.map((session) => (
           <button
             key={session.sessionId}
             className={`session-chip${session.sessionId === state.currentSessionId ? ' active' : ''}`}
@@ -92,10 +92,12 @@ function CockpitView({ state, onGoSettings, onGoShell, onNewSession, onPickSessi
             <span className={`dot${state.liveStatus[session.sessionId] === 'running' ? ' dot-run' : ''}`} />
             <span className="chip-title">{session.title || session.sessionId}</span>
           </button>
-        )) : <span className="evt-empty">暂无会话，可在下方开始快速对话。</span>}
-      </div>
+        ))}
+      </div>}
       <main className="activity" ref={activityRef}>
-        {state.events.length ? state.events.map(renderEvent) : <p className="evt-empty">选择会话查看进度，或直接发起快速对话。</p>}
+        {state.events.length ? state.events.map(renderEvent) : !state.sdkError && (
+          <p className="pk-empty-state">{state.sessions.length ? '暂无会话消息' : '在下方输入消息开始对话'}</p>
+        )}
         {state.sdkError && (
           <div className="dsh-error" role="alert">
             <p>{state.sdkError}</p>

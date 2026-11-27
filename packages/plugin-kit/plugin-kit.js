@@ -674,21 +674,43 @@ const PluginKit = (() => {
       els.forEach((el, i) => el.classList.toggle('active', i === index))
       if (scroll) els[index]?.scrollIntoView({ block: 'nearest' })
     }
+    /**
+     * 会裁掉菜单的最近祖先：overflow 不是 visible 的元素（滚动容器、自带裁剪的弹窗体）。
+     * 菜单是 absolute 挂在 .pk-select 里，超出这类祖先的部分会被裁掉；
+     * 没有这样一层时返回 null，可用空间就是整个视口。
+     */
+    const clipParent = () => {
+      for (let node = wrapper.parentElement; node && node !== document.body; node = node.parentElement) {
+        const { overflowY, overflowX } = getComputedStyle(node)
+        if (/(auto|scroll|hidden|clip)/.test(overflowY + overflowX)) return node
+      }
+      return null
+    }
     const position = () => {
       const rect = trigger.getBoundingClientRect()
       menu.style.minWidth = rect.width + 'px'
-      const below = window.innerHeight - rect.bottom, above = rect.top
-      menu.style.maxHeight = Math.min(280, Math.max(150, Math.max(below, above) - 20)) + 'px'
-      // 与壳 Radix Select 同策略：按弹层实际内容高度判断，仅当下方真正放不下且上方更宽裕时才向上翻
+      const clipper = clipParent()
+      // 可用空间的上下界：有裁剪祖先时取它与视口的交集（祖先自己也可能只占视口的一部分）
+      const top = clipper ? Math.max(0, clipper.getBoundingClientRect().top) : 0
+      const bottom = clipper ? Math.min(window.innerHeight, clipper.getBoundingClientRect().bottom) : window.innerHeight
+      const below = bottom - rect.bottom - 12, above = rect.top - top - 12
+      // 此刻菜单必须已可见：display:none 时 scrollHeight 为 0，量不到真实内容高度
       const content = Math.min(menu.scrollHeight, 280)
-      menu.classList.toggle('up', below < content && above > below)
+      // 与壳 Radix Select 同策略：仅当下方真正放不下、且上方更宽裕时才向上翻。
+      // 比的是裁剪祖先（滚动中的弹窗体等）内的空间，不是视口：贴近它底边的菜单往下会被裁掉。
+      // 两侧都放不下完整高度时，仍朝较宽的一侧展开并由 maxHeight 约束（菜单内部滚动）
+      const up = below < content && above > below
+      menu.classList.toggle('up', up)
+      const room = Math.max(up ? above : below, 48)
+      menu.style.maxHeight = Math.min(280, room) + 'px'
     }
     const openMenu = () => {
       if (trigger.disabled || open) return
       open = true
       rebuild()
-      position()
+      // 先显示再定位：隐藏状态下量不到内容高度（见 position）
       menu.hidden = false
+      position()
       trigger.setAttribute('aria-expanded', 'true')
       const selected = optionEls().findIndex(el => el.classList.contains('selected'))
       setActive(selected >= 0 ? selected : 0)

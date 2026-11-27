@@ -27,6 +27,7 @@ export function defaultFilters(facets: SourceFacets): Record<string, SourceFilte
 }
 
 export function FacetBar({ facets, values, t, onChange, onReset }: FacetBarProps) {
+  if (!facets.items.length) return null
   return (
     <div className="wh-facets" role="group" aria-label={t('label.filters')}>
       <span className="wh-facets-label"><Icon name="settings" size={13} />{t('label.filters')}</span>

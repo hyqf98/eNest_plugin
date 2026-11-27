@@ -67,10 +67,6 @@ export function requireHttpUrl(value: unknown, name: string): string {
   return text
 }
 
-export function sha256Hex(data: Buffer | string): string {
-  return createHash('sha256').update(data).digest('hex')
-}
-
 export function shortHash(value: string, length = 12): string {
   return createHash('sha256').update(value).digest('hex').slice(0, length)
 }

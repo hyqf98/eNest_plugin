@@ -87,27 +87,6 @@
         display: flex;
         flex-direction: column;
       }
-      header {
-        padding: 14px 25px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        border-bottom: 1px solid var(--line);
-        background: var(--chrome-bg);
-        backdrop-filter: var(--chrome-blur);
-        -webkit-backdrop-filter: var(--chrome-blur);
-      }
-      h1 {
-        font-size: 17px;
-        margin: 0;
-        letter-spacing: -0.02em;
-        font-weight: 650;
-      }
-      header span {
-        flex: 1;
-        color: var(--muted);
-        font-size: 12px;
-      }
       .workspace {
         display: grid;
         grid-template-columns: minmax(340px, 1fr) minmax(300px, 0.85fr);
@@ -217,6 +196,8 @@
       .controls {
         display: flex;
         align-items: stretch;
+        justify-content: center;
+        flex-wrap: wrap;
         gap: 10px;
       }
       .primary {
@@ -421,22 +402,9 @@
         font-weight: 600;
         font-variant-numeric: tabular-nums;
       }
-      /* 空状态插画位（纯 CSS/SVG） */
-      .empty {
-        padding: 30px 8px;
-        text-align: center;
-        color: var(--muted);
-        line-height: 1.8;
-        font-size: 12px;
-      }
-      .empty svg {
-        width: 88px;
-        height: 88px;
-        display: block;
-        margin: 0 auto 8px;
-        opacity: 0.85;
-      }
       .quick-today {
+        max-width: 100%;
+        overflow-wrap: anywhere;
         font-size: 11px;
         color: var(--muted);
         margin-top: 12px;
@@ -459,7 +427,6 @@
       }
       /* —— 透明度偏好降级为实色 —— */
       @media (prefers-reduced-transparency: reduce) {
-        header,
         .journal {
           background: var(--paper);
           backdrop-filter: none;
@@ -473,14 +440,6 @@
         transition: none;
       }
       /* —— quick 模式 —— */
-      /* 小窗口里设置齿轮改为右下角悬浮（共享 SettingsGear），顶栏再没有别的内容：
-         整条隐藏，否则会留下一条只有内边距的空白，把计时器整体往下顶。 */
-      [data-mode='quick'] header {
-        display: none;
-      }
-      [data-mode='quick'] h1 {
-        font-size: 14px;
-      }
       [data-mode='quick'] .workspace {
         grid-template-columns: 1fr;
       }
@@ -506,7 +465,8 @@
         margin-top: 8px;
       }
       [data-mode='quick'] .primary {
-        padding: 9px 18px;
+        min-width: 100px;
+        padding: 9px 12px;
       }
       [data-mode='quick'] .progress {
         transition: none;

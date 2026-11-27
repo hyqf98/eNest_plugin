@@ -98,16 +98,55 @@ body:has(.app[data-surface=quick]) .enest-float-tip { display: none !important; 
 .wb-settings-body { display: grid; gap: 26px; }
 .wb-settings-section { scroll-margin-top: 14px; border-top: 1px solid var(--border); padding-top: 16px; }
 .wb-settings-section > h2 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
-/* 行距放大到 52px、列间距 24px：42px/16px 时标签与控件贴得太近，
-   密集排列的三行读起来像一张表而不是三个独立选项。 */
-.wb-setting-row { display: grid; grid-template-columns: 220px minmax(0, 340px); align-items: center; gap: 24px; min-height: 52px; padding: 6px 0; border-bottom: 1px dashed color-mix(in srgb, var(--border) 55%, transparent); }
-.wb-setting-label { font-size: 12px; color: var(--text-2); }
-.wb-setting-control { display: flex; align-items: center; min-width: 0; }
+/* 行距 52px、列间距 24px：太密会读成一张表而不是独立选项。
+   控件列用 minmax(0, 1fr) 吃掉剩余宽度，而不是写死 340px —— 写死时行宽 1000px
+   而控件区只到 584px，右侧 400 多像素全空，控件全挤在左边、下边框却拉满整行。
+   控件本身仍靠左（label 固定 220px 对齐），只有需要整行的行才铺满。 */
+.wb-setting-row { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: center; gap: 24px; min-height: 52px; padding: 6px 0; border-bottom: 1px dashed color-mix(in srgb, var(--border) 55%, transparent); }
+/* 设置项标签与说明原先都用 --text-3（浅色下 #8b93a5，深色下更灰），
+   12px/11px 的字号叠上去几乎读不出来。标签升到 --text（正文色），
+   说明保留 --text-3 但抬高字号与行高，保持层级差异又不至于看不清。 */
+.wb-setting-label { font-size: 12.5px; color: var(--text); }
+/* 控件在 1fr 列内左对齐并限宽：输入框/下拉不需要拉满 700px，
+   靠左贴着标签读起来才是「标签 → 值」的一对，而不是两端分飞的表单。
+   例外：主题选择卡这类要整行铺开的多列内容，解除限宽（见下条）。 */
+.wb-setting-control { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 420px; }
 .wb-setting-control input[type=number], .wb-setting-control select { width: 100%; max-width: 220px; min-height: 32px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); border-radius: 6px; font-size: 12px; }
 .wb-setting-control .btn { min-height: 32px; }
+/* 主题卡片是多列网格，限宽会把多列压成一列竖排。这类行解除控件限宽。
+   列数交给纸面层的 auto-fit：760px 下排 3 列（5 张 = 3+2），
+   比原先 1000px 下排 4 列（4+1，尾卡独占一行）更整齐。 */
+.wb-setting-row:has(.wb-theme-options) .wb-setting-control { max-width: none; }
 /* 复选框与说明文字之间留出呼吸位，别贴着勾选框。 */
-.wb-setting-check { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--text-2); cursor: pointer; }
-.wb-setting-note { font-size: 11px; color: var(--text-3); line-height: 1.8; margin: 12px 0 0; max-width: 72ch; }
+.wb-setting-check { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text); cursor: pointer; }
+.wb-setting-note { font-size: 11.5px; color: var(--text-2); line-height: 1.75; margin: 12px 0 0; max-width: 72ch; }
+/* 设置项说明的 i 图标：说明本身收进悬浮层（tips.js），页面只留一个 14px 圆点。
+   基线对齐而不是 center——标题行里的 h2 与按钮高度不同，center 会让图标浮在半空。 */
+.wb-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-3);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+  cursor: help;
+  vertical-align: 1px;
+  user-select: none;
+  flex: none;
+}
+.wb-info:hover, .wb-info:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
+}
 .wb-settings .wb-shortcuts { margin-top: 0; }
 @media (max-width: 800px) { .wb-setting-row { grid-template-columns: 1fr; gap: 8px; } .wb-setting-control input[type=number], .wb-setting-control select { max-width: none; } }
 
@@ -117,10 +156,18 @@ body:has(.app[data-surface=quick]) .enest-float-tip { display: none !important; 
 .wb-observe-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-3); }
 .wb-observe-auto .nav-icon { width: 13px; height: 13px; }
 /* 分段式子标签（资源中心 + 查询中心共用观感） */
-.wb-observe-tabs, .wb-library-tabs { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); width: max-content; max-width: 100%; overflow: auto; }
-.wb-observe-tabs button, .wb-library-tabs button { padding: 6px 13px; white-space: nowrap; border: 0; border-radius: 6px; background: none; color: var(--text-2); font-size: 12px; cursor: pointer; transition: background .15s ease, color .15s ease; }
-.wb-observe-tabs button:hover, .wb-library-tabs button:hover { color: var(--text); }
-.wb-observe-tabs button.active, .wb-library-tabs button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px color-mix(in srgb, var(--db-scrim) 12%, transparent); font-weight: 550; }
+.wb-observe-tabs { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); width: max-content; max-width: 100%; overflow: auto; }
+.wb-observe-tabs button { padding: 6px 13px; white-space: nowrap; border: 0; border-radius: 6px; background: none; color: var(--text-2); font-size: 12px; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.wb-observe-tabs button:hover { color: var(--text); }
+.wb-observe-tabs button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px color-mix(in srgb, var(--db-scrim) 12%, transparent); font-weight: 550; }
+.wb-library-toolbar { flex: none; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.wb-library-tabs { display: flex; gap: 16px; }
+.wb-library-tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; margin-bottom: -1px; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-2); font-size: inherit; white-space: nowrap; cursor: pointer; }
+.wb-library-tabs button:hover, .wb-library-tabs button[aria-selected=true] { color: var(--text); }
+.wb-library-tabs button[aria-selected=true] { border-bottom-color: var(--accent); font-weight: 600; }
+.wb-library-tabs button:focus-visible { outline-offset: -2px; }
+.wb-library-count { color: var(--text-2); font-size: .9em; font-variant-numeric: tabular-nums; }
+.app .wb-library-toolbar .wb-search { flex: 0 1 220px; min-width: 0; min-height: 28px; margin: 0 0 4px auto; padding: 4px 8px; }
 /* 元信息行 */
 .wb-observe-meta { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--text-3); margin: 14px 0 12px; }
 .wb-observe-meta .spacer { flex: 1; }
@@ -160,7 +207,7 @@ body:has(.app[data-surface=quick]) .enest-float-tip { display: none !important; 
 .wb-observe-card strong { font-size: 13px; font-weight: 600; color: var(--text-2); }
 .wb-observe-card p { margin: 0; font-size: 12px; max-width: 420px; line-height: 1.7; }
 .app[data-surface=quick] .wb-observe-kpi { padding: 8px 10px 7px; } .app[data-surface=quick] .wb-observe-kpi b { font-size: 16px; }
-.wb-observe-tabs, .wb-library-tabs { border-bottom: 0; margin-bottom: 16px; }
+.wb-observe-tabs { border-bottom: 0; margin-bottom: 16px; }
 
 /* —— 资源中心复核修正：单位紧贴数字 / 徽章色调对比 / 条纹与分隔线加深 —— */
 .wb-observe-kpi b { display: inline-flex; align-items: baseline; gap: 3px; }

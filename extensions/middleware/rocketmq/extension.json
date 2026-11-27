@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "target": "middleware", "id": "rocketmq", "name": "Apache RocketMQ", "version": "0.0.1", "apiVersion": 1, "entry": "backend/index.cjs",
+  "descriptor": {
+    "ui": { "color": "#bc535a", "topicLabel": "Topic", "topicsModel": "topics", "groupsModel": "groups", "topicForm": "queue-count", "authLabel": "Dashboard" },
+    "completionRules": [{ "id": "rocketmq-topic", "kind": "topic", "label": "环境事件 Topic", "value": "${environment}_EVENTS" }]
+  }
+}

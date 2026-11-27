@@ -74,6 +74,7 @@ export function App() {
   const [confirm, setConfirm] = useState<ConfirmState>(null)
   const [importUrlOpen, setImportUrlOpen] = useState(false)
   const [importUrl, setImportUrl] = useState('')
+  const searchField = useRef<HTMLInputElement>(null)
   const searchRequest = useRef(0)
   const downloadWaiters = useRef(new Map<string, { resolve: (libraryId: string) => void; reject: (error: Error) => void }>())
 
@@ -704,7 +705,7 @@ export function App() {
             ['engines', 'nav.engines', 'engine'],
             ['settings', 'nav.settings', 'settings'],
           ] as const).map(([id, label, icon]) => (
-            <button key={id} type="button" className={`wh-rail-item${nav === id ? ' active' : ''}`} onClick={() => setNav(id)} aria-current={nav === id ? 'page' : undefined}>
+            <button key={id} type="button" className={`wh-rail-item${nav === id ? ' active' : ''}`} onClick={() => setNav(id)} aria-label={t(label)} aria-current={nav === id ? 'page' : undefined}>
               <Icon name={icon} />
               <span>{t(label)}</span>
             </button>
@@ -727,11 +728,11 @@ export function App() {
           </div>
           <div className="wh-topbar-actions">
             {nav === 'discover' && activeSource?.supportsSearch ? (
-              <label className="wh-search">
+              <div className="wh-search">
                 <Icon name="search" size={14} />
-                <input value={query} onChange={event => setQuery(event.target.value)} placeholder={t('placeholder.search')} aria-label={t('action.search')} />
-                {query ? <button type="button" className="wh-search-clear" onClick={() => setQuery('')} aria-label={t('action.close')}><Icon name="close" size={12} /></button> : null}
-              </label>
+                <input ref={searchField} value={query} onChange={event => setQuery(event.target.value)} placeholder={t('placeholder.search')} aria-label={t('action.search')} />
+                {query ? <button type="button" className="wh-search-clear" onClick={() => { setQuery(''); searchField.current?.focus() }} aria-label={t('action.clearSearch')}><Icon name="close" size={12} /></button> : null}
+              </div>
             ) : null}
             {nav === 'library' ? (
               <>
@@ -766,26 +767,28 @@ export function App() {
         {nav === 'discover' ? (
           <div className="wh-view wh-discover">
             {!sources.some(source => source.enabled) ? (
-              <EmptyState title={t('state.empty')} body={t('label.sources')} action={<Button onClick={() => setNav('settings')}>{t('settings.sources')}</Button>} />
+              <EmptyState title={t('discover.noSources')} body={t('discover.enableSource')} action={<Button onClick={() => setNav('settings')}>{t('settings.sources')}</Button>} />
             ) : activeSource?.requiresKey && !activeSource.hasKey ? (
               <EmptyState title={t('hint.keyNeeded')} body={t('error.sourceKeyRequired')} action={<Button onClick={() => setNav('settings')}>{t('settings.sources')}</Button>} />
             ) : (
               <>
                 <FacetBar facets={facets} values={filters} t={t} onChange={(key, value) => setFilters(current => ({ ...current, [key]: value }))} onReset={() => setFilters(defaultFilters(facets))} />
                 {activeSource?.notices?.length ? <div className="wh-notices">{activeSource.notices.map(notice => <p key={notice}><Icon name="info" size={13} />{notice}</p>)}</div> : null}
-                {searchError ? <ErrorBox message={searchError} onRetry={() => { void loadPage(1, true) }} retryLabel={t('action.retry')} /> : null}
+                {searchError && items.length ? <ErrorBox message={searchError} onRetry={() => { void loadPage(1, true) }} retryLabel={t('action.retry')} /> : null}
                 <WallpaperGrid
                   items={items}
                   sourceNames={sourceNames}
                   t={t}
                   loading={searchLoading}
+                  error={!items.length ? searchError : undefined}
                   hasMore={hasMore}
                   onLoadMore={() => { if (!searchLoading && hasMore) void loadPage(page + 1, false) }}
                   onOpen={setDetail}
                   onSet={quickSet}
                   onDownload={handleDownload}
-                  emptyTitle={t('state.empty')}
-                  emptyBody={activeSource?.description}
+                  emptyTitle={t('discover.noMatches')}
+                  emptyBody={t(activeSource?.supportsSearch || facets.items.length ? 'discover.trySearch' : 'discover.trySource')}
+                  emptyAction={searchError ? <Button onClick={() => { void loadPage(1, true) }}>{t('action.retry')}</Button> : undefined}
                 />
               </>
             )}
@@ -812,9 +815,8 @@ export function App() {
               onSet={quickSet}
               onFavorite={handleFavorite}
               onRemove={confirmRemove}
-              emptyTitle={t('state.empty')}
-              emptyBody={t('error.libraryNotConfigured')}
-              emptyAction={<Button onClick={handlePickFolder}>{t('action.chooseFolder')}</Button>}
+              emptyTitle={t('library.empty')}
+              emptyBody={!folder?.path ? t('library.chooseFolderHint') : folder.writable === false ? undefined : t('library.emptyHint')}
             />
           </div>
         ) : null}
@@ -832,8 +834,8 @@ export function App() {
               onSet={quickSet}
               onFavorite={handleFavorite}
               onRemove={confirmRemove}
-              emptyTitle={t('state.empty')}
-              emptyBody={t('favorites.title')}
+              emptyTitle={t('favorites.empty')}
+              emptyBody={t('favorites.emptyHint')}
             />
           </div>
         ) : null}

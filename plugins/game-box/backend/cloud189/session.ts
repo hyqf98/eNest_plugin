@@ -8,7 +8,7 @@
  * 凭据不进日志、错误消息。
  */
 
-import { CookieJar, jarRequestText } from './http.ts'
+import { CookieJar, jarRequestText, seedJarFromCredential } from './http.ts'
 import { APP_ID, parseSessionResponse, timestampSeconds } from './sign.ts'
 
 /** 会话凭据 JSON（由页面 vault.set 保存，后端只持有 secretRef） */
@@ -52,7 +52,7 @@ export async function refreshSession(credential: SessionCredential): Promise<Ses
   const refreshToken = parsed.refreshToken
   if (!refreshToken) return null
   const jar = new CookieJar()
-  if (parsed.cookie) for (const pair of parsed.cookie.split('; ')) jar.store(`${pair}; Path=/`, 'https://cloud.189.cn/')
+  seedJarFromCredential(jar, credential)
   const { response, text } = await jarRequestText(jar, {
     url: `https://api.cloud.189.cn/getSessionForPC.action?appId=${APP_ID}&accessToken=${encodeURIComponent(refreshToken)}&clientSn=${crypto.randomUUID()}&clientType=TELEMAC&version=1.0.0&channelId=web_cloud.189.cn`,
     headers: { referer: 'https://cloud.189.cn/', accept: 'application/json;charset=UTF-8' },

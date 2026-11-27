@@ -95,6 +95,18 @@ export interface LibraryFacets {
 
 /* ---------------- 详情 ---------------- */
 
+/** 配置要求的一行（键按站点原文，如「操作系统」「处理器」，站点之间不统一，不做枚举） */
+export interface ConfigField {
+  label: string
+  value: string
+}
+
+/** 配置要求：最低与推荐两组；站点没给或给的不是键值对时为空数组，此时用 minConfig 等纯文本显示 */
+export interface ConfigSpec {
+  min: ConfigField[]
+  recommend: ConfigField[]
+}
+
 export interface MediaRef {
   /** 交给 media.load 换取可显示地址 */
   token: string
@@ -113,8 +125,11 @@ export interface DetailData {
   sizeText: string
   /** 安装后占用估算文本，可能为空 */
   installedSizeText: string
+  /** 配置要求的原始文本，可能为空；站点可能在这里塞一段 JSON（见 configSpec） */
   minConfig: string
   recommendConfig: string
+  /** 把上面两段文本解析成的键值对；解析不出（纯文本或空）时为空数组 */
+  configSpec: ConfigSpec
   officialUrl: string
   packages: ResourcePackage[]
   /** 修改器功能项 */

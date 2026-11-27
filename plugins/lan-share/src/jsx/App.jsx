@@ -436,7 +436,10 @@ export function App() {
                 <p className="block-title">下载请求</p>
                 <ul id="req-log" className="req-log pk-mono">
                   {logRows.length === 0 ? (
-                    <li className="empty">暂无下载请求，等待手机扫码</li>
+                    <li className="pk-empty-state">
+                      <strong className="pk-empty-title">暂无下载请求</strong>
+                      <p className="pk-empty-hint">等待接收方扫码。</p>
+                    </li>
                   ) : logRows.map((item, i) => (
                     <li key={`${item.ts}-${i}`}>
                       <span className="r-file" title={item.file}>{item.file}</span>
@@ -492,7 +495,7 @@ export function App() {
             </div>
             <ul id="history-list" className="history-list">
               {history.length === 0 && (
-                <li className="empty">还没有分享记录</li>
+                <li className="pk-empty-state"><strong className="pk-empty-title">暂无分享记录</strong></li>
               )}
               {history.slice(0, 12).map((entry) => (
                 <li key={entry.id}>

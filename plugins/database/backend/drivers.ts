@@ -3,6 +3,8 @@ import type { HostDbConnectionConfig as DbConnectionConfig } from '@backend/host
 import type {
   BatchResult,
   CompletionCatalog,
+  CompletionResponse,
+  DbCompletionInput,
   DbDriverId,
   DbTestResult,
   QueryResult,
@@ -10,17 +12,7 @@ import type {
   SchemaObject,
   TableDetail
 } from '@backend/contracts/ssh-db'
-import { DIALECT_INFO } from '@backend/dialects'
-import { adapterBase } from '@backend/adapterUtils'
-import { upgradeMysql, upgradePostgres } from '@backend/relationalRuntime'
-import { sqliteAdapter } from '@backend/sqliteRuntime'
-import { mongoAdapter, redisAdapter, cassandraAdapter, neo4jAdapter } from '@backend/documentAdapters'
-import { influxAdapter, tdengineAdapter, searchAdapter } from '@backend/httpAdapters'
-import { duckdbAdapter, oracleAdapter, mssqlAdapter, clickhouseAdapter } from '@backend/additionalSqlAdapters'
-import { COMPATIBILITY_ENGINES } from '@backend/driverCatalog'
-import { attachRowEditing } from '@backend/rowChanges'
-
-export const DEFAULT_MAX_ROWS = 1000
+import type { DbInspectionKind } from '@backend/contracts/db-workbench'
 
 export interface DriverHandle {
   id: DbDriverId
@@ -82,49 +74,10 @@ export interface DbDriver {
     h: DriverHandle,
     scope: { database?: string; schema?: string }
   ): Promise<CompletionCatalog>
+  complete?(input: DbCompletionInput, catalog: CompletionCatalog | null): CompletionResponse | undefined
+  inspect?(h: DriverHandle, kind: DbInspectionKind, signal: AbortSignal): Promise<QueryResult | undefined>
+  isViewWrite?(viewId: string, operation: string): boolean | undefined
+  invokeView?(h: DriverHandle, viewId: string, operation: string, input: unknown, signal: AbortSignal, viewToken: string): Promise<unknown>
+  releaseView?(h: DriverHandle, viewToken: string): Promise<void>
   applyBatch?(h: DriverHandle, changes: RowChange[], mode: 'stop-on-error' | 'continue'): Promise<BatchResult>
-}
-
-// —— Registry ——
-
-function relationalBase(id: 'mysql' | 'postgres' | 'timescale', label: string, dialect: string, port: number): DbDriver {
-  const driver = adapterBase(id, label, dialect, port)
-  driver.capabilities = { ...driver.capabilities, multiStatement: true, explain: true, schemas: id !== 'mysql', timeSeries: id === 'timescale', updatableResult: true, ddl: true, import: true }
-  return driver
-}
-const mysqlRuntimeDriver = upgradeMysql(relationalBase('mysql', 'MySQL', 'mysql', 3306))
-const postgresRuntimeDriver = upgradePostgres(relationalBase('postgres', 'PostgreSQL', 'postgres', 5432))
-export const DRIVER_REGISTRY: Partial<Record<DbDriverId, DbDriver>> = {
-  mysql: mysqlRuntimeDriver, postgres: postgresRuntimeDriver,
-  timescale: upgradePostgres(relationalBase('timescale', 'TimescaleDB', 'postgres', 5432)), sqlite: sqliteAdapter(),
-  influxdb: influxAdapter('influxdb'), influxdb1: influxAdapter('influxdb1'), influxdb3: influxAdapter('influxdb3'),
-  tdengine: tdengineAdapter(), mongodb: mongoAdapter(), redis: redisAdapter(),
-  cassandra: cassandraAdapter(), scylladb: cassandraAdapter('scylladb'), neo4j: neo4jAdapter(), duckdb: duckdbAdapter(), oracle: oracleAdapter(),
-  mssql: mssqlAdapter(), clickhouse: clickhouseAdapter(), elasticsearch: searchAdapter('elasticsearch'), opensearch: searchAdapter('opensearch')
-}
-for (const id of ['mysql', 'postgres', 'timescale', 'sqlite'] as const) attachRowEditing(DRIVER_REGISTRY[id]!, id === 'mysql' ? 'mysql' : id === 'sqlite' ? 'sqlite' : 'postgres')
-for (const [id, descriptor] of Object.entries(COMPATIBILITY_ENGINES)) {
-  const base = descriptor.base === 'mysql' ? mysqlRuntimeDriver : postgresRuntimeDriver
-  const limited = ['doris', 'starrocks', 'questdb'].includes(id)
-  const compatible: DbDriver = { ...base, id: id as DbDriverId, label: descriptor.label, defaultPort: descriptor.port,
-    open: (config, password) => base.open({ ...config, port: config.port ?? descriptor.port }, password),
-    capabilities: { ...base.capabilities, updatableResult: !limited && base.capabilities.updatableResult, import: !limited && base.capabilities.import } }
-  if (limited) { compatible.transaction = undefined; compatible.applyBatch = undefined }
-  DRIVER_REGISTRY[id as DbDriverId] = compatible
-}
-for (const driver of Object.values(DRIVER_REGISTRY)) {
-  driver.test = async (config, password) => {
-    const started = Date.now(); let handle: DriverHandle | undefined
-    try { handle = await driver.open(config, password); return { ok: true, message: 'Connected', latencyMs: Date.now() - started } }
-    catch (error) { return { ok: false, message: (error as Error).message, latencyMs: Date.now() - started } }
-    finally { if (handle) await driver.close(handle).catch(() => undefined) }
-  }
-  const original = (DIALECT_INFO[driver.id]?.dialect === driver.dialect ? DIALECT_INFO[driver.id] : undefined) || Object.values(DIALECT_INFO).find(d => d.dialect === driver.dialect)
-  DIALECT_INFO[driver.id] = { ...original, functions: driver.dialect === 'postgres' && driver.id !== 'timescale' ? original?.functions?.filter(fn => fn.name !== 'time_bucket') : original?.functions, id: driver.id, label: driver.label, dialect: driver.dialect, defaultPort: driver.defaultPort, capabilities: driver.capabilities }
-}
-
-export function getDriver(id: string): DbDriver {
-  const d = DRIVER_REGISTRY[id as DbDriverId]
-  if (!d) throw new Error(`unknown db driver: ${id}`)
-  return d
 }

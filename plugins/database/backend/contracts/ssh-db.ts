@@ -372,6 +372,7 @@ export interface CompletionCatalog {
   }>
   functions?: Array<{ name: string; signature?: string; doc?: string; kind?: string }>
   keywords?: string[]
+  snippets?: DbDialectInfo['snippets']
   usageBoost?: Record<string, number>
 }
 

@@ -44,7 +44,19 @@ export class NavigationMotion {
     else { if (!this.opened && this.target !== 1) { this.position = 0; this.target = 0 }; this.paint() }
   }
   hideFlyouts() { this.flyouts.forEach((flyout) => flyout.hide()) }
-  open() { this.hideFlyouts(); if (!this.isCompact()) { this.collapse(false); this.side.querySelector('input')?.focus(); return }; this.returnFocus = document.activeElement; this.opened = true; this.target = 1; this.update(); this.animate(); (this.side.querySelector('.nav-search') || this.side.querySelector('button'))?.focus() }
+  open() {
+    this.hideFlyouts()
+    if (!this.isCompact()) this.collapse(false)
+    else {
+      this.returnFocus = document.activeElement
+      this.opened = true; this.target = 1; this.update(); this.animate()
+    }
+    const browser = this.side.querySelector('.nav-browser:not([hidden])')
+    const focusTarget = !browser ? this.side.querySelector('.nav-settings-list button') : this.root.dataset.surface === 'quick'
+      ? browser.querySelector('[role=treeitem][tabindex="0"]') || browser.querySelector('[data-new]')
+      : browser.querySelector('.nav-search')
+    focusTarget?.focus({ preventScroll: true })
+  }
   close(restore = true) { if (!this.opened) return; this.opened = false; this.target = 0; this.root.dataset.navOpen = 'false'; this.side.inert = true; this.root.querySelector('.mid-col').inert = false; this.toggle.setAttribute('aria-expanded', 'false'); this.animate(); if (restore) (this.returnFocus?.isConnected ? this.returnFocus : this.toggle)?.focus() }
   paint() { this.side.style.transform = `translateX(${(this.position - 1) * this.width}px)`; this.scrim.style.opacity = String(this.position * 0.2) }
   animate() {

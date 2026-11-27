@@ -57,13 +57,23 @@ export function WebLogin({ onLoggedIn }: { onLoggedIn?: () => void }) {
 /**
  * 把登录窗口交回的 cookie 存成后端能用的会话凭据。
  * 只存天翼域下的 cookie（登录页同时会带一些统计类第三方 cookie，没有用处，也不该保存）。
- * cookie 头的格式与后端 jarRequest 发请求时用的完全一致：`name=value; name=value`。
+ *
+ * 同时保存两种形态：
+ * - `cookies`：逐条带 domain / path，后端按请求主机过滤后组装 —— 这是正确形态；
+ * - `cookie`：拍平的 `name=value; name=value`，只作旧凭据与旧代码的兼容。
+ *
+ * 为什么必须有带域名的那份：天翼在 cloud.189.cn 与 open.e.189.cn 会下发**同名但值不同**的
+ * cookie，服务端靠 domain 区分。拍平成字符串后同名只剩一条，等于把真正的会话 cookie 换成
+ * SSO 流程的，表现为「刚登录就显示已过期」。
  */
 async function saveSession(cookies: readonly api.WebLoginCookie[]): Promise<void> {
   const owned = cookies.filter(cookie => cookie.domain.replace(/^\./, '').endsWith('189.cn'))
-  const header = owned.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
-  if (!header) throw new Error('没有拿到登录会话，请重试')
-  const credential = JSON.stringify({ cookie: header, savedAt: Math.floor(Date.now() / 1000) })
+  if (!owned.length) throw new Error('没有拿到登录会话，请重试')
+  const credential = JSON.stringify({
+    cookies: owned.map(cookie => ({ name: cookie.name, value: cookie.value, domain: cookie.domain, path: cookie.path })),
+    cookie: owned.map(cookie => `${cookie.name}=${cookie.value}`).join('; '),
+    savedAt: Math.floor(Date.now() / 1000),
+  })
   const sessionRef = await api.host.saveKey('tianyi.session', credential)
   await api.auth.saveSession({ sessionRef })
 }

@@ -1,0 +1,70 @@
+{
+  "id": "com.github.eNest.chinese-calendar",
+  "name": "中国日历",
+  "version": "0.0.1",
+  "description": "农历、节气、干支与黄历宜忌，法定节假日调休与倒数，多城市天气；Quick 小窗悬停查看当日信息。",
+  "author": "eNest Labs",
+  "main": "index.html",
+  "views": {
+    "layouts": ["quick", "shell"],
+    "default": "shell"
+  },
+  "category": "效率",
+  "icon": "assets/market/icon.svg",
+  "engines": {
+    "enest": ">=0.0.1"
+  },
+  "permissions": [
+    "net.fetch",
+    "shell.openExternal"
+  ],
+  "features": [
+    {
+      "code": "main",
+      "title": "中国日历",
+      "explain": "农历、黄历与节假日倒数",
+      "cmds": [
+        "日历",
+        "万年历",
+        "黄历",
+        "农历",
+        "calendar",
+        "rili",
+        "hl"
+      ]
+    }
+  ],
+  "contributes": {
+    "homeCards": [
+      {
+        "id": "today",
+        "title": "中国日历",
+        "glyph": "历",
+        "color": "#bd542b",
+        "explain": "农历、节气、黄历宜忌、法定节假日倒数与多城市天气",
+        "openCode": "main"
+      }
+    ]
+  },
+  "ui": {
+    "chrome": "none",
+    "themeAware": true,
+    "background": "transparent",
+    "preferredColorScheme": "auto"
+  },
+  "market": {
+    "tags": [
+      "日历",
+      "农历",
+      "黄历",
+      "效率"
+    ],
+    "readme": "assets/market/README.md",
+    "screenshots": [
+      "assets/market/screenshots/01-main.png"
+    ]
+  },
+  "development": {
+    "main": "http://127.0.0.1:5228/"
+  }
+}

@@ -13,6 +13,7 @@ import { openCtxMenu } from './ctxMenu.js'
 import { svg as navIcon } from './schemaTree.js'
 import { getCompletionCatalog, warmCompletionCatalog, ensureCompletionColumns, previewSqlCompletion, completionContextKey, captureCompletionMetadataRead, validateCompletionMetadataRead } from './completion.js'
 import { PAPER_OPTIONS, applyPaper, normalizePaper } from './paper-theme.js'
+import { infoTip } from './settingsTip.js'
 import { listProviders, saveProvider, removeProvider, setDefaultProvider, fetchModels, normalizeBaseUrl } from './ai/models.mjs'
 import { getAiPanel } from './ai/registry.mjs'
 
@@ -351,6 +352,7 @@ export class DatabaseWorkbench {
       const fresh = !page
       if (!page) { page = document.createElement('section'); page.className = 'wb-page'; page.id = `page-${key}`; page.setAttribute('role', 'tabpanel'); this.pages.set(key, page); this.pageHost.append(page) }
       this.pageHost.replaceChildren(page); this.pageRoot = page
+      page.classList.toggle('wb-library-page', this.page === 'documents' || this.page === 'history')
       if (this.page === 'empty') this.renderEmpty()
       else if (this.page === 'documents' || this.page === 'history') this.renderLibrary(this.page)
       else if (this.page === 'settings' && fresh) this.renderSettings()
@@ -366,11 +368,21 @@ export class DatabaseWorkbench {
     const details = result ? `${result.rowCount ?? result.rows?.length ?? 0} 行${result.durationMs != null ? ` · ${result.durationMs} ms` : ''}` : '查询控制台自动保存'
     this.status.innerHTML = `<span class="wb-status-dot ${connected ? 'on' : ''}"></span><span>${esc(conn?.name || '选择左侧连接以开始')}</span><span>${session?.transactionActive ? this.transactionLabel(session) : state.runtime.executing ? '查询执行中' : connected ? '已连接' : '尚未重新读取'}</span><span class="spacer"></span><span>${this.mode === 'quick' ? '只读 · 最多 200 行' : details}</span>`
   }
-  update() { this.renderTabs(); if (['query', 'object'].includes(this.page)) this.renderQueryBar(); this.updateStatus(); this.navigation.update(); void this.ctx.editor().setSurface(this.mode, this.ctx.isConnected() && this.page === 'query') }
+  update() {
+    this.renderTabs()
+    if (['query', 'object'].includes(this.page)) this.renderQueryBar()
+    else if (this.page === 'empty' && this.pageRoot && this.emptyHasConnections !== (state.connections.length > 0)) this.renderEmpty()
+    this.updateStatus(); this.navigation.update()
+    void this.ctx.editor().setSurface(this.mode, this.ctx.isConnected() && this.page === 'query')
+  }
   renderEmpty() {
-    // 新建连接的入口只在左侧（「连接」标题行的 ＋ 与空态卡片），右侧欢迎页不再重复放一个。
-    this.pageRoot.innerHTML = `<div class="wb-welcome"><div class="wb-welcome-symbol" aria-hidden="true">▦</div><h1>数据库工作台</h1><p>在左侧「连接」旁点 ＋ 新建连接，然后打开数据表或开始一段查询。</p><div><button class="btn" data-documents>打开文档</button></div><p class="wb-welcome-hint"><kbd>⌘ / Ctrl T</kbd> 新建查询 <span>·</span> <kbd>⌘ / Ctrl ⇧ P</kbd> 搜索命令</p></div>`
-    this.pageRoot.querySelector('[data-documents]').onclick = () => this.navigate('documents')
+    const hasConnections = state.connections.length > 0
+    this.emptyHasConnections = hasConnections
+    const title = hasConnections ? '选择连接开始' : '暂无数据库连接'
+    const hint = this.mode === 'quick' ? '打开连接面板，选择或新建连接。' : hasConnections ? '在左侧打开数据表，或连接后开始查询。' : '在左侧点击 ＋ 新建连接。'
+    this.pageRoot.innerHTML = `<div class="pk-empty-state"><h1 class="pk-empty-title">${title}</h1><p class="pk-empty-hint">${hint}</p>${this.mode === 'shell' ? '<button type="button" class="btn" data-documents>打开查询中心</button>' : ''}</div>`
+    const documents = this.pageRoot.querySelector('[data-documents]')
+    if (documents) documents.onclick = () => this.navigate('documents')
   }
   renderLibrary(kind) {
     // 文档与历史合并为一页，子标签存 tab.view（documents | history）
@@ -379,23 +391,34 @@ export class DatabaseWorkbench {
     const documents = state.sessions.flatMap((session) => (session.editors || []).map((editor) => ({ id: editor.id, session, title: editor.title || '未命名查询', sql: editor.sql || editor.content || '', connectionId: session.connectionId })))
     const history = state.queryHistory.map((item) => ({ ...item, title: item.sql?.split('\n')[0] || '查询', date: item.ts || item.createdAt }))
     const items = sub === 'documents' ? documents : history
-    const labels = { documents: { title: '查询文档', desc: '关闭标签后，查询文档仍保留在这里。', search: '搜索文档或连接' }, history: { title: '查询历史', desc: '重新打开查询文本，确认后执行。', search: '搜索查询或连接' } }
-    this.pageRoot.innerHTML = `<div class="wb-page-title"><div><h1>查询中心</h1><p class="muted">${esc(labels[sub].desc)}</p></div></div><nav class="wb-subtabs wb-library-tabs" role="tablist" aria-label="查询中心">${[['documents', `文档 · ${documents.length}`], ['history', `历史 · ${history.length}`]].map(([id, label]) => `<button type="button" role="tab" aria-selected="${sub === id}" data-library-tab="${id}" class="${sub === id ? 'active' : ''}">${label}</button>`).join('')}</nav><input class="wb-search" type="search" placeholder="${esc(labels[sub].search)}" aria-label="搜索${sub === 'documents' ? '文档' : '历史'}"><div class="wb-library"></div>`
-    this.pageRoot.querySelectorAll('[data-library-tab]').forEach((button) => button.onclick = () => {
-      const next = button.dataset.libraryTab
+    const labels = sub === 'documents'
+      ? { name: '查询文档', desc: '关闭标签后，查询文档仍保留在这里。', search: '搜索文档或连接', hint: '在控制台新建查询后，文档会显示在这里。' }
+      : { name: '查询历史', desc: '重新打开查询文本，确认后执行。', search: '搜索查询或连接', hint: '执行查询后，记录会显示在这里。' }
+    const sections = [['documents', '文档', documents.length], ['history', '历史', history.length]]
+    this.pageRoot.innerHTML = `<div class="wb-page-title"><div><h1>查询中心</h1><p class="muted">${labels.desc}</p></div></div><div class="wb-library-toolbar"><nav class="wb-library-tabs" role="tablist" aria-label="查询中心">${sections.map(([id, label, count]) => `<button type="button" role="tab" id="db-library-${id}" aria-selected="${sub === id}" aria-controls="db-library-results" tabindex="${sub === id ? 0 : -1}" data-library-tab="${id}">${label}<span class="wb-library-count">${count}</span></button>`).join('')}</nav><input class="wb-search" type="search" placeholder="${labels.search}" aria-label="${labels.search}"></div><div class="wb-library" id="db-library-results" role="tabpanel" aria-labelledby="db-library-${sub}"></div>`
+    const switchTab = (next) => {
+      if (sub === next) return
       if (tab && tab.kind === 'history') { tab.view = next; persistWorkspace() }
       this.page = next; this.renderLibrary(next)
-    })
+      this.pageRoot.querySelector('[aria-selected=true][data-library-tab]')?.focus({ preventScroll: true })
+    }
+    this.pageRoot.querySelectorAll('[data-library-tab]').forEach((button) => button.onclick = () => switchTab(button.dataset.libraryTab))
+    this.pageRoot.querySelector('.wb-library-tabs').onkeydown = (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+      event.preventDefault()
+      switchTab(event.key === 'Home' ? 'documents' : event.key === 'End' ? 'history' : sub === 'documents' ? 'history' : 'documents')
+    }
+    const results = this.pageRoot.querySelector('.wb-library')
     const render = (query = '') => {
       const filtered = items.filter((item) => `${item.title} ${item.sql} ${getConnection(item.connectionId)?.name || ''}`.toLowerCase().includes(query.toLowerCase()))
-      this.pageRoot.querySelector('.wb-library').innerHTML = filtered.map((item) => `<article class="wb-library-row"><button data-open-document="${esc(item.id)}"><strong>${esc(item.title.slice(0, 100))}</strong><span>${esc(getConnection(item.connectionId)?.name || '连接已删除')}${item.date ? ` · ${new Date(item.date).toLocaleString()}` : ''}</span><code>${esc(item.sql?.slice(0, 220) || '空白查询')}</code></button></article>`).join('') || `<div class="wb-empty">没有匹配的${sub === 'documents' ? '查询文档' : '查询历史'}</div>`
-      this.pageRoot.querySelectorAll('[data-open-document]').forEach((button) => button.onclick = async () => {
+      results.innerHTML = filtered.map((item) => `<article class="wb-library-row"><button data-open-document="${esc(item.id)}"><strong>${esc(item.title.slice(0, 100))}</strong><span>${esc(getConnection(item.connectionId)?.name || '连接已删除')}${item.date ? ` · ${new Date(item.date).toLocaleString()}` : ''}</span><code>${esc(item.sql?.slice(0, 220) || '空白查询')}</code></button></article>`).join('') || `<div class="pk-empty-state" role="status"><strong class="pk-empty-title">${items.length ? '没有匹配的' : '暂无'}${labels.name}</strong><p class="pk-empty-hint">${items.length ? '换个关键词试试。' : labels.hint}</p></div>`
+      results.querySelectorAll('[data-open-document]').forEach((button) => button.onclick = async () => {
         const item = items.find((entry) => entry.id === button.dataset.openDocument)
         if (sub === 'documents') await this.ctx.openDocument?.(item.session.id, item.id)
         else await this.ctx.historyAction?.(item.id, 'insert')
       })
     }
-    render(); this.pageRoot.querySelector('.wb-search').oninput = (event) => render(event.target.value)
+    render(); this.pageRoot.querySelector('.wb-search').oninput = (event) => render(event.target.value.trim())
   }
   renderQueryBar() {
     let toolbar = this.workspace.querySelector('.wb-querybar')
@@ -406,7 +429,7 @@ export class DatabaseWorkbench {
       const policy = objectPolicy(tab.objectType)
       const results = state.results.get(tab.editorId), hasData = !!results?.tabs?.[results.activeTab || 0]?.result
       toolbar.innerHTML = `<div class="wb-object-identity"><strong>${esc(tab.objectName)}</strong><span>${esc([conn?.name, tab.database, tab.schema].filter(Boolean).join(' / '))}</span></div><div class="wb-segmented" role="tablist" aria-label="对象视图"><button role="tab" aria-selected="${tab.view !== 'structure'}" data-object-view="data">数据</button><button role="tab" aria-selected="${tab.view === 'structure'}" data-object-view="structure">结构</button></div><span class="spacer"></span><button class="btn" data-object-refresh ${results?.loading ? 'disabled' : ''}>${results?.loading ? '读取中…' : '重新读取'}</button>`
-      if (!hasData) { const empty = document.createElement('div'); empty.className = 'wb-object-state'; empty.setAttribute('role', 'status'); const error = results?.error?.message || results?.error; empty.innerHTML = `<strong>${results?.loading ? '正在读取数据…' : error ? '无法读取数据' : '尚未重新读取'}</strong><p>${esc(error || (results?.loading ? '读取完成后会显示此对象的数据。' : '点击右上角“重新读取”连接并加载当前对象。'))}</p>`; toolbar.after(empty) }
+      if (!hasData) { const empty = document.createElement('div'); empty.className = 'wb-object-state pk-empty-state'; empty.setAttribute('role', 'status'); const error = results?.error?.message || results?.error; empty.innerHTML = `<strong class="pk-empty-title">${results?.loading ? '正在读取数据…' : error ? '无法读取数据' : '尚未重新读取'}</strong>${results?.loading ? '' : `<p class="pk-empty-hint">${esc(error || '点击“重新读取”加载当前对象。')}</p>`}`; toolbar.after(empty) }
       toolbar.querySelectorAll('[data-object-view]').forEach((button) => button.onclick = () => { tab.view = button.dataset.objectView; void persistWorkspace(); this.page = tab.view === 'structure' ? 'structure' : 'object'; this.render() })
       toolbar.querySelector('[data-object-refresh]').onclick = () => void this.ctx.browse({ name: tab.objectName, type: tab.objectType, origin: tab.origin, database: tab.database, schema: tab.schema }, conn, 'data', true)
       if (!policy.browse) { tab.view = 'structure'; this.page = 'structure'; this.render(); return }
@@ -482,7 +505,7 @@ export class DatabaseWorkbench {
   renderSettings() {
     this.settingsObserver?.disconnect(); this.settingsObserver = null
     const paper = normalizePaper(state.ui.paper)
-    this.pageRoot.innerHTML = `<div class="wb-settings"><div class="wb-page-title"><div><p class="wb-eyebrow">PLUGIN PREFERENCES</p><h1>数据库设置</h1><p class="muted">仅影响数据库插件的界面主题。字号与全局动画继续跟随 eNest，主题偏好在这里单独保存。</p></div><button class="btn" data-back>返回查询</button></div><div class="wb-settings-body"><section class="wb-settings-section" id="settings-appearance"><h2>界面主题</h2><div class="wb-setting-row"><div class="wb-setting-label">纸面主题</div><div class="wb-setting-control"><div class="wb-theme-options" role="group" aria-label="纸面界面主题">${PAPER_OPTIONS.map((item) => `<button type="button" class="wb-theme-option" data-paper-option="${item.id}" aria-pressed="${paper === item.id}"><span class="wb-theme-swatch" aria-hidden="true">${item.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span><span class="wb-theme-copy"><strong>${item.label}</strong><small>${item.desc}</small></span></button>`).join('')}</div></div></div><div class="wb-setting-row"><div class="wb-setting-label">跟随壳子主题</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-follow-theme ${getFollowShellTheme() ? 'checked' : ''}> 使用 eNest 壳主题配色（关闭后使用纸面色板）</label></div></div><p class="wb-setting-note">「跟随明暗」在浅色环境用白纸、深色环境用墨纸；手选纸面立即生效。只保存在数据库插件设置中，不修改 eNest 全局主题或其它插件。</p></section><section class="wb-settings-section" id="settings-editor"><h2>编辑器与查询</h2><div class="wb-setting-row"><div class="wb-setting-label">工作台最大返回行数</div><div class="wb-setting-control"><input type="number" min="200" max="10000" step="200" data-pref="maxRows" value="${state.ui.maxRows || 1000}"></div></div><div class="wb-setting-row"><div class="wb-setting-label">编辑器字号</div><div class="wb-setting-control"><input type="number" min="11" max="24" data-pref="editorFontSize" value="${state.ui.editorFontSize || 13}"></div></div><div class="wb-setting-row"><div class="wb-setting-label">资源中心自动刷新</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-pref="resourceAutoRefresh" ${state.ui.resourceAutoRefresh ? 'checked' : ''}> 可见时每 5 秒刷新</label></div></div><p class="wb-setting-note">Quick 固定最多 200 行，只读查询。服务器不支持的指标会显示原因。</p></section><section class="wb-settings-section" id="settings-layout"><h2>布局与数据</h2><div class="wb-setting-row"><div class="wb-setting-label">结果区域位置</div><div class="wb-setting-control"><select data-pref="resultDock"><option value="bottom" ${state.ui.resultDock !== 'right' ? 'selected' : ''}>编辑器下方</option><option value="right" ${state.ui.resultDock === 'right' ? 'selected' : ''}>编辑器右侧</option></select></div></div><div class="wb-setting-row"><div class="wb-setting-label">恢复默认布局</div><div class="wb-setting-control"><button class="btn" data-reset-layout>重置侧栏与结果区</button></div></div><div class="wb-setting-row"><div class="wb-setting-label">清空查询历史</div><div class="wb-setting-control"><button class="btn" data-clear-history>清空本插件历史</button></div></div><p class="wb-setting-note">查询包含的文本会保存在本机。不要在查询或连接附加参数中保存明文密码。</p></section><section class="wb-settings-section wb-shortcuts" id="settings-shortcuts"><div class="wb-section-heading"><h2>快捷键</h2><button class="btn" data-reset-keys>恢复全部默认</button></div><p class="wb-setting-note">点击快捷键后按组合键，Backspace 停用，Escape 退出录制。Mod 在 macOS 为 Command，在 Windows/Linux 为 Ctrl。</p><div class="db-shortcut-filters"><input type="search" class="wb-search" data-shortcut-search aria-label="搜索快捷键" placeholder="搜索命令、按键或作用域"><select data-shortcut-group aria-label="快捷键分组"><option value="">全部分组</option>${['查询', '编辑器', '结果', '工作台'].map(group => `<option>${group}</option>`).join('')}</select></div><p class="db-shortcut-status" data-shortcut-status role="status" aria-live="polite">普通输入框保留系统编辑快捷键；结果命令仅在表格内生效。</p><div data-shortcut-list></div><p class="wb-setting-note">编辑器内 Enter 自动缩进；Tab / Shift+Tab 调整选中行缩进。表格方向键导航，F2 / Enter 编辑，Mod+C 复制，Mod+Z 撤销。查找框、连接表单和单元格输入保留原生按键。</p></section><section class="wb-settings-section" id="settings-ai"><h2>AI 助手</h2><p class="wb-setting-note">供应商需兼容 OpenAI chat/completions 接口；密钥只存本机凭据库（vault），请求经宿主 net.fetch 注入鉴权。缺少 net.fetch 权限时助手无法联网。</p><div data-ai-settings></div></section><section class="wb-settings-section" id="settings-completion"><h2>SQL 补全</h2><div data-completion-settings></div></section></div></div>`
+    this.pageRoot.innerHTML = `<div class="wb-settings"><div class="wb-page-title"><div><p class="wb-eyebrow">PLUGIN PREFERENCES</p><h1>数据库设置</h1><p class="muted">仅影响数据库插件的界面主题。字号与全局动画继续跟随 eNest，主题偏好在这里单独保存。</p></div><button class="btn" data-back>返回查询</button></div><div class="wb-settings-body"><section class="wb-settings-section" id="settings-appearance"><h2>界面主题${infoTip('「跟随明暗」在浅色环境用白纸、深色环境用墨纸；手选纸面立即生效。只保存在数据库插件设置中，不修改 eNest 全局主题或其它插件。')}</h2><div class="wb-setting-row"><div class="wb-setting-label">纸面主题</div><div class="wb-setting-control"><div class="wb-theme-options" role="group" aria-label="纸面界面主题">${PAPER_OPTIONS.map((item) => `<button type="button" class="wb-theme-option" data-paper-option="${item.id}" aria-pressed="${paper === item.id}"><span class="wb-theme-swatch" aria-hidden="true">${item.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span><span class="wb-theme-copy"><strong>${item.label}</strong><small>${item.desc}</small></span></button>`).join('')}</div></div></div><div class="wb-setting-row"><div class="wb-setting-label">跟随壳子主题</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-follow-theme ${getFollowShellTheme() ? 'checked' : ''}> 使用 eNest 壳主题配色（关闭后使用纸面色板）</label></div></div></section><section class="wb-settings-section" id="settings-editor"><h2>编辑器与查询${infoTip('Quick 固定最多 200 行，只读查询。服务器不支持的指标会显示原因。')}</h2><div class="wb-setting-row"><div class="wb-setting-label">工作台最大返回行数</div><div class="wb-setting-control"><input type="number" min="200" max="10000" step="200" data-pref="maxRows" value="${state.ui.maxRows || 1000}"></div></div><div class="wb-setting-row"><div class="wb-setting-label">编辑器字号</div><div class="wb-setting-control"><input type="number" min="11" max="24" data-pref="editorFontSize" value="${state.ui.editorFontSize || 13}"></div></div><div class="wb-setting-row"><div class="wb-setting-label">资源中心自动刷新</div><div class="wb-setting-control"><label class="wb-setting-check"><input type="checkbox" data-pref="resourceAutoRefresh" ${state.ui.resourceAutoRefresh ? 'checked' : ''}> 可见时每 5 秒刷新</label></div></div></section><section class="wb-settings-section" id="settings-layout"><h2>布局与数据${infoTip('查询包含的文本会保存在本机。不要在查询或连接附加参数中保存明文密码。')}</h2><div class="wb-setting-row"><div class="wb-setting-label">结果区域位置</div><div class="wb-setting-control"><select data-pref="resultDock"><option value="bottom" ${state.ui.resultDock !== 'right' ? 'selected' : ''}>编辑器下方</option><option value="right" ${state.ui.resultDock === 'right' ? 'selected' : ''}>编辑器右侧</option></select></div></div><div class="wb-setting-row"><div class="wb-setting-label">恢复默认布局</div><div class="wb-setting-control"><button class="btn" data-reset-layout>重置侧栏与结果区</button></div></div><div class="wb-setting-row"><div class="wb-setting-label">清空查询历史</div><div class="wb-setting-control"><button class="btn" data-clear-history>清空本插件历史</button></div></div></section><section class="wb-settings-section wb-shortcuts" id="settings-shortcuts"><div class="wb-section-heading"><h2>快捷键${infoTip('点击快捷键后按组合键，Backspace 停用，Escape 退出录制。Mod 在 macOS 为 Command，在 Windows/Linux 为 Ctrl。编辑器内 Enter 自动缩进；Tab / Shift+Tab 调整选中行缩进。表格方向键导航，F2 / Enter 编辑，Mod+C 复制，Mod+Z 撤销。查找框、连接表单和单元格输入保留原生按键。')}</h2><button class="btn" data-reset-keys>恢复全部默认</button></div><div class="db-shortcut-filters"><input type="search" class="wb-search" data-shortcut-search aria-label="搜索快捷键" placeholder="搜索命令、按键或作用域"><select data-shortcut-group aria-label="快捷键分组"><option value="">全部分组</option>${['查询', '编辑器', '结果', '工作台'].map(group => `<option>${group}</option>`).join('')}</select></div><p class="db-shortcut-status" data-shortcut-status role="status" aria-live="polite">普通输入框保留系统编辑快捷键；结果命令仅在表格内生效。</p><div data-shortcut-list></div></section><section class="wb-settings-section" id="settings-ai"><h2>AI 助手${infoTip('供应商需兼容 OpenAI chat/completions 接口；密钥只存本机凭据库（vault），请求经宿主 net.fetch 注入鉴权。缺少 net.fetch 权限时助手无法联网。')}</h2><div data-ai-settings></div></section><section class="wb-settings-section" id="settings-completion"><h2>SQL 补全</h2><div data-completion-settings></div></section></div></div>`
     this.pageRoot.querySelector('[data-back]').onclick = () => this.navigate('query')
     this.pageRoot.querySelectorAll('[data-pref]').forEach((input) => input.onchange = () => {
       const value = input.type === 'checkbox' ? input.checked : input.type === 'number' ? Math.max(Number(input.min), Math.min(Number(input.max), Number(input.value) || Number(input.min))) : input.value

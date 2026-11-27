@@ -1,0 +1,8 @@
+{
+  "name": "@enest/workbench-market",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./index.js" },
+  "dependencies": { "@enest/plugin-kit": "0.0.1", "@radix-ui/react-toggle-group": "^1.1.6", "react": "^18.3.1", "react-dom": "^18.3.1" }
+}

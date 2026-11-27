@@ -486,7 +486,7 @@ export function App() {
             文件转 Data URL
           </Button>
           <Button id="run" variant="primary" onClick={() => run()}>执行</Button>
-          <SettingsGear onClick={() => setSettingsOpen(true)} />
+          <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
           <input
             id="file-input"
             ref={fileInputRef}
@@ -522,9 +522,10 @@ export function App() {
                 </li>
               ))}
             </ul>
-            <p id="history-empty" className="hint history-empty" hidden={history.length > 0}>
-              暂无记录。复制、导出或回填结果后，会自动记下内容片段与所用模式。
-            </p>
+            <div id="history-empty" className="pk-empty-state" hidden={history.length > 0}>
+              <strong className="pk-empty-title">暂无转换记录</strong>
+              <p className="pk-empty-hint">复制、导出或回填结果后，转换记录会出现在这里。</p>
+            </div>
           </div>
         </header>
       </div>

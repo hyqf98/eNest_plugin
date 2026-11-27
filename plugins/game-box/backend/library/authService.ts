@@ -12,7 +12,7 @@
 import { BackendError } from '../adapters/types.ts'
 import { EVENTS, type AuthInfo, type SaveSessionRequest } from '../contracts.ts'
 import { Cloud189Client } from '../cloud189/index.ts'
-import { postEvent, resolveSecret } from '../runtime.ts'
+import { logMessage, postEvent, resolveSecret } from '../runtime.ts'
 import { flushStore, loadAuthMeta, saveAuthMeta, type AuthMeta } from '../store.ts'
 
 export const VAULT_KEYS = {
@@ -58,6 +58,23 @@ function infoOf(meta: AuthMeta, state: 'logged-in' | 'expired' | 'logged-out', n
 }
 
 /**
+ * 凭据的体检摘要，只用于日志：cookie 的名字与数量、有没有续期用的字段。
+ * 值一概不记 —— 会话 cookie 就是登录凭据本身。
+ */
+export function describeCredential(raw: string | null): string {
+  if (!raw) return 'none'
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const cookie = typeof parsed.cookie === 'string' ? parsed.cookie : ''
+    const names = cookie.split('; ').map(pair => pair.split('=')[0]).filter(Boolean)
+    const fields = ['sessionKey', 'refreshToken', 'accessToken'].filter(key => typeof parsed[key] === 'string' && parsed[key])
+    return `bytes=${raw.length} cookieCount=${names.length} names=${names.join(',')} fields=${fields.join(',') || 'none'}`
+  } catch {
+    return `bytes=${raw.length} unparsable`
+  }
+}
+
+/**
  * 换了会话或不再记住密码后，哪些保险库条目不再被引用。
  * 三类引用各有唯一的保存键（VAULT_KEYS），所以按类比较：同一类里旧引用不等于新引用，旧的就该删。
  */
@@ -79,11 +96,21 @@ export class AuthService {
     this.checking = (async () => {
       const meta = await loadAuthMeta()
       if (!meta.sessionRef) return infoOf(meta, 'logged-out', '')
-      const state = await clientFor(meta.sessionRef).checkLogin().catch(() => null)
+      const state = await clientFor(meta.sessionRef).checkLogin().catch(error => {
+        void logMessage('warn', 'auth.info', `登录校验抛错：${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
       if (state?.state === 'logged-in') {
-        if (state.nickname && state.nickname !== meta.nickname) await saveMeta({ nickname: state.nickname })
-        return infoOf(meta, 'logged-in', state.nickname || meta.nickname)
+        const nickname = state.nickname || meta.nickname
+        // 老会话（此前没存账号）在这里补齐，展示与「忘记已保存的密码」才有依据。
+        const account = meta.account || state.account || ''
+        if (nickname !== meta.nickname || account !== meta.account) await saveMeta({ nickname, account })
+        void logMessage('info', 'auth.info', `登录有效：nickname=${nickname || '(空)'}`)
+        return infoOf({ ...meta, nickname, account }, 'logged-in', nickname)
       }
+      // 判为过期的原因有两种，日志里要分得开：凭据读不出来（保险库问题）还是服务端不认（会话真的失效）
+      const stored = await resolveSecret(meta.sessionRef).catch(() => null)
+      void logMessage('warn', 'auth.info', `判定登录过期：state=${state?.state ?? 'check-failed'} credential=${describeCredential(stored)}`)
       return infoOf(meta, 'expired', '')
     })()
     try {
@@ -117,10 +144,22 @@ export class AuthService {
     const removeRefs = replacedSecrets(before, { sessionRef: request.sessionRef, accountRef, passwordRef })
     // 丢弃"登录中"的临时客户端；之后的请求都从保险库取会话
     clients.delete('\0none')
-    const state = await clientFor(meta.sessionRef).checkLogin().catch(() => null)
+    const state = await clientFor(meta.sessionRef).checkLogin().catch(error => {
+      void logMessage('warn', 'auth.saveSession', `保存后校验抛错：${error instanceof Error ? error.message : String(error)}`)
+      return null
+    })
     const info = state?.state === 'logged-in'
-      ? infoOf(await saveMeta({ nickname: state.nickname }), 'logged-in', state.nickname)
+      // 页面登录时只拿到 cookie，不知道账号；登录成功这一刻从天翼返回的 account 补齐，
+      // 否则 savedAccount 永远是空，「忘记已保存的密码」也不会出现。
+      ? infoOf(await saveMeta({
+        nickname: state.nickname,
+        ...(state.account && !meta.account ? { account: state.account } : {}),
+      }), 'logged-in', state.nickname)
       : infoOf(meta, 'expired', '')
+    if (info.state !== 'logged-in') {
+      // 登录窗口刚交回会话就判过期，是这条链路最容易出错的地方，必须留痕。
+      void logMessage('warn', 'auth.saveSession', `新会话校验未通过：credential=${describeCredential(stored)}`)
+    }
     postEvent(EVENTS.authChanged, info)
     return { ok: true, removeRefs }
   }

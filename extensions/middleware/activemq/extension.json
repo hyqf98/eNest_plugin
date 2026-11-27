@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "target": "middleware", "id": "activemq", "name": "ActiveMQ / Artemis", "version": "0.0.1", "apiVersion": 1, "entry": "backend/index.cjs",
+  "descriptor": {
+    "ui": { "color": "#94733b", "topicLabel": "目的地", "topicsModel": "topics", "groupsModel": "clients", "authLabel": "Basic" },
+    "completionRules": [{ "id": "activemq-dlq", "kind": "topic", "label": "默认死信队列", "value": "ActiveMQ.DLQ" }]
+  }
+}

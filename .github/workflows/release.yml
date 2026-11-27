@@ -208,12 +208,9 @@ jobs:
         run: npm run capture:market -- --check
 
       - name: Pack validated distributions
-        run: npm run pack -- --no-build
+        run: npm run pack -- --no-build --platform-variants
 
-      - name: Build archive-backed registry
-        run: npm run registry
-
-      - name: Prepare release registry
+      - name: Prepare archive-backed release registries
         env:
           REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag || github.ref_name }}
@@ -243,12 +240,13 @@ jobs:
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: Plugins ${{ inputs.tag || github.ref_name }}
-          # 正式发布（非 draft）：进入 /releases/latest；每个插件一个 universal 包 + 单一 registry.json
+          # 正式发布；含原生平台依赖的插件另外提供当前平台包，通用索引供旧壳回退。
           draft: false
           prerelease: false
           files: |
             dist/*.enestplugin
             dist/registry.json
+            dist/registry-*.json
           generate_release_notes: true
 
       - name: Sync source registry to main

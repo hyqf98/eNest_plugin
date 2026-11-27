@@ -175,7 +175,6 @@ html[data-mode="quick"] .live-label, html[data-mode="quick"] header h1 { display
 html[data-mode="quick"] .workspace { display: block; overflow: auto; }
 html[data-mode="quick"] .clock-panel { display: none; }
 html[data-mode="quick"] .converter, html[data-mode="quick"] .batch, html[data-mode="quick"] .date-math { padding: 10px 14px 14px; }
-html[data-mode="quick"] .query > input { font-size: 15px; }
 html[data-mode="quick"] .results { margin-top: 6px; }
 html[data-mode="quick"] .result-row { padding: 9px 6px; }
 html[data-mode="quick"] .result-row:nth-child(n + 6) { display: none; }

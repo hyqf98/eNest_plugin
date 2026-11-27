@@ -13,7 +13,6 @@
  */
 
 :root {
-  /* 手写字体：霞鹜文楷 Lite（OFL），unicode-range 子集懒加载；缺失回落系统楷体。 */
   --ink-hand: 'LXGW WenKai Lite', 'Kaiti SC', 'STKaiti', serif;
   /* 墨迹圆角：像素值不对称四值（百分比在大尺寸会摊成椭圆）。 */
   --ink-radius-card: 14px 18px 15px 19px / 17px 14px 19px 15px;

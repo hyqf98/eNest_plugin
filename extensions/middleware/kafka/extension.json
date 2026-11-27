@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "target": "middleware", "id": "kafka", "name": "Apache Kafka", "version": "0.0.1", "apiVersion": 1, "entry": "backend/index.cjs",
+  "descriptor": {
+    "ui": { "color": "#5676d8", "topicLabel": "Topic", "topicsModel": "topics", "groupsModel": "groups", "topicForm": "partitioned", "authLabel": "SASL" },
+    "completionRules": [{ "id": "kafka-event-topic", "kind": "topic", "label": "环境事件 Topic", "value": "${environment}.events" }, { "id": "kafka-trace-header", "kind": "header", "label": "Trace Context", "value": "traceparent" }]
+  }
+}

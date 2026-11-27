@@ -36,6 +36,7 @@ export const state = {
     // AI 助手偏好（随 db.ui 一并持久化）
     aiConfirmWrites: true, // AI 写操作执行前弹确认卡
     aiPanelCollapsed: true, // 悬浮面板默认收起（只显示悬浮球）
+    aiReasoningEffort: undefined, // 思考程度：undefined=网关默认 | low | medium | high
     aiFabPos: undefined, // { x, y } 悬浮球位置记忆
     aiPanelPos: undefined // { x, y } 面板位置记忆
   },

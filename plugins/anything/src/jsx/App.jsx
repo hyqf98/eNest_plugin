@@ -1,9 +1,9 @@
 /**
  * Anything 文件搜索主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
  * 业务核心复用：backend.js（backend.call 封装）、query.js（语法/格式化）、icons.js（SVG）、
- * preview.js（预览面板 DOM 工厂，原样保留）。backend 目录与 API 调用代码未改动。
+ * preview.js（预览面板 DOM 工厂）。backend 目录与 API 调用代码未改动。
  * 结果数据流（backend 回调 → React state）经 latest-ref 桥接，避免闭包陷阱。
- * 偏好设置为插件内置（右下悬浮钮 + 弹框），持久化走 enest.storage，不再注册到壳设置页；
+ * 偏好设置为插件内置，持久化走 enest.storage，不再注册到壳设置页；
  * 首次启动自动把旧壳设置迁移到私有存储。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -44,7 +44,7 @@ function groupByDir(files) {
 
 export function App() {
   const kitRef = useRef(null)
-  const queryRef = useRef(null)   // input DOM（quick 推送 / Esc 清空直接写回）
+  const queryRef = useRef(null)
   const listRef = useRef(null)    // 结果列表容器
   const previewRef = useRef(null) // preview 面板容器
   const previewApiRef = useRef(null)
@@ -60,6 +60,7 @@ export function App() {
   const [results, setResults] = useState([])
   const [selectedPath, setSelectedPath] = useState(null)
   const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [status, setStatus] = useState({ text: '正在检测搜索引擎…', kind: '' })
   const [booted, setBooted] = useState(false)
   const [trashText, setTrashText] = useState('')
@@ -132,9 +133,10 @@ export function App() {
   const runSearch = useCallback(async (reset) => {
     const st = stateRef.current
     const q = st.query.trim()
-    if (!q) return
+    if (!q || (!reset && searchingRef.current)) return
     const seq = ++seqRef.current
     searchingRef.current = true
+    setLoadingMore(!reset)
     statusText(`搜索中 · ${q}`, 'busy')
     const settings = st.settings
     const limit = Math.max(20, Math.min(Number(settings.resultLimit) || 100, 500))
@@ -143,7 +145,7 @@ export function App() {
       const res = await backend.search(q, {
         // 范围选择器只在 shell 工具栏出现；quick 小窗与桌面小组件始终搜全盘
         directory: st.mode === 'shell' ? (directoryRef.current || undefined) : undefined,
-        limit, offset, sort: sortRef.current,
+        limit, offset, sort: st.mode === 'shell' ? sortRef.current : 'relevance',
         everythingPort: Number(settings.everythingPort) || 0,
         everythingAuth: String(settings.everythingAuth || '') || undefined
       })
@@ -152,16 +154,11 @@ export function App() {
         setResults(res.results)
         setSelectedPath(res.results.length ? res.results[0].path : null)
       } else {
-        setResults((prev) => {
-          const merged = prev.concat(res.results)
-          offsetRef.current = offset + res.results.length
-          return merged
-        })
+        setResults((previous) => previous.concat(res.results))
       }
-      if (reset) offsetRef.current = res.results.length
+      offsetRef.current = offset + res.results.length
+      if (!res.truncated && document.activeElement?.id === 'more') listRef.current?.focus({ preventScroll: true })
       setHasMore(Boolean(res.truncated))
-      searchingRef.current = false
-      setPending(false)
       const label = PROVIDER_LABEL[res.provider] || res.provider
       const truncatedNote = res.truncated ? '（已截断）' : ''
       statusText(
@@ -176,8 +173,6 @@ export function App() {
       }, 0)
     } catch (error) {
       if (seq !== seqRef.current) return
-      searchingRef.current = false
-      setPending(false)
       if (reset) {
         setResults([])
         setSelectedPath(null)
@@ -186,6 +181,13 @@ export function App() {
       }
       statusText(error.message, 'error')
       previewApiRef.current?.placeholder('搜索失败，请调整关键词或检查引擎设置')
+      if (!reset && st.mode === 'quick') kitRef.current?.toast(error.message, 'error')
+    } finally {
+      if (seq === seqRef.current) {
+        searchingRef.current = false
+        setPending(false)
+        setLoadingMore(false)
+      }
     }
   }, [previewSelected])
 
@@ -203,6 +205,7 @@ export function App() {
     setResults([])
     setSelectedPath(null)
     setHasMore(false)
+    setLoadingMore(false)
     setPending(Boolean(text.trim()))
     offsetRef.current = 0
     if (!text.trim()) {
@@ -293,7 +296,8 @@ export function App() {
 
   // —— 选择 / 导航（按可见顺序移动；收起的目录跳过）——
   const move = useCallback((delta) => {
-    const visible = resultsRef.current.filter(row => row.path && !collapsedRef.current.has(row.dir))
+    const visible = resultsRef.current.filter(row => row.path &&
+      (stateRef.current.mode !== 'shell' || !collapsedRef.current.has(row.dir)))
     if (!visible.length) return
     const idx = visible.findIndex(row => row.path === selectedPathRef.current)
     const next = visible[Math.max(0, Math.min(idx + delta, visible.length - 1))]
@@ -394,19 +398,18 @@ export function App() {
         if (action === 'next') moveRef.current(1)
         else if (action === 'previous') moveRef.current(-1)
         else if (action === 'submit') void activateRef.current()
-        else if (action === 'clear') { setQuery(''); idleRef.current() }
       }
     })
     kitRef.current = kit
     setMode(kit.mode)
 
     kit.onMode((m) => {
+      if (stateRef.current.mode === m) return
+      stateRef.current = { ...stateRef.current, mode: m }
       setMode(m)
-      if (m === 'shell' && stateRef.current.query.trim() && !resultsRef.current.length) void searchRef.current(true)
-      if (m === 'shell') setTimeout(() => {
-        const file = resultsRef.current.find(row => row.path === selectedPathRef.current)
-        if (file) previewApiRef.current?.load(file)
-      }, 0)
+      if (stateRef.current.query.trim() && (directoryRef.current || sortRef.current !== 'relevance')) {
+        queryInputRef.current(stateRef.current.query)
+      }
     })
 
     api()?.onEnter?.(({ code, payload }) => {
@@ -417,8 +420,6 @@ export function App() {
       const text = typeof payload === 'string' ? payload : payload?.type === 'text' && typeof payload.text === 'string' ? payload.text : ''
       if ((code === 'find' || code === 'find-selection') && text) {
         setQuery(text)
-        const input = queryRef.current
-        if (input) input.value = text
         kit.setQuery(text)
         stateRef.current = { ...stateRef.current, query: text }
         void searchRef.current(true)
@@ -518,7 +519,10 @@ export function App() {
   const groups = mode === 'shell' && !showIdle && !pending ? groupByDir(rows) : null
 
   const inputHandlers = {
-    onInput: (e) => onQueryInput(e.target.value),
+    onChange: (event) => {
+      kitRef.current?.setQuery(event.target.value)
+      onQueryInput(event.target.value)
+    },
     onKeyDown: (e) => {
       if (e.isComposing) return
       if (e.key === 'ArrowDown') { e.preventDefault(); move(1) }
@@ -529,7 +533,7 @@ export function App() {
         else void activateSelected()
       } else if (e.key === 'Escape' && e.target.value) {
         e.preventDefault()
-        e.target.value = ''
+        kitRef.current?.setQuery('')
         onQueryInput('')
       }
     }
@@ -537,6 +541,7 @@ export function App() {
 
   const pickScope = async () => {
     if (directoryRef.current) {
+      directoryRef.current = ''
       setDirectory('')
       setScopeLabel('范围：全盘')
       setScopeTitle('限定搜索目录（Spotlight 内限定该目录索引）')
@@ -545,6 +550,7 @@ export function App() {
     }
     const [picked] = await api()?.localFiles?.pick?.({ kind: 'directory' }) ?? []
     if (picked?.displayPath) {
+      directoryRef.current = picked.displayPath
       setDirectory(picked.displayPath)
       setScopeLabel(`范围：${picked.name || picked.displayPath}`)
       setScopeTitle(`点击清除范围（当前 ${picked.displayPath}）`)
@@ -652,7 +658,7 @@ export function App() {
       <header className="shell-only">
         <div className="searchbar">
           <input
-            id="query" ref={queryRef} type="search" defaultValue={query}
+            id="query" ref={queryRef} type="search" value={query}
             placeholder='搜索文件名，如 报告 pdf　"精确"　-排除　*.sketch'
             aria-label="搜索文件" data-input-context="editor" {...inputHandlers}
           />
@@ -662,7 +668,13 @@ export function App() {
             <option value="mtime">修改时间</option>
             <option value="size">大小</option>
           </select>
-          <button id="scope-pick" className="pk-btn pk-btn-ghost pk-btn-sm" title={scopeTitle} onClick={pickScope}>{scopeLabel}</button>
+          <button id="scope-pick" type="button" className="pk-btn pk-btn-ghost pk-btn-sm" title={scopeTitle} onClick={pickScope}><span>{scopeLabel}</span></button>
+          <button type="button" className="pk-btn pk-btn-ghost pk-btn-sm anything-settings-trigger" aria-label="偏好设置" title="偏好设置" onClick={openPrefs}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
         <div className="header-meta">
           {engineActive ? (
@@ -676,9 +688,9 @@ export function App() {
       {/* 搜索进行中的进度条：确定性动画，不遮挡内容 */}
       <div className="search-progress" data-active={pending ? 'true' : 'false'} aria-hidden="true"><span /></div>
       <div className="workspace">
-        <section className="results-col">
+        <section className="results-col" data-paged={hasMore || undefined}>
           <div
-            id="list" ref={listRef} role="listbox" tabIndex={0} aria-label="搜索结果"
+            id="list" ref={listRef} role="listbox" tabIndex={0} aria-label="搜索结果" aria-busy={pending || loadingMore || undefined}
             onKeyDown={(e) => {
               if (e.defaultPrevented || e.isComposing || e.target.closest('button, [role="menu"], [role="menuitem"]')) return
               if (e.key === 'ArrowDown') { e.preventDefault(); move(1) }
@@ -702,31 +714,36 @@ export function App() {
               </div>
             ) : showIdle ? (
               idleView ? (
-                <div className="idle">
-                  <p className="idle-title">
+                <div className="pk-empty-state">
+                  <strong className="pk-empty-title">
                     {rows[0].platform === 'win32' ? '需要 Everything 提供搜索引擎' : '当前平台暂无可用搜索引擎'}
-                  </p>
-                  <p className="idle-text">
+                  </strong>
+                  <p className="pk-empty-hint">
                     {rows[0].platform === 'win32'
-                      ? '安装 Everything（voidtools.com），在 选项 → HTTP 服务器 中开启服务，然后回到本插件的偏好设置填入端口。'
+                      ? mode === 'quick' ? '在桌面模式中配置 Everything 搜索引擎。' : '安装 Everything（voidtools.com），在选项中启用 HTTP 服务器，然后在偏好设置填入端口。'
                       : 'Linux 支持将在后续版本提供。'}
                   </p>
                 </div>
+              ) : status.kind === 'error' ? (
+                <div className="pk-empty-state">
+                  <strong className="pk-empty-title">{hasQuery ? '搜索失败' : '搜索引擎暂不可用'}</strong>
+                  <p className="pk-empty-hint">{status.text}</p>
+                </div>
               ) : noMatch ? (
-                /* 搜完了没命中：给换词方向，而不是重复"输入关键词"的新手引导。 */
-                <div className="idle">
-                  <p className="idle-title">没有匹配「{query.trim()}」的文件</p>
-                  <p className="idle-text">可以试试放宽关键词、去掉排除项，或切换搜索范围。</p>
+                <div className="pk-empty-state">
+                  <strong className="pk-empty-title">没有匹配的文件</strong>
+                  <p className="pk-empty-hint">{mode === 'quick' ? '试试缩短关键词或去掉排除项。' : '试试缩短关键词、去掉排除项，或切换搜索范围。'}</p>
                 </div>
               ) : (
-                <div className="idle">
-                  <p className="idle-title">输入关键词即搜全盘文件</p>
-                  <dl>
+                <div className="pk-empty-state">
+                  <strong className="pk-empty-title">{booted ? '输入文件关键词开始搜索' : '正在检测搜索引擎…'}</strong>
+                  {booted && mode === 'quick' && <p className="pk-empty-hint">例如：报告 pdf</p>}
+                  {booted && mode === 'shell' && <dl className="search-examples">
                     <dt>多个关键词</dt><dd>同时命中文件名，顺序不限：报告 pdf</dd>
                     <dt>"精确短语"</dt><dd>引号内连续匹配："年度报告"</dd>
                     <dt>-排除词</dt><dd>剔除命中：logo -png</dd>
                     <dt>* 通配符</dt><dd>*.sketch 或 report-*-final</dd>
-                  </dl>
+                  </dl>}
                 </div>
               )
             ) : groups ? (
@@ -744,19 +761,11 @@ export function App() {
               rows.map((file, index) => renderFileRow(file, index, false))
             )}
           </div>
-          <button id="more" className="pk-btn" hidden={!hasMore} onClick={() => void runSearch(false)}>载入更多</button>
+          <button id="more" type="button" className="pk-btn pk-btn-sm" hidden={!hasMore} aria-controls="list"
+            aria-disabled={loadingMore || undefined} onClick={() => void runSearch(false)}>{loadingMore ? '载入中…' : '载入更多'}</button>
         </section>
-        <aside id="preview" className="shell-only" ref={previewRef}>
-          <div className="empty">选择左侧文件查看预览</div>
-        </aside>
+        <aside id="preview" className="shell-only" ref={previewRef} aria-label="文件预览" />
       </div>
-      {/* 右下悬浮设置钮：打开插件内置偏好设置弹框（不注册到壳设置页）。 */}
-      <button type="button" className="anything-settings-fab shell-only" aria-label="偏好设置" title="偏好设置" onClick={openPrefs}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
       <Dialog open={prefsOpen} onOpenChange={setPrefsOpen}>
         <DialogContent aria-describedby={undefined} className="prefs-dialog">
           <DialogTitle>偏好设置</DialogTitle>

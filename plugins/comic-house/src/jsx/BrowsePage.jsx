@@ -10,9 +10,10 @@ export function BrowsePage({ sources, activeSource, sourceName, onSourceChange, 
 
   if (!sources.filter(s => s.enabled).length) {
     return (
-      <div className="ch-onboard">
-        <div className="ch-onboard-icon" aria-hidden>漫</div>
-        <button className="pk-btn" onClick={onOpenSources}>去导入数据源</button>
+      <div className="pk-empty-state">
+        <strong className="pk-empty-title">暂无启用的漫画源</strong>
+        <p className="pk-empty-hint">启用数据源后，即可浏览和搜索漫画。</p>
+        <button className="pk-btn" onClick={onOpenSources}>管理数据源</button>
       </div>
     )
   }
@@ -290,9 +291,10 @@ function SearchResults({ keyword, onOpen }) {
   const failed = groups.filter(g => g.error)
   const totalComics = withResults.reduce((s, g) => s + g.comics.length, 0)
   const idle = !progress.active && groups.length > 0
+  const empty = idle && totalComics === 0
 
   return (
-    <div>
+    <div className={empty ? 'ch-empty-results' : undefined}>
       {progress.active && (
         <div className="ch-agg-status pk-muted">
           <span className="ch-searchbox-spin" aria-hidden /> 并行搜索中 {progress.done}/{progress.total || '?'} 个数据源…
@@ -308,7 +310,10 @@ function SearchResults({ keyword, onOpen }) {
           <ComicGrid comics={g.comics} onOpen={onOpen} />
         </section>
       ))}
-      {idle && totalComics === 0 && <div className="ch-empty">「{keyword}」在所有数据源中都没有结果</div>}
+      {empty && <div className="pk-empty-state">
+        <strong className="pk-empty-title">暂无搜索结果</strong>
+        <p className="pk-empty-hint">没有找到「{keyword}」相关漫画，可以换个关键词试试。</p>
+      </div>}
       {idle && failed.length > 0 && (
         <div className="ch-agg-failed pk-muted">
           {failed.map(f => `${f.sourceName}: ${f.error}`).join(' · ')}
@@ -461,7 +466,10 @@ function ExplorePane({ onOpen }) {
 
   if (agg.loading) return <div>{bar}<GridSkeleton /><GridSkeleton count={6} /></div>
   const shown = agg.items.filter(x => x.sections?.length)
-  if (!shown.length) return <div className="ch-empty">暂无内容，请检查数据源是否已安装并可访问</div>
+  if (!shown.length) return <div className="pk-empty-state">
+    <strong className="pk-empty-title">暂无推荐内容</strong>
+    <p className="pk-empty-hint">请检查数据源是否可访问。</p>
+  </div>
   return (
     <div>
       {bar}
@@ -509,7 +517,7 @@ function RankingPane({ onOpen }) {
   }, [])
   if (agg.loading) return <div><GridSkeleton /><GridSkeleton count={6} /></div>
   const shown = agg.items.filter(x => x.comics?.length)
-  if (!shown.length) return <div className="ch-empty">暂无排行数据，请检查数据源</div>
+  if (!shown.length) return <div className="pk-empty-state">暂无排行数据</div>
   return (
     <div className="ch-parts">
       {shown.map(item => (

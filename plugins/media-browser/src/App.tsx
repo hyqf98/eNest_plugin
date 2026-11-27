@@ -227,11 +227,7 @@ export function App() {
           {roots.length ? (
             <FolderTree roots={roots} lookup={lookup} selected={treeSelected} currentId={current?.entryId ?? null} actions={treeActions} />
           ) : (
-            <div className="mb-empty mb-empty-side">
-              <p>还没有关联文件夹</p>
-              <p className="mb-empty-hint">关联后自动读取其中的图片与视频，含相机 RAW（NEF、CR2、CR3 等）。</p>
-              <Button variant="primary" onClick={() => void addRoot()}>关联文件夹</Button>
-            </div>
+            <div className="pk-empty-state">{loading ? '正在读取文件夹…' : '暂无已关联文件夹'}</div>
           )}
           {rootList.filter(root => root.missing).length ? (
             <div className="mb-missing">
@@ -254,20 +250,24 @@ export function App() {
           {gridSelected.size ? <span className="mb-toolbar-count">已选 {gridSelected.size}</span> : null}
         </header>
         {error ? <div className="mb-error" role="alert">{error}</div> : null}
-        {!roots.length ? (
-          <div className="mb-empty">
-            <p className="mb-empty-title">关联一个文件夹开始浏览</p>
-            <p className="mb-empty-hint">支持 JPG、PNG、HEIC、WebP、GIF 等图片，尼康 NEF 等相机 RAW，以及 MP4、MOV、MKV 等视频。</p>
-            <Button variant="primary" onClick={() => void addRoot()}>关联文件夹</Button>
+        {!roots.length && !loading ? (
+          <div className="pk-empty-state">
+            <p className="pk-empty-title">关联一个文件夹开始浏览</p>
+            <p className="pk-empty-hint">支持常见图片、相机 RAW 和视频格式。</p>
+            <Button variant="primary" disabled={busy} onClick={() => void addRoot()}>关联文件夹</Button>
           </div>
-        ) : !current ? null : !items.length && !loading ? (
-          <div className="mb-empty"><p className="mb-empty-title">这个文件夹里没有图片或视频</p></div>
+        ) : !current ? (
+          <div className="pk-empty-state">
+            {loading ? '正在读取媒体…' : '从左侧选择文件夹'}
+          </div>
+        ) : !items.length && !loading ? (
+          <div className="pk-empty-state">这个文件夹里没有图片或视频</div>
         ) : (
           <MediaGrid items={items} selected={gridSelected} thumbFailed={thumbFailed}
             onThumbError={entryId => setThumbFailed(previous => new Set(previous).add(entryId))}
             actions={gridActions} />
         )}
-        {loading ? <div className="mb-loading" role="status">读取中…</div> : null}
+        {loading && current ? <div className="mb-loading" role="status">读取中…</div> : null}
       </main>
 
       {viewerOpen ? (

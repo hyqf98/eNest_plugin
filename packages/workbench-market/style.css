@@ -1,0 +1,18 @@
+.driver-market { inline-size: min(720px, 94vw); }
+.driver-market .dm-panel, .driver-market .dm-settings, .driver-market .dm-add { display: grid; gap: 12px; min-inline-size: 0; }
+.driver-market .dm-lead, .driver-market .dm-status, .driver-market .dm-notice, .driver-market .dm-empty, .driver-market small { margin: 0; font-size: 12px; line-height: 1.55; color: var(--text-2, #626770); }
+.driver-market .dm-toolbar, .driver-market .dm-actions, .driver-market .dm-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.driver-market .dm-toolbar, .driver-market .dm-row { justify-content: space-between; }
+.driver-market .dm-actions { justify-content: end; }
+.driver-market .dm-status:empty { display: none; }
+.driver-market .dm-list { list-style: none; margin: 0; padding: 0; }
+.driver-market .dm-row { padding: 10px 0; border-block-start: 1px solid var(--border, #dee0e3); }
+.driver-market .dm-copy { display: grid; flex: 1 1 190px; gap: 2px; overflow-wrap: anywhere; }
+.driver-market .dm-copy strong { font-size: 14px; color: var(--text, #26282b); }
+.driver-market .dm-copy > span { font-size: 12px; }
+.driver-market .dm-notice, .driver-market .dm-empty { padding: 10px; border-radius: var(--pk-radius, 6px); background: var(--surface-2, #f2f3f4); }
+.driver-market .dm-search, .driver-market .dm-add input { flex: 1; inline-size: 100%; min-inline-size: 110px; }
+.driver-market .dm-field { display: grid; gap: 5px; align-items: start; font-size: 13px; }
+.driver-market .dm-field input[type=checkbox] { justify-self: start; accent-color: var(--accent); }
+.driver-market .dm-view { display: block; inline-size: 100%; block-size: min(62dvh, 540px); border: 0; background: var(--surface); }
+.driver-market.wb-dialog .wb-dialog-body:has(.dm-view) { padding: 0; }

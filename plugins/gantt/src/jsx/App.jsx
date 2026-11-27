@@ -322,7 +322,7 @@ export function App() {
 
   /* ---------- 渲染 ---------- */
   if (!ready || !state) {
-    return <div className="gt-app"><div className="gt-empty"><p>加载中…</p></div></div>
+    return <div className="gt-app"><div className="pk-empty-state" role="status">正在读取计划…</div></div>
   }
 
   const plan = state.plans.find(p => p.id === state.activePlanId) || state.plans[0]

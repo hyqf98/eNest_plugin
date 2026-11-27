@@ -4,16 +4,25 @@
 .app .sql-completion-settings h3 { font-size: 1em; font-weight: 600; }
 .app .sql-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 /* 内层不再写 h2（外层设置区已有「SQL 补全」标题），此时说明与保存按钮同一行。
-   说明用 flex:1 吃掉剩余宽度，而不是写死 max-width：后者在窄容器里会把这段
-   说明挤成多行窄条，按钮反而独占一行。 */
-.app .sql-section-heading-inline { align-items: center; }
-.app .sql-section-heading-inline .muted { margin: 0; flex: 1 1 auto; min-width: 0; }
+   用 flex-start 而不是 space-between：后者把按钮推到容器最右端，和左侧说明
+   隔着几百像素空白，读起来不像同一个操作的说明+按钮。 */
+.app .sql-section-heading-inline { align-items: center; justify-content: flex-start; }
+.app .sql-section-heading-inline .muted { margin: 0; flex: 0 1 auto; min-width: 0; }
 .app .sql-section-heading .muted { margin-top: 4px; }
 .app .sql-completion-settings .muted { color: var(--text-2); font-size: .92em; line-height: 1.6; }
 .app .sql-save-state { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); }
+/* 保存按钮与状态条之间必须有明显间隔：两者都是满宽块级元素、底色又接近，
+   零间距时看起来像同一个控件被劈成上下两半（用户实测反馈）。
+   现在说明行下方留 12px，状态条紧随其后。 */
+.app .sql-section-heading-inline { align-items: center; margin-bottom: 12px; }
+.app .sql-section-heading-inline .btn { flex: none; }
+.app .sql-section-heading-inline + .sql-save-state { margin-top: 0; }
 .app .sql-save-state[data-error=true], .app .sql-config-issues { color: var(--danger); }
 .app .sql-config-section { padding: 18px 0; border-bottom: 1px solid var(--border); min-width: 0; }
 .app .sql-config-section > :is(p, .sql-form-grid, .sql-item-layout, .sql-inline-actions, textarea, label, pre) { margin-top: 10px; }
+/* 区块末尾的独立操作按钮（如「清除补全学习记录」）紧接在表单网格下方，
+   网格自身没有下边距，按钮会贴着最后一行的下拉框。 */
+.app .sql-config-section > button { margin-top: 14px; }
 .app .sql-config-section > summary { cursor: pointer; font-weight: 600; padding-block: 3px; }
 .app .sql-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px 20px; }
 .app .sql-check-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 12px 20px; margin: 14px 0; }

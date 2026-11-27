@@ -39,6 +39,12 @@
   margin: 0 auto;
   padding: calc(22px * var(--appearance-density, 1)) clamp(16px, 2.6vw, 38px) calc(56px * var(--appearance-density, 1));
 }
+.sk-page:has(> .sk-catalog-content > .sk-empty, > .sk-empty) {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100%;
+}
+.sk-catalog-content:has(> .sk-empty) { flex: 1; display: flex; flex-direction: column; }
 
 /* ── 页头：手写大标题 + 手绘下划线 + 圈注计数 ── */
 .sk-head {
@@ -1106,10 +1112,12 @@
 /* ── 空态与提示 ── */
 .sk-empty {
   position: relative;
-  display: grid;
-  place-items: center;
-  gap: 9px;
-  padding: 52px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 6px;
+  padding: 20px 14px;
   text-align: center;
   background: color-mix(in srgb, var(--sk-paper) 62%, transparent);
 }
@@ -1123,6 +1131,9 @@
 }
 .sk-empty strong { font-family: var(--font-heading); font-size: 19px; font-weight: 600; }
 .sk-empty span { max-width: 46ch; font-size: 12.5px; line-height: 1.7; color: var(--sk-ink-soft); }
+:is(.sk-page, .sk-catalog-content, .sk-panel) > .sk-empty { flex: 1; }
+:is(.sk-page, .sk-catalog-content) > .sk-empty { background: transparent; }
+:is(.sk-page, .sk-catalog-content) > .sk-empty::before { content: none; }
 
 /* 提示条：纸条，左侧一道马克笔 + 略歪 */
 .sk-notice {

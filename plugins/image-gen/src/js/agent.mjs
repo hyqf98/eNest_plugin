@@ -42,11 +42,14 @@ export async function loadSession(id) {
 export async function persistSession(session) {
   const storage = store().storage
   const firstPrompt = session.messages.find(m => m.role === 'user')?.prompt ?? ''
-  const title = firstPrompt.replace(/\s+/g, ' ').trim().slice(0, 24) || '新会话'
-  await storage.set(sessionKey(session.id), session.messages)
   const index = await loadSessionIndex()
-  const entry = { id: session.id, title, updatedAt: Date.now() }
   const found = index.findIndex(s => s.id === session.id)
+  const previous = found >= 0 ? index[found] : null
+  // 用户手动改过名的（renamed）保留原名，不被「首条提示词」规则覆盖
+  const title = previous?.renamed ? previous.title
+    : firstPrompt.replace(/\s+/g, ' ').trim().slice(0, 24) || '新会话'
+  await storage.set(sessionKey(session.id), session.messages)
+  const entry = { id: session.id, title, updatedAt: Date.now(), ...(previous?.renamed ? { renamed: true } : {}) }
   if (found >= 0) index[found] = entry
   else index.unshift(entry)
   await storage.set(SESSIONS_KEY, index)

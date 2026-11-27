@@ -166,13 +166,6 @@ body {
   box-shadow: 0 0 0 3px var(--ig-accent-soft);
 }
 
-.ig-rail-empty {
-  padding: 10px 14px 16px;
-  color: var(--ig-muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
 /* ============================================================
    主舞台
    ============================================================ */
@@ -437,6 +430,9 @@ body {
 }
 
 .ig-assistant-block {
+  /* 撑满内容宽度：父级 .ig-msg-assistant 是 align-items:flex-start，不撑满的话整块会跟着图片收缩，
+     一张受高度限制的方图就靠左贴着、右边空出两百多像素。撑满后图片在块内居中，留白对称。 */
+  width: 100%;
   max-width: 100%;
   min-width: 0;
   display: flex;
@@ -563,10 +559,16 @@ body {
 
 /* —— 图片网格 —— */
 .ig-grid { display: grid; gap: 8px; width: 100%; }
-.ig-grid[data-count='1'] { grid-template-columns: minmax(0, 1fr); max-width: min(540px, 100%); }
-.ig-grid[data-count='2'] { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 640px; }
+/* 单图：尽量撑满内容宽度，但高度不超过「视口高 − 顶栏 − 输入区 − 余量」。
+   grid 用 minmax(0,1fr) 占满整行，图在格里靠 max-width/max-height 两个上限自动取较小的那个，
+   再用 margin:auto 居中——横图撑满宽、方图/竖图按高度上限收窄，两种都不会溢出整屏。
+   原先写死 max-width 540px：内容区 772px 时只用 70%，右边空一大块。 */
+.ig-grid[data-count='1'] { grid-template-columns: minmax(0, 1fr); max-width: 100%; }
+.ig-grid[data-count='1'] .ig-cell { display: flex; justify-content: center; }
+.ig-grid[data-count='1'] .ig-cell img { width: auto; max-width: 100%; max-height: calc(100vh - 260px); object-fit: contain; }
+.ig-grid[data-count='2'],
 .ig-grid[data-count='3'],
-.ig-grid[data-count='4'] { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 640px; }
+.ig-grid[data-count='4'] { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 100%; }
 
 .ig-cell {
   position: relative;
@@ -1134,16 +1136,18 @@ body {
    预览库
    ============================================================ */
 .ig-library {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
   min-height: 0;
-  padding-bottom: 40px;
 }
 .ig-library-head {
   position: sticky;
   top: 0;
   z-index: 4;
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1158,7 +1162,8 @@ body {
   font-variant-numeric: tabular-nums;
   margin-left: auto;
 }
-.ig-lib-inner { padding: 16px 24px 0; }
+.ig-lib-inner { flex: none; padding: 16px 24px 40px; }
+.ig-lib-inner:has(> .pk-empty-state) { display: flex; flex: 1 0 auto; flex-direction: column; padding-block: 0; }
 .ig-lib-group {
   position: sticky;
   top: 52px;
@@ -1181,7 +1186,11 @@ body {
 }
 .ig-lib-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  /* auto-fit：折叠空轨道，现有的格子平分整行（auto-fill 会把空轨道留在右边，只有 4 张时第 5 列空着）。
+     max 200px：限制单格上限，图少时不会撑成巨大的方格；超出上限的余量靠 justify-content 居中，
+     空白均分到两侧而不是全堆在右边。 */
+  grid-template-columns: repeat(auto-fit, minmax(156px, 200px));
+  justify-content: center;
   gap: 8px;
   margin-bottom: 22px;
 }
@@ -1314,29 +1323,6 @@ body {
 }
 .ig-bulk-count { font-variant-numeric: tabular-nums; color: var(--ig-muted); }
 
-/* 空态 */
-.ig-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 96px 24px;
-  text-align: center;
-  color: var(--ig-muted);
-}
-.ig-empty-icon {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: var(--ig-r-card);
-  background: color-mix(in srgb, var(--ig-text) 6%, transparent);
-  color: var(--ig-muted);
-}
-.ig-empty-title { font-size: 13.5px; color: var(--ig-text); font-weight: 500; }
-.ig-empty-desc { font-size: 12.5px; line-height: 1.7; max-width: 40ch; }
-
 /* ============================================================
    设置弹窗
    ============================================================ */
@@ -1345,9 +1331,11 @@ body {
 .pk-dialog-content.ig-set-dialog {
   width: min(880px, calc(100vw - 48px));
   max-width: min(880px, calc(100vw - 48px));
-  /* 高度随内容伸缩、以 600px 为上限。原先写死 600px：渠道这种短分区下面空一大片，
-     表单一展开又溢出被截断、底部按钮压在说明文字上。 */
-  height: auto;
+  /* 高度随当前分区的内容自适应，以 min(600px, 100vh - 64px) 为上限，超出在内容区内部滚动。
+     这里先后写过两版都有毛病：写死 600px 时短分区（保存位置只有 120px 内容）下面空出 70%；
+     而最早的 height:auto 之所以「一直在变」，根因是滚动放在整个右栏、且没有上限。
+     分区之间高度不同是用户主动切换的结果，符合预期；同一分区内只有内容真的变化时才变。 */
+  min-height: min(320px, calc(100vh - 64px));
   max-height: min(600px, calc(100vh - 64px));
   padding: 0;
   overflow: hidden;
@@ -1358,8 +1346,10 @@ body {
   display: grid;
   grid-template-columns: 182px minmax(0, 1fr);
   width: 100%;
+  /* 弹框高度随内容自适应，这里不能用 height:100%（父级没有确定高度）；
+     用 min-height 继承弹框的最小高度，让内容少的分区左导航也有足够的视觉高度 */
+  min-height: inherit;
   min-width: 0;
-  min-height: 0;
 }
 .ig-set-nav {
   display: flex;
@@ -1411,8 +1401,8 @@ body {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  /* 右栏自身不滚动：它只是纵向 flex 容器，滚动交给 .ig-set-content */
+  overflow: hidden;
 }
 /* 内容随滚动走，标题行固定在顶部，长表单里始终知道自己在哪一区 */
 .ig-set-head {
@@ -1459,7 +1449,20 @@ body {
   cursor: pointer;
 }
 .ig-set-close:hover { color: var(--ig-text); background: color-mix(in srgb, var(--ig-text) 7%, transparent); }
-.ig-set-content { padding: 16px 24px 26px; }
+/* 滚动在这一层：flex:1 吃掉标题行以外的全部高度，内容超出时只滚这里。
+   纵向 flex + 顶部对齐，短分区的留白落在底部，各分区高度一致。 */
+.ig-set-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px 26px;
+}
+/* 分区根节点作为 flex item：不收缩、不被拉伸，高度由内容决定，留白落在底部 */
+.ig-set-content > .ig-set-section,
+.ig-set-content > .ig-form-grid { flex: none; }
 
 /* —— 渠道行 —— */
 .ig-prov-list { display: flex; flex-direction: column; gap: 6px; }
@@ -2099,15 +2102,15 @@ html[data-mode='quick'] .ig-welcome-list { display: none; }
 :root[data-anim='low'] .ig-insp-card:hover { transform: none; }
 .ig-insp-sentinel { height: 1px; }
 /* 加载 / 空态 / 错误态 */
-.ig-insp-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--ig-muted); font-size: 12.5px; text-align: center; padding: 40px 24px; }
-.ig-insp-state svg { color: var(--ig-text-3, var(--ig-muted)); }
-.ig-insp-state p { margin: 0; color: var(--ig-text); font-weight: 500; }
-.ig-insp-state span { font-size: 11.5px; }
 
 /* 详情弹层：大图 + 元信息 + 完整提示词 */
 .pk-dialog-content.ig-insp-detail { width: min(560px, 92vw); max-width: min(560px, 92vw); max-height: min(88vh, 820px); display: flex; flex-direction: column; gap: 12px; }
 .ig-insp-detail-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .ig-insp-fig.is-large { aspect-ratio: auto; border-radius: var(--ig-r-control); background: var(--ig-sunken); }
+/* 图片区在纵向 flex 的弹层里不能被压缩：内容一多（配方带槽位表单），flex 收缩会把这块压到比 <img> 还矮，
+   而 <img> 有 max-height 撑着不缩，于是图从容器的 overflow:hidden 里上下各被裁掉一截。
+   高度固定为内容高度，整体滚动交给 .ig-insp-detail-body。 */
+.ig-insp-fig.is-large { flex: none; }
 .ig-insp-fig.is-large img { display: block; width: 100%; height: auto; max-height: 46vh; object-fit: contain; }
 .ig-insp-detail-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .ig-insp-author { font-size: 11px; color: var(--ig-muted); margin-left: auto; }
@@ -2126,3 +2129,60 @@ html[data-mode='quick'] .ig-welcome-list { display: none; }
   .ig-insp-card, .ig-insp-card-acts { transition: none; }
   .ig-insp-card:hover { transform: none; }
 }
+
+/* ============================================================
+   配方：分类行、详情里的槽位表单与署名
+   ============================================================ */
+/* 分类行是第二行工具条：去掉顶边距、与上一行贴紧；分类多时横向滚动而不是折成三四行 */
+.ig-insp-bar.ig-insp-bar-sub {
+  padding-top: 0;
+  padding-bottom: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ig-insp-bar.ig-insp-bar-sub::-webkit-scrollbar { display: none; }
+.ig-insp-bar.ig-insp-bar-sub .ig-insp-chip { flex: none; }
+
+/* 配方详情比案例集宽一点：要放槽位表单 */
+.pk-dialog-content.ig-insp-detail.ig-recipe-detail { width: min(640px, 92vw); max-width: min(640px, 92vw); }
+/* 摘要不是「注意事项」，用中性色而不是案例集 note 的警示黄 */
+.ig-insp-note.ig-recipe-summary { border-left-color: color-mix(in srgb, var(--ig-accent) 45%, var(--ig-line)); }
+
+/* 空位单列：默认值常是几十字的长句，并排会把每格压到 250px 左右、两三行就折完，反而更难读 */
+.ig-recipe-slots { display: flex; flex-direction: column; gap: 8px; }
+.ig-recipe-slots-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ig-text);
+}
+.ig-recipe-slots-head span,
+.ig-recipe-slot-label span { font-weight: 400; color: var(--ig-muted); font-size: 11px; }
+.ig-recipe-slot { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ig-recipe-slot-label { display: flex; align-items: baseline; gap: 6px; font-size: 12px; font-weight: 500; color: var(--ig-text); }
+/* 复用 .pk-input 的边框/聚焦态，按文本域重置外形：可换行、纵向 resize 关掉（高度跟随内容） */
+.ig-recipe-ta.pk-input {
+  width: 100%;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  min-height: 30px;
+  overflow-y: auto;
+  resize: none;
+}
+.ig-recipe-extra { margin-top: 2px; }
+
+.ig-recipe-credit {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ig-muted);
+}
+.ig-recipe-credit-label { margin-right: 6px; }
+.ig-recipe-credit a { color: var(--ig-accent); text-decoration: none; border-bottom: 1px dashed color-mix(in srgb, var(--ig-accent) 45%, transparent); }
+.ig-recipe-credit a:hover { border-bottom-style: solid; }
+
+.ig-act-btn.ig-act-danger:hover:not(:disabled) { color: var(--danger, #b44c50); background: color-mix(in srgb, var(--danger, #b44c50) 10%, transparent); }

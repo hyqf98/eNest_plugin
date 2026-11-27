@@ -33,7 +33,12 @@ export function RunLogPanel({ nodes, onClose }) {
         <button type="button" className="ac-insp-close" onClick={onClose}>收起</button>
       </header>
       <div className="ac-log-rows">
-        {rows.length === 0 && <div className="ac-log-empty">还没有运行记录。点节点右上角 ▶ 或顶部「运行」后，这里会显示每个节点的输入、输出与错误。</div>}
+        {rows.length === 0 && (
+          <div className="pk-empty-state">
+            <strong className="pk-empty-title">暂无运行记录</strong>
+            <p className="pk-empty-hint">运行节点后可查看输入、输出和错误。</p>
+          </div>
+        )}
         {rows.map(({ node, def }) => {
           const run = node.data.lastRun
           const state = node.data.state || 'idle'

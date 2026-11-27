@@ -25,6 +25,9 @@ export function App() {
   const [selected, setSelected] = useState(-1)
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [search, setSearch] = useState('')
+  const [quickMode, setQuickMode] = useState(
+    () => (api?.getLaunchMode?.() || new URLSearchParams(location.search).get('mode')) === 'quick',
+  )
   const [degrees, setDegrees] = useState(false)
   const [group, setGroup] = useState(true)
   const [padOpen, setPadOpen] = useState(false)
@@ -114,25 +117,24 @@ export function App() {
     recompute(nextExpression)
   }, [expr, fmt, persist, recompute])
 
-  const records = useMemo(
-    () =>
-      history.filter(
-        (r) => (!onlyFavorites || r.favorite) && (r.expr + ' ' + r.result).toLowerCase().includes(search.toLowerCase())
-      ),
-    [history, onlyFavorites, search]
-  )
+  const historySearch = quickMode ? '' : search.trim().toLowerCase()
+  const records = useMemo(() => history.filter((record) =>
+    (!onlyFavorites || record.favorite) && `${record.expr} ${record.result}`.toLowerCase().includes(historySearch)
+  ), [history, onlyFavorites, historySearch])
   const selectedClamped = Math.min(selected, records.length - 1)
+  const recordsRef = useRef(records)
+  recordsRef.current = records
 
   const move = useCallback((delta) => {
-    setSelected((prev) => {
-      const rows = historyRef.current
-      const q = document.getElementById('history-search')?.value.toLowerCase() ?? ''
-      const filtered = rows.filter((r) => r && (!document.getElementById('favorites')?.matches('[aria-pressed="true"]') || r.favorite) && (r.expr + ' ' + r.result).toLowerCase().includes(q))
-      if (!filtered.length) return prev
-      const current = Math.min(prev, filtered.length - 1)
-      return Math.max(0, Math.min(filtered.length - 1, current + delta))
+    const count = recordsRef.current.length
+    if (!count) return
+    setSelected((previous) => {
+      const current = Math.min(previous, count - 1)
+      return Math.max(0, Math.min(count - 1, current + delta))
     })
   }, [])
+
+  useEffect(() => { setSelected(-1) }, [quickMode])
 
   useEffect(() => {
     if (selectedClamped >= 0) listRef.current?.querySelector('.selected')?.scrollIntoView({ block: 'nearest' })
@@ -219,6 +221,8 @@ export function App() {
       },
     })
     kitRef.current = kit
+    setQuickMode(kit.mode === 'quick')
+    kit.onMode((mode) => setQuickMode(mode === 'quick'))
     kit.onSettings(() => { setSettings({ ...kit.settings }) })
     api?.onEnter?.(({ payload }) => {
       const text = typeof payload === 'string' ? payload : payload?.text
@@ -247,7 +251,7 @@ export function App() {
         recomputeRef.current(exprRef.current?.value ?? '')
       }
     })()
-    return () => { alive = false }
+    return () => { alive = false; kit.destroy() }
   }, [])
   const moveRef = useRef(move)
   moveRef.current = move
@@ -263,7 +267,7 @@ export function App() {
               onClick={() => setGroup((g) => !g)}>{group ? '千分位' : '原始'}</button>
             <button id="toggle-pad" type="button" aria-expanded={padOpen}
               onClick={() => setPadOpen((p) => !p)}>键盘</button>
-            <SettingsGear onClick={() => setSettingsOpen(true)} />
+            <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
           </div>
         </header>
         <section className="workbench">
@@ -312,10 +316,13 @@ export function App() {
           </div>
           <aside className="history">
             <div className="history-head">
-              <h2>计算记录</h2>
+              <h2 title="↑ ↓ 选择历史">计算记录</h2>
               <span id="history-count">{history.length ? String(history.length) : ''}</span>
+              <button id="favorites" type="button" aria-pressed={onlyFavorites}
+                onClick={() => { setOnlyFavorites((favorite) => !favorite); setSelected(-1) }}>收藏</button>
               <MoreMenu
                 ariaLabel="历史记录操作"
+                buttonClassName="pk-btn-sm"
                 items={[
                   { key: 'export', label: '导出全部可见记录', disabled: !records.length, onSelect: () => saveText('calculations.txt', records.map((r) => r.expr + ' = ' + r.result).join('\n')) },
                   { key: 'clear', label: '清空未收藏', danger: true, disabled: !history.some((r) => !r.favorite), onSelect: () => {
@@ -326,22 +333,24 @@ export function App() {
                 ]}
               />
             </div>
-            <div className="filters">
-              <input id="history-search" placeholder="搜索表达式或结果" aria-label="搜索记录"
+            <div className="filters shell-only">
+              <input id="history-search" type="search" placeholder="搜索表达式或结果" aria-label="搜索记录"
                 value={search} onChange={(e) => { setSearch(e.target.value); setSelected(-1) }} />
-              <button id="favorites" type="button" aria-pressed={onlyFavorites}
-                onClick={() => { setOnlyFavorites((f) => !f); setSelected(-1) }}>收藏</button>
             </div>
             <div id="history-list" className="history-list" ref={listRef}>
               {records.length === 0 ? (
-                <p className="empty">还没有计算记录<br />输入表达式，随时回填继续计算。</p>
+                <div className="pk-empty-state">
+                  <strong className="pk-empty-title">{!history.length ? '暂无计算记录' : historySearch ? '没有匹配的记录' : '暂无收藏'}</strong>
+                  <p className="pk-empty-hint">{!history.length ? '输入表达式并按 Enter 保存结果。' : historySearch ? '试试更短的表达式或结果。' : '收藏一条计算记录后，就能在这里找到。'}</p>
+                  {historySearch && history.length > 0 && <button type="button" className="pk-btn pk-btn-sm pk-btn-ghost" onClick={() => { setSearch(''); setSelected(-1) }}>清除搜索</button>}
+                </div>
               ) : (
                 records.map((r, i) => (
                   <article key={r.id} data-row-actions className={'record' + (i === selectedClamped ? ' selected' : '')}>
-                    <button type="button" className="recall" title="回填表达式"
+                    <button type="button" className="recall" title={`回填 ${r.expr}`}
                       onClick={() => { setExpr(r.expr); exprRef.current?.focus() }}>
                       <span className="expression">{r.expr} =</span>
-                      <span className="value">{r.result}</span>
+                      <span className="value" title={r.result}>{r.result}</span>
                     </button>
                     <span className="pk-row-actions">
                       <button type="button" className="star" aria-pressed={r.favorite}
@@ -358,7 +367,7 @@ export function App() {
             </div>
           </aside>
         </section>
-        <footer>
+        <footer className="shell-only">
           <span id="selection-hint">↑ ↓ 选择历史</span>
         </footer>
         <SettingsDialog

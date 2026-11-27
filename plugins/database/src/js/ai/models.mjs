@@ -13,6 +13,22 @@ import { Vault, storageGet, storageSet } from '../api.js'
 const PROVIDERS_KEY = 'db.ai.providers.v1'
 const vaultKeyOf = (id) => `db.ai.provider.${id}`
 
+/**
+ * 思考程度档位（对齐 deepseek-harness 的 ModelReasoningEffort 语义）。
+ * `id` 直接进请求体 reasoning_effort；`default` 表示不传该字段、由网关取默认。
+ * 不同网关对档位的接受范围不同，未知值会被忽略而非报错，故保留原始 id 透传。
+ */
+export const REASONING_EFFORTS = [
+  { id: undefined, name: '默认', hint: '由模型决定' },
+  { id: 'low', name: '低', hint: '更快，适合简单查询' },
+  { id: 'medium', name: '中', hint: '平衡速度与质量' },
+  { id: 'high', name: '高', hint: '更慢，适合复杂分析' }
+]
+
+export function effortName(id) {
+  return REASONING_EFFORTS.find((item) => item.id === id)?.name || '默认'
+}
+
 function uid() {
   return `ai_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
@@ -41,7 +57,11 @@ function sanitize(p) {
     baseUrl: String(p?.baseUrl || ''),
     model: String(p?.model || '').trim(),
     secretRef: p?.secretRef ? String(p.secretRef) : '',
-    isDefault: p?.isDefault === true
+    isDefault: p?.isDefault === true,
+    // 该供应商支持的思考程度档位；空数组表示不展示思考程度（网关不支持）。
+    reasoningEfforts: Array.isArray(p?.reasoningEfforts)
+      ? p.reasoningEfforts.filter((id) => REASONING_EFFORTS.some((item) => item.id === id))
+      : []
   }
 }
 
@@ -187,14 +207,16 @@ let callSeq = 0
 function idxSafe() { return `${Date.now().toString(36)}${(callSeq++).toString(36)}` }
 
 /** 非流式补齐：部分网关忽略 stream，直接整包返回 JSON */
-async function chatOnce({ provider, messages, tools, signal, stream }) {
+async function chatOnce({ provider, messages, tools, signal, stream, reasoningEffort }) {
   const host = netApi()
   const base = normalizeBaseUrl(provider.baseUrl)
   if (!base) throw new Error('服务地址无效')
   const body = {
     model: provider.model,
     messages,
-    ...(tools ? { tools, tool_choice: 'auto' } : {})
+    ...(tools ? { tools, tool_choice: 'auto' } : {}),
+    // 仅当用户显式选了档位且该供应商声明支持时才带上；未选则交给网关默认。
+    ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {})
   }
   if (!stream) {
     const res = await host.net.fetch({
@@ -292,16 +314,20 @@ function* sseLines(text) {
 
 /**
  * 流式对话入口。
- * @returns {Promise<{ content: string, toolCalls: [{ id, name, args }] }>}
- * onDelta(chunk) 在 delta.content 到达时回调；取消经 signal（AbortError 抛出）。
- * 网关不支持 stream 时自动用非流式重试一次（onDelta 一次性给全文）。
+ * @param reasoningEffort 思考程度档位（'low'|'medium'|'high'）；空表示不传、由网关决定。
+ * @returns {Promise<{ content: string, reasoning: string, toolCalls: [{ id, name, args }] }>}
+ * onDelta(chunk) 在 delta.content 到达时回调；onReasoning(chunk) 在
+ * delta.reasoning_content 到达时回调（思维链，与正文分开呈现）。
+ * 取消经 signal（AbortError 抛出）。网关不支持 stream 时自动用非流式重试一次。
  */
-export async function chat({ provider, messages, toolDefs, onDelta, signal }) {
+export async function chat({ provider, messages, toolDefs, onDelta, onReasoning, signal, reasoningEffort }) {
   if (!provider?.baseUrl || !provider?.model) throw new Error('请先在设置中配置 AI 模型供应商')
   const tools = toolsPayload(toolDefs)
+  // 供应商未声明支持思考程度时，忽略传入的档位，避免向不支持的网关塞未知字段。
+  const effort = provider.reasoningEfforts?.includes(reasoningEffort) ? reasoningEffort : undefined
   let result
   try {
-    result = await chatOnce({ provider, messages, tools, signal, stream: true })
+    result = await chatOnce({ provider, messages, tools, signal, stream: true, reasoningEffort: effort })
   } catch (error) {
     if (error?.name === 'AbortError') throw error
     result = { parsed: null }
@@ -310,22 +336,21 @@ export async function chat({ provider, messages, toolDefs, onDelta, signal }) {
   // 非流式整包：直接解析（含首次流式失败后的非流式重试）
   if (result?.parsed) {
     const choice = result.parsed?.choices?.[0]?.message || {}
-    let content = String(choice.content || '')
-    if (result.parsed?.choices?.[0]?.reasoning_content) {
-      // 部分网关把思维链单独放 reasoning_content，不展示也不丢弃上下文
-      content = content || ''
-    }
+    const content = String(choice.content || '')
+    const reasoning = String(choice.reasoning_content || '')
+    if (onReasoning && reasoning) onReasoning(reasoning)
     if (onDelta && content) onDelta(content)
     const toolCalls = Array.isArray(choice.tool_calls)
       ? assembleToolCalls(choice.tool_calls.map((c) => ({ ...c, index: c.index ?? 0, function: { name: c.function?.name, arguments: c.function?.arguments } })))
       : []
-    return { content, toolCalls }
+    return { content, reasoning, toolCalls }
   }
 
   // SSE 增量
   const text = result?.text ?? ''
   const rawCalls = []
   let content = ''
+  let reasoning = ''
   let sawDone = false
   let sawEvent = false
   for (const data of sseLines(text)) {
@@ -336,6 +361,10 @@ export async function chat({ provider, messages, toolDefs, onDelta, signal }) {
     sawEvent = true
     const delta = payload?.choices?.[0]?.delta
     if (!delta) continue
+    if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+      reasoning += delta.reasoning_content
+      onReasoning?.(delta.reasoning_content)
+    }
     if (typeof delta.content === 'string' && delta.content) {
       content += delta.content
       onDelta?.(delta.content)
@@ -344,16 +373,18 @@ export async function chat({ provider, messages, toolDefs, onDelta, signal }) {
   }
   if (!sawEvent && !sawDone) {
     // 疑似不支持流式：非流式重试一次
-    const fallback = await chatOnce({ provider, messages, tools, signal, stream: false })
+    const fallback = await chatOnce({ provider, messages, tools, signal, stream: false, reasoningEffort: effort })
     const choice = fallback.parsed?.choices?.[0]?.message || {}
     const content2 = String(choice.content || '')
+    const reasoning2 = String(choice.reasoning_content || '')
+    if (onReasoning && reasoning2) onReasoning(reasoning2)
     if (onDelta && content2) onDelta(content2)
     const toolCalls = Array.isArray(choice.tool_calls)
       ? assembleToolCalls(choice.tool_calls.map((c) => ({ ...c, index: c.index ?? 0, function: { name: c.function?.name, arguments: c.function?.arguments } })))
       : []
-    return { content: content2, toolCalls }
+    return { content: content2, reasoning: reasoning2, toolCalls }
   }
-  return { content, toolCalls: rawCalls.length ? assembleToolCalls(rawCalls) : [] }
+  return { content, reasoning, toolCalls: rawCalls.length ? assembleToolCalls(rawCalls) : [] }
 }
 
 export const PROVIDERS_STORAGE_KEY = PROVIDERS_KEY

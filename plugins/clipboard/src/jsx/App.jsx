@@ -1,9 +1,8 @@
 /**
  * clipboard 主界面 —— React 版（原 src/js/main.js + src/js/tools.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
  * 文本变换纯逻辑复用 textkit.js（未改动）。
  */
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MoreMenu } from '../ui/index.jsx'
 import * as tk from '../js/textkit.js'
 import { createClipboardApi } from '../js/history-api.mjs'
@@ -38,7 +37,9 @@ export function App() {
   const [type, setType] = useState('all')
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [hasCursor, setHasCursor] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [current, setCurrent] = useState('')
   const [collection, setCollection] = useState('')
   const [selected, setSelected] = useState(() => new Set())
@@ -68,8 +69,7 @@ export function App() {
   const stateRef = useRef({})
   stateRef.current = { items, total, hasCursor, current, query, type, collection, selected, groups, mode, monitoring, snippets }
 
-  const cursorRef = useRef(null)
-  const requestId = useRef(0)
+  const pageRef = useRef(null)
   const detailRevision = useRef(0)
   const queryTimer = useRef(0)
   const touched = useRef(false)
@@ -171,33 +171,37 @@ export function App() {
     [], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  /** 列表刷新（等价原 refresh：requestId 竞态保护 + 分类收集 + 追加去重）
-   *  overrides：刚改了筛选条件、同一个 tick 里就要刷新时，必须把新值直接传进来。
-   *  stateRef.current 只在下一次渲染才更新，此刻读到的还是旧分类——此前点「文本」tab
-   *  发出去的是上一个分类，列表永远比 tab 慢一拍（文字 tab 显示图片、图片 tab 显示全部）。 */
   const refresh = useCallback(
     async (append = false, overrides = {}) => {
-      const s = { ...stateRef.current, ...overrides }
-      const revision = ++requestId.current
+      const view = { ...stateRef.current, ...overrides }
+      const previous = pageRef.current
+      if (append && (!previous || previous.loading || previous.cursor === null ||
+        previous.query !== view.query || previous.type !== view.type || previous.collection !== view.collection)) return
+      const page = { query: view.query, type: view.type, collection: view.collection, cursor: append ? previous.cursor : null, loading: true }
+      pageRef.current = page
+      setLoadingMore(append)
       try {
-        const kindOf = ['text', 'image', 'files'].includes(s.type) ? s.type : undefined
-        let result = await api.clipboard.history.query({ query: s.query, type: kindOf, pinned: s.type === 'pinned', cursor: append ? s.cursor : 0, limit: 60 })
-        if (s.collection) {
+        const kindOf = ['text', 'image', 'files'].includes(view.type) ? view.type : undefined
+        let result = await api.clipboard.history.query({ query: view.query, type: kindOf, pinned: view.type === 'pinned', cursor: page.cursor ?? 0, limit: 60 })
+        if (view.collection) {
           const gathered = [...result.items]
-          while (result.nextCursor !== null && revision === requestId.current) {
-            result = await api.clipboard.history.query({ query: s.query, type: kindOf, pinned: s.type === 'pinned', cursor: result.nextCursor, limit: 100 })
+          while (result.nextCursor !== null && page === pageRef.current) {
+            result = await api.clipboard.history.query({ query: view.query, type: kindOf, pinned: view.type === 'pinned', cursor: result.nextCursor, limit: 100 })
             gathered.push(...result.items)
           }
-          result = { items: gathered.filter((item) => s.groups.entries[item.id] === s.collection), total: 0, nextCursor: null }
+          result = { items: gathered.filter((item) => view.groups.entries[item.id] === view.collection), total: 0, nextCursor: null }
           result.total = result.items.length
         }
-        if (revision !== requestId.current) return
-        const merged = append ? [...s.items, ...result.items.filter((item) => !s.items.some((old) => old.id === item.id))] : result.items
+        if (page !== pageRef.current) return
+        const existing = append ? new Set(view.items.map((item) => item.id)) : null
+        const merged = append ? [...view.items, ...result.items.filter((item) => !existing.has(item.id))] : result.items
+        page.cursor = result.nextCursor
         setItems(merged)
         setTotal(result.total)
+        setHasLoaded(true)
         setHasCursor(result.nextCursor !== null)
-        const cur = merged.some((item) => item.id === s.current) ? s.current : merged[0]?.id || ''
-        setCurrent(cur)
+        if (result.nextCursor === null && document.activeElement?.id === 'more') listRef.current?.focus({ preventScroll: true })
+        setCurrent((previousId) => merged.some((item) => item.id === previousId) ? previousId : merged[0]?.id || '')
         setSelected((prev) => {
           const ids = new Set(merged.map((i) => i.id))
           return new Set([...prev].filter((id) => ids.has(id)))
@@ -207,8 +211,9 @@ export function App() {
         setEmptyReason(null)
         setEmptyError('')
       } catch (error) {
-        if (revision === requestId.current) {
+        if (page === pageRef.current) {
           const message = error?.message || String(error)
+          if (!append) setHasCursor(false)
           setCountText(historySupported ? '读取失败' : '历史不可用')
           // Capability gaps get a persistent empty state with an action; real read failures stay a retry.
           setEmptyReason(historySupported ? 'read-failed' : 'unsupported')
@@ -216,6 +221,11 @@ export function App() {
           // The empty state already explains a missing backend; toast that case once, not on every refresh.
           if (historySupported) kitRef.current?.toast(`读取历史失败：${message}`, 'error')
           else if (!unsupportedNotified.current) { unsupportedNotified.current = true; kitRef.current?.toast(`读取历史失败：${message}`, 'error') }
+        }
+      } finally {
+        if (page === pageRef.current) {
+          page.loading = false
+          setLoadingMore(false)
         }
       }
     },
@@ -462,17 +472,6 @@ export function App() {
     )
   }
 
-  // —— quick Tab 轮换分类 ——
-  const cycleType = (delta) => {
-    const order = ['all', 'text', 'image', 'files', 'pinned']
-    const index = order.indexOf(stateRef.current.type)
-    const next = order[(index + delta + order.length) % order.length]
-    setType(next)
-    setSelected(new Set())
-    void refreshRef.current(false, { type: next, selected: new Set() })
-    void saveView({ type: next })
-  }
-
   useEffect(() => {
     const kit = PluginKit.create({
       title: '剪贴板',
@@ -511,6 +510,7 @@ export function App() {
 
     const release = api?.clipboard?.history?.onChange?.(() => void refreshRef.current())
     api?.onDestroy?.(() => {
+      pageRef.current = null
       release?.()
       observer.current?.disconnect()
       clearTimeout(queryTimer.current)
@@ -581,6 +581,7 @@ export function App() {
     })
     return () => {
       alive = false
+      pageRef.current = null
       clearTimeout(prefsTimer)
       release?.()
       observer.current?.disconnect()
@@ -600,11 +601,6 @@ export function App() {
 
   const keyHandler = (event) => {
     if (event.isComposing || event.defaultPrevented || document.querySelector('dialog[open]')) return
-    if (stateRef.current.mode === 'quick' && event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      event.preventDefault()
-      cycleType(event.shiftKey ? -1 : 1)
-      return
-    }
     if (event.target.closest('input,textarea,select,button,a,[role="menu"],[role="menuitem"],[role="menuitemcheckbox"],.pk-menu,dialog')) return
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
@@ -631,23 +627,10 @@ export function App() {
   const many = mode === 'shell' && selected.size > 0
   const currentItem = items.find((item) => item.id === current)
   const selectedLabel = many ? `已选 ${selected.size} 条` : currentItem ? `${label(currentItem)} · ${age(currentItem.ts)}` : '请选择记录'
+  const filtered = Boolean(query.trim() || collection || type !== 'all')
 
   return (
     <main className="app" data-density={density}>
-      <header className="shell-only">
-        <input
-          id="search"
-          ref={searchRef}
-          type="search"
-          placeholder="搜索内容、文件或来源应用"
-          aria-label="搜索历史"
-          onInput={(e) => {
-            kitRef.current?.setQuery(e.target.value)
-            search(e.target.value)
-          }}
-        />
-        <SettingsGear onClick={() => setSettingsOpen(true)} />
-      </header>
       <nav className="filters" aria-label="历史分类">
         <div id="types">
           {[['all', '全部'], ['text', '文本'], ['image', '图片'], ['files', '文件'], ['pinned', '收藏']].map(([id, text]) => (
@@ -655,18 +638,31 @@ export function App() {
               key={id}
               data-type={id}
               className={type === id ? 'active' : ''}
-                onClick={() => {
-                  setType(id)
-                  setSelected(new Set())
-                  void refresh(false, { type: id, selected: new Set() })
-                  void saveView({ type: id })
-                }}
+              aria-pressed={type === id}
+              onClick={() => {
+                setType(id)
+                setSelected(new Set())
+                void refresh(false, { type: id, selected: new Set() })
+                void saveView({ type: id })
+              }}
             >
               {text}
             </button>
           ))}
         </div>
         <span className="grow"></span>
+        <input
+          id="search"
+          className="filter-search shell-only"
+          ref={searchRef}
+          type="search"
+          placeholder="搜索历史"
+          aria-label="搜索内容、文件或来源应用"
+          onInput={(event) => {
+            kitRef.current?.setQuery(event.target.value)
+            search(event.target.value)
+          }}
+        />
         <button
           id="open-tools"
           className="pk-btn pk-btn-ghost tool-toggle"
@@ -676,7 +672,8 @@ export function App() {
         >
           {toolsOpen ? '收起工具' : '工具'}
         </button>
-        <button id="manage" className="pk-btn" aria-label="管理剪贴板" onClick={openManager}>管理</button>
+        <button id="manage" className="pk-btn pk-btn-sm" aria-label="管理剪贴板" onClick={openManager}>管理</button>
+        <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
       </nav>
       <section id="tools-panel" className="tools" hidden={!toolsOpen} aria-label="文本工具与暂存片段">
         <div className="tools-block">
@@ -747,26 +744,27 @@ export function App() {
         </div>
       </section>
       <div className="workspace">
-        <section className="history">
+        <section className="history" data-paged={hasCursor || undefined}>
           <div className="list-info">
             <span id="count" role="status">{countText}</span>
-            <select
-              id="collection-filter"
-              className="shell-only"
-              aria-label="筛选分类"
-              value={groups.names.includes(collection) ? collection : ''}
-              onChange={(e) => {
-                setCollection(e.target.value)
-                setSelected(new Set())
-                void refresh(false, { collection: e.target.value, selected: new Set() })
-                void saveView({ collection: e.target.value })
-              }}
-            >
-              <option value="">所有分类</option>
-              {groups.names.map((name) => (
-                <option key={name}>{esc(name)}</option>
-              ))}
-            </select>
+            <div className="collection-filter" hidden={mode === 'quick' && !groups.names.length}>
+              <select
+                id="collection-filter"
+                aria-label="筛选分类"
+                value={groups.names.includes(collection) ? collection : ''}
+                onChange={(e) => {
+                  setCollection(e.target.value)
+                  setSelected(new Set())
+                  void refresh(false, { collection: e.target.value, selected: new Set() })
+                  void saveView({ collection: e.target.value })
+                }}
+              >
+                <option value="">所有分类</option>
+                {groups.names.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
             <button id="refresh" className="pk-btn pk-btn-ghost pk-btn-sm" title="刷新历史" onClick={() => void refresh()}>刷新</button>
           </div>
           <div
@@ -780,15 +778,7 @@ export function App() {
               const row = event.target.closest('[data-id]')
               if (!row) return
               if (event.target.closest('[data-copy]')) return void run(() => copy(row.dataset.id))
-              if (event.target.classList.contains('check')) {
-                const id = row.dataset.id
-                setSelected((prev) => {
-                  const n = new Set(prev)
-                  event.target.checked ? n.add(id) : n.delete(id)
-                  return n
-                })
-                return
-              }
+              if (event.target.classList.contains('check')) return
               choose(row.dataset.id)
               listRef.current?.focus()
             }}
@@ -814,7 +804,16 @@ export function App() {
                     className="check shell-only"
                     type="checkbox"
                     aria-label="选择此记录"
-                    defaultChecked={selected.has(item.id)}
+                    checked={selected.has(item.id)}
+                    onChange={(event) => {
+                      const checked = event.target.checked
+                      setSelected((previous) => {
+                        const next = new Set(previous)
+                        if (checked) next.add(item.id)
+                        else next.delete(item.id)
+                        return next
+                      })
+                    }}
                   />
                   {item.type === 'image' ? (
                     <img data-image={esc(item.id)} alt="剪贴板图片缩略图" />
@@ -824,14 +823,14 @@ export function App() {
                   <div className="summary">
                     <div className="preview">
                       {item.pinned ? <span className="pin-mark">★ </span> : ''}
-                      {esc(item.type === 'image' ? `${item.width} × ${item.height} 图片` : item.preview)}
+                      {item.type === 'image' ? `${item.width} × ${item.height} 图片` : item.preview}
                     </div>
                     <div className="meta">
-                      <span>{age(item.ts)}</span>
-                      <span className="source" title={esc(item.sourceApp?.id || '')}>
-                        {esc(item.sourceApp?.name || '未知来源')}
+                      <span className="age">{age(item.ts)}</span>
+                      <span className="source" title={item.sourceApp?.name || item.sourceApp?.id || undefined}>
+                        {item.sourceApp?.name || '未知来源'}
                       </span>
-                      <span className="size">{scale(item)}</span>
+                      <span className="size" title={scale(item)}>{scale(item)}</span>
                     </div>
                   </div>
                   <div className="pk-row-actions" onClick={(event) => { if (!event.target.closest('[data-copy]')) event.stopPropagation() }} onDoubleClick={(event) => event.stopPropagation()}>
@@ -851,30 +850,38 @@ export function App() {
                 </div>
               ))
             ) : emptyReason === 'unsupported' ? (
-              <div className="empty empty-blocked">
-                <p><b>剪贴板历史暂不可用</b></p>
-                <p className="muted">{historyUnavailableReason || '当前 eNest 版本不提供剪贴板历史后台。'}</p>
+              <div className="pk-empty-state">
+                <strong className="pk-empty-title">剪贴板历史暂不可用</strong>
+                <p className="pk-empty-hint">{historyUnavailableReason || '当前 eNest 版本不提供剪贴板历史后台。'}</p>
                 <div className="empty-actions">
                   <button className="pk-btn pk-btn-sm" onClick={() => window.location.reload()}>重新加载</button>
                 </div>
               </div>
             ) : emptyReason === 'read-failed' ? (
-              <div className="empty empty-blocked">
-                <p><b>读取失败</b></p>
-                {emptyError ? <p className="muted">{emptyError}</p> : null}
+              <div className="pk-empty-state">
+                <strong className="pk-empty-title">读取失败</strong>
+                {emptyError ? <p className="pk-empty-hint">{emptyError}</p> : null}
                 <div className="empty-actions">
                   <button className="pk-btn pk-btn-sm" onClick={() => void refresh()}>重试</button>
                 </div>
               </div>
+            ) : !hasLoaded ? (
+              <div className="pk-empty-state">正在读取剪贴板历史…</div>
             ) : (
-              <div className="empty"><Fragment>没有匹配的记录<br />复制文本、图片或文件后，会自动出现在这里。</Fragment></div>
+              <div className="pk-empty-state">
+                <strong className="pk-empty-title">{filtered ? '没有匹配的记录' : '暂无剪贴板记录'}</strong>
+                <p className="pk-empty-hint">{filtered ? '试试清除搜索词或切换分类。' : monitoring ? '复制文本、图片或文件后，记录会出现在这里。' : '监控已暂停，可在设置中重新开启。'}</p>
+              </div>
             )}
           </div>
-          <button id="more" className="pk-btn" hidden={!hasCursor} onClick={() => void refresh(true)}>载入更多</button>
+          <button id="more" type="button" className="pk-btn pk-btn-sm" hidden={!hasCursor}
+            aria-controls="list" aria-disabled={loadingMore || undefined} onClick={() => void refresh(true)}>
+            {loadingMore ? '载入中…' : '载入更多'}
+          </button>
         </section>
         <aside id="detail" className="shell-only" ref={detailRef}>
           {detail.kind === 'empty' ? (
-            <div className="empty">{detail.text}</div>
+            <div className="pk-empty-state">{detail.text}</div>
           ) : (
             <>
               <div className="detail-heading">
@@ -943,7 +950,7 @@ export function App() {
                   {detail.data ? (
                     <img className="detail-image" alt="完整剪贴板图片" src={detail.data} />
                   ) : (
-                    <div className="empty">{mode === 'shell' ? '正在读取原图…' : '原图不可用'}</div>
+                    <div className="pk-empty-state">原图不可用</div>
                   )}
                   <div className="detail-actions">
                     <select
@@ -966,39 +973,38 @@ export function App() {
                   </div>
                 </>
               ) : (
-                <div className="empty">正在读取原图…</div>
+                <div className="pk-empty-state">正在读取原图…</div>
               )}
             </>
           )}
         </aside>
       </div>
-      {/* 操作区只留选择计数：主操作由宿主 quick 输入框 Enter 承担，其余操作在列表行内。 */}
-      <footer className="selection-bar">
-        <div className="selection">
+      <footer className="selection-bar" hidden={mode === 'quick' && capPaste}>
+        <div className="selection shell-only">
           <span id="selected-label">{selectedLabel}</span>
           <button
             id="select-all"
-            className="shell-only pk-btn pk-btn-ghost pk-btn-sm"
+            className="pk-btn pk-btn-ghost pk-btn-sm"
             onClick={() => setSelected(selected.size === items.length ? new Set() : new Set(items.map((item) => item.id)))}
           >
             {selected.size === items.length && items.length > 0 ? '取消全选' : '全选'}
           </button>
         </div>
+        <div id="capability" className="capability" hidden={capPaste}>
+          <span>{capReason}</span>
+          <button
+            id="authorize"
+            className="pk-btn pk-btn-sm"
+            hidden={!capPermissionRequired}
+            onClick={() => void run(async () => {
+              await api.clipboard.requestPermission()
+              await capabilities()
+            })}
+          >
+            开启权限
+          </button>
+        </div>
       </footer>
-      <div id="capability" className="capability" hidden={capPaste}>
-        <span>{capReason}</span>
-        <button
-          id="authorize"
-          className="pk-btn pk-btn-sm"
-          hidden={!capPermissionRequired}
-          onClick={() => void run(async () => {
-            await api.clipboard.requestPermission()
-            await capabilities()
-          })}
-        >
-          开启权限
-        </button>
-      </div>
       <dialog id="manager">
         <form method="dialog" className="dialog-title">
           <h2>历史管理</h2>

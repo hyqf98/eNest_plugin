@@ -1,15 +1,15 @@
 /**
  * 待办清单主界面 —— React 版（原 src/js/main.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变；
  * 数据归一化 / 排序 / 拖拽排序管线与原版逐行等价。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { MoreMenu } from '../ui/index.jsx'
+import { Button, MoreMenu } from '../ui/index.jsx'
 import { SettingsDialog, SettingsGear } from './SettingsDialog.jsx'
 import { registerTodosMcp } from '../js/mcp.mjs'
 
 const KEY = 'todos_v2'
 const LABELS = { all: '全部', today: '今天', important: '重要', done: '已完成', archived: '归档' }
+const EMPTY_VIEWS = { all: '暂无待办', today: '今天没有到期任务', important: '暂无重要任务', done: '暂无已完成任务', archived: '暂无归档任务' }
 
 const uid = () => globalThis.crypto.randomUUID()
 const today = () => {
@@ -71,7 +71,8 @@ export function App() {
   const navRef = useRef(null)
   const navToggleRef = useRef(null)
   const navBindingRef = useRef(null)
-  const compactNav = mode === 'quick' || narrow
+  const quick = mode === 'quick'
+  const compactNav = quick || narrow
   const navCollapsed = compactNav ? !navPinned : sidebarCollapsed
 
   useEffect(() => {
@@ -451,14 +452,6 @@ export function App() {
     if (state === 'due-today') return '今天到期'
     return t.due
   }
-  const emptyArt = () => (
-    <svg viewBox="0 0 96 96" aria-hidden="true">
-      <rect x="18" y="14" width="60" height="72" rx="8" fill="none" stroke="var(--line)" strokeWidth="2.5" />
-      <path d="M30 34h24M30 48h36M30 62h30" stroke="var(--mark)" strokeWidth="2.5" strokeLinecap="round" opacity=".55" />
-      <path d="M56 24l6 6 12-12" fill="none" stroke="var(--mark)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-
   // —— latest-ref 桥接（kit 回调用） ——
   const actionsRef = useRef({})
   actionsRef.current = {
@@ -539,7 +532,6 @@ export function App() {
         if (!alive) return
         setFailed(true)
         kit.toast(e.message, 'error')
-        if (newTaskRef.current) newTaskRef.current.disabled = true
       }
     })()
     api?.onEnter?.(async ({ payload }) => {
@@ -821,6 +813,10 @@ export function App() {
   const subDone = selectedTask ? selectedTask.subtasks.filter((s) => s.done).length : 0
   const subAll = selectedTask ? selectedTask.subtasks.length : 0
   const subPct = subAll ? Math.round((subDone / subAll) * 100) : 0
+  const hasQuery = Boolean(query.trim())
+  const emptyTitle = hasQuery ? '没有匹配的任务' : EMPTY_VIEWS[view]
+  const emptyHint = hasQuery ? '换个关键词或调整筛选。'
+    : view === 'all' ? '在上方添加一条任务。' : '切换到「全部」查看其他任务。'
 
   return (
     <>
@@ -860,13 +856,12 @@ export function App() {
             { key: 'export', label: '导出任务…', onSelect: exportTasks },
           ]}
         />
-        <SettingsGear onClick={() => setSettingsOpen(true)} />
+        {!quick && <SettingsGear onClick={() => setSettingsOpen(true)} />}
       </header>
       <div className={`workspace${navCollapsed ? ' sidebar-collapsed' : ''}`} data-nav-compact={compactNav ? 'true' : 'false'}>
         <nav className="list-navigation" id="todo-navigation" ref={navRef} aria-label="清单导航">
           <div className="eyebrow">清单</div>
           <div id="lists">
-            {/* 与原版一致：清单导航在数据就绪后才填充（初始为空容器） */}
             {ready
               ? ['全部清单', ...lists].map((name) => {
                   const count =
@@ -880,9 +875,9 @@ export function App() {
                     </button>
                   )
                 })
-              : null}
+              : <p className="pk-empty-state">{failed ? '清单暂不可用' : '正在读取清单…'}</p>}
           </div>
-          <button id="new-list" className="pk-btn pk-btn-ghost" onClick={() => {
+          <button id="new-list" className="pk-btn pk-btn-ghost" disabled={!ready} onClick={() => {
             setListFormOpen(true)
             requestAnimationFrame(() => listNameRef.current?.focus())
           }}>＋ 新建清单</button>
@@ -892,57 +887,61 @@ export function App() {
             <button type="button" id="cancel-list" className="pk-btn pk-btn-ghost pk-btn-sm" onClick={() => setListFormOpen(false)}>取消</button>
           </form>
           <hr />
-          <button id="import" className="pk-btn pk-btn-ghost" onClick={importTasks}>导入任务</button>
+          <button id="import" className="pk-btn pk-btn-ghost" disabled={!ready} onClick={importTasks}>导入任务</button>
         </nav>
         <section className="list-pane">
-          <div className="quick-summary quick-only">
-            待办清单 <span id="quick-count">{ready ? open.length : ''}</span>
-          </div>
-          <div className="filters" id="filters">
-            <button ref={navToggleRef} type="button" className="pk-btn pk-btn-ghost pk-btn-sm nav-toggle"
-              aria-controls="todo-navigation" aria-expanded={!navCollapsed || navPeek}
-              aria-label={navCollapsed ? '展开清单导航' : '收起清单导航'}
-              title={navCollapsed ? '展开清单导航' : '收起清单导航'} onClick={toggleNavigation}>☰</button>
-            {/* 与原版一致：仅在数据就绪后渲染筛选（读取失败时保持初始空白态） */}
-            {ready
-              ? Object.entries(LABELS).map(([key, label]) => {
+          <div className="list-toolbar">
+            <div className="list-filters">
+              <button ref={navToggleRef} type="button" className="pk-btn pk-btn-ghost nav-toggle"
+                aria-controls="todo-navigation" aria-expanded={!navCollapsed || navPeek}
+                aria-label={navCollapsed ? '展开清单导航' : '收起清单导航'}
+                title={navCollapsed ? '展开清单导航' : '收起清单导航'} onClick={toggleNavigation}>☰</button>
+              <div className="filters" id="filters" role="group" aria-label="任务筛选" hidden={!ready}>
+                {Object.entries(LABELS).map(([key, label]) => {
                   const count = countFor(key)
                   return (
-                    <button key={key} data-view={key} className={`pk-btn pk-btn-ghost pk-btn-sm${view === key ? ' active' : ''}`} onClick={() => setView(key)}>
+                    <Button key={key} data-view={key} variant="ghost" size="sm" pressed={view === key}
+                      className={view === key ? 'active' : ''} onClick={() => setView(key)}>
                       {label}
                       {count ? <span className="f-count">{count}</span> : ''}
-                    </button>
+                    </Button>
                   )
-                })
-              : null}
+                })}
+              </div>
+            </div>
+            <form
+              className="composer"
+              id="composer"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!ready || !newTaskText.trim()) return
+                addTask(newTaskText)
+                setNewTaskText('')
+                newTaskRef.current?.focus()
+              }}
+            >
+              <input
+                className="pk-input"
+                id="new-task"
+                ref={newTaskRef}
+                autoComplete="off"
+                maxLength={500}
+                value={newTaskText}
+                onChange={event => setNewTaskText(event.target.value)}
+                placeholder="下一件要做的事…"
+                aria-label="新任务"
+                disabled={!ready}
+              />
+              <Button variant="primary" type="submit" disabled={!ready || !newTaskText.trim()}>添加</Button>
+              {quick && <MoreMenu ariaLabel="待办操作" items={[
+                { key: 'settings', label: '设置', onSelect: () => setSettingsOpen(true) },
+                { key: 'export', label: '导出任务…', disabled: !ready, onSelect: exportTasks },
+              ]} />}
+            </form>
           </div>
-          <form
-            className="composer"
-            id="composer"
-            onSubmit={(e) => {
-              e.preventDefault()
-              addTask(newTaskText)
-              setNewTaskText('')
-              if (newTaskRef.current) {
-                newTaskRef.current.focus()
-              }
-            }}
-          >
-            <input
-              id="new-task"
-              ref={newTaskRef}
-              autoComplete="off"
-              maxLength={500}
-              value={newTaskText}
-              onChange={event => setNewTaskText(event.target.value)}
-              placeholder="下一件要做的事…"
-              aria-label="新任务"
-            />
-            <button className="pk-btn pk-btn-primary" type="submit">添加</button>
-          </form>
           <div
             id="tasks"
-            role="list"
+            role={rows.length ? 'list' : undefined}
             ref={tasksRef}
             onPointerDown={onListPointerDown}
             onPointerMove={onListPointerMove}
@@ -955,7 +954,12 @@ export function App() {
             onKeyDown={onListKeyDown}
           >
             {failed ? (
-              <div className="empty">读取失败，原数据已保留。请重新打开插件。</div>
+              <div className="pk-empty-state" role="alert">
+                <strong className="pk-empty-title">无法读取任务</strong>
+                <p className="pk-empty-hint">原数据已保留，请重新打开插件。</p>
+              </div>
+            ) : !ready ? (
+              <div className="pk-empty-state" role="status">正在读取任务…</div>
             ) : rows.length ? (
               rows.map((t) => {
                 const ds = dueState(t)
@@ -1028,15 +1032,13 @@ export function App() {
                 )
               })
             ) : (
-              <div className="empty">
-                {emptyArt()}
-                这里已整理好
-                <br />
-                <small>添加新任务，或换个筛选看看</small>
+              <div className="pk-empty-state">
+                <strong className="pk-empty-title">{emptyTitle}</strong>
+                <p className="pk-empty-hint">{emptyHint}</p>
               </div>
             )}
           </div>
-          <div className="batch shell-only">
+          <div className="batch shell-only" hidden={!ready || !tasks.length}>
             <button id="batch-done" className="pk-btn pk-btn-sm" onClick={() => {
               checkpoint()
               const next = stateRef.current.tasks.map((t) => (checked.has(t.id) ? { ...t, done: true } : t))
@@ -1075,51 +1077,57 @@ export function App() {
             >
               撤销
             </button>
-            {/* 与原版一致：初始 HTML 为「已保存」，首帧即静态文本 */}
-            <span id="save-state" onClick={() => void persist(stateRef.current)}>{saveState}</span>
+            <Button id="save-state" variant="ghost" size="sm" hidden={!ready}
+              onClick={() => void persist(stateRef.current)}>{saveState}</Button>
           </footer>
         </section>
         <aside className={`detail${detailOpen ? ' open' : ''}`} id="detail" ref={detailRef}>
           {!selectedTask || !draft ? (
-            <div className="empty">选择任务，安排下一步</div>
+            <div className="pk-empty-state">
+              <strong className="pk-empty-title">{failed ? '暂无任务可显示' : ready ? '尚未选择任务' : '正在读取任务…'}</strong>
+              {ready && <p className="pk-empty-hint">从列表选择一项，查看或编辑任务详情。</p>}
+              {quick && <Button variant="ghost" onClick={closeDetail}>返回列表</Button>}
+            </div>
           ) : (
             <>
               <div className="detail-actions">
                 <h2>任务详情</h2>
                 <button id="close-detail" className="pk-btn pk-btn-ghost pk-btn-sm detail-close" onClick={closeDetail}>收起</button>
               </div>
-              <label>
-                任务
-                <input data-field="text" value={detailValue('text')} maxLength={500} onChange={(e) => onDetailField('text', e.target.value)} />
-              </label>
-              <label>
-                截止日期
-                <input data-field="due" type="date" value={detailValue('due')} onChange={(e) => onDetailField('due', e.target.value)} />
-              </label>
-              <label>
-                优先级
-                <select data-field="priority" value={detailValue('priority')} onChange={(e) => onDetailField('priority', e.target.value)}>
-                  <option value="normal">普通</option>
-                  <option value="high">高</option>
-                  <option value="low">低</option>
-                </select>
-              </label>
-              <label>
-                清单
-                <select data-field="list" value={detailValue('list')} onChange={(e) => onDetailField('list', e.target.value)}>
-                  {lists.map((l) => (
-                    <option key={l} value={l}>{esc(l)}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                标签（逗号分隔）
-                <input data-field="tags" value={detailValue('tags')} onChange={(e) => onDetailField('tags', e.target.value)} />
-              </label>
-              <label>
-                备注
-                <textarea data-field="note" rows={4} value={detailValue('note')} onChange={(e) => onDetailField('note', e.target.value)} />
-              </label>
+              <div className="detail-fields">
+                <label className="detail-wide">
+                  任务
+                  <input data-field="text" value={detailValue('text')} maxLength={500} onChange={(e) => onDetailField('text', e.target.value)} />
+                </label>
+                <label>
+                  截止日期
+                  <input data-field="due" type="date" value={detailValue('due')} onChange={(e) => onDetailField('due', e.target.value)} />
+                </label>
+                <label>
+                  优先级
+                  <select data-field="priority" value={detailValue('priority')} onChange={(e) => onDetailField('priority', e.target.value)}>
+                    <option value="normal">普通</option>
+                    <option value="high">高</option>
+                    <option value="low">低</option>
+                  </select>
+                </label>
+                <label>
+                  清单
+                  <select data-field="list" value={detailValue('list')} onChange={(e) => onDetailField('list', e.target.value)}>
+                    {lists.map((l) => (
+                      <option key={l} value={l}>{esc(l)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  标签（逗号分隔）
+                  <input data-field="tags" value={detailValue('tags')} onChange={(e) => onDetailField('tags', e.target.value)} />
+                </label>
+                <label className="detail-wide">
+                  备注
+                  <textarea data-field="note" rows={4} value={detailValue('note')} onChange={(e) => onDetailField('note', e.target.value)} />
+                </label>
+              </div>
               <label>子任务</label>
               {subAll ? (
                 <div className="sub-progress">
@@ -1141,8 +1149,8 @@ export function App() {
                 ))}
               </div>
               <form id="subform" onSubmit={submitSub}>
-                <input id="subinput" ref={subInputRef} placeholder="添加子任务" maxLength={300} />
-                <button className="pk-btn pk-btn-sm">＋</button>
+                <input className="pk-input" id="subinput" ref={subInputRef} placeholder="添加子任务" aria-label="新子任务" maxLength={300} />
+                <Button type="submit" aria-label="添加子任务">＋</Button>
               </form>
               <div className="detail-actions detail-actions-bottom">
                 <button id="archive-task" className="pk-btn" onClick={archiveTask}>{selectedTask.archived ? '恢复到清单' : '归档任务'}</button>

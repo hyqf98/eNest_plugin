@@ -99,7 +99,7 @@ export function PlanSidebar({ state, activePlan, api, onExport, askText }) {
               </button>
             )
           })}
-          {filtered.length === 0 && <div className="plan-empty">没有匹配的计划</div>}
+          {filtered.length === 0 && <div className="pk-empty-state">{query.trim() ? '没有匹配的计划' : '暂无计划'}</div>}
         </div>
         <button className="plan-add" onClick={() => api.createPlan()}>+ 新建计划</button>
       </div>

@@ -141,17 +141,6 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sa-recent-info .sa-side-meta { font-size: 10px; color: var(--sa-text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.sa-side-empty {
-  flex: 1; min-height: 0; border-radius: 12px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; color: var(--sa-text-3); font-size: 11px;
-  background: radial-gradient(70% 60% at 50% 45%, var(--sa-softer), transparent 75%);
-}
-.sa-side-empty.horizontal { flex-direction: row; gap: 12px; }
-.sa-side-empty .sa-icon {
-  width: 22px; height: 22px; padding: 10px; box-sizing: content-box;
-  border-radius: 50%; background: var(--sa-soft); opacity: .8;
-}
 .sa-side-card.options { display: flex; flex-direction: column; justify-content: flex-start; }
 .sa-side-card.options .pk-segmented { transform: scale(.94); transform-origin: right center; }
 .sa-side-foot {
@@ -245,8 +234,6 @@
 }
 .sa-dur { padding: 1px 5px; border-radius: 4px; background: rgba(0, 0, 0, .55); font-variant-numeric: tabular-nums; }
 .sa-lib-scroll.is-empty { display: flex; flex-direction: column; }
-.sa-lib-empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0; }
-.sa-lib-empty .sa-empty { min-height: 0; }
 
 /* ---------- Lightbox ---------- */
 .sa-lightbox {
@@ -322,7 +309,7 @@
 .sa-sheet-foot .spacer { flex: 1; }
 
 /* ---------- 贴图 ---------- */
-.sa-pins { flex: 1; min-height: 0; overflow: auto; padding: 24px 26px; width: 100%; max-width: 760px; margin: 0 auto; }
+.sa-pins { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; padding: 24px 26px; width: 100%; max-width: 760px; margin: 0 auto; }
 .sa-pin-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
 .sa-pin-action {
   display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-height: 92px;
@@ -332,7 +319,7 @@
 .sa-pin-action:hover { border-color: color-mix(in oklab, var(--sa-accent) 45%, var(--sa-line)); }
 .sa-pin-action .sa-icon { width: 20px; height: 20px; color: var(--sa-text-2); }
 .sa-pin-action strong { font-size: 12px; font-weight: 600; }
-.sa-pin-list { margin-top: 18px; display: flex; flex-direction: column; gap: 6px; }
+.sa-pin-list { flex: 1; margin-top: 18px; display: flex; flex-direction: column; gap: 6px; }
 .sa-pin-row {
   display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 6px 0 12px;
   border: 1px solid var(--sa-line); border-radius: 9px; background: var(--sa-card);
@@ -420,7 +407,6 @@
 :root[data-mode="quick"] .sa-recent-thumb img { object-fit: contain; }
 :root[data-mode="quick"] .sa-recent-info { gap: 5px; padding-inline: 1px; }
 :root[data-mode="quick"] .sa-recent-info .sa-side-name { font-size: .95em; }
-:root[data-mode="quick"] .sa-side-empty { flex-direction: column; gap: 9px; }
 @container sa-quick-capture (max-width: 380px) {
   :root[data-mode="quick"] .sa-recent-strip { grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr)); }
 }
@@ -430,7 +416,6 @@
 @media (max-height: 360px) {
   :root[data-mode="quick"] .sa-capture { grid-template-rows: auto minmax(max-content, 1fr); }
   :root[data-mode="quick"] .sa-recent-strip { overflow: visible; }
-  :root[data-mode="quick"] .sa-side-empty { min-height: 88px; }
 }
 :root[data-mode="quick"] .sa-lib-bar { flex: none; flex-wrap: wrap; gap: 6px 10px; padding: 12px var(--sa-quick-gutter) 10px; }
 :root[data-mode="quick"] .sa-lib-back { min-height: 32px; gap: 4px; }

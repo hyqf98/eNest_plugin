@@ -147,3 +147,10 @@ export async function removeRecord(id) {
     if (index >= 0) records.splice(index, 1)
   })
 }
+
+/** 删除指向某资产的全部记录。会话页删图时只知道 assetId；同批多图时一张资产可能对应多条 */
+export async function removeRecordByAsset(assetId) {
+  return updateRecords(records => {
+    for (let i = records.length - 1; i >= 0; i -= 1) if (records[i].assetId === assetId) records.splice(i, 1)
+  })
+}

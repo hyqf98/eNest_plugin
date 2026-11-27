@@ -5,7 +5,7 @@
  * 底部 ⊕ 新建连接；#resizer-tree 拖宽持久化 store.ui.treeWidth
  */
 import { kindLabel, kindDot, kindList } from './kinds.js'
-import { envChip, showContextMenu, confirmDanger, escapeHtml } from './components.js'
+import { emptyState, envChip, showContextMenu, confirmDanger, escapeHtml } from './components.js'
 import api from './api.js'
 import store from './store.js'
 import { renderAll, activateWithPage, closeConnTab, forgetSessionCaps, openSettings } from './tabs.js'
@@ -22,6 +22,8 @@ export function renderTree() {
   if (!root) return
   const focused = document.activeElement?.id === 'connection-search'
   const selection = focused ? document.activeElement.selectionStart : null
+  const showSearch = !isCompact() && store.connections.length > 0
+  const query = showSearch ? searchText.trim().toLowerCase() : ''
   root.innerHTML = ''
 
   const head = document.createElement('div')
@@ -45,7 +47,7 @@ export function renderTree() {
   search.setAttribute('aria-label', '搜索连接')
   search.value = searchText
   search.addEventListener('input', () => { searchText = search.value; renderTree() })
-  root.append(search)
+  if (showSearch) root.append(search)
 
   const scroll = document.createElement('div')
   scroll.className = 'tree-scroll'
@@ -57,7 +59,7 @@ export function renderTree() {
   }
 
   for (const kind of groups.keys()) {
-    const conns = (groups.get(kind) || []).filter(conn => `${conn.name} ${conn.env || ''} ${conn.note || ''} ${kind}`.toLowerCase().includes(searchText.trim().toLowerCase()))
+    const conns = (groups.get(kind) || []).filter(conn => `${conn.name} ${conn.env || ''} ${conn.note || ''} ${kind}`.toLowerCase().includes(query))
     if (!conns.length) continue
     const collapsed = store.ui.collapsedGroups?.includes(kind)
     const group = document.createElement('div')
@@ -85,8 +87,7 @@ export function renderTree() {
     scroll.appendChild(group)
   }
 
-  // 没有连接时侧栏留空：顶部「＋」常驻，主区空态也有「新建连接」，不再重复一句引导。
-  if (store.connections.length && !scroll.childElementCount) scroll.textContent = '没有匹配的连接'
+  if (!scroll.childElementCount) scroll.append(emptyState(query ? '没有匹配的连接' : '暂无连接'))
   root.appendChild(scroll)
 
   // 新建入口只在树头留一个“＋”：底部再放一条同名按钮会让同一动作出现两处。
@@ -100,7 +101,7 @@ export function renderTree() {
   root.appendChild(foot)
 
   bindTreeResize()
-  if (focused) { search.focus(); search.setSelectionRange(selection, selection) }
+  if (focused && showSearch) { search.focus(); search.setSelectionRange(selection, selection) }
 }
 
 function renderTreeItem(conn) {
@@ -351,10 +352,19 @@ export function initializeNavigation(mode) {
     if (isCompact()) drawerOpen = !drawerOpen
     else store.setUi('navigationCollapsed', !store.ui.navigationCollapsed)
     updateNavigation()
-    if (drawerOpen) document.getElementById('connection-search')?.focus()
+    if (drawerOpen && isCompact()) {
+      const tree = document.getElementById('tree')
+      const target = tree.querySelector('[aria-current="true"]') || tree.querySelector('[data-connection]') || tree.querySelector('.tree-head button')
+      target?.focus()
+    }
   }
   const onNavigation = () => { renderTree(); updateNavigation() }
-  const onResize = () => { flyout.hide(); updateNavigation() }
+  const onResize = () => {
+    flyout.hide()
+    const compactChanged = document.getElementById('app').classList.contains('navigation-compact') !== isCompact()
+    updateNavigation()
+    if (compactChanged) renderTree()
+  }
   const onShell = () => api.openInShell()
   toggle.addEventListener('click', onToggle)
   scrim.addEventListener('click', closeNavigation)

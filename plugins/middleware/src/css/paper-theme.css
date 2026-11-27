@@ -22,7 +22,6 @@
  */
 
 :root {
-  /* 手写字体：霞鹜文楷 Lite（OFL），unicode-range 子集懒加载；缺失回落系统楷体。 */
   --ink-hand: 'LXGW WenKai Lite', 'Kaiti SC', 'STKaiti', serif;
   /* 墨迹圆角：像素值不对称四值（百分比在大尺寸会摊成椭圆，卡片里套圆圈）。 */
   --ink-radius-card: 14px 18px 15px 19px / 17px 14px 19px 15px;
@@ -499,8 +498,6 @@
 :root[data-paper] table.grid tbody tr.sel td { background: color-mix(in srgb, var(--text) 12%, var(--bg)) !important; }
 :root[data-paper] table.grid tbody tr.sel td:first-child { box-shadow: inset 2.5px 0 0 var(--text) !important; }
 :root[data-paper] table.grid td.name, :root[data-paper] table.grid td.num { color: var(--text); }
-/* 空态行保持实底：正文留白处的点阵不穿过表格文字。 */
-:root[data-paper] table.grid .empty-row td { background: var(--bg) !important; color: var(--text-3); font-style: italic; }
 
 /* ═══════════ 页面卡片：指标 / 连接卡 / 轨迹 / 实时条 / 表单说明 ═══════════ */
 
@@ -616,10 +613,6 @@
 :root[data-paper] .editor-status, :root[data-paper] .publish-status, :root[data-paper] .request-status { color: var(--text-3); }
 :root[data-paper] .request-status[data-state='error'] { color: var(--danger); }
 
-/* 空态 / 工作区占位：手写标题 + 轻墨符形。 */
-:root[data-paper] .workspace-empty { padding: 26px 28px; }
-:root[data-paper] .workspace-empty h1 { letter-spacing: 0.01em; }
-:root[data-paper] .workspace-empty p { color: var(--text-2); }
 :root[data-paper] .empty-cap { color: var(--text-3); font-style: italic; }
 :root[data-paper] .empty-cap .big { opacity: 0.45; transform: rotate(-4deg); display: inline-block; }
 

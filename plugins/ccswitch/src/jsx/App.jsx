@@ -1,6 +1,5 @@
 /**
  * com.enest.ccswitch — React 版主控（原 src/js/main.js 命令式逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原 index.html 完全一致，样式零改变。
  * 业务核心复用 src/js/*（api/providers/history/mcp/sessions/usage/snapshot/presets，语义未改动）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -14,7 +13,7 @@ import {
   storageGet, storageSet,
   saveTextFile, copyText,
   registerQuickProvider, onQuickQuery, respondQuickQuery,
-  getThemeTokens, onThemeChange, onEnter, getLaunchMode, onModeChange, onHotkey,
+  getThemeTokens, onThemeChange, onEnter, onHotkey,
 } from '../js/api.js'
 import {
   APPS, APP_MAP, tagsOf, loadProviders, sorted as sortedProviders,
@@ -90,6 +89,16 @@ const state = {
 }
 const tagFilters = new Map() // app → tag
 
+function EmptyState({ title, hint, role, children }) {
+  return (
+    <div className="pk-empty-state" role={role}>
+      <strong className="pk-empty-title">{title}</strong>
+      {hint && <p className="pk-empty-hint">{hint}</p>}
+      {children}
+    </div>
+  )
+}
+
 export function App() {
   const [, forceRender] = useState(0)
   const rerender = useCallback(() => forceRender((t) => t + 1), [])
@@ -99,6 +108,7 @@ export function App() {
   const [appsReady, setAppsReady] = useState(false)
   const [navApps, setNavApps] = useState(APPS.map((a) => ({ ...a, installed: false, active: false })))
   const [page, setPage] = useState('providers')
+  const [quick, setQuick] = useState(() => document.documentElement.dataset.mode === 'quick')
   const [providersTitle, setProvidersTitle] = useState('供应商')
   const [providersSub, setProvidersSub] = useState('')
   const [summaryItems, setSummaryItems] = useState(null) // null = strip hidden
@@ -150,9 +160,9 @@ export function App() {
   }
   // 单行文本输入（取名等）。window.prompt 在 Electron 渲染进程里恒返回 null，不能用。
   const [modalPrompt, setModalPrompt] = useState(null) // { title, defaultValue, resolve }
-  const promptDialog = useCallback(({ title, defaultValue = '' }) => {
+  const promptDialog = useCallback(({ title, description, defaultValue = '', okText }) => {
     return new Promise((resolve) => {
-      setModalPrompt({ title, defaultValue, resolve })
+      setModalPrompt({ title, description, defaultValue, okText, resolve })
     })
   }, [])
   const settlePrompt = (val) => {
@@ -259,7 +269,8 @@ export function App() {
   const renderProviders = useCallback(async () => {
     const app = state.currentApp
     if (!state.installed.has(app)) {
-      setProviderCards({ kind: 'guide', big: '⌾', text: APP_MAP[app]?.name + ' 尚未安装或未初始化', hint: '安装并首次运行该 CLI 后，此处可管理其供应商配置' })
+      setTagChips([])
+      setProviderCards({ kind: 'guide', text: APP_MAP[app]?.name + ' 尚未安装或未初始化', hint: '首次运行该 CLI 后即可管理供应商。' })
       renderSummary()
       return
     }
@@ -269,7 +280,8 @@ export function App() {
     state.currentProvider.set(app, current?.id || null)
 
     if (all.length === 0) {
-      setProviderCards({ kind: 'guide', big: '⇄', text: '还没有供应商', hint: '从「预设库」一键实例化，或「新建」自定义', actions: true })
+      setTagChips([])
+      setProviderCards({ kind: 'guide', text: '暂无供应商', hint: '从预设库添加，或新建自定义供应商。', actions: true })
       renderSummary()
       return
     }
@@ -301,10 +313,15 @@ export function App() {
     renderSummary(all, current)
   }, [renderSummary])
 
-  const onProviderSearch = (e) => {
-    state._kw = e.target.value
-    setSearchKw(e.target.value)
+  const changeProviderSearch = (value) => {
+    state._kw = value
+    setSearchKw(value)
     if (state.page === 'providers') void renderProviders()
+  }
+
+  function clearProviderFilters() {
+    tagFilters.delete(state.currentApp)
+    changeProviderSearch('')
   }
 
   async function confirmDeleteProvider(p) {
@@ -702,7 +719,7 @@ export function App() {
     const list = await loadHistory()
     setHistorySub(`最近 ${HISTORY_LIMIT} 次切换记录，可一键回退 · 当前共 ${list.length} 条`)
     if (list.length === 0) {
-      setHistoryRows({ kind: 'guide', big: '◷', text: '还没有切换记录', hint: '每次确认切换后自动记录（保留最近 50 条），可随时回退' })
+      setHistoryRows({ kind: 'guide', text: '暂无切换记录', hint: '切换供应商后会保留可回退的记录。' })
       return
     }
     setHistoryRows({ kind: 'list', list })
@@ -712,7 +729,7 @@ export function App() {
   const renderMcp = useCallback(async () => {
     const entries = await loadMcp()
     if (entries.length === 0) {
-      setMcpRows({ kind: 'guide', big: '⌗', text: '还没有 MCP 服务器', hint: '从模板添加、导入现有配置，或自定义 JSON' })
+      setMcpRows({ kind: 'guide', text: '暂无 MCP 服务器', hint: '从模板添加、导入已有配置，或新建服务器。' })
       return
     }
     setMcpRows({ kind: 'list', entries })
@@ -844,6 +861,12 @@ export function App() {
     setSessionsView({ mode: 'list', list: list.slice(0, 200), total: state.sessionsCache.length, sub: `${state.sessionsCache.length} 个会话` })
   }, [])
 
+  const changeSessionSearch = (value) => {
+    state._sessionKw = value
+    setSessionSearch(value)
+    if (!state.sessionDetail && state.sessionsCache) renderSessionList()
+  }
+
   async function openSessionDetail(s) {
     setSessionsView((v) => ({ ...v, mode: 'detail', loading: true }))
     try {
@@ -914,7 +937,7 @@ export function App() {
   const renderProjects = useCallback(async () => {
     const projects = (await storageGet(PROJECTS_KEY, [])) || []
     if (projects.length === 0) {
-      setProjectsRows({ kind: 'guide', big: '❖', text: '还没有项目预设', hint: '保存当前供应商 + MCP 整套配置，一键应用' })
+      setProjectsRows({ kind: 'guide', text: '暂无项目预设', hint: '可将当前的供应商和 MCP 配置保存为项目预设。' })
       return
     }
     setProjectsRows({ kind: 'list', projects })
@@ -1063,8 +1086,8 @@ export function App() {
       } catch (e) { console.warn('[ccswitch] boot:', e) }
     })()
 
-    const applyMode = (mode) => document.body.classList.toggle('quick-mode', mode === 'quick')
-    applyMode(getLaunchMode())
+    setQuick(kit.mode === 'quick')
+    const offMode = kit.onMode((mode) => setQuick(mode === 'quick'))
     const offEnter = onEnter(async (event) => {
       const code = event?.code || ''
       if (code === 'mcp') navigate('mcp')
@@ -1072,9 +1095,7 @@ export function App() {
       else if (code === 'settings') setSettingsOpen(true)
       else if (code === 'main') navigate('providers')
       if (typeof event?.payload?.providerId === 'string') await handleQuickSwitch(event.payload.providerId)
-      if (!disposed) applyMode(getLaunchMode())
     })
-    const offMode = onModeChange(applyMode)
 
     applyTokens()
     const offTheme = onThemeChange(() => {
@@ -1125,26 +1146,39 @@ export function App() {
 
   /* ============ 渲染（DOM 结构 / 类名与原 index.html 一致） ============ */
   const navItems = NAV_ITEMS
-  const kwNow = searchKw
+  const filterProviders = async () => {
+    const value = await promptDialog({ title: '筛选供应商', description: '按名称、端点、模型或标签筛选。留空可清除关键词。', defaultValue: searchKw, okText: '应用' })
+    if (value !== null) changeProviderSearch(value)
+  }
+  const sessionDetail = sessionsView.mode === 'detail'
+  const filterSessions = async () => {
+    const value = await promptDialog({
+      title: sessionDetail ? '在会话内查找' : '筛选会话',
+      description: sessionDetail ? '输入关键词，展开命中的对话。' : '按标题、项目或会话 ID 筛选。留空可清除关键词。',
+      defaultValue: sessionSearch, okText: '应用',
+    })
+    if (value !== null) changeSessionSearch(value)
+  }
 
   const renderProviderGrid = () => {
-    if (!providerCards) return <div className="empty">加载中…</div>
+    if (!providerCards) return <EmptyState title="正在读取供应商…" role="status" />
     if (providerCards.kind === 'guide') {
       return (
-        <div className="guide">
-          <div className="big">{providerCards.big}</div>
-          <div>{providerCards.text}</div>
-          <div className="field-hint">{providerCards.hint}</div>
+        <EmptyState title={providerCards.text} hint={providerCards.hint}>
           {providerCards.actions && (
-            <div className="guide-actions">
+            <div className="empty-actions">
               <button className="pk-btn pk-btn-primary" onClick={openPresetLib}>打开预设库</button>
               <button className="pk-btn pk-btn-ghost" onClick={() => openProviderModal(null)}>新建供应商</button>
             </div>
           )}
-        </div>
+        </EmptyState>
       )
     }
-    if (providerCards.kind === 'empty') return <div className="empty">{providerCards.text}</div>
+    if (providerCards.kind === 'empty') return (
+      <EmptyState title={providerCards.text}>
+        <button className="pk-btn pk-btn-ghost" type="button" onClick={clearProviderFilters}>清除筛选</button>
+      </EmptyState>
+    )
     return (
       <div className="grid">
         {providerCards.cards.map(({ p, isCurrent, mode }) => (
@@ -1210,16 +1244,8 @@ export function App() {
   }
 
   const renderHistoryBody = () => {
-    if (!historyRows) return <div className="empty">加载中…</div>
-    if (historyRows.kind === 'guide') {
-      return (
-        <div className="guide">
-          <div className="big">{historyRows.big}</div>
-          <div>{historyRows.text}</div>
-          <div className="field-hint">{historyRows.hint}</div>
-        </div>
-      )
-    }
+    if (!historyRows) return <EmptyState title="正在读取切换记录…" role="status" />
+    if (historyRows.kind === 'guide') return <EmptyState title={historyRows.text} hint={historyRows.hint} />
     return (
       <div className="history-list">
         {historyRows.list.map((entry) => {
@@ -1268,16 +1294,8 @@ export function App() {
   }
 
   const renderMcpBody = () => {
-    if (!mcpRows) return <div className="empty">加载中…</div>
-    if (mcpRows.kind === 'guide') {
-      return (
-        <div className="guide">
-          <div className="big">{mcpRows.big}</div>
-          <div>{mcpRows.text}</div>
-          <div className="field-hint">{mcpRows.hint}</div>
-        </div>
-      )
-    }
+    if (!mcpRows) return <EmptyState title="正在读取 MCP 服务器…" role="status" />
+    if (mcpRows.kind === 'guide') return <EmptyState title={mcpRows.text} hint={mcpRows.hint} />
     return (
       <>
         {mcpRows.entries.map((entry) => (
@@ -1334,24 +1352,26 @@ export function App() {
   const renderTurn = (turn) => {
     const search = sessionSearch.trim().toLowerCase()
     const hit = search ? (turn.text || '').toLowerCase().includes(search) : false
-    return (
-      <TurnView key={turn.__i} turn={turn} hit={hit} sessionSearch={sessionSearch} />
-    )
+    return <TurnView key={turn.__i} turn={turn} hit={hit} sessionSearch={search} />
   }
 
   const renderSessionsBody = () => {
-    if (sessionsView.error) return <div className="error-inline">{sessionsView.error}</div>
-    if (sessionsView.loading) return null
-    if (sessionsView.mode === 'detail') {
+    if (sessionsView.error) return <EmptyState title="无法读取会话" hint={sessionsView.error} role="alert" />
+    if (sessionsView.loading) return <EmptyState title="正在读取会话…" role="status" />
+    if (sessionDetail) {
       const { detail } = sessionsView
+      if (!detail.turns.length) return <EmptyState title="暂无对话" hint="未从会话文件中读到对话内容。" />
       return (
         <div className="session-detail">
           {detail.turns.map((turn, i) => renderTurn({ ...turn, __i: i }))}
-          {detail.turns.length === 0 && <div className="empty">未解析出对话轮次</div>}
         </div>
       )
     }
-    if (!sessionsView.list || !sessionsView.list.length) return <div className="empty">选择左侧应用</div>
+    if (!sessionsView.list?.length) return sessionsView.total && sessionSearch.trim() ? (
+      <EmptyState title="没有匹配的会话">
+        <button className="pk-btn pk-btn-ghost" type="button" onClick={() => changeSessionSearch('')}>清除筛选</button>
+      </EmptyState>
+    ) : <EmptyState title="暂无会话" hint="当前应用没有可读取的会话记录。" />
     return (
       <div className="session-list">
         {sessionsView.list.map((s) => (
@@ -1418,9 +1438,9 @@ export function App() {
   }
 
   const renderUsageBody = () => {
-    if (usageView.error) return <div className="error-inline">{usageView.error}</div>
-    if (usageView.loading) return null
-    if (!usageView.data) return <div className="empty">选择左侧应用</div>
+    if (usageView.error) return <EmptyState title="无法读取用量" hint={usageView.error} role="alert" />
+    if (usageView.loading) return <EmptyState title="正在统计用量…" role="status" />
+    if (!usageView.data?.records) return <EmptyState title="暂无用量记录" hint="当前应用没有可统计的请求记录。" />
     const data = usageView.data
     const maxM = Math.max(1, ...data.models.map((m) => m.tokens))
     return (
@@ -1490,9 +1510,9 @@ export function App() {
   }
 
   const renderBackupsBody = () => {
-    if (!backupsView.rows) return null
-    if (backupsView.rows.error) return <div className="error-inline">{backupsView.rows.error}</div>
-    if (backupsView.rows.length === 0) return <div className="empty">暂无快照（每次切换/写入前自动创建，保留最近 20 份）</div>
+    if (!backupsView.rows) return <EmptyState title="正在读取配置快照…" role="status" />
+    if (backupsView.rows.error) return <EmptyState title="无法读取配置快照" hint={backupsView.rows.error} role="alert" />
+    if (backupsView.rows.length === 0) return <EmptyState title="暂无配置快照" hint="切换或写入配置前会自动创建快照。" />
     return (
       <>
         {backupsView.rows.map((b) => (
@@ -1559,16 +1579,8 @@ export function App() {
   }
 
   const renderProjectsBody = () => {
-    if (!projectsRows) return <div className="empty">加载中…</div>
-    if (projectsRows.kind === 'guide') {
-      return (
-        <div className="guide">
-          <div className="big">{projectsRows.big}</div>
-          <div>{projectsRows.text}</div>
-          <div className="field-hint">{projectsRows.hint}</div>
-        </div>
-      )
-    }
+    if (!projectsRows) return <EmptyState title="正在读取项目预设…" role="status" />
+    if (projectsRows.kind === 'guide') return <EmptyState title={projectsRows.text} hint={projectsRows.hint} />
     return (
       <>
         {projectsRows.projects.map((proj) => (
@@ -1597,13 +1609,10 @@ export function App() {
         <div className="nav-head">
           <div className="nav-logo">⇄</div>
           <div className="nav-title">供应商切换</div>
-          <div className="spacer"></div>
-          <SettingsGear onClick={() => setSettingsOpen(true)} />
         </div>
         <div className="nav-scroll">
           <div className="nav-group" id="nav-apps" data-label="应用">
-            {!appsReady && <div className="nav-loading">加载中…</div>}
-            {navApps.map((meta) => (
+            {!appsReady ? <div className="pk-empty-state" role="status">加载中…</div> : navApps.map((meta) => (
               <button
                 key={meta.id}
                 className={'nav-item app-item' + (meta.current ? ' active' : '') + (meta.installed ? '' : ' disabled')}
@@ -1625,6 +1634,7 @@ export function App() {
           </div>
         </div>
         <div className="nav-foot">
+          <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
           <button className="nav-item" id="nav-collapse" ref={navCollapseRef}
             title={navCollapsed ? '展开导航（悬停查看快捷入口）' : '收起导航'}
             aria-label={navCollapsed ? '展开导航' : '收起导航'} aria-controls="nav" aria-expanded={!navCollapsed}
@@ -1647,6 +1657,8 @@ export function App() {
             <MoreMenu
               ariaLabel="供应商页更多操作"
               items={[
+                ...(quick ? [{ key: 'filter', label: '筛选供应商…', onSelect: filterProviders }] : []),
+                ...(quick && (searchKw || tagFilters.get(state.currentApp)) ? [{ key: 'clear', label: '清除筛选', onSelect: clearProviderFilters }] : []),
                 { key: 'presets', label: '打开预设库', onSelect: openPresetLib },
                 { key: 'import', label: '导入供应商', onSelect: importProvidersModal },
                 { key: 'export', label: '导出供应商', onSelect: exportProviders },
@@ -1662,13 +1674,14 @@ export function App() {
               </div>
             ))}
           </div>
-          <div className="toolbar">
-            <input id="provider-search" type="search" placeholder="搜索名称 / 端点 / 模型" aria-label="搜索供应商" value={kwNow} onInput={onProviderSearch} />
+          <div className="toolbar" hidden={quick && !tagChips.length}>
+            <input id="provider-search" className="shell-only" type="search" placeholder="搜索名称 / 端点 / 模型" aria-label="搜索供应商" value={searchKw} onChange={(event) => changeProviderSearch(event.target.value)} />
             <div className="chips" id="provider-tags" aria-label="按标签过滤">
               {tagChips.map((c) => (
                 <button key={c.label} className={'chip' + (c.on ? ' active' : '')} type="button"
                   onClick={() => {
-                    tagFilters.set(state.currentApp, c.tag ? (c.on ? '' : c.tag) : '')
+                    if (!c.tag) { clearProviderFilters(); return }
+                    tagFilters.set(state.currentApp, c.on ? '' : c.tag)
                     void renderProviders()
                   }}>{c.label}</button>
               ))}
@@ -1755,18 +1768,16 @@ export function App() {
               <div className="page-sub" id="sessions-sub">{sessionsView.sub}</div>
             </div>
             <div className="spacer"></div>
-            <input id="session-search" type="search" placeholder="搜索会话" aria-label="搜索会话"
-              value={sessionSearch}
-              onInput={(e) => {
-                state._sessionKw = e.target.value
-                setSessionSearch(e.target.value)
-                if (!state.sessionDetail && state.sessionsCache) renderSessionList()
-              }}
-            />
-            {sessionsView.mode === 'detail' && (
+            <input id="session-search" className="shell-only" type="search" placeholder="搜索会话" aria-label="搜索会话"
+              value={sessionSearch} onChange={(event) => changeSessionSearch(event.target.value)} />
+            {(quick || sessionDetail) && (
               <MoreMenu
                 ariaLabel="会话页更多操作"
-                items={[{ key: 'export', label: '导出 Markdown', onSelect: exportSessionMd }]}
+                items={[
+                  ...(quick ? [{ key: 'filter', label: sessionDetail ? '在会话内查找…' : '筛选会话…', onSelect: filterSessions }] : []),
+                  ...(quick && sessionSearch ? [{ key: 'clear', label: '清除关键词', onSelect: () => changeSessionSearch('') }] : []),
+                  ...(sessionDetail ? [{ key: 'export', label: '导出 Markdown', onSelect: exportSessionMd }] : []),
+                ]}
               />
             )}
           </header>
@@ -1931,7 +1942,7 @@ export function App() {
               ))}
             </div>
             <div className="preset-grid" id="preset-grid">
-              {modalPresets.grid.length === 0 ? <div className="empty">没有匹配的预设</div> : modalPresets.grid.map(({ preset }) => (
+              {modalPresets.grid.length === 0 ? <EmptyState title="没有匹配的预设" /> : modalPresets.grid.map(({ preset }) => (
                 <div className="preset-card" key={preset.id}>
                   <div className="card-row">
                     <span className="name">{preset.name}</span>
@@ -2087,9 +2098,11 @@ export function App() {
       {modalPrompt && (
         <PromptDialog
           title={modalPrompt.title}
+          description={modalPrompt.description}
           defaultValue={modalPrompt.defaultValue}
+          okText={modalPrompt.okText}
           onCancel={() => settlePrompt(null)}
-          onSubmit={(value) => settlePrompt(value || null)}
+          onSubmit={settlePrompt}
         />
       )}
 
@@ -2149,10 +2162,12 @@ export function App() {
 function TurnView({ turn, hit, sessionSearch }) {
   const [collapsed, setCollapsed] = useState(!hit)
   const [expanded, setExpanded] = useState(hit)
-  const search = sessionSearch.trim().toLowerCase()
+  useEffect(() => {
+    if (hit) { setCollapsed(false); setExpanded(true) }
+  }, [hit, sessionSearch])
   const text = turn.text || ''
   return (
-    <div className={'turn' + (collapsed ? ' collapsed' : '') + (hit ? ' hit expanded' : '')} data-role={turn.role}>
+    <div className={'turn' + (collapsed ? ' collapsed' : '') + (hit ? ' hit' : '') + (expanded ? ' expanded' : '')} data-role={turn.role}>
       <div className="turn-head" onClick={() => setCollapsed((c) => !c)}>
         <span className="role">{turn.role === 'user' ? '用户' : turn.role === 'assistant' ? '助手' : '工具'}</span>
         <span className="turn-title">{(turn.title || '') + (turn.isError ? ' · 出错' : '')}</span>

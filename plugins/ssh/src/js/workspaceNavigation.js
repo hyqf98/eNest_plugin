@@ -82,7 +82,9 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
     returnFocus = document.activeElement
     if (compact()) opened = true
     else store.setUi({ sidebarCollapsed: false })
-    layout(); app.querySelector('#search-input')?.focus()
+    layout()
+    const focusTarget = mode === 'quick' ? app.querySelector('.tree [data-profile]') || app.querySelector('#btn-new-connection') : app.querySelector('#search-input')
+    focusTarget?.focus({ preventScroll: true })
   }
   function navigate(target) {
     hideFlyouts()
@@ -100,7 +102,7 @@ export function createWorkspaceNavigation({ app, bridge, changeView, openSetting
   function flyoutItems() {
     const drawerOpen = app.querySelector('#drawer')?.classList.contains('open')
     const items = [
-      { key: 'connections', label: '连接与搜索', hint: `${store.state.profiles.length} 个连接` },
+      { key: 'connections', label: mode === 'quick' ? '连接' : '连接与搜索', hint: `${store.state.profiles.length} 个连接` },
       { key: 'files', label: '文件（右侧工作列）', checked: currentView === 'files' },
       { key: 'resources', label: '资源（右侧工作列）', checked: currentView === 'resources' },
       'sep',

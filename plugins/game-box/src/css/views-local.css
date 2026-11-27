@@ -246,13 +246,6 @@
 
 .gh-my-add { flex: 0 0 auto; margin-left: auto; }
 
-/* 空态吃掉工具栏以下的全部剩余空间，内容垂直居中（不靠 height:100% 往上找父级高度） */
-.gh-my > .gh-my-empty {
-  flex: 1 1 auto;
-  height: auto;
-  min-height: 0;
-}
-
 .gh-my-empty-actions {
   display: flex;
   flex-wrap: wrap;

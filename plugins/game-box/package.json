@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5224 --strictPort",
     "build": "node ../../scripts/build-plugin.mjs com.github.eNest.game-box",
+    "backend": "node ../../scripts/build-backend.mjs com.github.eNest.game-box",
     "pack": "node ../../scripts/pack-plugin.mjs com.github.eNest.game-box",
     "prod": "node ../../scripts/build-plugin.mjs com.github.eNest.game-box",
     "vendor": "node scripts/fetch-7zip.mjs",
@@ -53,5 +54,10 @@
   },
   "enestBuild": {
     "entry": "scripts/build-hooks.mjs"
+  },
+  "enest": {
+    "backend": {
+      "script": "backend"
+    }
   }
 }

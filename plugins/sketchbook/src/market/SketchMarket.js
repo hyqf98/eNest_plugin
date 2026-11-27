@@ -574,7 +574,7 @@ export function createMarketView(controller) {
   const featuredGrid = h('div', { class: 'sk-featured-grid' })
   const featuredSection = h('section', { class: 'sk-featured', 'aria-label': '精选推荐' },
     h('div', { class: 'sk-section-label' }, '精选推荐', h('span', null, '来自插件仓库')), featuredGrid)
-  const emptyTitle = h('strong')
+  const emptyTitle = h('strong', { role: 'status' })
   const emptyDescription = h('span')
   const reset = h('button', { type: 'button', class: 'sk-btn' }, icon('plus', 13), '查看全部插件')
   reset.addEventListener('click', () => {
@@ -670,8 +670,9 @@ export function createMarketView(controller) {
       groupNodes.push(entry.node)
     }
     pruneEntries(categoryGroups, new Set(groups.map(group => group.name)))
-    setText(emptyTitle, seg === 'installed' ? '本子还是空的' : '这个筛选下没有插件')
-    setText(emptyDescription, seg === 'installed' ? '去插件市场挑一个，装好后会记在这里。' : '换一个分类，或清除搜索关键词再试。')
+    const emptyInstalled = seg === 'installed' && !searching && scoped.length === 0
+    setText(emptyTitle, emptyInstalled ? '暂无已安装插件' : searching || state.category !== '全部' ? '没有匹配的插件' : '暂无插件')
+    setText(emptyDescription, emptyInstalled ? '安装的插件会出现在这里。' : '切换分类或清除关键词后重试。')
     reconcileChildren(contentSlot, [state.notice ? notice : null, searching ? null : toolbar,
       featured.length ? featuredSection : null, ...(groups.length ? groupNodes : [emptyCatalog])].filter(Boolean))
     const known = new Set(items.map(item => item.pluginId))

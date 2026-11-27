@@ -563,7 +563,7 @@ export function App() {
         <span id="status" role="status">{statusText}</span>
         <button id="capture" className="pk-btn primary" disabled={captureDisabled} onClick={capture}>屏幕取色</button>
         <button id="open-image" className="pk-btn desktop" onClick={openImage}>从图片取色</button>
-        <SettingsGear onClick={() => setSettingsOpen(true)} />
+        <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
         <input id="image-file" ref={imageFileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden />
       </header>
 

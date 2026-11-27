@@ -267,6 +267,16 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 .db-handle-nw, .db-handle-ne, .db-handle-sw, .db-handle-se { border-radius: 50%; }
 
+/* 图形各自的变换柄：形状与缩放柄区分开，一眼看出它不是用来放大缩小的 */
+/* 圆角柄：左上角内侧的小圆，沿对角线拖动改四个角的圆度 */
+.db-handle-corner { border-radius: 50%; width: 8px; height: 8px; background: var(--accent-soft, #e8f0fe); }
+/* 正圆柄：选框上方外侧的实心圆，点一下变成正圆 */
+.db-handle-circle { border-radius: 50%; width: 12px; height: 12px; background: var(--selection, #3579dd); box-shadow: 0 0 0 2px var(--bg, #fff); }
+/* 端点柄：线/箭头的起点与终点 */
+.db-handle-point { width: 10px; height: 10px; background: var(--selection, #3579dd); }
+/* 中点柄：每一段中间的菱形，拖动把这一段拉弯 */
+.db-handle-mid { width: 8px; height: 8px; border-radius: 1px; transform: translate(-50%, -50%) rotate(45deg); }
+
 /* 工具提示条 */
 .db-toolhint {
   position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);

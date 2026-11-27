@@ -234,6 +234,7 @@ label {
   background: var(--raise);
   cursor: default;
 }
+.highlight-view:has(> .pk-empty-state) { padding: 0; white-space: normal; }
 .highlight-view mark {
   background: var(--accent-soft, color-mix(in srgb, var(--accent, #4772bf) 20%, transparent));
   color: inherit;
@@ -276,8 +277,9 @@ label {
   font-variant-numeric: tabular-nums;
 }
 .badge:empty { display: none; }
-.match-list { list-style: none; margin: 0; padding: 0; overflow: auto; }
-.match-list li {
+.match-list, .groups { flex: 1; min-height: 0; overflow: auto; }
+.match-list { list-style: none; margin: 0; padding: 0; }
+.match-list li[data-index] {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
@@ -287,7 +289,7 @@ label {
   cursor: pointer;
   font-size: 12px;
 }
-.match-list li:hover { background: var(--soft); }
+.match-list li[data-index]:hover { background: var(--soft); }
 .match-list li.active {
   background: var(--accent-soft, color-mix(in srgb, var(--accent, #4772bf) 10%, transparent));
   box-shadow: inset 2px 0 0 var(--accent, #4772bf);
@@ -300,7 +302,6 @@ label {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.match-list .empty-note,
 .groups .empty-note,
 .replace-output .empty-note {
   color: var(--muted);

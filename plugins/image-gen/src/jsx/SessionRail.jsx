@@ -71,7 +71,7 @@ export function SessionRail({ sessions, activeId, onSelect, onNew, onDelete, onR
       </div>
       <div className="ig-rail-list">
         {sessions.length === 0 && (
-          <div className="ig-rail-empty">还没有会话。发送第一条提示词就会自动建一个。</div>
+          <div className="pk-empty-state" data-empty-align="center" role="status">暂无会话</div>
         )}
         {sessions.map(s => (
           <div key={s.id} className={`ig-rail-item ${s.id === activeId ? 'active' : ''}`}

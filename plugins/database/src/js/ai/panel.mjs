@@ -26,6 +26,7 @@ import {
   renameSession, persistSession, relativeTime, summaryOf, flushSessions
 } from './sessions.mjs'
 import { listProviders, defaultProvider, normalizeBaseUrl } from './models.mjs'
+import { mountModelMenu } from './modelMenu.mjs'
 
 const FAB_SIZE = 40
 const EDGE = 8
@@ -63,7 +64,10 @@ function bindDrag(handle, { onMove, onDragStart, onDragEnd, onClick, onDoubleCli
 
   handle.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return
-    if (event.target.closest('button, input, select, textarea, a, [contenteditable]')) return
+    // 抓手自身可能就是按钮（悬浮球）：只有命中抓手内部的其它交互控件才让行，
+    // 否则 closest('button') 会命中抓手本身，把点击与拖动一起吞掉。
+    const control = event.target.closest?.('button, input, select, textarea, a, [contenteditable]')
+    if (control && control !== handle) return
     active = true
     moved = false
     startX = event.clientX
@@ -178,10 +182,6 @@ function createAiPanel() {
   sessionsBtn.type = 'button'
   sessionsBtn.title = '最近会话'
 
-  const modelBtn = el('button', 'dbai-model-chip')
-  modelBtn.type = 'button'
-  modelBtn.title = '模型'
-
   const connBtn = el('button', 'dbai-conn-chip')
   connBtn.type = 'button'
   connBtn.title = '当前绑定连接（随工作台活动连接切换）'
@@ -191,17 +191,27 @@ function createAiPanel() {
   collapseBtn.title = '收起'
   collapseBtn.textContent = '‹'
 
-  headRow.append(titleBtn, sessionsBtn, modelBtn, connBtn, collapseBtn)
+  // 头部只留会话身份与连接；模型/思考程度移到 composer 工具行（对齐 DSH 布局）。
+  headRow.append(titleBtn, sessionsBtn, connBtn, collapseBtn)
   grip.append(headRow)
   header.append(grip)
 
   const body = el('div', 'dbai-body')
 
+  /* composer 卡片（对齐 deepseek-harness InputBar）：
+     输入区在上、工具行在下，模型座与发送按钮都在工具行右侧。 */
   const composer = el('div', 'dbai-composer')
+  const composerCard = el('div', 'dbai-composer-card')
   const input = el('textarea', 'dbai-input')
   input.rows = 1
   input.placeholder = '问点什么，例如：这个库有哪些表？'
   input.setAttribute('aria-label', 'AI 助手输入')
+
+  const toolRow = el('div', 'dbai-tool-row')
+  const toolsLeft = el('div', 'dbai-tools-left')
+  const toolsRight = el('div', 'dbai-tools-right')
+  const modelSeat = el('div', 'dbai-model-seat')
+
   const stopBtn = el('button', 'dbai-stop')
   stopBtn.type = 'button'
   stopBtn.textContent = '停止'
@@ -209,8 +219,14 @@ function createAiPanel() {
   stopBtn.hidden = true
   const sendBtn = el('button', 'dbai-send')
   sendBtn.type = 'button'
-  sendBtn.textContent = '发送'
-  composer.append(input, stopBtn, sendBtn)
+  sendBtn.title = '发送'
+  sendBtn.setAttribute('aria-label', '发送')
+  sendBtn.innerHTML = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 3.2v9.6M8 3.2L4.4 6.8M8 3.2l3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+
+  toolsRight.append(modelSeat, stopBtn, sendBtn)
+  toolRow.append(toolsLeft, toolsRight)
+  composerCard.append(input, toolRow)
+  composer.append(composerCard)
 
   panel.append(header, body, composer)
 
@@ -247,12 +263,6 @@ function createAiPanel() {
 
   function renderHeader() {
     titleBtn.textContent = session?.title || '新会话'
-    // 模型 chip
-    void listProviders().then((providers) => {
-      const provider = defaultProvider(providers)
-      modelBtn.textContent = provider ? `${provider.name}/${provider.model}` : '配置模型'
-      modelBtn.classList.toggle('empty', !provider)
-    })
     // 连接 chip：跟随工作台当前活动连接
     syncConnection()
   }
@@ -262,7 +272,7 @@ function createAiPanel() {
     const conn = getBoundConnection()
     if (conn) connBtn.textContent = conn.name || conn.driver
     else connBtn.textContent = '未绑定连接'
-    connBtn.classList.toggle('empty', !conn)
+    connBtn.classList.toggle('dbai-unset', !conn)
   }
   /** main.js 每 2s / 连接切换时调用：把工作台活动连接绑定为 AI 上下文 */
   function bindWorkbenchConnection() {
@@ -313,29 +323,6 @@ function createAiPanel() {
   }
 
   /* ── 模型下拉 ── */
-
-  function renderModelDropdown() {
-    const box = el('div', 'dbai-model-list')
-    void listProviders().then((providers) => {
-      box.innerHTML = ''
-      if (!providers.length) box.append(el('p', 'dbai-dropdown-empty', '尚未配置供应商'))
-      for (const provider of providers) {
-        const row = el('button', 'dbai-model-item' + (provider.isDefault ? ' active' : ''))
-        row.type = 'button'
-        row.innerHTML = `<strong>${esc(provider.name)}</strong><small>${esc(provider.model)} · ${esc(normalizeBaseUrl(provider.baseUrl).replace(/^https?:\/\//, ''))}</small>`
-        box.append(row)
-      }
-      const config = el('button', 'dbai-model-config')
-      config.type = 'button'
-      config.textContent = '配置…'
-      config.onclick = () => {
-        closeDropdown()
-        document.dispatchEvent(new CustomEvent('database-open-settings', { detail: { section: 'ai' } }))
-      }
-      box.append(config)
-    })
-    return box
-  }
 
   /* ── 消息区（React 渲染层）── */
 
@@ -527,28 +514,36 @@ function createAiPanel() {
     const pos = state.ui.aiPanelPos || DEFAULT_PANEL
     const width = Math.min(400, window.innerWidth - 24)
     panel.style.width = `${width}px`
-    panel.style.height = `calc(100vh - ${pos.top}px - ${EDGE}px)`
-    if (pos.x !== undefined) {
-      panel.style.left = `${clamp(pos.x, EDGE, window.innerWidth - width - EDGE)}px`
-      panel.style.top = `${clamp(pos.y ?? pos.top, EDGE, Math.max(EDGE, window.innerHeight - 200))}px`
-    } else {
-      panel.style.left = `${clamp(window.innerWidth - pos.right - width, EDGE, window.innerWidth - width - EDGE)}px`
-      panel.style.top = `${pos.top}px`
-    }
+    // 拖动保存的是 { x, y }，默认位保存的是 { right, top }：两者都要先归一成 top，
+    // 否则 pos.top 为 undefined 时 height 变成无效值，面板高度不再跟随窗口。
+    const top = clamp(pos.y ?? pos.top ?? DEFAULT_PANEL.top, EDGE, Math.max(EDGE, window.innerHeight - 160))
+    const left = pos.x !== undefined
+      ? clamp(pos.x, EDGE, window.innerWidth - width - EDGE)
+      : clamp(window.innerWidth - pos.right - width, EDGE, window.innerWidth - width - EDGE)
+    panel.style.left = `${left}px`
+    panel.style.top = `${top}px`
+    panel.style.height = `${Math.max(160, window.innerHeight - top - EDGE)}px`
   }
 
   /* ── 拖动绑定 ── */
 
   function bindFabDrag() {
+    // 基准 rect 在按下时取一次：onMove 里再读 getBoundingClientRect() 会拿到
+    // 上一帧已位移的结果，叠加累计 dx 后每帧翻倍，拖起来越拖越飞。
+    let base = null
     bindDrag(fab, {
-      onDragStart() { fab.classList.add('dragging') },
+      onDragStart() {
+        fab.classList.add('dragging')
+        base = fab.getBoundingClientRect()
+      },
       onMove({ dx, dy }) {
-        const base = fab.getBoundingClientRect()
+        if (!base) return
         fab.style.left = `${clamp(base.left + dx, EDGE, window.innerWidth - FAB_SIZE - EDGE)}px`
         fab.style.top = `${clamp(base.top + dy, EDGE, window.innerHeight - FAB_SIZE - EDGE)}px`
       },
       onDragEnd(moved) {
         fab.classList.remove('dragging')
+        base = null
         if (moved) {
           const rect = fab.getBoundingClientRect()
           setUiPref('aiFabPos', { x: rect.left, y: rect.top })
@@ -559,24 +554,29 @@ function createAiPanel() {
   }
 
   function bindPanelDrag() {
+    let base = null
     bindDrag(grip, {
       onDragStart() {
         panel.classList.add('dragging')
-        const rect = panel.getBoundingClientRect()
         if (narrow()) return
+        const rect = panel.getBoundingClientRect()
+        base = { left: rect.left, top: rect.top, width: rect.width }
         panel.style.left = `${rect.left}px`
         panel.style.top = `${rect.top}px`
         panel.style.right = 'auto'
       },
       onMove({ dx, dy }) {
-        if (narrow()) return
-        const rect = panel.getBoundingClientRect()
-        const width = rect.width
-        panel.style.left = `${clamp(rect.left + dx, EDGE, window.innerWidth - width - EDGE)}px`
-        panel.style.top = `${clamp(rect.top + dy, EDGE, window.innerHeight - 120)}px`
+        if (narrow() || !base) return
+        const left = clamp(base.left + dx, EDGE, window.innerWidth - base.width - EDGE)
+        const top = clamp(base.top + dy, EDGE, window.innerHeight - 120)
+        panel.style.left = `${left}px`
+        panel.style.top = `${top}px`
+        // 高度随实际 top 收缩，否则拖到下方后面板底边溢出视口
+        panel.style.height = `${Math.max(160, window.innerHeight - top - EDGE)}px`
       },
       onDragEnd(moved) {
         panel.classList.remove('dragging')
+        base = null
         if (moved && !narrow()) {
           const rect = panel.getBoundingClientRect()
           setUiPref('aiPanelPos', { x: rect.left, y: rect.top })
@@ -623,7 +623,6 @@ function createAiPanel() {
         void submit()
       }
     })
-    fab.addEventListener('pointerdown', () => { applyFabLayout() }, { once: true })
   }
 
   /* ── ResizeObserver + 主题监听 ── */

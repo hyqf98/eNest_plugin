@@ -32,7 +32,6 @@
  */
 
 :root {
-  /* 手写字体：霞鹜文楷 Lite（OFL），unicode-range 子集懒加载；缺失回落系统楷体。 */
   --ink-hand: 'LXGW WenKai Lite', 'Kaiti SC', 'STKaiti', serif;
   /* 材质变体删除后，设置页选择卡 background 仍引用 --workspace；给纸面回退防 color-mix 失效。 */
   --workspace: var(--bg, #fbfbf8);
@@ -186,11 +185,19 @@
   font-family: var(--ink-hand) !important;
 }
 /* 状态栏/树/表头/设置页这类 chrome 文案若被基础层写成 mono，统一拉回手写体。 */
-:root[data-paper] .wb-status, :root[data-paper] .nav-group-label, :root[data-paper] .nav-empty,
-:root[data-paper] .empty, :root[data-paper] .wb-empty, :root[data-paper] .wb-object-state,
+:root[data-paper] .wb-status, :root[data-paper] .nav-group-label, :root[data-paper] .pk-empty-state,
+:root[data-paper] .empty, :root[data-paper] .wb-empty,
 :root[data-paper] .head-row, :root[data-paper] .wb-table th, :root[data-paper] .wb-settings,
 :root[data-paper] .wb-diff-scroll td:first-child {
   font-family: var(--ink-hand) !important;
+}
+/* 设置页操作区例外：手写体在 11–12.5px 的小字号下笔画糊在一起（用户实测
+   「字体快看不清了」）。设置页要读的是控件标签与说明，不是标题装饰，
+   故只把表单行/说明/图标拉回无衬线，区块标题仍保留手写体维持纸感。 */
+:root[data-paper] .wb-settings :is(.wb-setting-label, .wb-setting-check, .wb-setting-note,
+  .wb-setting-control, .wb-info, .wb-shortcuts > label, .db-shortcut-status,
+  .sql-save-state, .sql-completion-settings .muted, .sql-completion-settings label) {
+  font-family: var(--font-ui, "Inter", "SF Pro Text", "PingFang SC", system-ui, sans-serif) !important;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -421,15 +428,18 @@
   border: 1.4px solid var(--text); border-radius: var(--ink-radius-pop);
   filter: url(#ink-rough-fine); opacity: .68;
 }
-/* 浮动提示：tips.js 用内联样式写死了底色/边框/投影，必须 !important 才能改回纸卡片。 */
+/* 浮动提示：tips.js 用内联样式写死了底色/边框/投影，必须 !important 才能改回纸卡片。
+   字体用无衬线而不是手写体：设置页的说明收进提示后，这里承载的是整段说明文字
+   （会折成多行），手写体在小字号多行下笔画粘连，读不清。纸卡片造型保留。 */
 :root[data-paper] .enest-float-tip {
   background: var(--surface) !important;
   color: var(--text) !important;
   border: 1.4px solid var(--text) !important;
   border-radius: var(--ink-radius-input) !important;
   box-shadow: 2px 3px 0 var(--ac-shadow) !important;
-  font-family: var(--ink-hand) !important;
-  padding: 4px 9px !important;
+  font-family: var(--font-ui, "Inter", "SF Pro Text", "PingFang SC", system-ui, sans-serif) !important;
+  padding: 6px 10px !important;
+  line-height: 1.6 !important;
 }
 :root[data-paper] .nav-rail-tooltip {
   background: var(--surface);
@@ -514,8 +524,7 @@
   margin-bottom: 6px;
 }
 :root[data-paper] .empty.sm::before { display: none; }
-:root[data-paper] .wb-empty,
-:root[data-paper] .wb-object-state {
+:root[data-paper] .wb-empty {
   border: 1.4px solid var(--border);
   border-radius: var(--ink-radius-card);
   background: color-mix(in srgb, var(--ink-card-bg) 55%, transparent);
@@ -627,6 +636,37 @@
   border-radius: 3px !important;
   border-color: var(--ink-line-strong) !important;
 }
+/* AI 助手面板（.dbai-*）是独立的 DSH 设计层，自成一套配色与控件造型。
+   本文件顶部的全局 input/textarea 规则带 !important，会把面板输入框改成手写体
+   与墨迹异形圆角；.btn 系规则也会带偏面板按钮。这里按面板边界整体隔离：
+   面板内控件恢复 DSH 自己的圆角、字体与底色，不参与纸面手绘化。
+   必须写在本文件（paper-theme 最后加载），否则同权重下会被上面的全局规则压掉。 */
+:root[data-paper] .dbai-panel,
+:root[data-paper] .dbai-fab,
+:root[data-paper] .dbai-dropdown {
+  font-family: "Inter", "SF Pro Text", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif !important;
+}
+:root[data-paper] .dbai-panel :is(input, textarea, select):not(.ta) {
+  border-radius: var(--dbai-r-sm) !important;
+  font-family: inherit !important;
+  background: var(--dbai-bg) !important;
+  border-color: var(--dbai-border-strong) !important;
+  color: var(--dbai-text) !important;
+}
+:root[data-paper] .dbai-panel :is(input, textarea):focus,
+:root[data-paper] .dbai-panel :is(input, textarea):focus-visible {
+  border-color: var(--dbai-brand) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dbai-brand) 18%, transparent) !important;
+}
+:root[data-paper] .dbai-panel button {
+  font-family: inherit !important;
+  transform: none;
+}
+:root[data-paper] .dbai-panel :is(.dbai-suggest-chip, .dbai-model-chip, .dbai-conn-chip, .dbai-sessions-btn) {
+  border-radius: 999px !important;
+}
+:root[data-paper] .dbai-panel .dbai-fab,
+:root[data-paper] .dbai-fab { border-radius: 50% !important; }
 /* gridProductivity 给筛选框写的是 1px 实心蓝环（带 !important），必须同权重压掉。 */
 :root[data-paper] .app .results .rg-filter-input:focus {
   border-color: var(--text) !important;
@@ -691,14 +731,14 @@
   box-shadow: inset 0 -2px 0 var(--text) !important;
   color: var(--text);
 }
-:root[data-paper] .app .wb-subtabs button.active { border-bottom-color: var(--text) !important; border-bottom-style: solid; }
+:root[data-paper] .app .wb-library-tabs button[aria-selected='true'] { border-bottom-color: var(--text); }
 :root[data-paper] .app .nav-toolrail-button.active:before {
   background: var(--text) !important; width: 2.4px;
 }
 :root[data-paper] .app .nav-toolrail-button.active {
   color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent);
 }
-:root[data-paper] .app :is(.wb-observe-tabs, .wb-library-tabs) button.active {
+:root[data-paper] .app .wb-observe-tabs button.active {
   background: var(--surface);
   border-radius: var(--ink-radius-input);
   box-shadow: 1.5px 2px 0 var(--ac-shadow);
@@ -730,17 +770,10 @@
   color: var(--text);
   box-shadow: inset 2.5px 0 0 var(--text), inset 0 0 0 1.2px var(--ink-line);
 }
-/* 搜索框：只补基础层没给的圆角（底色/描边由第六节全局 input 规则统一接管）。 */
-:root[data-paper] .app .nav-search-wrap input { border-radius: var(--ink-radius-input); }
+:root[data-paper] .app .nav-toolbar :is(.nav-search, .nav-icon-button) { border-radius: var(--ink-radius-input); }
 :root[data-paper] .app .nav-heading strong,
 :root[data-paper] .app .nav-heading > span:first-child { font-family: var(--ink-hand); }
 :root[data-paper] .app .nav-disclosure.open > svg { transform: rotate(90deg) scale(1.05); }
-:root[data-paper] .app .nav-empty {
-  border: 1.3px solid var(--border); border-radius: var(--ink-radius-card);
-  /* 不改基础层的 padding（20px 12px）：Quick 窄屏下侧栏是抽屉，纵向空间本来紧张，
-     只补边框和圆角，尺寸完全沿用基础层。 */
-  margin: 6px 6px;
-}
 /* 工作标签：分隔线转虚线，活动态靠墨下划线而不是纸片色块。 */
 :root[data-paper] .app .wb-tab { border-right: 1.2px solid var(--border); }
 :root[data-paper] .app .wb-tab:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }

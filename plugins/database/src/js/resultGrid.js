@@ -131,6 +131,7 @@ export class ResultGrid {
         <div class="grid-viewport" data-el="viewport" tabindex="0" role="grid" aria-label="查询结果，方向键移动，F2 编辑，Shift 空格选行">
           <div class="grid-canvas" data-el="canvas"></div>
         </div>
+        <div class="rg-empty pk-empty-state" data-el="empty" role="status" hidden><strong class="pk-empty-title"></strong></div>
         <input class="cell-editor" data-el="cellEditor" hidden />
       </div>
       <div class="rg-pager" data-el="pager" hidden></div>
@@ -143,6 +144,7 @@ export class ResultGrid {
       head: this.root.querySelector('[data-el=head]'),
       viewport: this.root.querySelector('[data-el=viewport]'),
       canvas: this.root.querySelector('[data-el=canvas]'),
+      empty: this.root.querySelector('[data-el=empty]'),
       status: this.root.querySelector('[data-el=status]'),
       cellEditor: this.root.querySelector('[data-el=cellEditor]'),
       pager: this.root.querySelector('[data-el=pager]'),
@@ -1187,8 +1189,16 @@ export class ResultGrid {
     const start = Math.max(0, Math.floor(scrollTop / rowHeight) - 5)
     const end = Math.min(total, Math.ceil((scrollTop + h) / rowHeight) + 5)
     canvas.style.height = `${total * rowHeight}px`
-    canvas.style.paddingTop = `${start * rowHeight}px`
+    canvas.style.paddingTop = `${total ? start * rowHeight : 0}px`
     canvas.style.width = `${layout.totalWidth}px`
+    const hasEmptyResult = !!this.data && !total
+    this.el.empty.hidden = !hasEmptyResult
+    if (hasEmptyResult) {
+      const filtered = Object.values(this.filters).some(Boolean) || this.serverPage?.filters?.length
+      const message = filtered ? '没有匹配的数据' : !this.columns.length && this.data.affectedRows != null ? '执行完成' : '暂无数据'
+      const label = this.el.empty.firstElementChild
+      if (label.textContent !== message) label.textContent = message
+    }
 
     const frag = document.createDocumentFragment()
     for (let vi = start; vi < end; vi++) {

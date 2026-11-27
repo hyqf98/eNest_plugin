@@ -190,6 +190,7 @@ nav #import {
 }
 #list-form {
   display: flex;
+  align-items: center;
   gap: 4px;
   margin: 4px 0;
 }
@@ -200,6 +201,8 @@ nav #import {
 }
 #list-form .pk-btn {
   flex: none;
+  min-height: 28px;
+  padding-inline: 7px;
 }
 .list-pane {
   min-height: 0;
@@ -207,18 +210,28 @@ nav #import {
   display: flex;
   flex-direction: column;
 }
+.list-toolbar { flex: none; min-width: 0; }
+.list-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
 .filters {
   display: flex;
-  gap: 3px;
-  padding: 10px 18px;
-  border-bottom: 1px solid var(--line);
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
   overflow-x: auto;
-  flex: none;
+  padding: 3px;
 }
-.filters button {
+.filters .pk-btn {
   display: inline-flex;
   gap: 6px;
-  align-items: baseline;
+  flex: none;
+  align-items: center;
   white-space: nowrap;
   border-color: transparent;
   background: transparent;
@@ -239,21 +252,23 @@ nav #import {
 }
 .composer {
   display: flex;
-  gap: 8px;
-  padding: 14px 18px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 12px;
 }
-.composer input {
-  flex: 1;
-  background: transparent;
+.composer .pk-input {
+  flex: 1 1 0;
 }
+.composer .pk-btn { flex: none; }
 .composer .pk-btn-primary {
-  min-width: 64px;
   font-weight: 600;
 }
 .header-more { color: var(--muted); }
 #tasks {
   overflow: auto;
   flex: 1;
+  min-height: 0;
   padding: 0 12px 8px;
 }
 .task {
@@ -399,11 +414,14 @@ nav #import {
 }
 .detail {
   overflow: auto;
+  min-width: 0;
+  min-height: 0;
   border-left: 1px solid var(--line);
   padding: 18px;
   background: var(--chrome-bg);
   backdrop-filter: var(--chrome-blur);
   -webkit-backdrop-filter: var(--chrome-blur);
+  container: todo-detail / inline-size;
 }
 .detail label {
   display: flex;
@@ -430,7 +448,13 @@ nav #import {
   font-size: 14px;
   font-weight: 650;
   letter-spacing: -0.01em;
-  margin: 0 0 15px;
+  margin: 0;
+}
+.detail-fields { display: grid; gap: 12px; }
+.detail .detail-fields > label { margin: 0; min-width: 0; }
+.detail-wide { grid-column: 1 / -1; }
+@container todo-detail (min-width: 340px) {
+  .detail-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 /* 子任务进度条（详情） */
 .sub-progress {
@@ -459,12 +483,14 @@ nav #import {
 }
 .detail-actions {
   display: flex;
+  align-items: center;
   gap: 5px;
   flex-wrap: wrap;
 }
 .detail-actions .detail-close {
   margin-left: auto;
 }
+.detail-actions:not(.detail-actions-bottom) { margin-bottom: 12px; }
 .detail-actions-bottom {
   margin-top: 18px;
 }
@@ -475,19 +501,9 @@ nav #import {
   min-width: 24px;
   padding: 0 2px;
 }
-.empty {
-  padding: 60px 18px;
-  text-align: center;
-  color: var(--muted);
-  line-height: 1.8;
-}
-.empty svg {
-  width: 84px;
-  height: 84px;
-  display: block;
-  margin: 0 auto 8px;
-  opacity: 0.85;
-}
+.detail #subform { display: flex; align-items: center; gap: 6px; }
+.detail #subinput { min-width: 0; flex: 1 1 0; }
+.detail #subform .pk-btn { flex: none; }
 footer {
   display: flex;
   flex: none;
@@ -502,10 +518,6 @@ footer {
 }
 #save-state {
   margin-left: auto;
-}
-.quick-summary {
-  font-weight: 600;
-  padding: 10px 18px 0;
 }
 .search {
   width: 220px;
@@ -525,14 +537,26 @@ footer {
 [data-mode='quick'] .workspace {
   grid-template-columns: 1fr;
 }
-[data-mode='quick'] .filters {
-  padding: 5px 10px;
+[data-mode='quick'] .list-toolbar {
+  display: grid;
+  gap: 5px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
 }
-[data-mode='quick'] .composer {
-  padding: 9px 12px;
+[data-mode='quick'] .list-filters,
+[data-mode='quick'] .composer { padding: 0; border: 0; }
+[data-mode='quick'] .filters .pk-btn { min-height: 28px; padding-inline: 7px; }
+[data-mode='quick'] #tasks { padding-inline: 10px; }
+[data-mode='quick'] .list-pane footer { padding: 4px 10px; }
+@media (min-width: 640px) {
+  [data-mode='quick'] .list-toolbar {
+    grid-template-columns: minmax(0, max-content) minmax(180px, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
 }
 [data-mode='quick'] .task {
-  padding: 9px 8px;
+  padding: 7px 8px;
 }
 [data-mode='quick'] .task-title {
   font-size: 13px;
@@ -555,6 +579,7 @@ footer {
 }
 [data-mode='quick'] .task .pk-row-actions {
   opacity: 1;
+  pointer-events: auto;
 }
 [data-mode='quick'] .progress-wrap {
   display: none;
@@ -582,6 +607,7 @@ footer {
   }
   .task .pk-row-actions {
     opacity: 1;
+    pointer-events: auto;
   }
   .progress-wrap {
     display: none;
@@ -591,7 +617,7 @@ footer {
 /* 清单导航的同一面板可固定展开或临时悬浮，不复制清单表单。 */
 .workspace.sidebar-collapsed { grid-template-columns: minmax(0, 1fr) 288px; }
 .workspace.sidebar-collapsed .list-navigation { display: none; }
-.filters .nav-toggle { flex: none; position: relative; z-index: 9; }
+.list-filters .nav-toggle { flex: none; position: relative; z-index: 9; padding-inline: 8px; }
 .workspace.sidebar-collapsed .list-navigation[data-peek='true'],
 .workspace[data-nav-compact='true']:not(.sidebar-collapsed) .list-navigation {
   display: block;

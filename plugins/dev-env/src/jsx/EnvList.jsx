@@ -25,6 +25,7 @@ export function EnvList({ snapshot, selected, onSelect, search, customEnvs, onRe
   return (
     <aside className="sidebar" aria-label="环境列表">
       <div className="sidebar-scroll">
+        {!snapshot && !customEnvs.length && <p className="pk-empty-state">暂无环境信息</p>}
         {families.map(family => {
           const instances = family.instances.filter(instance => matches(instance.label, instance.version, instance.family))
           const familyHit = matches(family.label, family.family)

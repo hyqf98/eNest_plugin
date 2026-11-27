@@ -1,0 +1,7 @@
+{
+  "name": "@enest/middleware-kafka",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": { "kafkajs": "^2.2.4" }
+}

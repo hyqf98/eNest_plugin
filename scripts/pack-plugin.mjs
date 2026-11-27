@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
-import { realpathSync } from 'node:fs'
+import { createReadStream, realpathSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
@@ -62,10 +62,12 @@ export async function packPlugin(id, { repositoryRoot: root = repositoryRoot, ou
       await createArchive(directory, temporary)
       await rename(temporary, output)
     } finally { await rm(temporary, { force: true }) }
-    const data = await readFile(output)
+    const hash = createHash('sha256')
+    let size = 0
+    for await (const chunk of createReadStream(output)) { hash.update(chunk); size += chunk.length }
     const hooks = await loadPluginBuildHooks(source)
     await hooks.afterPack?.({ source, directory, repositoryRoot: root, target, project, outDir })
-    return { name, path: output, size: data.length, sha256: createHash('sha256').update(data).digest('hex'), target }
+    return { name, path: output, size, sha256: hash.digest('hex'), target }
   } finally { if (stage) await rm(stage, { recursive: true, force: true }) }
 }
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

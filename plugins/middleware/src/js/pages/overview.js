@@ -1,5 +1,5 @@
 /** 概览页：overview action → 指标卡（metricsSpec 描述符） + broker 列表 + 能力说明（手动刷新，不轮询） */
-import { fmt, chip, el, simpleGrid, escapeHtml, fmtMetricValue } from '@mw/components.js'
+import { fmt, chip, el, emptyState, simpleGrid, escapeHtml, fmtMetricValue } from '@mw/components.js'
 import { metricsSpecOf } from '@mw/kinds.js'
 
 function fmtMetric(specMap, key, value) {
@@ -113,7 +113,7 @@ export default {
       }
 
       if (!entries.length && !brokers.length && !notes.length) {
-        body.appendChild(el('div', { class: 'empty-cap' }, ['该实例未返回概览数据']))
+        body.append(emptyState('暂无概览数据', { hint: '当前实例未返回指标或节点信息。' }))
       }
     }
 

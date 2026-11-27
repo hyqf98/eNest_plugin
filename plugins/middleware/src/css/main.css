@@ -169,6 +169,9 @@ input, select, textarea { font: inherit; color: var(--text); }
 
 /* —— 紧凑表格 —— */
 .table-wrap { flex: 1; min-height: 0; overflow: auto; padding: 0 16px 12px; }
+.mw-grid-region { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.mw-grid-region.is-empty > .table-wrap { flex: 0 0 auto; padding-bottom: 0; }
+.mw-grid-region > .pk-empty-state { min-height: 0; overflow: auto; }
 table.grid { width: 100%; border-collapse: separate; border-spacing: 0; font-size: calc(var(--font-size-base, 13px) * 0.961538); }
 table.grid th {
   position: sticky; top: 0; z-index: 2; text-align: left; font-weight: 500; color: var(--text-3);
@@ -186,7 +189,6 @@ table.grid tbody tr:hover td { background: var(--surface); }
 table.grid tbody tr.sel td { background: var(--accent-soft); }
 table.grid tbody tr.sel td:first-child { box-shadow: 2px 0 0 var(--accent) inset; }
 table.grid tbody tr.dim td { opacity: .55; }
-table.grid .empty-row td { text-align: center; color: var(--text-3); padding: 28px 0; }
 
 .chip {
   display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: var(--radius-pill);

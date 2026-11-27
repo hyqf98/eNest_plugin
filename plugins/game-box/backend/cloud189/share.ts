@@ -207,13 +207,12 @@ export interface DownloadUrlResult {
   headers: Record<string, string>
 }
 
-/** 解析直链（需登录）：ssoH5 换 accessToken，再 getFileDownloadUrl 带签名头 */
-export async function resolveFileDownloadUrl(credentialCookie: string, shareId: string, fileId: string): Promise<DownloadUrlResult> {
-  if (!credentialCookie) throw new BackendError('LOGIN_REQUIRED', '天翼云登录已过期，请重新登录')
-  const jar = new CookieJar()
-  for (const pair of credentialCookie.split('; ')) {
-    if (pair.includes('=')) jar.store(`${pair}; Path=/`, 'https://cloud.189.cn/')
-  }
+/**
+ * 解析直链（需登录）：ssoH5 换 accessToken，再 getFileDownloadUrl 带签名头。
+ * 传入的 jar 已按域名灌好登录 cookie（同名 cookie 各自带域，不互相顶掉）。
+ */
+export async function resolveFileDownloadUrl(jar: CookieJar, shareId: string, fileId: string): Promise<DownloadUrlResult> {
+  if (!jar.header()) throw new BackendError('LOGIN_REQUIRED', '天翼云登录已过期，请重新登录')
   const accessToken = await ssoAccessToken(jar)
   const timestamp = timestampSeconds()
   const signature = downloadSignature(accessToken, timestamp, fileId, shareId)
@@ -222,7 +221,7 @@ export async function resolveFileDownloadUrl(credentialCookie: string, shareId: 
   const { data } = await jarRequestJson<{ fileDownloadUrl?: unknown; fileName?: unknown; fileSize?: unknown }>(jar, {
     url: `https://api.cloud.189.cn/open/file/getFileDownloadUrl.action?fileId=${encodeURIComponent(fileId)}&dt=1&shareId=${encodeURIComponent(shareId)}`,
     headers: {
-      cookie: jar.header(),
+      cookie: jar.headerFor('https://api.cloud.189.cn/'),
       accesstoken: accessToken,
       signature,
       timestamp,
@@ -237,7 +236,7 @@ export async function resolveFileDownloadUrl(credentialCookie: string, shareId: 
     url,
     fileName: asString(data.fileName),
     size: asNumber(data.fileSize),
-    headers: { cookie: jar.header(), referer: 'https://cloud.189.cn/' },
+    headers: { cookie: jar.headerFor('https://api.cloud.189.cn/'), referer: 'https://cloud.189.cn/' },
   }
 }
 

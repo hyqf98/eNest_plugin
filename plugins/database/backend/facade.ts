@@ -8,6 +8,7 @@ interface Host {
   pluginId: string
   request(method: string, params: Record<string, unknown>): Promise<unknown>
   assertCurrent(): void
+  authorizeView?(token: string, operation: string): { id: string; viewId: string }
 }
 interface ConnectionLease { token: string; ready: Promise<unknown>; release?: Promise<void> }
 
@@ -31,7 +32,7 @@ const routes: Record<string, { service: string; permission: Permission | null; a
 
 export function workbenchPermission(action: string): Permission | null {
   switch (action) {
-    case 'drivers.list': return null
+    case 'drivers.list': case 'driver.view': return null
     case 'test': return 'net.database'
     case 'redis.scan': case 'inspect': case 'table.design.preview': return 'net.database.schema'
     case 'table.page': case 'table.design.apply': case 'execute': case 'browse':
@@ -108,7 +109,7 @@ export function createDatabaseFacade(host: Host, service: NativeService) {
       if (typeof secret !== 'string') throw new Error('database credential is unavailable')
       resolved.ephemeralSecret = secret
     }
-    if (config.driver === 'sqlite' || config.driver === 'duckdb') {
+    if (config.driver === 'sqlite') {
       if (config.database === ':memory:' && !config.fileHandleId) resolved.filePath = ':memory:'
       else {
         if (!config.fileHandleId) throw new Error('fileHandleId is required for a local database')
@@ -155,6 +156,19 @@ export function createDatabaseFacade(host: Host, service: NativeService) {
       if (workbench) {
         if (args.length !== 1) throw new Error('invalid workbench arguments')
         if (workbench.action === 'test') return invoke('dbTest', [await configWithSecrets(workbench.input)])
+        if (workbench.action === 'driver.view') {
+          const { operation, sessionKey, viewToken, input } = object(workbench.input)
+          if (![operation, sessionKey, viewToken].every(value => typeof value === 'string' && value.length > 0 && value.length < 512)) throw new Error('invalid database view arguments')
+          const getGrant = () => host.authorizeView?.(viewToken as string, operation as string)
+          const grant = getGrant()
+          if (!grant) throw new Error('database view grant unavailable')
+          return invoke('dbInvokeView', [{ operation, sessionKey, viewToken, viewId: grant.viewId, driverId: grant.id, input, authorize: async (write: boolean) => {
+            if (await host.request('permission.authorize', { permission: write ? 'net.database.query' : 'net.database.schema', summary: `Database view: ${grant.id}/${String(operation)}` }) !== true) throw new Error('数据库操作未授权')
+            if (write && await host.request('dialog.confirm', { title: '确认修改数据库', message: `执行 ${grant.id} 扩展的 ${String(operation)} 操作？` }) !== true) throw new Error('已取消操作')
+            getGrant()
+            assertCurrent()
+          } }])
+        }
         const snapshot = new Map(connections)
         const result = await invoke('dbWorkbenchService', [workbench])
         assertCurrent()

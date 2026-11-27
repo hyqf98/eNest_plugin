@@ -1,5 +1,5 @@
 /** RocketMQ 消息轨迹：按 Key / MsgId 查询链路，produced → stored → consume-attempt*n 时间线 */
-import { el, fmt, gate, escapeHtml } from '@mw/components.js'
+import { el, emptyState, fmt, gate, escapeHtml } from '@mw/components.js'
 
 const PHASE_LABEL = { produced: '生产', stored: '存储', 'consume-attempt': '消费尝试' }
 const STATUS_LABEL = { ok: '成功', success: '成功', failed: '失败', error: '失败', retry: '重试中', timeout: '超时' }
@@ -40,14 +40,14 @@ export default {
 
     root.style.position = 'relative'
     root.append(search, loading, wrap)
-    renderEmpty('输入 MsgId 查询链路（需 broker 开启 trace）。按业务 Key 查找消息请使用消息页。')
+    renderEmpty('暂无消息轨迹', '输入 MsgId 查询链路。按业务 Key 查找请使用消息页。')
 
     /* —— caps gate：trace 能力降级 —— */
     const g = gate(ctx.caps, 'trace')
     if (!g.enabled) {
       queryBtn.disabled = true
       input.disabled = true
-      renderEmpty(`消息轨迹不可用：${g.reason}`)
+      renderEmpty('消息轨迹不可用', g.reason)
     }
 
     /* —— 查询与渲染 —— */
@@ -68,18 +68,14 @@ export default {
       }
     }
 
-    function renderEmpty(text) {
-      wrap.innerHTML = ''
-      wrap.appendChild(el('div', { class: 'empty-cap' }, [
-        el('div', { class: 'big' }, '⌖'),
-        text
-      ]))
+    function renderEmpty(title, hint) {
+      wrap.replaceChildren(emptyState(title, { hint }))
     }
 
     function renderTrace(trace) {
       wrap.innerHTML = ''
       const steps = Array.isArray(trace?.steps) ? trace.steps : []
-      if (!steps.length) { renderEmpty('未查到轨迹（消息 Key 不存在，或 broker 未开启 trace）'); return }
+      if (!steps.length) { renderEmpty('未找到消息轨迹', '请确认 MsgId 正确，并检查 Broker 是否开启轨迹记录。'); return }
 
       // 头部摘要：key / messageId
       wrap.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px' }, [

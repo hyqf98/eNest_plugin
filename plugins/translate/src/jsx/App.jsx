@@ -118,6 +118,8 @@ const IDLE = {
 export function App() {
   const kitRef = useRef(null)
   const inputRef = useRef(null)
+  const historyToggleRef = useRef(null)
+  const historyCloseRef = useRef(null)
 
   const [input, setInput] = useState('')
   const [src, setSrc] = useState('auto')
@@ -131,6 +133,7 @@ export function App() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyFilter, setHistoryFilter] = useState('all')
   const [historyQuery, setHistoryQuery] = useState('')
+  const [historyError, setHistoryError] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [settings, setSettings] = useState({
     srcLang: 'auto',
@@ -170,6 +173,7 @@ export function App() {
   const invalidate = useCallback(() => {
     requestRef.current++
     clearTimeout(timerRef.current)
+    setBusy(false)
     setHint('输入即翻译 · Enter 立即 · Shift+Enter 换行')
   }, [])
 
@@ -184,7 +188,7 @@ export function App() {
     kitRef.current?.setQuery('')
     setResult(null)
     detectedRef.current = ''
-    setOutput({ text: '译文会显示在这里', cls: 'placeholder', engineTag: '', detected: '' })
+    setOutput(IDLE)
     syncButtons()
   }, [invalidate, syncButtons])
 
@@ -192,11 +196,13 @@ export function App() {
     invalidate()
     detectedRef.current = ''
     setResult(null)
-    setOutput({ text: '原文已更新，正在翻译', cls: 'placeholder', engineTag: '', detected: '' })
+    const hasText = Boolean(queryValueRef.current.trim())
+    const translateAutomatically = hasText && !autoTranslateRef.current
+    setOutput(hasText ? { ...IDLE, text: translateAutomatically ? '正在准备翻译…' : '按 Enter 开始翻译' } : IDLE)
     syncButtons()
     if (updateHost) kitRef.current?.setQuery(queryValueRef.current)
     // 即时翻译：停 350ms 自动联网翻译（防抖；autoTranslate 设置为暂停开关）
-    if (!autoTranslateRef.current && queryValueRef.current.trim())
+    if (translateAutomatically)
       timerRef.current = setTimeout(() => stateRef.current.run?.(), 350)
   }, [invalidate, syncButtons])
 
@@ -381,6 +387,7 @@ export function App() {
       },
     })
     kitRef.current = kit
+    setQuickMode(kit.mode === 'quick')
     autoTranslateRef.current = !!kit.settings.autoTranslate
 
     let alive = true
@@ -427,11 +434,12 @@ export function App() {
         )
         setLoaded(true)
       } catch (e) {
+        if (!alive) return
+        setHistoryError(e.message)
         kitRef.current?.toast(e.message, 'error')
-        setHistory([]) // 空列表由渲染层显示失败占位
       }
     })()
-    return () => { alive = false }
+    return () => { alive = false; kit.destroy() }
   }, [applyPrefs])
 
   /* onSettings：设置变化即时生效（等价原 kit.onSettings） */
@@ -487,13 +495,18 @@ export function App() {
   })
 
   /* —— 派生：历史过滤与按钮可用态 —— */
+  const historySearch = quickMode ? '' : historyQuery.trim().toLowerCase()
   const historyRows = history.filter(
     (h) =>
       (historyFilter !== 'starred' || h.starred) &&
       `${h.source} ${h.text}`
         .toLowerCase()
-        .includes(historyQuery.toLowerCase()),
+        .includes(historySearch),
   )
+  const historyEmptyTitle = historyError ? '无法读取翻译历史' : !loaded ? '正在读取翻译历史…' :
+    !history.length ? '暂无翻译记录' : historySearch ? '没有匹配的记录' : '暂无收藏'
+  const historyEmptyHint = historyError || (!loaded ? '' : !history.length ? '成功的译文会保存在本机。' :
+    historySearch ? '试试更短的关键词。' : '收藏一条译文后，就能在这里找到。')
   const hasResult = !!result
   const starred = hasResult && !!history.find((h) => h.id === result.id)?.starred
   const bilingual = () => (result ? result.source + '\n\n' + result.text : '')
@@ -532,13 +545,18 @@ export function App() {
   const renderChipsRef = useRef(null)
   renderChipsRef.current = () => {}
 
+  const showHistory = () => {
+    setHistoryOpen(true)
+    requestAnimationFrame(() => historyCloseRef.current?.focus())
+  }
+  const closeHistory = () => {
+    setHistoryOpen(false)
+    requestAnimationFrame(() => historyToggleRef.current?.focus())
+  }
+
   return (
     <div className="app">
-      <header>
-        <button id="history-toggle" onClick={() => setHistoryOpen((o) => !o)}>历史与收藏</button>
-        {!quickMode && <SettingsGear onClick={() => setSettingsOpen(true)} />}
-      </header>
-      <main className="workspace">
+      <main className="workspace" data-history-open={historyOpen || undefined}>
         <section className="translator">
           <div className="language-bar">
             {/* 原生 select + plugin-kit upgradeSelects 自动升级（复刻原版机制，内容自适应宽） */}
@@ -569,7 +587,9 @@ export function App() {
               onChange={(e) => { setEngine(e.target.value); changeDirection({ engine: e.target.value }) }}>
               {ENGINE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            <button className="quick-only" id="quick-history" onClick={() => setHistoryOpen(true)}>历史</button>
+            <button id="history-toggle" ref={historyToggleRef} type="button" className="pk-btn pk-btn-ghost pk-btn-sm"
+              aria-controls="history" aria-expanded={historyOpen} onClick={showHistory}>历史</button>
+            <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
           </div>
           <div className="panes">
             <section className="pane">
@@ -613,7 +633,7 @@ export function App() {
                 <span>译文</span><span id="engine-tag">{output.engineTag}</span>
               </div>
               <div id="output" role="status" aria-live="polite" className={output.cls}>
-                {output.text}
+                {output.cls === 'placeholder' ? <div className="pk-empty-state">{output.text}</div> : output.text}
               </div>
               <div className="pane-bottom">
                 <div className="output-row" id="output-state" hidden={!busy}>
@@ -649,15 +669,27 @@ export function App() {
             <span className="grow"></span>
           </div>
         </section>
-        <aside className={'history shell-only' + (historyOpen ? ' open' : '')} id="history">
+        <aside className="history" id="history" aria-label="翻译历史">
           <div className="history-head">
             <button data-history="all" className={historyFilter === 'all' ? 'active' : undefined}
-              onClick={() => setHistoryFilter('all')}>最近翻译</button>
+              aria-pressed={historyFilter === 'all'} onClick={() => setHistoryFilter('all')}>最近翻译</button>
             <button data-history="starred" className={historyFilter === 'starred' ? 'active' : undefined}
-              onClick={() => setHistoryFilter('starred')}>收藏</button>
-            <button id="close-history" aria-label="关闭历史面板" onClick={() => setHistoryOpen(false)}>×</button>
+              aria-pressed={historyFilter === 'starred'} onClick={() => setHistoryFilter('starred')}>收藏</button>
+            <span className="history-spacer"></span>
+            <MoreMenu ariaLabel="翻译历史操作" buttonClassName="pk-btn-sm" items={[
+              { key: 'export-history', label: '导出历史', disabled: !history.length, onSelect: () => kitRef.current?.saveText('翻译历史.json', JSON.stringify({ version: 2, history }, null, 2)).catch((e) => kitRef.current?.toast(e.message, 'error')) },
+              { key: 'clear-history', label: '清空未收藏', danger: true, disabled: !history.some((record) => !record.starred), onSelect: () => {
+                if (!confirm('清空所有未收藏的翻译历史？')) return
+                setHistory((rows) => {
+                  const next = rows.filter((record) => record.starred)
+                  void saveHistory(next)
+                  return next
+                })
+              } },
+            ]} />
+            <button id="close-history" ref={historyCloseRef} type="button" aria-label="关闭历史面板" onClick={closeHistory}>×</button>
           </div>
-          <div className="history-search">
+          <div className="history-search shell-only">
             <input
               id="history-search" type="search"
               placeholder="搜索原文或译文"
@@ -668,7 +700,11 @@ export function App() {
           </div>
           <div id="history-list">
             {historyRows.length === 0 ? (
-              <div className="empty">还没有翻译记录<br />成功的译文会保存在本机</div>
+              <div className="pk-empty-state">
+                <strong className="pk-empty-title">{historyEmptyTitle}</strong>
+                {historyEmptyHint && <p className="pk-empty-hint">{historyEmptyHint}</p>}
+                {historySearch && history.length > 0 && <button type="button" className="pk-btn pk-btn-sm pk-btn-ghost" onClick={() => setHistoryQuery('')}>清除搜索</button>}
+              </div>
             ) : (
               historyRows.map((h) => (
                 <article key={h.id} className="entry" data-id={h.id} tabIndex={0}
@@ -691,7 +727,7 @@ export function App() {
                     }
                     recall(h.id)
                   }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') recall(h.id) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) recall(h.id) }}
                 >
                   <div className="entry-source">{h.source}</div>
                   <div className="entry-result">{h.text}</div>
@@ -703,20 +739,6 @@ export function App() {
                 </article>
               ))
             )}
-          </div>
-          <div className="history-foot">
-            <button id="export-history"
-              onClick={() => kitRef.current?.saveText('翻译历史.json', JSON.stringify({ version: 2, history }, null, 2)).catch((e) => kitRef.current?.toast(e.message, 'error'))}>导出历史</button>
-            <button id="clear-history"
-              onClick={() => {
-                if (confirm('清空所有未收藏的翻译历史？')) {
-                  setHistory((rows) => {
-                    const next = rows.filter((h) => h.starred)
-                    void saveHistory(next)
-                    return next
-                  })
-                }
-              }}>清空未收藏</button>
           </div>
         </aside>
       </main>

@@ -5,11 +5,10 @@
   /* 阴影/遮罩从宿主前景与底色选择暗端，不另建固定 UI 调色板。 */
   --db-scrim: light-dark(var(--text), var(--bg));
 }
-.app { --nav-material: color-mix(in srgb, var(--surface-2) 90%, transparent); --toolbar-material: color-mix(in srgb, var(--surface) 94%, transparent); font-optical-sizing: auto; }
+.app { --nav-material: color-mix(in srgb, var(--surface) 94%, var(--bg)); --nav-rail-width: 44px; --toolbar-material: color-mix(in srgb, var(--surface) 94%, transparent); font-optical-sizing: auto; }
 .app .workspace { gap: 0; overflow: hidden; }
 .app .side { display: flex !important; flex: none; min-width: 220px; max-width: 360px; background: var(--nav-material); backdrop-filter: blur(20px) saturate(1.15); border-right: 1px solid var(--border); margin: 0; overflow: hidden; }
 .app.sidebar-collapsed .side { width: var(--side-w); min-width: 220px; opacity: 1; pointer-events: auto; }
-.app[data-nav-collapsed=true] .side, .app[data-nav-collapsed=true] #resizer-left { display: none !important; }
 .app #resizer-left { display: block; width: 4px; margin-left: -2px; margin-right: -2px; z-index: 4; background: transparent; }
 .app #resizer-left:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 .app.is-resizing { cursor: col-resize; user-select: none; }
@@ -58,14 +57,21 @@
 .app .wb-status > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app .wb-status > .wb-status-dot { flex: none; }
 /* Connection navigation has one scroll owner. */
-.nav-shell { display: flex; flex-direction: column; min-width: 0; width: 100%; height: 100%; }
+.nav-shell { display: flex; min-width: 0; width: 100%; height: 100%; }
 .nav-heading { display: flex; align-items: center; gap: 6px; min-height: 39px; padding: 0 10px 0 14px; flex: none; }
 .nav-heading strong, .nav-heading h2 { margin: 0; font-size: 12px; font-weight: 650; letter-spacing: .01em; flex: 1; }
 .nav-heading .btn { min-height: 26px; padding: 3px 7px; }
 .nav-heading > span:first-child { flex: 1; font-weight: 600; }
-.nav-search-wrap { padding: 3px 10px 10px; }
-.nav-search-wrap input { display: block; width: 100%; height: 29px; min-width: 0; border: 1px solid var(--border); border-radius: 7px; padding: 4px 8px; color: var(--text); background: color-mix(in srgb,var(--surface) 70%,transparent); font-size: 11px; }
-.nav-connections { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 8px; scrollbar-width: thin; }
+.nav-toolbar { display: flex; flex: none; align-items: center; gap: 6px; padding: 0 2px 8px; }
+.nav-toolbar .nav-search { flex: 1; min-width: 0; height: 32px; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 0 10px; color: var(--text); background: var(--surface); }
+.nav-toolbar .nav-search::placeholder { color: var(--text-3); }
+.nav-toolbar .nav-search:focus, .nav-toolbar .nav-icon-button:hover { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); }
+.nav-toolbar .nav-icon-button { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.nav-toolbar [data-new] > span { display: none; }
+.app[data-surface=quick] .nav-toolbar .nav-search { display: none; }
+.app[data-surface=quick] .nav-toolbar [data-new] { width: auto; gap: 4px; padding-inline: 8px; }
+.app[data-surface=quick] .nav-toolbar [data-new] > span { display: inline; }
+.nav-connections { flex: 1; min-height: 0; overflow: auto; padding: 0 2px; scrollbar-width: thin; scrollbar-gutter: stable; }
 /* 设置页的侧栏目录：与 .nav-browser 互斥（schemaTree.setPage 切换 [hidden]）。
    两者都是 .nav-shell（row flex）的子节点，紧邻左侧 .nav-toolrail，所以必须 flex:1
    才能占满工具栏右侧的剩余宽度。
@@ -106,15 +112,9 @@
 .app[data-nav-compact=true] .wb-nav-scrim { display: block; position: absolute; z-index: 39; inset: 0; background: var(--db-scrim); border: 0; pointer-events: none; opacity: 0; }
 .app[data-nav-open=true] .wb-nav-scrim { pointer-events: auto; }
 .app[data-nav-compact=true][data-nav-open=false] .side { pointer-events: none; }
-/* A document is a workspace, never another navigation level. */
-.wb-welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; color: var(--text-2); text-align: center; padding: 25px; }
-.wb-welcome-symbol { width: 48px; height: 48px; font-size: 32px; display: grid; place-items: center; color: var(--text-3); margin-bottom: 16px; }
-.wb-welcome p { max-width: 400px; line-height: 1.7; font-size: 12px; }
-.wb-welcome > div:not(.wb-welcome-symbol) { display: flex; gap: 8px; margin-top: 12px; }
-.wb-welcome-hint { margin-top: 38px; color: var(--text-3); font-size: 10px !important; }
-.wb-welcome-hint span { padding: 0 9px; }
-.wb-welcome kbd { font: 10px var(--font); }
-.wb-library { margin-top: 16px; }
+.app .wb-page-host > .wb-library-page { display: flex; flex-direction: column; overflow: hidden; }
+.wb-library-page > .wb-page-title { flex: none; }
+.wb-library { flex: 1; min-height: 0; overflow: auto; }
 .wb-library-row { border-bottom: 1px solid var(--border); }
 .wb-library-row > button { width: 100%; display: grid; gap: 7px; padding: 14px 8px; background: transparent; border: 0; text-align: left; cursor: pointer; color: var(--text); border-radius: 6px; }
 .wb-library-row > button:hover { background: var(--row-hover); }
@@ -133,7 +133,10 @@
 .app .wb-table th, .app .wb-table td { padding: 5px 10px; line-height: 1.4; }
 .app .wb-table th { font-size: 11px; }
 .app .wb-section-heading { flex-wrap: wrap; }
-.app .wb-settings { max-width: 1000px; margin: 0; }
+/* 设置页宽度按内容定，不按可用空间拉满。设置行是「220px 标签 + 一个输入框/按钮」，
+   宽度给到 1000px 时右侧会有 400 多像素空白，控件全挤在左边、下边框却拉满整行。
+   760px 刚好容下标签列、间距与 420px 控件区，且不浪费横向空间。 */
+.app .wb-settings { max-width: 760px; margin: 0; }
 .app .wb-diff-scroll { height: max(240px, calc(100dvh - 440px)); }
 .app[data-surface=shell][data-result-dock=right] .query-surface { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .app[data-surface=shell][data-result-dock=right] .query-surface .wb-querybar { grid-column: 1 / -1; grid-row: 1; }
@@ -162,16 +165,12 @@ body:has(.app) .wb-design-column { grid-template-columns: minmax(100px,1.2fr) mi
 .app[data-surface=quick] .wb-querybar .btn { min-height: 23px; padding: 2px 6px; }
 .app[data-surface=quick] .wb-status { height: 21px; padding: 0 8px; }
 .app[data-surface=quick] .wb-status > span:last-child { display: block; }
-.app[data-surface=quick] .wb-welcome { padding: 10px; }
-.app[data-surface=quick] .wb-welcome-symbol { display: none; }
-.app[data-surface=quick] .wb-welcome-hint { display: none; }
-.app[data-surface=quick] .wb-welcome h1 { font-size: 17px; }
 .app[data-surface=quick] .wb-page-title { position: static; }
 .app[data-surface=quick] .query-surface .editor-pane, .app[data-surface=quick] .query-surface .editor-host { min-height: 33px; }
 .app[data-surface=quick] .query-surface .results { min-height: 0; max-height: none; }
 .app[data-surface=quick][data-quick-results=expanded] .mid-chrome { display: flex; }
 .app[data-surface=quick][data-quick-results=expanded] .query-surface .results { flex: 1; height: auto !important; max-height: none !important; }
-@media(max-height:400px) { .app[data-surface=quick] .mid-chrome { min-height: 28px; height: 28px; } .app[data-surface=quick] .wb-querybar { min-height: 27px; height: 27px; padding-block: 1px; } .app[data-surface=quick] .query-surface .results { height: 88px !important; max-height: 88px; } .app[data-surface=quick] .wb-status { height: 20px; } .app[data-surface=quick] .wb-welcome > div:not(.wb-welcome-symbol) { margin: 4px 0; } .app[data-surface=quick] .wb-welcome p { margin: 5px 0; } .app[data-surface=quick] .wb-page-host > .wb-page { padding: 8px; } }
+@media(max-height:400px) { .app[data-surface=quick] .mid-chrome { min-height: 28px; height: 28px; } .app[data-surface=quick] .wb-querybar { min-height: 27px; height: 27px; padding-block: 1px; } .app[data-surface=quick] .query-surface .results { height: 88px !important; max-height: 88px; } .app[data-surface=quick] .wb-status { height: 20px; } .app[data-surface=quick] .wb-page-host > .wb-page { padding: 8px; } }
 @media(prefers-reduced-motion:reduce) { body:has(.app) *, body:has(.app) *:before, body:has(.app) *:after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } body:has(.app) .btn:active { transform: none; } }
 :root[data-anim=low] body:has(.app) .btn { transition: none; }
 :root[data-anim=low] body:has(.app) .btn:active { transform: none; }
@@ -183,11 +182,6 @@ body:has(.app) .wb-design-column { grid-template-columns: minmax(100px,1.2fr) mi
 .nav-icon-button { width: 24px; height: 25px; padding: 4px; }
 .nav-small-button { font-size: 10px; min-height: 24px; padding: 3px 5px; }
 .nav-icon-button:hover, .nav-small-button:hover { background: var(--surface-3); }
-.nav-title { flex: none !important; }
-.nav-count { font-size: 10px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.nav-search-wrap { position: relative; }
-.nav-search-wrap > .nav-icon { position: absolute; left: 17px; top: 10px; width: 14px; height: 14px; color: var(--text-3); pointer-events: none; }
-.nav-search-wrap input { padding-left: 27px; }
 .nav-connection-row { min-height: 42px; }
 .nav-connection-main { min-height: 39px !important; }
 .nav-engine { color: var(--text-3); display: inline-flex; flex: none; }
@@ -214,11 +208,6 @@ body:has(.app) .wb-design-column { grid-template-columns: minmax(100px,1.2fr) mi
 .nav-tree-row:hover .nav-object-type, .nav-tree-row:focus-within .nav-object-type { display: none; }
 .nav-connection-children { padding-left: 8px; }
 .nav-tree-children { padding-left: 13px; }
-/* 空态纵向排列：标题、说明、按钮各占一行。原先是行内元素靠 <p> 的块级性换行，
-   去掉说明文字后「还没有连接」会和按钮挤在同一行。 */
-.nav-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 12px; text-align: center; color: var(--text-3); font-size: 11px; line-height: 1.7; }
-.nav-empty p { margin: 0; }
-.nav-empty strong { color: var(--text-2); font-weight: 550; }
 .nav-scan-more { margin: 5px 0 5px 25px; border: 0; background: none; color: var(--text-2); font-size: 10px; padding: 5px; cursor: pointer; }
 .wb-query-context { max-width: 160px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 550; color: var(--text); }
 .app[data-surface=quick] .wb-query-context { max-width: 90px; font-size: 10px; }
@@ -284,20 +273,18 @@ body:has(.app) { font-size: var(--font-size-base, 13px); }
 .app .grid-bar, .app .wb-server-pager, .app .rg-pager, .app .result-tabs .tab { font-size: calc(var(--db-type-unit) * .8462); }
 .app .th .col-type, .app .pk { font-size: calc(var(--db-type-unit) * .7692); }
 /* Persistent IDE-style tool rail: labels float beside their source, outside all clipping. */
-.app .nav-shell { display: flex; flex-direction: row; }
-.nav-browser { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
-.nav-toolrail { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 7px 3px; width: 38px; flex: none; border-right: 1px solid var(--border); background: color-mix(in srgb,var(--surface-2) 65%,var(--surface)); }
-.nav-toolrail-button { display: flex; align-items: center; justify-content: center; width: 30px; height: 32px; flex: none; padding: 7px; color: var(--text-2); background: transparent; border: 0; border-radius: 6px; cursor: pointer; position: relative; }
+.nav-browser { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; padding: 8px; }
+.nav-toolrail { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 4px; width: var(--nav-rail-width); flex: none; border-right: 1px solid var(--border); background: var(--nav-material); overflow: auto; scrollbar-width: none; }
+.nav-toolrail-button { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; padding: 7px; color: var(--text-2); background: transparent; border: 0; border-radius: 7px; cursor: pointer; position: relative; }
 .nav-toolrail-button > .nav-icon { width: 17px; height: 17px; }
 .nav-toolrail-button:hover { background: var(--row-hover); color: var(--text); }
 .nav-toolrail-button.active { color: var(--accent); background: var(--accent-soft); }
 .nav-toolrail-button.active:before { content: ''; position: absolute; left: -3px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--accent); }
-.nav-toolrail-button[data-nav=settings] { margin-top: auto; }
 .nav-toolrail-button:focus-visible { outline-offset: -2px; }
 .nav-rail-tooltip { position: fixed; z-index: 2147483001; pointer-events: none; white-space: nowrap; border-radius: 6px; padding: 6px 9px; background: var(--text); color: var(--surface); border: 1px solid var(--border-strong); box-shadow: 0 4px 14px color-mix(in srgb, var(--db-scrim) 20%, transparent); font: 11px/1.4 var(--font); }
 body:has(.nav-toolrail-button:hover) .enest-float-tip, body:has(.nav-toolrail-button:focus-visible) .enest-float-tip { display: none !important; }
-.app[data-nav-collapsed=true] .side { display: flex !important; width: 38px !important; min-width: 38px; max-width: 38px; border-right: 0; }
-.app[data-nav-collapsed=true] .nav-browser { display: none; }
+.app[data-nav-collapsed=true] .side { width: var(--nav-rail-width) !important; min-width: var(--nav-rail-width); max-width: var(--nav-rail-width); border-right: 0; }
+.app[data-nav-collapsed=true] :is(.nav-browser, .nav-settings) { display: none; }
 .app[data-nav-collapsed=true] #resizer-left { display: none !important; }
 .app .nav-heading { padding-left: 9px; padding-right: 5px; gap: 3px; }
 .app .nav-connection-actions > [data-connect] { font-size: 9px; padding-inline: 3px; }
@@ -317,9 +304,6 @@ body:has(.app) .wb-import-dialog .form-grid .full { grid-column: 1 / -1; }
 body:has(.app) .wb-export-dialog .export-menu { display: grid; gap: 5px; }
 body:has(.app) .wb-export-dialog .export-menu .btn { justify-content: flex-start; text-align: left; width: 100%; }
 @media(max-width:600px) { body:has(.app) dialog.wb-document-inspector { inset: 4px; width: auto; height: auto; } body:has(.app) .wb-import-dialog .form-grid { grid-template-columns: 1fr; } }
-.wb-object-state { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 9px; min-height: 80px; padding: 24px; color: var(--text-2); text-align: center; }
-.wb-object-state strong { font-size: 13px; font-weight: 550; }
-.wb-object-state p { margin: 0; max-width: 460px; font-size: 12px; color: var(--text-3); line-height: 1.6; overflow-wrap: anywhere; }
 /* Keep every tool above the shell's optional bottom-left Orb dock. */
 .nav-toolrail-button[data-nav=settings] { margin-top: 6px; }
 .nav-toolrail-button[data-nav=settings]:after { content: ''; position: absolute; left: 5px; right: 5px; top: -4px; height: 1px; background: var(--border); }

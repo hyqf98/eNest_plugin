@@ -13,6 +13,7 @@ import { getAdapter, setAdapter } from '../../backend/adapters/current.ts'
 import { aesEncrypt } from '../../backend/crypto.ts'
 import type { LibraryQuery } from '../../src/shared/contracts.ts'
 import { odeSource } from '../../backend/sources/ode.ts'
+import { parseConfigFields } from '../../backend/util.ts'
 import { gamer520Source, splitChineseKeywords } from '../../backend/sources/gamer520.ts'
 import { trainerSource, resetTrainerCache } from '../../backend/sources/trainer.ts'
 import { modSource } from '../../backend/sources/mod.ts'
@@ -142,11 +143,59 @@ test('ode 详情解析：正文/轮播/配置/packages', async () => {
     assert.ok(images.every(entry => entry.poster === undefined), '图片项不带 poster')
     assert.equal(detail.minConfig, '需要 64 位处理器和操作系统')
     assert.equal(detail.recommendConfig, '推荐配置')
+    // 纯文本不是键值对：configSpec 为空，页面退回显示上面的原文
+    assert.deepEqual(detail.configSpec, { min: [], recommend: [] })
     assert.equal(detail.datetime, '2024-01-15')
     assert.equal(detail.sizeText, '145.55 GB')
     assert.equal(detail.officialUrl, 'https://store.steampowered.com/app/4992070')
     void enc
   })
+})
+
+test('ode 详情：配置要求是一段 JSON 文本时解析成键值对，原文保留', async () => {
+  await withMock(async network => {
+    // 站点实测形态（uy5.net #132380）：字符串形式的 JSON，键是中文字段名，两组的键可以不一样多
+    const body = JSON.parse(ODE_DETAIL_BODY) as Record<string, unknown>
+    body.MinimumConfiguration = '{"操作系统":"Windows 10 64位","处理器":"Intel i5-7500","内存":"16 GB RAM","显卡":"GTX 1060","DirectX版本":"11"}'
+    body.recommendConfiguration = '{"操作系统":"Windows 11 64位","处理器":"Intel i7-8700K","内存":"32 GB RAM","显卡":"RTX 3060","网络":"宽带互联网连接","声卡":"兼容DirectX"}'
+    let call = 0
+    network.respond('https://www.uy5.net/wodown/resources/', () => {
+      call++
+      return { body: JSON.stringify(call === 1 ? body : JSON.parse(ODE_FILES_BODY)) }
+    })
+    const detail = await odeSource().detail('ode:pc:4992070')
+    assert.deepEqual(detail.configSpec.min, [
+      { label: '操作系统', value: 'Windows 10 64位' },
+      { label: '处理器', value: 'Intel i5-7500' },
+      { label: '内存', value: '16 GB RAM' },
+      { label: '显卡', value: 'GTX 1060' },
+      { label: 'DirectX版本', value: '11' },
+    ])
+    assert.deepEqual(detail.configSpec.recommend, [
+      { label: '操作系统', value: 'Windows 11 64位' },
+      { label: '处理器', value: 'Intel i7-8700K' },
+      { label: '内存', value: '32 GB RAM' },
+      { label: '显卡', value: 'RTX 3060' },
+      { label: '网络', value: '宽带互联网连接' },
+      { label: '声卡', value: '兼容DirectX' },
+    ])
+    // 原文照旧带出去：解析结果只负责展示，不替代原始数据
+    assert.equal(detail.minConfig, body.MinimumConfiguration)
+  })
+})
+
+test('parseConfigFields：只认对象形式的 JSON，其余一律返回空', () => {
+  assert.deepEqual(parseConfigFields(''), [])
+  assert.deepEqual(parseConfigFields('   '), [])
+  assert.deepEqual(parseConfigFields('需要 64 位处理器和操作系统'), [])
+  assert.deepEqual(parseConfigFields('{"操作系统": "Windows 10",'), [], '截断的 JSON 不抛错')
+  assert.deepEqual(parseConfigFields('["操作系统","Windows 10"]'), [], '数组不是键值对')
+  assert.deepEqual(parseConfigFields('"Windows 10"'), [], '标量不是键值对')
+  // 值里的标签与实体被清掉；空键或空值不产出一行
+  assert.deepEqual(parseConfigFields('{" 显卡 ": "<b>GTX&nbsp;1060</b> &amp; 6GB 显存", "": "x", "声卡": "   ", "数字": 11}'), [
+    { label: '显卡', value: 'GTX 1060 & 6GB 显存' },
+    { label: '数字', value: '11' },
+  ])
 })
 
 test('ode 文件列表解析：状态映射、type 缺失按 coID 判断、大小解析、提取码', async () => {

@@ -33,7 +33,11 @@ function render() {
   const list = get('boards'); list.replaceChildren()
   if (!store) return
   if (!store.boards.length) {
-    const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = '还没有画布。新建后，在空白处拖动即可放置组件。'; list.append(empty)
+    const empty = document.createElement('div'), title = document.createElement('p'), hint = document.createElement('p')
+    empty.className = 'pk-empty-state'
+    title.className = 'pk-empty-title'; title.textContent = '暂无画布'
+    hint.className = 'pk-empty-hint'; hint.textContent = '新建画布后，在空白处拖动即可放置组件。'
+    empty.append(title, hint); list.append(empty)
   }
   for (const board of store.boards) {
     const row = document.createElement('article'), label = document.createElement('div'), name = document.createElement('strong'), details = document.createElement('small'), actions = document.createElement('div')

@@ -25,16 +25,12 @@
 
 /* —— 空态 / 引导（占满内容区，垂直水平居中） —— */
 .ch-empty { padding: 40px 16px; text-align: center; color: var(--text-2, #747c88); font-size: 13px; }
-.ch-onboard { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 0; padding: 40px 20px; text-align: center; box-sizing: border-box; }
-.ch-onboard-icon { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 16px; background: color-mix(in srgb, var(--accent, #3579dd) 12%, transparent); color: var(--accent, #3579dd); font-size: 24px; font-weight: 700; }
-.ch-onboard h2 { margin: 4px 0 0; font-size: 16px; }
-.ch-onboard p { margin: 0; max-width: 380px; }
 
 /* —— 浏览页 —— */
 .ch-browse { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .ch-browse-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.ch-empty-results { min-block-size: 100%; display: flex; flex-direction: column; }
 .ch-browse > * { min-height: 0; }
-.ch-browse > .ch-onboard { flex: 1 1 auto; }
 .ch-browse-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 0 0 auto; padding: 2px 0 10px; }
 .ch-seg { padding: 5px 12px; border: 1px solid var(--border, #d9dfe6); border-radius: 999px; background: var(--surface, #fff); color: var(--text-2, #747c88); font-size: 12.5px; }
 .ch-seg:hover { color: var(--text, #252a32); }
@@ -138,7 +134,7 @@
 .ch-update-btn { color: var(--ok, #298b68); border-color: color-mix(in srgb, var(--ok, #298b68) 40%, var(--border, #d9dfe6)); font-weight: 600; }
 .ch-src-count { margin-left: 8px; font-size: 11.5px; font-weight: 400; }
 
-/* —— 我的页（收藏；空态由 ch-onboard 自行居中） —— */
+/* —— 我的页（收藏与历史） —— */
 .ch-mine { width: 100%; max-width: 1080px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; gap: 16px; }
 .ch-mine-head { display: flex; align-items: center; margin-bottom: 12px; }
 .ch-mine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 16px; }

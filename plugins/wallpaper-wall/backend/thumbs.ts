@@ -1,17 +1,17 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import Jimp from 'jimp'
 import type { LibraryItem, MediaPreviewResult, ThumbResult, WallpaperItem } from '@backend/contracts'
 import { ensurePluginPaths, pluginPaths } from '@backend/paths'
 import { fetchBuffer } from '@backend/net'
 import { shortHash, errorMessage } from '@backend/util'
+import { loadImageCodec } from '@backend/imageCodec'
+import { ThumbnailCache } from '../src/shared/thumbnailCache'
 
-const MEMORY_LIMIT = 300
 const DISK_LIMIT_BYTES = 512 * 1024 * 1024
 const MAX_REMOTE_THUMB_BYTES = 8 * 1024 * 1024
 const MAX_PREVIEW_BYTES = 24 * 1024 * 1024
-const memory = new Map<string, ThumbResult>()
+const memory = new ThumbnailCache<ThumbResult>(300)
 const inFlight = new Map<string, Promise<ThumbResult>>()
 let pruneRunning = false
 
@@ -23,7 +23,7 @@ export async function getThumbnail(request: { url: string; headers?: Record<stri
   if (running) return running
   const promise = (async () => {
     const disk = await readDiskThumb(key)
-    if (disk) return remember(key, disk)
+    if (disk) return memory.set(key, disk)
     const paths = await ensurePluginPaths()
     const response = await fetchBuffer(request.url, {
       headers: request.headers,
@@ -35,7 +35,7 @@ export async function getThumbnail(request: { url: string; headers?: Record<stri
     const path = join(paths.thumbs, `${key}.bin`)
     await writeFile(path, normalized.buffer).catch(() => {})
     void pruneThumbs()
-    return remember(key, { dataUrl: dataUrl(normalized.buffer, normalized.mime), bytes: normalized.buffer.length })
+    return memory.set(key, { dataUrl: dataUrl(normalized.buffer, normalized.mime), bytes: normalized.buffer.length })
   })().finally(() => { inFlight.delete(key) })
   inFlight.set(key, promise)
   return promise
@@ -74,12 +74,11 @@ export async function getLibraryThumbnail(item: LibraryItem, filePath: string | 
       // 源站缩略图失败时尝试本地文件。
     }
   }
-  if (!filePath || !existsSync(filePath)) return { dataUrl: null, bytes: 0 }
+  if (item.mediaType === 'video' || item.mediaType === 'web' || !filePath || !existsSync(filePath)) return { dataUrl: null, bytes: 0 }
   try {
     const info = await stat(filePath)
     if (info.size > 64 * 1024 * 1024) return { dataUrl: null, bytes: 0 }
     const buffer = await readFile(filePath)
-    if (item.mediaType === 'video' || item.mediaType === 'web') return { dataUrl: null, bytes: 0 }
     const normalized = await normalizeImage(buffer, 480, 80)
     return { dataUrl: dataUrl(normalized.buffer, normalized.mime), bytes: normalized.buffer.length }
   } catch {
@@ -110,18 +109,6 @@ export async function getLibraryPreview(item: LibraryItem, filePath: string | nu
   }
 }
 
-export async function createLocalThumbnail(filePath: string): Promise<void> {
-  // 触发一次规范化，让库首次显示时有缓存；失败不影响导入。
-  try {
-    const info = await stat(filePath)
-    if (info.size > 64 * 1024 * 1024) return
-    const buffer = await readFile(filePath)
-    await normalizeImage(buffer, 480, 80)
-  } catch {
-    // 缩略图是可选的。
-  }
-}
-
 export async function pruneThumbs(): Promise<void> {
   if (pruneRunning) return
   pruneRunning = true
@@ -148,17 +135,6 @@ export async function pruneThumbs(): Promise<void> {
   }
 }
 
-function remember(key: string, value: ThumbResult): ThumbResult {
-  memory.delete(key)
-  memory.set(key, value)
-  while (memory.size > MEMORY_LIMIT) {
-    const oldest = memory.keys().next().value
-    if (typeof oldest !== 'string') break
-    memory.delete(oldest)
-  }
-  return value
-}
-
 async function readDiskThumb(key: string): Promise<ThumbResult | null> {
   const path = join(pluginPaths().thumbs, `${key}.bin`)
   try {
@@ -178,6 +154,7 @@ async function normalizeImage(buffer: Buffer, maxWidth: number, quality: number)
     return { buffer, mime, width: 0, height: 0 }
   }
   try {
+    const Jimp = await loadImageCodec()
     const image = await Jimp.read(buffer)
     const width = image.bitmap.width
     if (width > maxWidth) image.resize(maxWidth, Jimp.AUTO)

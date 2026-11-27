@@ -1,7 +1,6 @@
 import type { DbDriver } from '@backend/drivers'
 import type { TableDetail } from '@backend/contracts/ssh-db'
 import { quoteIdentifier } from '@backend/queryPolicy'
-import { DIALECT_INFO } from '@backend/dialects'
 
 /** Metadata uses the same bounded execution path and transaction connection as the console. */
 export function attachRelationalMetadata(driver: DbDriver, flavor: 'mysql' | 'postgres'): void {
@@ -57,7 +56,6 @@ export function attachRelationalMetadata(driver: DbDriver, flavor: 'mysql' | 'po
     const references = await driver.execute(h, flavor === 'mysql'
       ? 'SELECT TABLE_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=? AND REFERENCED_TABLE_NAME IS NOT NULL'
       : `SELECT c.relname,a.attname,rc.relname,ra.attname FROM pg_constraint fk JOIN pg_class c ON c.oid=fk.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_class rc ON rc.oid=fk.confrelid CROSS JOIN LATERAL unnest(fk.conkey,fk.confkey) k(attnum,refnum) JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.attnum JOIN pg_attribute ra ON ra.attrelid=rc.oid AND ra.attnum=k.refnum WHERE fk.contype='f' AND n.nspname=$1`, { params: [schema], maxRows: 10000 })
-    const info = DIALECT_INFO[driver.id] || DIALECT_INFO[flavor === 'mysql' ? 'mysql' : 'timescale']
-    return { dialect: driver.dialect, databases: await driver.listDatabases(h), schemas: await driver.listSchemas(h, scope.database), tables: tables.map(table => ({ name: table.name, schema, type: table.type, columns: columns.rows.filter(row => row[0] === table.name).map(row => ({ name: String(row[1]), type: String(row[2]), pk: row[3] === 'PRI' })), fks: references.rows.filter(row => row[0] === table.name).map(row => ({ column: String(row[1]), refTable: String(row[2]), refColumn: String(row[3]) })) })), keywords: info.keywords, functions: info.functions }
+    return { dialect: driver.dialect, databases: await driver.listDatabases(h), schemas: await driver.listSchemas(h, scope.database), tables: tables.map(table => ({ name: table.name, schema, type: table.type, columns: columns.rows.filter(row => row[0] === table.name).map(row => ({ name: String(row[1]), type: String(row[2]), pk: row[3] === 'PRI' })), fks: references.rows.filter(row => row[0] === table.name).map(row => ({ column: String(row[1]), refTable: String(row[2]), refColumn: String(row[3]) })) })) }
   }
 }

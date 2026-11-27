@@ -56,32 +56,35 @@ export function galleryHash(state) {
 /** 宠物市场页渲染入口 */
 export async function renderGallery(body, kit, { onNavigate }) {
   const state = galleryStateFromHash()
+  const activeSort = GALLERY_SORTS.find(sort => sort.id === state.sort)
+  const filterCount = state.tags.length + Number(Boolean(state.query)) +
+    Number(state.kind !== DEFAULT_GALLERY_STATE.kind) + Number(state.format !== DEFAULT_GALLERY_STATE.format) +
+    Number(state.content !== DEFAULT_GALLERY_STATE.content)
+  const clearFilters = () => onNavigate(galleryHash({ ...DEFAULT_GALLERY_STATE, sort: state.sort }))
   body.innerHTML = `
     <div class="cp-toolbar">
-      <form class="cp-search" id="g-search" role="search">
+      <form class="cp-search shell-only" id="g-search" role="search">
         <input id="g-q" type="search" placeholder="搜索宠物（名称 / 描述 / 作者 / 标签）" value="${escapeHtml(state.query)}" aria-label="搜索宠物" />
         <button type="submit" class="cp-btn">查找</button>
       </form>
-      <!-- 排序与筛选移到搜索框**下方**独立一行。
-           原来 7 个排序 + 查找 + 筛选挤在一行，搜索框被压到只剩六成宽。 -->
       <div class="cp-filters-row">
-        <div class="cp-sorts" role="tablist" aria-label="排序">
+        <div class="cp-sorts shell-only" role="tablist" aria-label="排序">
           ${GALLERY_SORTS.map(s => `<button type="button" role="tab" class="cp-sort${s.id === state.sort ? ' is-active' : ''}" data-sort="${s.id}" aria-selected="${s.id === state.sort}">${s.label}</button>`).join('')}
         </div>
-        <button type="button" class="cp-btn ghost" id="g-filters">筛选${state.tags.length ? `（${state.tags.length}）` : ''}</button>
+        <button type="button" class="cp-btn quick-only" id="g-sort" aria-haspopup="menu" aria-expanded="false">排序：${activeSort.label}<span aria-hidden="true">⌄</span></button>
+        <span class="cp-meta" id="g-count" role="status"></span>
+        <button type="button" class="cp-btn ghost" id="g-filters"><span class="shell-only">筛选</span><span class="quick-only">搜索与筛选</span>${filterCount ? `<span>${filterCount}</span>` : ''}</button>
       </div>
     </div>
-    <div class="cp-meta">
-      <span id="g-count">加载中…</span>
-    </div>
-    <div class="cp-grid" id="g-grid"></div>
-    <dialog id="g-filters-dlg" class="cp-filters-dlg"><div class="cp-filters-body"></div></dialog>
+    <div class="cp-grid" id="g-grid"><div class="pk-empty-state" role="status">正在加载宠物…</div></div>
+    <dialog id="g-filters-dlg" class="cp-filters-dlg" aria-labelledby="g-filter-title"><form class="cp-filters-body"></form></dialog>
   `
 
   const grid = body.querySelector('#g-grid')
   const countEl = body.querySelector('#g-count')
   // 分页容器在底栏（App.jsx 的 footer 内），不随视图重建。
   const pager = document.querySelector('#g-pager')
+  pager.replaceChildren()
 
   // 搜索
   body.querySelector('#g-search').addEventListener('submit', event => {
@@ -94,30 +97,38 @@ export async function renderGallery(body, kit, { onNavigate }) {
   for (const btn of body.querySelectorAll('.cp-sort')) {
     btn.addEventListener('click', () => onNavigate(galleryHash({ ...state, sort: btn.dataset.sort, page: 1 })))
   }
+  const sortButton = body.querySelector('#g-sort')
+  sortButton.addEventListener('click', () => {
+    window.PluginKit.openMenu(sortButton, GALLERY_SORTS.map(sort => ({ key: sort.id, label: sort.label, checked: sort.id === state.sort })),
+      sort => onNavigate(galleryHash({ ...state, sort, page: 1 })), { ariaLabel: '宠物排序' })
+  })
 
   // 筛选抽屉
-  body.querySelector('#g-filters').addEventListener('click', () => openFilters(body, state, onNavigate))
+  body.querySelector('#g-filters').addEventListener('click', () => openFilters(body, state, onNavigate, clearFilters))
 
   // 数据加载
   let data
   try {
     data = await listPets(state)
   } catch (err) {
-    grid.innerHTML = `<div class="cp-empty">加载失败：${escapeHtml(err.message)}</div>`
-    countEl.textContent = ''
+    if (!grid.isConnected) return
+    grid.innerHTML = `<div class="pk-empty-state" role="alert"><strong class="pk-empty-title">无法加载宠物</strong><p class="pk-empty-hint">${escapeHtml(err.message)}</p><button type="button" class="cp-btn" data-retry>重试</button></div>`
+    grid.querySelector('[data-retry]').addEventListener('click', () => onNavigate(galleryHash(state)))
     return
   }
+  if (!grid.isConnected) return
   const pets = (data.pets ?? []).map(normalizePet)
   const totalPages = Math.max(1, data.totalPages ?? 1)
   const total = data.total ?? pets.length
-  countEl.textContent = `${Number(total).toLocaleString()} 只宠物`
-
   if (pets.length === 0) {
-    grid.innerHTML = '<div class="cp-empty">没有找到宠物</div>'
-    pager.innerHTML = ''
+    grid.innerHTML = filterCount
+      ? '<div class="pk-empty-state"><strong class="pk-empty-title">没有匹配的宠物</strong><p class="pk-empty-hint">换个关键词或减少筛选条件。</p><button type="button" class="cp-btn" data-clear>清除筛选</button></div>'
+      : '<div class="pk-empty-state"><strong class="pk-empty-title">暂无宠物</strong></div>'
+    grid.querySelector('[data-clear]')?.addEventListener('click', clearFilters)
     return
   }
 
+  countEl.textContent = `${Number(total).toLocaleString()} 只宠物`
   renderCards(grid, pets, kit, { onNavigate })
   renderPager(pager, data.page ?? state.page, totalPages, next => onNavigate(galleryHash({ ...state, page: next })))
 
@@ -245,62 +256,67 @@ function renderPager(pager, page, totalPages, go) {
   })
 }
 
-function openFilters(body, state, onNavigate) {
+function openFilters(body, state, onNavigate, clearFilters) {
   const dlg = body.querySelector('#g-filters-dlg')
   const wrap = dlg.querySelector('.cp-filters-body')
+  const groups = [
+    ['kind', '类型', KIND_OPTIONS],
+    ['format', '格式', FORMAT_OPTIONS],
+    ['content', '内容', CONTENT_MODES],
+  ]
   wrap.innerHTML = `
-    <h3>筛选</h3>
+    <h3 id="g-filter-title"><span class="quick-only">搜索与</span>筛选</h3>
+    <label class="cp-filter-query quick-only">
+      <span>关键词</span>
+      <input class="pk-input" id="g-filter-query" type="search" placeholder="名称、描述、作者或标签" value="${escapeHtml(state.query)}" />
+    </label>
     <div class="cp-filter-group">
       <h4>标签（任一命中）</h4>
       <div class="cp-filter-tags">
-        ${FILTER_TAGS.map(t => `<button type="button" class="cp-tag${state.tags.includes(t) ? ' is-active' : ''}" data-tag="${t}">${t}</button>`).join('')}
+        ${FILTER_TAGS.map(tag => `<button type="button" class="cp-tag${state.tags.includes(tag) ? ' is-active' : ''}" data-tag="${tag}" aria-pressed="${state.tags.includes(tag)}">${tag}</button>`).join('')}
       </div>
     </div>
-    <div class="cp-filter-group">
-      <h4>类型</h4>
-      <div class="cp-filter-seg">
-        ${KIND_OPTIONS.map(k => `<button type="button" class="cp-seg${state.kind === k.id ? ' is-active' : ''}" data-kind="${k.id}">${k.label}</button>`).join('')}
+    ${groups.map(([key, label, choices]) => `<div class="cp-filter-group">
+      <h4>${label}</h4>
+      <div class="cp-filter-seg" role="group" aria-label="${label}">
+        ${choices.map(choice => `<button type="button" class="cp-seg${state[key] === choice.id ? ' is-active' : ''}" data-filter-key="${key}" data-filter-value="${choice.id}" aria-pressed="${state[key] === choice.id}">${choice.label}</button>`).join('')}
       </div>
-    </div>
-    <div class="cp-filter-group">
-      <h4>格式</h4>
-      <div class="cp-filter-seg">
-        ${FORMAT_OPTIONS.map(f => `<button type="button" class="cp-seg${state.format === f.id ? ' is-active' : ''}" data-format="${f.id}">${f.label}</button>`).join('')}
-      </div>
-    </div>
-    <div class="cp-filter-group">
-      <h4>内容</h4>
-      <div class="cp-filter-seg">
-        ${CONTENT_MODES.map(c => `<button type="button" class="cp-seg${state.content === c.id ? ' is-active' : ''}" data-content="${c.id}">${c.label}</button>`).join('')}
-      </div>
-    </div>
+    </div>`).join('')}
     <div class="cp-filter-actions">
       <button type="button" class="cp-btn ghost" data-clear>清除筛选</button>
-      <button type="button" class="cp-btn primary" data-close>完成</button>
+      <button type="button" class="cp-btn ghost" data-close>取消</button>
+      <button type="submit" class="cp-btn primary">应用</button>
     </div>
   `
-  let next = { ...state, tags: [...state.tags] }
-  const apply = () => { onNavigate(galleryHash({ ...next, page: 1 })); dlg.close() }
+  const next = { ...state, tags: [...state.tags] }
+  const setPressed = (button, pressed) => {
+    button.classList.toggle('is-active', pressed)
+    button.setAttribute('aria-pressed', String(pressed))
+  }
   for (const btn of wrap.querySelectorAll('[data-tag]')) {
     btn.addEventListener('click', () => {
       const tag = btn.dataset.tag
-      const i = next.tags.indexOf(tag)
-      if (i >= 0) { next.tags.splice(i, 1); btn.classList.remove('is-active') }
-      else { next.tags.push(tag); btn.classList.add('is-active') }
+      const index = next.tags.indexOf(tag)
+      if (index >= 0) next.tags.splice(index, 1)
+      else next.tags.push(tag)
+      setPressed(btn, index < 0)
     })
   }
-  for (const btn of wrap.querySelectorAll('[data-kind]')) {
-    btn.addEventListener('click', () => { next.kind = btn.dataset.kind; apply() })
+  for (const btn of wrap.querySelectorAll('[data-filter-key]')) {
+    btn.addEventListener('click', () => {
+      const { filterKey, filterValue } = btn.dataset
+      next[filterKey] = filterValue
+      for (const sibling of btn.parentElement.children) setPressed(sibling, sibling === btn)
+    })
   }
-  for (const btn of wrap.querySelectorAll('[data-format]')) {
-    btn.addEventListener('click', () => { next.format = btn.dataset.format; apply() })
+  wrap.onsubmit = (event) => {
+    event.preventDefault()
+    const query = wrap.querySelector('#g-filter-query').value.trim()
+    dlg.close()
+    onNavigate(galleryHash({ ...next, query, page: 1 }))
   }
-  for (const btn of wrap.querySelectorAll('[data-content]')) {
-    btn.addEventListener('click', () => { next.content = btn.dataset.content; apply() })
-  }
-  wrap.querySelector('[data-clear]').addEventListener('click', () => onNavigate(galleryHash({ ...DEFAULT_GALLERY_STATE })))
+  wrap.querySelector('[data-clear]').addEventListener('click', () => { dlg.close(); clearFilters() })
   wrap.querySelector('[data-close]').addEventListener('click', () => dlg.close())
-  dlg.addEventListener('close', () => {}, { once: true })
   dlg.showModal()
 }
 

@@ -210,7 +210,9 @@ export function LibraryView({ section }: { section: Section }) {
       {state.loading ? <Spinner label={sectionKey === 'trainer' ? '正在加载修改器列表…' : '正在加载分类内容…'} /> : null}
 
       {state.error ? (
-        <ErrorBar message={state.error} onRetry={() => { setFacets(null); lastLoaded.current = ''; requestSeq.current++; setFacets(f => f); loadList() }} />
+        // 重试只重新拉列表，不动 facets：facets 是纯本地的栏目信息，清空它会让分类 / 排序 / 数据源
+        // 切换器一起消失，而 facets 的请求只跟栏目走、不会被这里重新触发——用户就再也切不回别的数据源了
+        <ErrorBar message={state.error} onRetry={() => { lastLoaded.current = ''; requestSeq.current++; loadList() }} />
       ) : state.loading && !state.page.items.length ? (
         <SkeletonGrid count={12} />
       ) : !state.loading && !state.page.items.length ? (

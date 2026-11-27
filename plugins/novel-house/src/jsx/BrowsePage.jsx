@@ -10,9 +10,10 @@ export function BrowsePage({ sources, onOpenSources, onOpenBook }) {
 
   if (!sources.filter(s => s.enabled).length) {
     return (
-      <div className="nh-onboard">
-        <div className="nh-onboard-icon" aria-hidden>书</div>
-        <button className="pk-btn" onClick={onOpenSources}>去导入书源</button>
+      <div className="pk-empty-state">
+        <strong className="pk-empty-title">暂无启用的书源</strong>
+        <p className="pk-empty-hint">启用书源后，即可浏览和搜索小说。</p>
+        <button className="pk-btn" onClick={onOpenSources}>管理书源</button>
       </div>
     )
   }
@@ -288,9 +289,10 @@ function SearchResults({ keyword, onOpen }) {
   const failed = groups.filter(g => g.error)
   const totalBooks = withResults.reduce((s, g) => s + g.books.length, 0)
   const idle = !progress.active && groups.length > 0
+  const empty = idle && totalBooks === 0
 
   return (
-    <div>
+    <div className={empty ? 'nh-empty-results' : undefined}>
       {progress.active && (
         <div className="nh-agg-status pk-muted">
           <span className="nh-searchbox-spin" aria-hidden /> 并行搜索中 {progress.done}/{progress.total || '?'} 个书源…
@@ -306,7 +308,10 @@ function SearchResults({ keyword, onOpen }) {
           <BookGrid books={g.books} onOpen={onOpen} />
         </section>
       ))}
-      {idle && totalBooks === 0 && <div className="nh-empty">「{keyword}」在所有书源中都没有结果</div>}
+      {empty && <div className="pk-empty-state">
+        <strong className="pk-empty-title">暂无搜索结果</strong>
+        <p className="pk-empty-hint">没有找到「{keyword}」相关小说，可以换个关键词试试。</p>
+      </div>}
       {idle && failed.length > 0 && (
         <div className="nh-agg-failed pk-muted">
           {failed.map(f => `${f.sourceName}: ${f.error}`).join(' · ')}
@@ -454,7 +459,10 @@ function ExplorePane({ onOpen }) {
 
   if (agg.loading) return <div>{bar}<GridSkeleton /><GridSkeleton count={6} /></div>
   const shown = agg.items.filter(x => x.sections?.length)
-  if (!shown.length) return <div className="nh-empty">暂无内容，请检查书源是否已安装并可访问</div>
+  if (!shown.length) return <div className="pk-empty-state">
+    <strong className="pk-empty-title">暂无推荐内容</strong>
+    <p className="pk-empty-hint">请检查书源是否可访问。</p>
+  </div>
   return (
     <div>
       {bar}
@@ -502,7 +510,7 @@ function RankingPane({ onOpen }) {
   }, [])
   if (agg.loading) return <div><GridSkeleton /><GridSkeleton count={6} /></div>
   const shown = agg.items.filter(x => x.books?.length)
-  if (!shown.length) return <div className="nh-empty">暂无分类内容，请检查书源</div>
+  if (!shown.length) return <div className="pk-empty-state">暂无分类内容</div>
   return (
     <div className="nh-parts">
       {shown.map(item => (

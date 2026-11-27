@@ -242,6 +242,7 @@ export function trainerSource(): SourceAdapter {
         installedSizeText: '',
         minConfig: '',
         recommendConfig: '',
+        configSpec: { min: [], recommend: [] },
         officialUrl: '',
         packages,
         trainerOptions: options,

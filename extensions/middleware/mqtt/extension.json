@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "target": "middleware", "id": "mqtt", "name": "MQTT / EMQX", "version": "0.0.1", "apiVersion": 1, "entry": "backend/index.cjs",
+  "descriptor": {
+    "ui": { "color": "#1c9983", "topicLabel": "Topic", "topicsModel": "subscriptions", "groupsModel": "clients", "publishHeaders": false, "authLabel": "User/Pass", "messageHint": "只查询 retained 保留消息，不读取历史消息", "groupsHint": "通用 MQTT 不提供客户端列表；配置 EMQX 管理面后可查看。", "integrationBadge": { "field": "emqx.enabled", "label": "EMQX", "missingLabel": "管理面未接入" } },
+    "completionRules": [{ "id": "mqtt-telemetry", "kind": "topic", "label": "环境设备遥测", "value": "${environment}/devices/telemetry" }]
+  }
+}

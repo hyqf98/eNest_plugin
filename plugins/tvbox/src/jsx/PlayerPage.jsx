@@ -2,16 +2,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { call, saveHistoryEntry } from '../js/api.js'
 import { createPlayer } from '../js/player.js'
 
+/** 鼠标贴近右缘多少像素内展开选集；移开后多久自动收起 */
+const EDGE_PX = 12
+const AUTO_HIDE_MS = 1600
+
 /**
  * 全屏播放页（Artplayer）：
  * - 进度拖拽快进/悬浮预览、倍速、音量、设置菜单、画中画、键盘控制（Artplayer 自带）
- * - 顶部返回+标题、选集抽屉、线路切换、上一集/下一集（自定义控件注入 Artplayer control 栏）
+ * - 业务按钮（返回/上一集/下一集/线路/选集/小窗）合并进 Artplayer 控制栏，与播放器控件同处一条栏，
+ *   随控制栏悬停显示、移开隐藏，不单独占一行
+ * - 选集抽屉贴右缘悬停展开、移开自动收起，可 pin 常驻
  * - 进度 30s 节流 + 退出/切集保存历史（续播依据）；断流 hls 自动恢复（player.js）
+ * - floating：宿主悬浮窗形态（视图已迁入置顶小窗），顶部提供拖动条
  */
-export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
+export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag, floating = false }) {
   const { siteKey, siteName, vodId, vodName, flags, flagIndex: initialFlag, episodeIndex, cover, resumeSec } = params
   const containerRef = useRef(null)
   const artRef = useRef(null)
+  // 业务按钮容器：React 正常往里渲染，Artplayer 创建时把该节点移进自己的控制栏
+  const dockRef = useRef(null)
   const stateRef = useRef({ flagIndex: initialFlag ?? 0, episodeIndex: episodeIndex ?? 0 })
   const [flagIndex, setFlagIndex] = useState(initialFlag ?? 0)
   const [episodeIdx, setEpisodeIdx] = useState(episodeIndex ?? 0)
@@ -21,6 +30,7 @@ export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerPinned, setDrawerPinned] = useState(false)
   const [resolution, setResolution] = useState('')
 
   const flag = flags?.[flagIndex]
@@ -94,6 +104,7 @@ export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
       title: vodName,
       resumeSec: resumeSec && episodeIdx === (episodeIndex ?? 0) && flagIndex === (initialFlag ?? 0) ? resumeSec : 0,
       speed: params.speed ?? 1,
+      dock: dockRef.current,
       onPosition: (pos, dur) => {
         lastPos = pos; lastDur = dur
         const now = Date.now()
@@ -112,12 +123,6 @@ export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
       seededRef.current = true
       saveProgress(0, 0, flag?.episodes?.[stateRef.current.episodeIndex]?.name)
     }
-    // 顶栏跟随 Artplayer 控制层显隐（hover 态由 CSS :hover 兜底）
-    const root = containerRef.current?.closest('.tb-player')
-    const syncState = () => root?.classList.toggle('artstate-hover', !!art.hover)
-    art.on('mouseenter', syncState)
-    art.on('mouseleave', syncState)
-    art.on('mousemove', syncState)
     // 实测分辨率：metadata 就绪后从 video 元素读（真实准确，4K 流即显示 3840×2160）
     // 同时回写历史（历史/继续观看卡片据此显示实测画质角标，剧集源数据无画质词）
     const readRes = () => {
@@ -143,7 +148,40 @@ export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, kind])
 
-  /* 顶部快捷键：Esc 退出（Artplayer 已处理空格/方向键快进音量） */
+  /* ---------------- 选集抽屉：贴右缘悬停展开 / 移开自动收起 / pin 常驻 ---------------- */
+  const hideTimerRef = useRef(null)
+  const drawerStateRef = useRef({ open: false, pinned: false })
+  drawerStateRef.current = { open: drawerOpen, pinned: drawerPinned }
+  const cancelHide = () => { if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null } }
+  const scheduleHide = () => {
+    if (drawerStateRef.current.pinned) return
+    cancelHide()
+    hideTimerRef.current = setTimeout(() => { hideTimerRef.current = null; setDrawerOpen(false) }, AUTO_HIDE_MS)
+  }
+  // 监听器只绑定一次，状态经 ref 读取（避免每次渲染重绑导致的计时器竞态）
+  useEffect(() => {
+    const onMove = (e) => {
+      const s = drawerStateRef.current
+      if (e.clientX >= window.innerWidth - EDGE_PX) { cancelHide(); setDrawerOpen(true) }
+      else if (s.open) scheduleHide()
+    }
+    const onLeave = () => { if (drawerStateRef.current.open) scheduleHide() }
+    window.addEventListener('mousemove', onMove, { passive: true })
+    document.addEventListener('mouseleave', onLeave)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseleave', onLeave)
+      cancelHide()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // 取消 pin 后若鼠标已不在抽屉上，按普通规则自动收起
+  useEffect(() => { if (!drawerPinned && drawerOpen) scheduleHide() }, [drawerPinned]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 鼠标在抽屉内不收起
+  const onDrawerEnter = cancelHide
+  const onDrawerLeave = () => { if (!drawerStateRef.current.pinned) scheduleHide() }
+
+  /* 顶部快捷键：Esc 关抽屉/退出（Artplayer 已处理空格/方向键快进音量） */
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') { if (drawerOpen) setDrawerOpen(false); else onExit?.() }
@@ -152,17 +190,32 @@ export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [drawerOpen, onExit])
 
-  /* Artplayer 自带控件之外的顶部栏（返回/标题/线路）+ 选集抽屉 */
+  /* 悬浮窗形态下的宿主调用（非宿主环境 / 旧宿主没有该 API 时静默降级） */
+  const host = typeof window !== 'undefined' ? window.enest : null
+  const enterFloat = () => host?.ui?.enterFloat?.({ width: 480, height: 320, minWidth: 320, minHeight: 200 }).catch(() => {})
+  const exitFloat = () => host?.ui?.exitFloat?.().catch(() => {})
+
   return (
-    <div className="tb-player">
+    <div className={`tb-player${floating ? ' is-floating' : ''}`}>
       <div ref={containerRef} className="tb-player-art" />
-      <div className="tb-player-topbar">
-        <button className="tb-player-icon-btn" onClick={() => onExit?.()}>←</button>
-        <span className="tb-player-topbar-title">{vodName}{episode ? ` · ${episode.name || `第 ${episodeIdx + 1} 集`}` : ''}</span>
+
+      {/* 悬浮窗拖动条：仅悬浮形态渲染；无标题栏，靠这条拖动窗口（原生 drag region） */}
+      {floating ? (
+        <div className="tb-player-drag">
+          <button className="tb-player-icon-btn" onClick={exitFloat} title="还原到主窗口">还原</button>
+        </div>
+      ) : null}
+
+      {/* 业务按钮：由 Artplayer 移入控制栏；不悬浮时隐藏的占位，避免 React 卸载节点 */}
+      <div ref={dockRef} className="tb-player-dock">
+        <button className="tb-player-icon-btn" onClick={() => (floating ? exitFloat() : onExit?.())} title={floating ? '还原到主窗口' : '返回'}>
+          {floating ? '⤢' : '←'}
+        </button>
+        <span className="tb-player-dock-title">
+          {vodName}{episode ? ` · ${episode.name || `第 ${episodeIdx + 1} 集`}` : ''}
+        </span>
         {resolution ? <span className="tb-player-res" title="视频实际分辨率">{resolution}</span> : null}
-        {note ? <span className="tb-player-topbar-note">{note}</span> : null}
-        {epCount > 0 ? <span className="tb-player-topbar-note">{episodeIdx + 1}/{epCount}</span> : null}
-        <span className="tb-player-topbar-spacer" />
+        {epCount > 0 ? <span className="tb-player-dock-note">{episodeIdx + 1}/{epCount}</span> : null}
         {epCount > 1 ? <button className="tb-player-icon-btn" onClick={() => gotoEpisode(episodeIdx - 1)} disabled={episodeIdx === 0} title="上一集">上一集</button> : null}
         {epCount > 1 ? <button className="tb-player-icon-btn" onClick={() => gotoEpisode(episodeIdx + 1)} disabled={episodeIdx >= epCount - 1} title="下一集">下一集</button> : null}
         {flags?.length > 1 ? (
@@ -170,7 +223,10 @@ export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
             线路（{flag?.flag}）
           </button>
         ) : null}
-        <button className="tb-player-icon-btn" onClick={() => setDrawerOpen(!drawerOpen)}>选集</button>
+        <button className="tb-player-icon-btn" onClick={() => { setDrawerPinned(p => !p); setDrawerOpen(true) }} title="选集（固定显示）">
+          选集{drawerPinned ? ' ✓' : ''}
+        </button>
+        {!floating ? <button className="tb-player-icon-btn" onClick={enterFloat} title="缩成悬浮小窗">小窗</button> : null}
       </div>
 
       {loading ? <div className="tb-player-center"><div className="tb-player-spinner" /></div> : null}
@@ -185,10 +241,23 @@ export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
         </div>
       ) : null}
 
-      <div className={`tb-ep-drawer${drawerOpen ? ' open' : ''}`}>
+      {/* 右缘把手：抽屉收起时提示这里有选集 */}
+      {!drawerOpen ? <div className="tb-ep-handle" aria-hidden="true" /> : null}
+      <div
+        className={`tb-ep-drawer${drawerOpen ? ' open' : ''}`}
+        onMouseEnter={onDrawerEnter}
+        onMouseLeave={onDrawerLeave}
+      >
         <header>
           <span>选集 · {flag?.flag ?? ''}（{epCount}）</span>
-          <button onClick={() => setDrawerOpen(false)}>✕</button>
+          <span className="tb-ep-drawer-actions">
+            <button
+              className={drawerPinned ? 'is-active' : ''}
+              onClick={() => setDrawerPinned(p => !p)}
+              title={drawerPinned ? '取消固定（移开自动收起）' : '固定显示'}
+            >{drawerPinned ? '已固定' : '固定'}</button>
+            <button onClick={() => { setDrawerPinned(false); setDrawerOpen(false) }}>✕</button>
+          </span>
         </header>
         {flags?.length > 1 ? (
           <div className="tb-ep-drawer-flags">
@@ -199,7 +268,7 @@ export function PlayerPage({ params, onExit, onSwitchEpisode, onSwitchFlag }) {
         ) : null}
         <div className="list">
           {(flag?.episodes ?? []).map((ep, i) => (
-            <button key={`${ep.url}-${i}`} className={`tb-ep-btn${i === episodeIdx ? ' is-current' : ''}`} onClick={() => { gotoEpisode(i); setDrawerOpen(false) }}>
+            <button key={`${ep.url}-${i}`} className={`tb-ep-btn${i === episodeIdx ? ' is-current' : ''}`} onClick={() => { gotoEpisode(i); if (!drawerStateRef.current.pinned) setDrawerOpen(false) }}>
               {ep.name || String(i + 1).padStart(2, '0')}
             </button>
           ))}

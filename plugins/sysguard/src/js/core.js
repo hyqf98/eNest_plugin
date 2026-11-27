@@ -59,7 +59,7 @@ export function linkPortsToProc(ports) {
 }
 
 /**
- * 采样器：1.5s 周期取宿主 sys.processes，聚合总 CPU% 与总 RSS（KB）。
+ * 采样器：1.5s 周期获取进程、端口与整机 CPU 样本。
  * 宿主有 1s 采样缓存，1.5s 周期天然命中缓存节律。
  * acquire: async () => { token } / release: async (token) => {}，页面隐藏时暂停。
  */
@@ -143,8 +143,9 @@ export class SampleRing {
  */
 export function drawSparkline(canvas, series, { max = 100, grid = true } = {}) {
   const dpr = window.devicePixelRatio || 1
-  const w = canvas.clientWidth || canvas.width
-  const h = canvas.clientHeight || canvas.height
+  const w = canvas.clientWidth
+  const h = canvas.clientHeight
+  if (w < 4 || h < 4) return
   canvas.width = Math.round(w * dpr)
   canvas.height = Math.round(h * dpr)
   const ctx = canvas.getContext('2d')
@@ -164,11 +165,19 @@ export function drawSparkline(canvas, series, { max = 100, grid = true } = {}) {
   for (const s of series) {
     const data = s.data
     if (!data.length) continue
-    const step = data.length > 1 ? w / (data.length - 1) : w
+    const ordinate = value => h - Math.min(1, Math.max(0, value / max)) * (h - 2) - 1
+    if (data.length === 1) {
+      ctx.beginPath()
+      ctx.arc(w - 2, ordinate(data[0]), 1.5, 0, Math.PI * 2)
+      ctx.fillStyle = s.color
+      ctx.fill()
+      continue
+    }
+    const step = w / (data.length - 1)
     ctx.beginPath()
     data.forEach((v, i) => {
       const x = i * step
-      const y = h - Math.min(1, Math.max(0, v / max)) * (h - 2) - 1
+      const y = ordinate(v)
       if (i === 0) ctx.moveTo(x, y)
       else ctx.lineTo(x, y)
     })
@@ -206,8 +215,7 @@ export function thresholdLevel(v, warn = 70, danger = 90) {
 
 /**
  * 数据汇总：进程数组 → 仪表盘指标（全部派生自宿主 sys.processes / sys.ports）。
- * totalCpu 已按核数归一到 0-100（ps 的 pcpu 单进程上限即 100，总和无须再裁），
- * 这里仍 clamp 100 防御异常样本。
+ * totalCpu 是进程值之和的截断值，不用于显示整机 CPU 占用。
  */
 export function summarize(procs, ports) {
   const list = Array.isArray(procs) ? procs : []

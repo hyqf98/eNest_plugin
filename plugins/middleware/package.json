@@ -14,11 +14,9 @@
   "dependencies": {
     "@enest/lxgw-font": "0.0.1",
     "@enest/plugin-kit": "0.0.1",
-    "amqplib": "^2.2.0",
-    "ioredis": "^5.8.2",
-    "kafkajs": "^2.2.4",
-    "mqtt": "^5.16.0",
-    "ws": "^8.18.0",
+    "@enest/workbench-extensions": "0.0.1",
+    "@enest/workbench-market": "0.0.1",
+    "@enest/workbench-view-host": "0.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "@radix-ui/react-dropdown-menu": "^2.2.1",
@@ -38,25 +36,6 @@
     "esbuild": "^0.21.5"
   },
   "enestBackend": {
-    "entry": "backend/index.ts",
-    "dependencies": [
-      "amqplib",
-      "ioredis",
-      "kafkajs",
-      "mqtt",
-      "ws"
-    ],
-    "optionalExcluded": [
-      "bufferutil",
-      "utf-8-validate"
-    ],
-    "packageFilesExcluded": {
-      "kafkajs": [
-        "types"
-      ],
-      "mqtt": [
-        "help"
-      ]
-    }
+    "entry": "backend/index.ts"
   }
 }

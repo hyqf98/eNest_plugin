@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react'
 import { thumbs, library } from './api'
+import { ThumbnailCache } from '../shared/thumbnailCache'
 
 interface CacheEntry {
   dataUrl: string | null
   error?: string
 }
 
-const cache = new Map<string, CacheEntry>()
+const cache = new ThumbnailCache<CacheEntry>(400)
 const inFlight = new Map<string, Promise<CacheEntry>>()
 const queue: Array<() => void> = []
 let active = 0
 const MAX_ACTIVE = 4
-const MAX_CACHE = 400
 
 export function useThumbnail(url: string | undefined, headers?: Record<string, string>): { dataUrl: string | null; loading: boolean; error?: string } {
   const key = url ? `source:${url}` : ''
@@ -78,11 +78,11 @@ async function loadThumb(key: string, loader: () => Promise<{ dataUrl: string | 
       active += 1
       loader().then(result => {
         const entry: CacheEntry = { dataUrl: result.dataUrl, error: result.error }
-        remember(key, entry)
+        cache.set(key, entry)
         resolve(entry)
       }).catch(error => {
         const entry: CacheEntry = { dataUrl: null, error: error instanceof Error ? error.message : String(error) }
-        remember(key, entry)
+        cache.set(key, entry)
         reject(error)
       }).finally(() => {
         active -= 1
@@ -102,15 +102,5 @@ function pump(): void {
     const next = queue.shift()
     if (!next) return
     next()
-  }
-}
-
-function remember(key: string, entry: CacheEntry): void {
-  cache.delete(key)
-  cache.set(key, entry)
-  while (cache.size > MAX_CACHE) {
-    const oldest = cache.keys().next().value
-    if (typeof oldest !== 'string') break
-    cache.delete(oldest)
   }
 }

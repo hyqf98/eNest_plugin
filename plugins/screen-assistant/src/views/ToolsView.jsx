@@ -603,7 +603,7 @@ export function ToolsView({ incoming, library, onPinImage, toast }) {
       </section>
 
       <aside className="sa-tools-panel" aria-label="图片工具">
-        {!active ? <div className="sa-panel-empty">先添加一张图片</div> : (
+        {!active ? <div className="pk-empty-state"><strong className="pk-empty-title">请先添加图片</strong></div> : (
           <>
             <div className="sa-tool-grid" role="tablist" aria-label="工具">
               {TOOLS.map(entry => (

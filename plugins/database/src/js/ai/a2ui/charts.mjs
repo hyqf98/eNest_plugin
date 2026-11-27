@@ -15,8 +15,6 @@ let mermaidLoading = null
 let mermaidSeq = 0
 
 const chartPool = new Map() // container -> instance
-let echartsCore = null
-let echartsLoading = null
 
 export function isDarkTheme() {
   const root = document.documentElement
@@ -103,27 +101,6 @@ export async function renderMermaid(code, holder) {
 
 /* ── ECharts ── */
 
-async function loadECharts() {
-  if (echartsCore) return echartsCore
-  if (!echartsLoading) {
-    echartsLoading = Promise.all([
-      import('echarts/core'),
-      import('echarts/charts'),
-      import('echarts/components'),
-      import('echarts/renderers')
-    ]).then(([core, charts, components, renderers]) => {
-      core.use([
-        charts.BarChart, charts.LineChart, charts.PieChart, charts.ScatterChart,
-        components.GridComponent, components.TooltipComponent, components.LegendComponent,
-        renderers.CanvasRenderer
-      ])
-      echartsCore = core
-      return core
-    })
-  }
-  return echartsLoading
-}
-
 function darkChartOption(option) {
   // 深色底：透明背景 + 浅色文字；只覆盖顶层 textStyle/legend/tooltip 的颜色
   return {
@@ -138,7 +115,7 @@ function darkChartOption(option) {
 /** 渲染 echarts option 到容器；import 失败降级错误卡 */
 export async function renderEChartOption(option, container) {
   try {
-    const echarts = await loadECharts()
+    const echarts = await import('./chartEngine.mjs')
     if (!container.isConnected) return
     disposeChart(container)
     // 缓存 option：主题切换 refreshCharts dispose 后能按内容重画（A2UI 组件的 option

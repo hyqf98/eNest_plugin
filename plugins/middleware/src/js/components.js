@@ -87,6 +87,14 @@ export function el(tag, attrs = {}, children = []) {
   return node
 }
 
+export function emptyState(title, { hint, action, ...attrs } = {}) {
+  return el('div', { class: 'pk-empty-state', role: action ? undefined : 'status', ...attrs }, [
+    el('p', { class: 'pk-empty-title' }, title),
+    hint ? el('p', { class: 'pk-empty-hint' }, hint) : null,
+    action
+  ])
+}
+
 /* —— chip / 健康徽标 —— */
 export function chip(text, cls = '', title = '') {
   return `<span class="chip ${cls}"${title ? ` title="${escapeHtml(title)}"` : ''}>${escapeHtml(text)}</span>`
@@ -124,14 +132,18 @@ export function simpleGrid({ columns, rowKey, onRowClick, onRowCtx, onRowDblClic
     ])]),
     tbody
   ])
-  const wrap = el('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': '数据列表，可左右滚动' }, [table])
+  const scroll = el('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': '数据列表，可左右滚动' }, [table])
+  const placeholder = emptyState(emptyText)
+  const wrap = el('div', { class: 'mw-grid-region' }, [scroll, placeholder])
   let current = []
   let selectedKey = null
-  function update(rows) {
+  function update(rows, message = emptyText) {
     current = rows
     tbody.innerHTML = ''
+    wrap.classList.toggle('is-empty', !rows.length)
+    placeholder.hidden = Boolean(rows.length)
     if (!rows.length) {
-      tbody.appendChild(el('tr', { class: 'empty-row' }, [el('td', { colspan: String(columns.length + (onRowCtx ? 1 : 0)) }, emptyText)]))
+      if (placeholder.firstElementChild.textContent !== message) placeholder.firstElementChild.textContent = message
       return
     }
     for (const row of rows) {

@@ -2,9 +2,9 @@ import { Icon } from './Icon.jsx'
 
 export function Empty({ icon = 'image', text, children }) {
   return (
-    <div className="sa-empty">
+    <div className="pk-empty-state">
       <Icon name={icon} />
-      <span>{text}</span>
+      <strong className="pk-empty-title">{text}</strong>
       {children}
     </div>
   )

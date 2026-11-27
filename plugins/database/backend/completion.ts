@@ -16,8 +16,7 @@ import type {
   CompletionResponse,
   DbCompletionInput
 } from '@backend/contracts/ssh-db'
-import { dialectFunctions, dialectKeywords, dialectSnippets, driverDialect } from '@backend/dialects'
-import type { DbDriverId } from '@backend/contracts/ssh-db'
+const commonKeywords = 'SELECT FROM WHERE AND OR NOT INSERT INTO VALUES UPDATE SET DELETE CREATE TABLE ALTER DROP INDEX VIEW JOIN LEFT RIGHT INNER OUTER ON GROUP BY ORDER ASC DESC LIMIT OFFSET UNION ALL DISTINCT HAVING AS IN BETWEEN LIKE IS NULL TRUE FALSE CASE WHEN THEN ELSE END EXISTS COUNT PRIMARY KEY FOREIGN REFERENCES CONSTRAINT DEFAULT UNIQUE CHECK EXPLAIN BEGIN COMMIT ROLLBACK'.split(' ')
 
 const CATALOG_TTL_MS = 60_000
 
@@ -620,20 +619,19 @@ function makeItem(rank: number, partial: ItemPartial): CompletionItem {
 
 export interface CompletionBuildContext {
   input: DbCompletionInput
-  driverId: DbDriverId
+  dialect: string
   catalog: CompletionCatalog | null
 }
 
-export function buildCompletion({ input, driverId, catalog }: CompletionBuildContext): CompletionResponse {
+export function buildCompletion({ input, dialect, catalog }: CompletionBuildContext): CompletionResponse {
   const sql = String(input.sql ?? '')
   const cursor = typeof input.cursor === 'number' && Number.isFinite(input.cursor) ? input.cursor : sql.length
   const stmt = currentStatement(sql, cursor)
   const cursorInStmt = Math.max(0, Math.min(cursor - stmt.start, stmt.text.length))
   const { context, qualifier, prefix, target } = detectContext(stmt.text, cursorInStmt)
-  const dialect = driverDialect(driverId)
-  const keywords = catalog?.keywords?.length ? catalog.keywords : dialectKeywords(dialect)
-  const functions = catalog?.functions?.length ? catalog.functions : dialectFunctions(dialect)
-  const snippets = dialectSnippets(dialect)
+  const keywords = catalog?.keywords?.length ? catalog.keywords : commonKeywords
+  const functions = catalog?.functions ?? []
+  const snippets = catalog?.snippets ?? []
   const usage = input.usageBoost ?? catalog?.usageBoost
   const ident = identifierAtCursor(sql, cursor)
   const prefixLower = (prefix || ident.text).toLowerCase().replace(/["`]/g, '')

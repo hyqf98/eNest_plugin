@@ -15,7 +15,6 @@ import type {
   CompletionResponse,
   DbApplyChangesInput,
   DbCompletionInput,
-  DbDialectInfo,
   DbDriverId,
   DbExecuteInput,
   DbImportPreviewResult,
@@ -28,7 +27,7 @@ import type {
   SchemaObject,
   TableDetail
 } from '@backend/contracts/ssh-db'
-import { getDriver, DEFAULT_MAX_ROWS } from '@backend/drivers'
+import { acquireDriver, driverDescriptors } from '@backend/driverRuntime'
 import {
   buildCompletion,
   getCatalog,
@@ -37,22 +36,22 @@ import {
   isWriteSql,
   setCatalog
 } from '@backend/completion'
-import { listDialects } from '@backend/dialects'
 import { isReadQuery, normalizeLimit, ResultBudget } from '@backend/queryPolicy'
 import { planSqlScript } from '@backend/sqlScript'
 import type { SqlScriptUnit } from '@backend/sqlScript'
 import { transactionCommand, validateExecutionPlan } from '@backend/executionPolicy'
 import { isStructuredRead, DRIVER_FAMILIES, supportsIsolatedReadOnly } from '@backend/driverCatalog'
-import { nativeCompletion } from '@backend/nativeCompletion'
 import { rowChangeSql } from '@backend/rowChanges'
 const logInfo = (_source: string, _message: string): void => {}
 const logWarn = (_source: string, _message: string): void => {}
-import type { DriverHandle } from '@backend/drivers'
+import type { DbDriver, DriverHandle } from '@backend/drivers'
 
 export interface DbSession {
   sessionKey: string
   pluginId: string
   driverId: DbDriverId
+  driver: DbDriver
+  releaseDriver(): void
   handle: DriverHandle
   config: DbConnectionConfig
   readOnly: boolean
@@ -86,9 +85,9 @@ export function requireSession(pluginId: string, sessionKey: string): DbSession 
 }
 
 export async function dbTest(pluginId: string, config: DbConnectionConfig): Promise<DbTestResult> {
-  const driver = getDriver(config.driver)
-  const password = config.ephemeralSecret
-  return driver.test(config, password)
+  const lease = await acquireDriver(config.driver)
+  try { return await lease.provider.test(config, config.ephemeralSecret) }
+  finally { lease.release() }
 }
 
 export async function dbOpen(
@@ -104,37 +103,35 @@ export async function dbOpen(
       ? (input as { sessionKey?: string }).sessionKey
       : undefined
   if (!config?.driver) throw new Error('driver required')
-  const driver = getDriver(config.driver)
   const password = config.ephemeralSecret
   if (stopped) throw new Error('database service is closing')
   const key = sessionKey || makeSessionKey(pluginId, config.driver)
   const epoch = Symbol(key)
   opening.set(key, epoch)
-  const previous = sessions.get(key)
-  if (previous) await closeSession(previous)
-  if (stopped || opening.get(key) !== epoch) throw new Error('database opening cancelled')
-  const handle = await driver.open(
-    { ...config, options: { ...(config.options ?? {}), readOnly: normalizeReadOnly(config) } },
-    password
-  ).catch(error => { if (opening.get(key) === epoch) opening.delete(key); throw error })
-  if (stopped || opening.get(key) !== epoch) { await driver.close(handle); throw new Error('database opening cancelled') }
-  opening.delete(key)
-  handle.controller = new AbortController()
-  const readOnly = normalizeReadOnly(config)
-  handle.readOnly = readOnly
-  const session: DbSession = {
-    sessionKey: key,
-    pluginId,
-    driverId: config.driver,
-    handle,
-    config,
-    readOnly,
-    openedAt: Date.now(),
-    running: new Map()
+  let lease: Awaited<ReturnType<typeof acquireDriver>> | undefined
+  try {
+    lease = await acquireDriver(config.driver)
+    if (stopped || opening.get(key) !== epoch) throw new Error('database opening cancelled')
+    const previous = sessions.get(key)
+    if (previous) await closeSession(previous)
+    const driver = lease.provider
+    const readOnly = normalizeReadOnly(config)
+    const handle = await driver.open({ ...config, options: { ...(config.options ?? {}), readOnly } }, password)
+    if (stopped || opening.get(key) !== epoch) { await driver.close(handle); throw new Error('database opening cancelled') }
+    handle.controller = new AbortController()
+    handle.readOnly = readOnly
+    const session: DbSession = {
+      sessionKey: key, pluginId, driverId: config.driver, driver, releaseDriver: lease.release,
+      handle, config, readOnly, openedAt: Date.now(), running: new Map()
+    }
+    sessions.set(key, session)
+    lease = undefined
+    logInfo('db', `session opened ${key} driver=${config.driver}`)
+    return toSessionInfo(session)
+  } finally {
+    if (opening.get(key) === epoch) opening.delete(key)
+    lease?.release()
   }
-  sessions.set(key, session)
-  logInfo('db', `session opened ${key} driver=${config.driver}`)
-  return toSessionInfo(session)
 }
 
 function toSessionInfo(s: DbSession): DbSessionInfo {
@@ -155,7 +152,8 @@ async function closeSession(s: DbSession): Promise<void> {
   s.handle.controller?.abort(new Error('database session closed'))
   for (const active of s.running.values()) { active.aborted = true; active.controller.abort(new Error('database session closed')) }
   invalidateCatalog(s.sessionKey)
-  await getDriver(s.driverId).close(s.handle)
+  try { await s.driver.close(s.handle) }
+  finally { s.releaseDriver() }
 }
 export async function dbClose(pluginId: string, sessionKey: string): Promise<boolean> {
   const s = sessions.get(sessionKey)
@@ -190,7 +188,7 @@ export function dbListSessions(pluginId: string): DbSessionInfo[] {
 }
 
 export async function dbTransaction(pluginId: string, input: { sessionKey: string; operation: 'begin' | 'commit' | 'rollback' }): Promise<{ active: boolean }> {
-  const s = requireSession(pluginId, input.sessionKey), driver = getDriver(s.driverId)
+  const s = requireSession(pluginId, input.sessionKey), driver = s.driver
   if (!['begin','commit','rollback'].includes(input.operation)) throw new Error('Invalid transaction operation')
   if (!driver.transaction) throw new Error('Transactions are not supported by this driver')
   if (s.running.size || s.busyOperation) throw new Error('Wait for the active query before changing transaction state')
@@ -198,7 +196,7 @@ export async function dbTransaction(pluginId: string, input: { sessionKey: strin
 }
 
 export async function dbExecute(pluginId: string, input: DbExecuteInput): Promise<QueryResult> {
-  const s = requireSession(pluginId, input.sessionKey), driver = getDriver(s.driverId)
+  const s = requireSession(pluginId, input.sessionKey), driver = s.driver
   const sql = String(input.sql ?? '')
   if (!sql.trim()) throw new Error('Query text is required')
   if (s.running.size || s.busyOperation) throw new Error('This console already has an active query; use another console for concurrent work')
@@ -258,7 +256,7 @@ export async function dbExecute(pluginId: string, input: DbExecuteInput): Promis
 
 export async function dbExplain(pluginId: string, input: { sessionKey: string; sql: string }): Promise<QueryResult> {
   const s = requireSession(pluginId, input.sessionKey)
-  if (!getDriver(s.driverId).explain) throw new Error('Execution plan unavailable for this driver')
+  if (!s.driver.explain) throw new Error('Execution plan unavailable for this driver')
   if (!isReadQuery(input.sql, DRIVER_FAMILIES[s.driverId])) throw new Error('Execution plan only accepts read queries')
   return dbExecute(pluginId, { ...input, sql: `${s.driverId === 'sqlite' ? 'EXPLAIN QUERY PLAN' : 'EXPLAIN'} ${input.sql}` })
 }
@@ -272,7 +270,7 @@ export async function dbCancel(pluginId: string, input: string | { sessionKey?: 
   const running = [...s.running.entries()].filter(([id]) => !executionId || executionId === id)
   if (!running.length) { if (s.busyOperation) await dbClose(pluginId, key); return true }
   for (const [, run] of running) { run.aborted = true; run.controller.abort(new Error('database query cancelled')) }
-  const driver = getDriver(s.driverId)
+  const driver = s.driver
   if (!driver.cancel && !['mongodb','influxdb','influxdb1','influxdb3','elasticsearch','opensearch','neo4j'].includes(s.driverId)) { await dbClose(pluginId, key); return true }
   await Promise.all(running.map(([, run]) => run.finished))
   return true
@@ -280,7 +278,7 @@ export async function dbCancel(pluginId: string, input: string | { sessionKey?: 
 
 export async function dbApplyChanges(pluginId: string, input: DbApplyChangesInput): Promise<BatchResult> {
   const s = requireSession(pluginId, input.sessionKey)
-  const driver = getDriver(s.driverId)
+  const driver = s.driver
   if (!driver.applyBatch) throw new Error(`driver ${s.driverId} does not support applyChanges`)
   if (s.readOnly) throw new Error('read-only connection rejects applyChanges')
   assertWriteConfirmed(s, input.confirmed, 'applyChanges')
@@ -293,7 +291,7 @@ async function schemaTree(
   input: DbSchemaTreeInput & { node?: { type?: string; database?: string; schema?: string; table?: string } }
 ): Promise<SchemaObject[]> {
   const s = requireSession(pluginId, input.sessionKey)
-  const driver = getDriver(s.driverId)
+  const driver = s.driver
   // 兼容插件传 node.type 作为 parent
   const parent =
     input.parent ??
@@ -371,7 +369,7 @@ export async function dbSchemaDescribe(
   input: { sessionKey: string; database?: string; schema?: string; table: string }
 ): Promise<TableDetail> {
   const s = requireSession(pluginId, input.sessionKey)
-  const driver = getDriver(s.driverId)
+  const driver = s.driver
   return inSession(s, 'object metadata', () => driver.describeTable(s.handle, { database: input.database, schema: input.schema }, input.table))
 }
 
@@ -380,7 +378,7 @@ export async function dbSchemaDdl(
   input: { sessionKey: string; database?: string; schema?: string; table: string }
 ): Promise<string> {
   const s = requireSession(pluginId, input.sessionKey)
-  const driver = getDriver(s.driverId)
+  const driver = s.driver
   if (!driver.getDdl) throw new Error(`driver ${s.driverId} does not support ddl`)
   return inSession(s, 'DDL inspection', () => driver.getDdl!(s.handle, { database: input.database, schema: input.schema }, input.table))
 }
@@ -390,7 +388,7 @@ export async function dbCompletion(
   input: DbCompletionInput
 ): Promise<CompletionResponse> {
   const s = requireSession(pluginId, input.sessionKey)
-  const driver = getDriver(s.driverId)
+  const driver = s.driver
   const database = input.database ?? s.config.database
   const schema = input.schema ?? s.config.options?.schema
   let catalog: CompletionCatalog | null = getCatalog(s.sessionKey, database, schema)
@@ -404,11 +402,28 @@ export async function dbCompletion(
       catalog = null
     }
   }
-  return nativeCompletion(DRIVER_FAMILIES[s.driverId], input, catalog) || buildCompletion({ input, driverId: s.driverId, catalog })
+  return driver.complete?.(input, catalog) || buildCompletion({ input, dialect: driver.dialect, catalog })
 }
 
-export function dbDialectsList(): DbDialectInfo[] {
-  return listDialects()
+export const dbDialectsList = driverDescriptors
+
+export async function dbReleaseView(viewToken: string): Promise<void> {
+  await Promise.allSettled([...sessions.values()].map(session => session.driver.releaseView?.(session.handle, viewToken)))
+}
+
+export async function dbInvokeView(pluginId: string, request: {
+  sessionKey: string; driverId: string; viewId: string; viewToken: string; operation: string; input: unknown;
+  authorize(write: boolean): Promise<void>;
+}): Promise<unknown> {
+  const session = requireSession(pluginId, request.sessionKey)
+  if (session.driverId !== request.driverId || !session.driver.invokeView) throw new Error('数据库会话与页面扩展不匹配')
+  const write = session.driver.isViewWrite?.(request.viewId, request.operation)
+  if (typeof write !== 'boolean') throw new Error('扩展页面未声明此操作')
+  if (write && session.readOnly) throw new Error('只读连接不允许此操作')
+  await request.authorize(write)
+  if (requireSession(pluginId, request.sessionKey) !== session) throw new Error('数据库会话已更新，请重开页面')
+  return inSession(session, 'driver view', () => session.driver.invokeView!(session.handle, request.viewId, request.operation, request.input,
+    AbortSignal.any([session.handle.controller!.signal, AbortSignal.timeout(10_000)]), request.viewToken))
 }
 
 // —— CSV 导入（Spec DB-G P0 最小）——
@@ -484,7 +499,7 @@ export async function dbImportPreview(pluginId: string, input: DbImportPreviewIn
 }
 
 async function importRun(pluginId: string, input: DbImportRunInput): Promise<DbImportRunResult> {
-  const s = requireSession(pluginId, input.sessionKey), driver = getDriver(s.driverId)
+  const s = requireSession(pluginId, input.sessionKey), driver = s.driver
   if (s.readOnly) throw new Error('Read-only connection rejects import')
   if (!driver.capabilities.import || !driver.applyBatch) throw new Error('Import unavailable for this driver')
   if (input.options?.conflict && input.options.conflict !== 'insert') throw new Error('Only insert conflict policy is currently supported')

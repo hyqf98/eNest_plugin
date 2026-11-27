@@ -499,7 +499,6 @@ export function App() {
   const recent = store.state.recent
   recentRef.current = recent
   const recentHidden = recent.length === 0
-  const emptyGuideHidden = !(recent.length === 0 && store.state.profiles.length === 0)
 
   const treeGroups = []
   if (buckets) {
@@ -516,7 +515,6 @@ export function App() {
     <div className="app" id="app" data-mode={mode}>
       {/* 顶部条：quick=会话状态条 / shell=标题与操作 */}
       <header className="topbar" id="topbar">
-        <div className="brand"><span className="brand-mark" aria-hidden="true">▣</span><strong>远程桌面</strong><span className="mode-label" id="mode-label">{mode === 'quick' ? ' · Quick' : ''}</span></div>
         <nav className="tabs" id="tabs" aria-label="会话">
           {mode !== 'quick' && [...sessionsRef.current.values()].map((entry) => {
             const phase = entry.session?.state?.phase || 'connecting'
@@ -538,6 +536,7 @@ export function App() {
           <MoreMenu
             ariaLabel="更多操作"
             items={[
+              mode === 'quick' ? { key: 'settings', label: '设置', onSelect: () => setSettingsOpen(true) } : null,
               { key: 'import', label: '导入 JSON / 粘贴 URI', onSelect: safely(importFlow) },
               // quick 模式沿用原行为：不暴露导出（单窗口无落盘入口）
               mode === 'quick' ? null : { key: 'export', label: '导出 JSON（密码为空）', onSelect: safely(exportFlow) },
@@ -545,7 +544,7 @@ export function App() {
           />
           <span className="spacer"></span>
           <button className="pk-btn pk-btn-ghost" id="btn-shell-expand" title="在桌面展开" hidden={mode !== 'quick'} onClick={() => host?.ui?.openInShell?.()}>↗ 展开</button>
-          <SettingsGear onClick={() => setSettingsOpen(true)} />
+          {mode === 'shell' && <SettingsGear onClick={() => setSettingsOpen(true)} />}
         </div>
       </header>
 
@@ -560,9 +559,14 @@ export function App() {
             />
           </div>
           <div className="tree" id="tree">
-            {!loaded ? <div className="empty">加载中…</div> : (
-              <>
-                {treeEmpty && store.state.ui.selectedGroupId ? null : treeGroups.map((g) => {
+            {!loaded ? <div className="pk-empty-state" role="status">正在读取连接…</div> : treeEmpty ? (
+              <div className="pk-empty-state">
+                <strong className="pk-empty-title">{store.state.profiles.length ? '没有匹配的连接' : '暂无连接'}</strong>
+                {store.state.profiles.length ? <p className="pk-empty-hint">试试其他关键词，或切回全部分组。</p> : (
+                  <button className="pk-btn pk-btn-ghost pk-btn-sm" id="tree-empty-new" onClick={() => openProfileDialog(null)}>新建连接</button>
+                )}
+              </div>
+            ) : treeGroups.map((g) => {
                   if (g.groupId != null && collapsedGroupsRef.current.has(g.groupId)) {
                     return (
                       <div key={g.groupId || '__ungrouped'} className="group-head" onClick={() => toggleGroup(g.groupId)}>
@@ -577,12 +581,7 @@ export function App() {
                       onItemMenu={onTreeItemMenu} menuItems={profileMenuItems}
                     />
                   )
-                })}
-                {treeEmpty && store.state.ui.selectedGroupId && (
-                  <div className="empty">没有匹配的资产<button className="pk-btn pk-btn-ghost pk-btn-sm tree-empty-new" id="tree-empty-new" onClick={() => openProfileDialog(null)}>新建连接</button></div>
-                )}
-              </>
-            )}
+            })}
           </div>
           <div className="side-foot">
             <select
@@ -595,9 +594,9 @@ export function App() {
         {/* 主区：未连接=欢迎/最近；连接后=会话画布 */}
         <main className="main" id="main">
           <section className="welcome" id="welcome" hidden={hasSessions}>
-            <div className="hero">
-              <h2>远程桌面</h2>
-              <p>粘贴地址，或新建连接</p>
+            <div className={recentHidden ? 'hero pk-empty-state' : 'hero'}>
+              {recentHidden && <strong className="pk-empty-title">尚未连接远程桌面</strong>}
+              <p className="pk-empty-hint">{mode === 'shell' && store.state.profiles.length ? '选择左侧连接，或粘贴地址。' : '粘贴地址，或新建连接。'}</p>
               <div className="quick-uri">
                 <input
                   id="uri-input" type="text" placeholder="粘贴 vnc://host:5901 或 rdp://user@host:3389"
@@ -612,7 +611,7 @@ export function App() {
                 { key: 'clear', label: '清空最近记录', danger: true, onSelect: safely(async () => { await store.clearRecent(); bump() }) },
               ]} /></div>
               <div className="recent-list" id="recent-list">
-                {recent.length === 0 ? <div className="empty">暂无最近连接</div> : recent.slice(0, 10).map((r, index) => {
+                {recent.slice(0, 10).map((r, index) => {
                   const when = new Date(r.when)
                   const hhmm = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`
                   const dur = r.durationMs > 0 ? formatDuration(r.durationMs) : ''
@@ -631,9 +630,6 @@ export function App() {
                   )
                 })}
               </div>
-            </div>
-            <div className="empty-guide" id="empty-guide" hidden={emptyGuideHidden}>
-              <p>暂无保存的连接，点右上角「＋ 新建」添加</p>
             </div>
           </section>
           <div className="sessions" id="sessions" ref={sessionsElRef} hidden={!hasSessions}></div>

@@ -40,6 +40,17 @@ export function adapterBase(id: DbDriverId, label: string, dialect: string, defa
   return driver
 }
 
+export function withConnectionTest(driver: DbDriver): DbDriver {
+  driver.test = async (config, password) => {
+    const started = Date.now()
+    let handle: DriverHandle | undefined
+    try { handle = await driver.open(config, password); return { ok: true, message: 'Connected', latencyMs: Date.now() - started } }
+    catch (error) { return { ok: false, message: (error as Error).message, latencyMs: Date.now() - started } }
+    finally { if (handle) await driver.close(handle).catch(() => undefined) }
+  }
+  return driver
+}
+
 export function endpoint(h: { config: { host?: string; port?: number; options?: Record<string, unknown> } }, port: number): string {
   const { config } = h
   const url = new URL(String(config.options?.endpoint || `${config.options?.ssl ? 'https' : 'http'}://${config.host || '127.0.0.1'}:${config.port ?? port}`))

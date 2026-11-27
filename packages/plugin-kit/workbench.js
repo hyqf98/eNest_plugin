@@ -77,7 +77,7 @@ export function createDialog({ title, content = '', className = '', onClose, res
   const dialog = document.createElement('dialog')
   dialog.className = `wb-dialog ${className}`
   dialog.setAttribute('aria-label', title || '对话框')
-  dialog.innerHTML = `<header class="wb-dialog-head"><strong>${escapeHtml(title)}</strong><button type="button" data-dialog-close aria-label="关闭">关闭</button></header><div class="wb-dialog-body">${content}</div>`
+  dialog.innerHTML = `<header class="wb-dialog-head"><strong>${escapeHtml(title)}</strong><button type="button" data-dialog-close aria-label="关闭">×</button></header><div class="wb-dialog-body">${content}</div>`
   document.body.append(dialog)
   const close = () => dialog.close()
   dialog.querySelector('[data-dialog-close]').addEventListener('click', close)

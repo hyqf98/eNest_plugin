@@ -78,6 +78,8 @@
 .sov-toolbar button:disabled { opacity: .45; cursor: default; }
 
 .sov-scroller {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -85,7 +87,7 @@
   scrollbar-gutter: stable;
   padding: 0 12px 12px;
 }
-.sov-list { display: flex; flex-direction: column; gap: var(--sov-gap); }
+.sov-list { display: flex; flex: none; flex-direction: column; gap: var(--sov-gap); }
 .sov-list[hidden] { display: none; }
 
 .sov-card {
@@ -287,20 +289,6 @@
 .sov-sentinel { flex: none; padding: 10px 0 4px; text-align: center; color: var(--text-2); font-size: calc(var(--ssh-ui-size) * 0.769231); }
 .sov-sentinel:empty { display: none; }
 
-.sov-empty {
-  flex: 1;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 10px;
-  text-align: center;
-  color: var(--text-3);
-  padding: 24px;
-}
-.sov-empty[hidden] { display: none; }
-.sov-empty p { margin: 0; font-size: calc(var(--ssh-ui-size) * 0.923077); line-height: 1.7; }
-/* 空态不再放「新建连接」按钮（入口只在左侧），改用一行更淡的指引说明去哪里新建。 */
-.sov-empty .sov-empty-hint { font-size: calc(var(--ssh-ui-size) * 0.846154); color: var(--text-3); opacity: .8; }
 
 @keyframes sov-breathe { 50% { opacity: .15; } }
 

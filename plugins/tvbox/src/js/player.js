@@ -4,7 +4,6 @@
  * 进度拖拽快进预览、倍速、音量、设置菜单、画中画、自动隐藏控制栏、键盘控制。
  */
 import Artplayer from 'artplayer'
-import Hls from 'hls.js'
 
 /** 从壳 CSS 变量取主题色（带回退） */
 function themeColor(varName, fallback) {
@@ -14,12 +13,16 @@ function themeColor(varName, fallback) {
 
 /**
  * 创建带 hls.js 的 Artplayer 实例。
- * opts: { container, url, kind, live, title, autoPlay, resumeSec, speed, onPosition, onEnded, onError, customControls }
+ * opts: { container, url, kind, live, title, autoPlay, resumeSec, speed, onPosition, onEnded, onError, extraControls, dock }
+ *  - extraControls：追加到 Artplayer 控制栏左侧（进度条下方一行）
+ *  - dock：一个外部 HTMLElement（由调用方自管内容），挂为控制栏最右侧的占位控件，
+ *    随控制栏一起悬停显示/移开隐藏；这样业务按钮与播放器控件同处一条栏。
  */
 export function createPlayer(opts) {
-  const { container, url, kind, live = false, title = '', autoPlay = true, resumeSec = 0, speed = 1, onPosition, onEnded, onError, extraControls = [] } = opts
+  const { container, url, kind, live = false, title = '', autoPlay = true, resumeSec = 0, speed = 1, onPosition, onEnded, onError, extraControls = [], dock } = opts
   let hls = null
   let destroyed = false
+  let sourceRevision = 0
 
   const art = new Artplayer({
     container,
@@ -45,7 +48,18 @@ export function createPlayer(opts) {
     speed,
     lang: 'zh-cn',
     customType: {
-      m3u8(video, src) {
+      async m3u8(video, src) {
+        const revision = ++sourceRevision
+        let Hls
+        try { ({ default: Hls } = await import('hls.js')) }
+        catch {
+          if (!destroyed && revision === sourceRevision) {
+            if (video.canPlayType('application/vnd.apple.mpegurl')) video.src = src
+            else onError?.('HLS 播放组件加载失败')
+          }
+          return
+        }
+        if (destroyed || revision !== sourceRevision) return
         if (Hls.isSupported()) {
           if (hls) hls.destroy()
           hls = new Hls({
@@ -78,6 +92,15 @@ export function createPlayer(opts) {
     },
     controls: [
       ...extraControls,
+      ...(dock ? [{
+        name: 'tb-dock',
+        position: 'right',
+        // 内置右侧控件 index：设置 30 / 画中画 40 / 网页全屏 60 / 全屏 70；业务按钮排它们左边
+        index: 15,
+        html: dock,
+        // 占位控件不吞点击：事件由 dock 内部按钮自己处理
+        click() {},
+      }] : []),
     ],
     settings: live ? [] : [
       {
@@ -112,9 +135,12 @@ export function createPlayer(opts) {
   const origDestroy = art.destroy.bind(art)
   art.destroy = () => {
     destroyed = true
-    void destroyed
     hls?.destroy()
     hls = null
+    // dock 是调用方（React）拥有的节点，只是借给控制栏。Artplayer.destroy 会把
+    // 整个 container.innerHTML 清空，所以销毁前先把它挪到 container 之外
+    // （播放页根节点），切集重建时再由新实例移回控制栏
+    if (dock && container.contains(dock)) (container.parentElement ?? document.body).appendChild(dock)
     origDestroy()
   }
   return art

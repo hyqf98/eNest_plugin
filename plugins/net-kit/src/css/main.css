@@ -130,13 +130,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .nk-single { height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); padding: 12px; gap: 12px; }
 .nk-session { grid-column: 2 / 4; }
-.nk-col.nk-quick-http { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.nk-col.nk-quick-http { display: grid; grid-template-rows: minmax(124px, 3fr) minmax(96px, 2fr); overflow-y: auto; }
 :root[data-mode='quick'] .nk { grid-template-rows: auto minmax(0, 1fr) auto; }
+.nk-body > .pk-empty-state { grid-column: 1 / -1; }
 
 .nk-col {
   min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px;
   overflow: hidden;
 }
+.nk-col > .nk-col { flex: 1; }
 .nk-card {
   /* 工作区三栏是同层级的面板：用底色块 + 分隔线区分，不再每块各围一圈描边。 */
   border: 0; border-radius: var(--radius);
@@ -145,23 +147,25 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   flex: 1 1 auto;
 }
 .nk-card-head {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   padding: 6px 12px; border-bottom: 1px solid var(--border, rgba(41, 44, 46, .08));
   color: var(--text-2, #666c70); font-size: 12px; background: transparent;
   border-radius: var(--radius) var(--radius) 0 0;
 }
 .nk-card-head .nk-spacer { flex: 1; }
+.nk-card-head > .grow { flex: 1 1 7em; }
+.nk-card-head > .pk-btn { flex: none; white-space: nowrap; }
 .nk-card-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
 /* 双向面板/Tab 区自带内距时去掉卡片体留白 */
 .nk-card-body-flush { padding: 0; overflow: hidden; display: flex; }
 .nk-card-body-flush-col { padding: 0; display: flex; flex-direction: column; gap: 0; min-height: 0; }
-.nk-empty-flush { padding: 0; }
+.nk-card-body:has(> .pk-empty-state:only-child) { overflow: auto; padding: 0; }
 .nk-ws-body { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .nk-ws-send { padding: 6px 8px; border-top: 1px solid var(--border, rgba(41, 44, 46, .08)); }
 
 /* 集合树 */
-.nk-tree { padding: 6px; overflow: auto; }
-.nk-tree-group { margin-bottom: 2px; }
+.nk-tree { display: flex; flex-direction: column; padding: 6px; overflow: auto; }
+.nk-tree-group { flex: none; margin-bottom: 2px; }
 .nk-tree-group-head { display: flex; align-items: center; gap: 4px; }
 .nk-tree-group-head .nk-tree-head { flex: 1; min-width: 0; }
 .nk-tree-load { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
@@ -185,7 +189,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .nk-tree-actions { flex: none; margin-left: auto; }
 .nk-tree-del { min-width: 22px; min-height: 22px; padding: 0 4px; font-size: 12px; line-height: 1; }
 .nk-tree-del:hover:not(:disabled) { color: var(--danger, #c54f46); }
-.nk-tree-empty { padding: 16px 8px; color: var(--text-3, #82888b); text-align: center; font-size: 12px; line-height: 1.7; }
 
 /* ———— 表单 ———— */
 .nk-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -295,11 +298,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 /* 请求历史列表 */
 .nk-hist { list-style: none; margin: 0; padding: 4px; }
-.nk-hist li {
+.nk-hist li:not(.pk-empty-state) {
   display: flex; gap: 6px; align-items: center; padding: 5px 6px;
   border-radius: calc(var(--radius) - 3px); cursor: pointer;
 }
-.nk-hist li:hover { background: var(--surface-2, #eeefed); }
+.nk-hist li:not(.pk-empty-state):hover { background: var(--surface-2, #eeefed); }
 .nk-hist .m { font-family: var(--mono); font-size: 11px; color: var(--text-3, #82888b); width: 44px; flex: none; }
 .nk-hist .u { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
 .nk-hist .s { font-size: 11px; }
@@ -313,7 +316,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .nk-sse-item .t { font-size: 11px; color: var(--text-3, #82888b); font-family: var(--mono); }
 .nk-sse-item .d { font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; user-select: text; margin-top: 2px; }
 .nk-sse-item .d.out { color: var(--accent, #bd542b); }
-.nk-sse-fill { flex: 1; min-height: 140px; }
+.nk-sse-fill { flex: 1; min-height: 0; }
 
 /* 断言表 */
 .nk-asserts { display: flex; flex-direction: column; gap: 4px; }
@@ -332,7 +335,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .nk-img-preview { max-width: 100%; max-height: 320px; border: 1px solid var(--border, rgba(41, 44, 46, .08)); border-radius: calc(var(--radius) - 2px); background: repeating-conic-gradient(var(--surface-2, #eeefed) 0 25%, var(--surface, #ffffff) 0 50%) 0 0 / 16px 16px; }
 
 /* ———— TCP 双向面板 ———— */
-.nk-duplex { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 45%); gap: 8px; height: 100%; }
+.nk-duplex { flex: 1; min-width: 0; display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 45%); gap: 8px; height: 100%; }
 .nk-duplex-top { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; min-height: 0; }
 .nk-duplex-bottom { display: grid; grid-template-rows: auto auto auto; gap: 6px; min-height: 0; overflow: auto; }
 .nk-stream { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border, rgba(41, 44, 46, .08)); border-radius: var(--radius); background: var(--surface, #ffffff); }
@@ -347,6 +350,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   padding: 5px 12px; border-top: 1px solid var(--border, rgba(41, 44, 46, .08));
   background: var(--surface, #ffffff); color: var(--text-3, #82888b); font-size: 11px;
 }
+.nk-foot > #foot-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nk-foot-hint { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ———— 对话框 ———— */
@@ -363,18 +367,23 @@ dialog#dlg::backdrop { background: rgba(16, 24, 36, 0.4); }
 .nk-dlg-head .x { margin-left: auto; border: 0; background: transparent; color: var(--text-2, #666c70); font-size: 14px; min-width: 26px; min-height: 26px; border-radius: 5px; transition: color var(--speed), background-color var(--speed); }
 .nk-dlg-head .x:hover { color: var(--text, #292c2e); background: var(--surface-2, #eeefed); }
 .nk-dlg-body { padding: 12px 14px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
-/* dialog 内下拉：菜单弹出期间放开裁切，避免 pk-select-menu 被切掉 */
-dialog#dlg:has(.pk-select-menu:not([hidden])) { overflow: visible; }
+/* 以前这里有一条「菜单打开期间把 dialog 改成 overflow: visible」的规则：本插件的对话框里没有下拉，
+   它从不匹配；而且那种写法会连表单一起放开裁剪（见 ssh / remote-desktop 的教训）。
+   对话框里以后若加了下拉，滚动容器内的显示由 plugin-kit 的下拉自行处理。 */
 
 /* ———— 窄容器堆叠请求与响应，较矮窗口保留局部滚动 ———— */
 @container net-workbench (max-width: 899px) {
-  .nk-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: minmax(180px, 1fr); }
+  .nk-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: minmax(180px, 1fr); overflow-y: auto; }
   .nk-split .nk-col-tree { display: none; }
   .nk-split .nk-session { grid-column: auto; }
 }
-:root[data-mode='quick'] .nk-split { grid-template-columns: minmax(0, 1fr); }
-:root[data-mode='quick'] .nk-col-tree { display: none; }
-:root[data-mode='quick'] .shell-only { display: none !important; }
+:root[data-mode='quick'] .pk-appearance[data-plugin='net-kit'] .nk { --workbench-gap: 8px; --workbench-row: 24px; }
+:root[data-mode='quick'] .nk-top { padding: 4px 8px; }
+:root[data-mode='quick'] .nk-single { padding: 8px; }
+:root[data-mode='quick'] .nk-card-head { padding: 4px 8px; }
+:root[data-mode='quick'] .nk-card-head > .nk-input-narrow { flex: 1 1 7em; min-width: 6em; }
+:root[data-mode='quick'] .nk-card-head > .nk-input-xs { width: 4.5em; }
+:root[data-mode='quick'] .nk-foot { padding: 3px 8px; }
 
 .nk { width: 100%; min-width: 0; grid-template-columns: minmax(0, 1fr); container: net-workbench / inline-size; }
 @media (max-width: 740px) {

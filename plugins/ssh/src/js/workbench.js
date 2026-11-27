@@ -107,9 +107,11 @@ async function boot() {
      有会话后让位给终端；进入页面即对能免交互登录的服务器建立后台监控连接（不开 shell、
      不进会话表），需要人工的连接只标出来、绝不弹窗。 */
   const overview = document.createElement('section'); overview.className = 'sov'; overview.hidden = true; overview.setAttribute('aria-label', '服务器总览')
-  // 新建连接的入口只在左侧（侧栏搜索行的 ＋ 与空态按钮）；右侧总览不再重复放，没有连接时只说明情况。
-  overview.innerHTML = `<div class="sov-toolbar"><span class="sov-summary"></span><span class="sov-toolbar-end"><button type="button" data-overview-refresh title="重新读取全部服务器">刷新</button></span></div><div class="sov-scroller"><div class="sov-list"></div><div class="sov-empty" hidden><p>还没有已保存的服务器连接</p><p class="sov-empty-hint">点左侧搜索框旁的 ＋ 新建</p></div></div>`
+  overview.innerHTML = `<div class="sov-toolbar"><span class="sov-summary"></span><span class="sov-toolbar-end"><button type="button" data-overview-refresh title="重新读取全部服务器">刷新</button></span></div><div class="sov-scroller"><div class="sov-list"></div><div class="sov-empty pk-empty-state" role="status" hidden><strong class="pk-empty-title"></strong><p class="pk-empty-hint"></p></div></div>`
   workspace.prepend(overview)
+  const overviewEmpty = overview.querySelector('.sov-empty')
+  const overviewTitle = overviewEmpty.querySelector('.pk-empty-title')
+  const overviewHint = overviewEmpty.querySelector('.pk-empty-hint')
   let trustedHosts = null
   const monitorApi = () => host?.ssh?.monitor
   const overviewData = createServerOverview({
@@ -119,7 +121,7 @@ async function boot() {
       refresh: ids => monitorApi().refresh(ids),
       setInterval: ms => monitorApi().setInterval(ms),
     },
-    profiles: () => store.state.profiles.filter(store.matchesFilters).sort(store.sortProfiles),
+    profiles: () => store.state.profiles.filter(profile => store.matchesFilters(profile)).sort(store.sortProfiles),
     hasKeyHandle: id => !!id && !!window.SshApi?.hasLocalFileHandle?.(id),
     trusted: () => trustedHosts,
     // A server with a live terminal is sampled through that session, never through a monitor too.
@@ -136,6 +138,14 @@ async function boot() {
     if (!overviewShown) return
     const byId = Object.fromEntries(store.state.profiles.map(profile => [profile.id, profile]))
     const rows = overviewData.snapshot()
+    if (!rows.length) {
+      const hasProfiles = store.state.profiles.length > 0
+      const title = hasProfiles ? '没有匹配的服务器' : '暂无服务器连接'
+      const hint = hasProfiles ? '调整左侧搜索或取消最近连接筛选。' : '在左侧点击 ＋ 新建连接。'
+      if (overviewTitle.textContent !== title) overviewTitle.textContent = title
+      if (overviewHint.textContent !== hint) overviewHint.textContent = hint
+    }
+    overview.querySelector('[data-overview-refresh]').disabled = !rows.length
     overviewView.render(rows, id => byId[id] || { id })
     const warn = Number(store.state.ui.warnThreshold) || 85
     const live = rows.filter(row => row.state === 'live').length
@@ -207,7 +217,7 @@ async function boot() {
   window.addEventListener('pagehide', () => void overviewData.stop().catch(() => {}))
   host?.on('ssh.monitor', payload => { overviewData.applyStatus(payload?.status || payload); paintOverview() })
 
-  const files = new RemoteFiles(filesElement, { session: bridge.activeSession, request, error, message: toast, prompt: bridge.promptDialog, confirm: bridge.confirmDialog, menu: bridge.showContextMenu, copy: bridge.api.copyText, edit: path => safe(openFile)(path), inspect, transfers: () => openTool('transfers') })
+  const files = new RemoteFiles(filesElement, { session: bridge.activeSession, mode: () => mode, request, error, message: toast, prompt: bridge.promptDialog, confirm: bridge.confirmDialog, menu: bridge.showContextMenu, copy: bridge.api.copyText, edit: path => safe(openFile)(path), inspect, transfers: () => openTool('transfers') })
   const navigation = createWorkspaceNavigation({ app, bridge, changeView, openSettings: () => void settings(), onLayout: () => requestAnimationFrame(() => bridge.activeSession()?.term?.fit()) })
 
   /* 右侧工作列：只有进入服务器后才出现（未连接时列里全是空态，纯噪音）。
@@ -241,6 +251,8 @@ async function boot() {
   }
   function setMode(next) {
     mode = next; document.documentElement.dataset.launchMode = mode
+    bridge.renderLeft()
+    bridge.renderRight()
     navigation.setMode(mode)
     if (mode === 'quick') void host?.ui?.resize?.({ width: 720, height: 420 })
     paintRight()
@@ -411,7 +423,7 @@ async function boot() {
   const transferStatuses = new Map()
   async function loadTool(silent = false) {
     const revision = ++toolRevision, selectedTool = tool, sessionId = bridge.activeSession()?.sessionId, body = dock.querySelector('.wb-tool-body'), scroll = body.scrollTop
-    if (!silent) body.innerHTML = '<div class="wb-empty">正在读取…</div>'
+    if (!silent) body.innerHTML = '<div class="pk-empty-state" role="status">正在读取…</div>'
     let data, platform
     try {
       if (selectedTool === 'history') data = store.state.history.filter(h => !bridge.activeSession() || h.profileId === bridge.activeSession().profileId)
@@ -423,7 +435,7 @@ async function boot() {
         }
       }
       else if (selectedTool === 'tunnels') data = await request('tunnel.list')
-      else if (!connected()) { toolData = []; body.innerHTML = '<div class="wb-empty">请先连接服务器</div>'; return }
+      else if (!connected()) { toolData = []; body.innerHTML = '<div class="pk-empty-state"><strong class="pk-empty-title">尚未连接服务器</strong><p class="pk-empty-hint">连接后查看资源列表。</p></div>'; return }
       else {
         ;[data, platform] = await Promise.all([request(`system.${selectedTool}`, { sessionId }), lastSample ? Promise.resolve(lastSample) : request('system.snapshot', { sessionId })])
       }
@@ -439,14 +451,15 @@ async function boot() {
     return markup.innerHTML
   }
   function renderTool() {
-    const body = dock.querySelector('.wb-tool-body'), query = dock.querySelector('input').value.toLowerCase(), data = toolData.filter(x => JSON.stringify(x).toLowerCase().includes(query))
+    const body = dock.querySelector('.wb-tool-body'), query = mode === 'quick' ? '' : dock.querySelector('input').value.trim().toLowerCase(), data = query ? toolData.filter(item => JSON.stringify(item).toLowerCase().includes(query)) : toolData
+    const noMatches = !!(toolData.length && query)
     dock.querySelector('.wb-tool-status').textContent = `${data.length} 项${lastSample?.platform ? ' · ' + ({ linux: 'Linux', darwin: 'macOS', win32: 'Windows' })[lastSample.platform] : ''}`
     if (tool === 'tunnels') {
-      body.innerHTML = `<div class="wb-table-actions"><button data-create-tunnel ${connected() ? '' : 'disabled'}>新建隧道</button><small>本地与远程监听均仅绑定 127.0.0.1</small></div>` + (data.length ? table(['方向', '本地端口', '目标', '操作'], data.map(x => `<tr><td>${x.direction === 'local' ? '本地转发' : '远程转发'}</td><td>${x.localPort}</td><td>${esc(x.remoteHost)}:${x.remotePort}</td><td><button data-close-tunnel="${esc(x.id)}">关闭</button></td></tr>`)) : '<div class="wb-empty">暂无隧道</div>')
+      body.innerHTML = `<div class="wb-table-actions"><button data-create-tunnel ${connected() ? '' : 'disabled'}>新建隧道</button><small>本地与远程监听均仅绑定 127.0.0.1</small></div>` + (data.length ? table(['方向', '本地端口', '目标', '操作'], data.map(x => `<tr><td>${x.direction === 'local' ? '本地转发' : '远程转发'}</td><td>${x.localPort}</td><td>${esc(x.remoteHost)}:${x.remotePort}</td><td><button data-close-tunnel="${esc(x.id)}">关闭</button></td></tr>`)) : `<div class="pk-empty-state" role="status"><strong class="pk-empty-title">${noMatches ? '没有匹配的隧道' : '暂无隧道'}</strong></div>`)
       body.querySelector('[data-create-tunnel]').onclick = newTunnel
       body.querySelectorAll('[data-close-tunnel]').forEach(b => b.onclick = safe(async () => { await request('tunnel.close', { id: b.dataset.closeTunnel }); await loadTool() })); return
     }
-    if (!data.length) { body.innerHTML = '<div class="wb-empty">暂无记录</div>'; return }
+    if (!data.length) { body.innerHTML = `<div class="pk-empty-state" role="status"><strong class="pk-empty-title">${noMatches ? '没有匹配的记录' : '暂无记录'}</strong></div>`; return }
     const rows = data.slice(0, 2000)
     if (tool === 'processes') body.innerHTML = table(['PID','进程','用户','CPU','内存','操作'], rows.map(x => `<tr><td>${x.pid}</td><td title="${esc(x.name)}">${esc(x.name)}</td><td>${esc(x.user || '—')}</td><td>${x.cpuPercent == null ? '—' : x.cpuPercent.toFixed(1) + '%'}</td><td>${formatBytes(x.memoryBytes)}</td><td><button data-stop="${x.pid}" ${x.startTime && x.pid > 1 ? '' : 'disabled'}>${lastSample?.platform === 'win32' ? '终止' : '停止'}</button><button data-kill="${x.pid}" title="强制终止" ${x.startTime && x.pid > 1 ? '' : 'disabled'}>强制</button></td></tr>`))
     if (tool === 'ports') body.innerHTML = table(['协议','监听地址','端口','PID / 进程','操作'], rows.map(x => `<tr><td>${esc(x.protocol)}</td><td>${esc(x.address)}</td><td>${x.port}</td><td>${x.pid || '无权读取'} ${esc(x.process || '')}</td><td><button data-port-stop="${x.pid || ''}" ${x.pid > 1 ? '' : 'disabled'}>结束占用进程</button></td></tr>`))

@@ -67,7 +67,7 @@ export function ConfigPage({ onConfigChanged }) {
   }
 
   return (
-    <div className="tb-body">
+    <div className="tb-body tb-empty-page">
       {/* 数据源（单一管理卡）：站点直接展开 + 右侧「添加数据源」 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 12px' }}>
         <span style={{ fontSize: 14, fontWeight: 650 }}>数据源</span>
@@ -136,7 +136,7 @@ export function ConfigPage({ onConfigChanged }) {
             ) : null}
           </div>
         ))}
-        {!sites.length && !error ? <Empty>还没有数据源；点右上「添加数据源」导入配置地址</Empty> : null}
+        {!sites.length && !error ? <Empty title="暂无数据源" hint="点击「添加数据源」导入配置地址。" /> : null}
       </div>
     </div>
   )
@@ -160,7 +160,7 @@ export function ListPage({ mode, onOpenVod, onPlayResume }) {
   useEffect(() => { setList(null); void refresh() }, [refresh])
 
   return (
-    <div className="tb-body">
+    <div className="tb-body tb-empty-page">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 12px' }}>
         <span style={{ fontSize: 14, fontWeight: 650 }}>{mode === 'history' ? '观看历史' : '我的收藏'}</span>
         <span className="tb-muted" style={{ flex: 1 }}>{list?.length ? `${list.length} 部` : ''}</span>
@@ -180,7 +180,8 @@ export function ListPage({ mode, onOpenVod, onPlayResume }) {
               />
             ))}
           </div>
-          {!list.length ? <Empty>{mode === 'history' ? '还没有观看记录' : '还没有收藏，去详情页点收藏吧'}</Empty> : null}
+          {!list.length ? <Empty title={mode === 'history' ? '暂无观看记录' : '暂无收藏'}
+            hint={mode === 'history' ? '开始播放后，观看进度会自动保存。' : '在影片详情页点击收藏，即可添加。'} /> : null}
         </>
       ) : <div className="tb-muted" style={{ padding: 20 }}>加载中…</div>}
     </div>

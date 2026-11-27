@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 /**
  * mwService — utility process only; no Electron main APIs.
- * 中间件（kafka / rabbitmq / mqtt / rocketmq）插件会话服务
+ * 可安装驱动的中间件会话服务。
  * 职责：按 sessionKey 管理 open 会话与 tail 实时监听；分发 mw.* workbench action。
  * 连接配置保存在插件 KV；本后端拥有连接、只读策略和监听，宿主只提供通用控制能力。
  * 密钥经所属插件的 generic secret.resolve 获取，不回传渲染层。
@@ -17,8 +17,9 @@ import { MW_MUTATING_ACTIONS } from '@backend/contracts/mw-workbench'
 import type { MwDriver, MwDriverContext, MwDriverHandle } from '@backend/types'
 
 export interface MiddlewareRuntime {
-  getDriver(kind: string): MwDriver
-  descriptors(): MwDriverDescriptor[]
+  getDriver(kind: string): MwDriver | Promise<MwDriver>
+  acquireDriver?(kind: string): Promise<{ provider: MwDriver; release(): void }>
+  descriptors(): MwDriverDescriptor[] | Promise<MwDriverDescriptor[]>
   emit(event: 'mw.data' | 'mw.error', payload: Record<string, unknown>): void
   acquire(token: string, reason: string): Promise<void>
   release(token: string): Promise<void>
@@ -35,6 +36,7 @@ export interface MwSession {
   startingTails: Map<string, Promise<void>>
   connectedAt: number
   token: string
+  releaseDriver(): void
   closing?: Promise<void>
 }
 
@@ -43,6 +45,10 @@ const sessions = new Map<string, MwSession>()
 const opening = new Map<string, { pluginId: string; token: string; controller: AbortController; promise: Promise<MwSessionInfo> }>()
 const failedClosures = new Set<string>()
 let stopped = false
+
+async function acquireDriver(kind: string) {
+  return runtime.acquireDriver ? runtime.acquireDriver(kind) : { provider: await runtime.getDriver(kind), release: () => {} }
+}
 
 /** Only the worker can emit the generic backend.event envelope. */
 function postEvent(pluginId: string, event: 'mw.data' | 'mw.error', payload: Record<string, unknown>): void {
@@ -73,8 +79,9 @@ function toSessionInfo(s: MwSession): MwSessionInfo {
 async function mwTest(pluginId: string, config: MwConnectionConfig): Promise<MwTestResult> {
   void pluginId
   if (stopped) throw new Error('middleware service is closing')
-  const driver = runtime.getDriver(config.kind)
-  return driver.test(config, config.ephemeralSecret)
+  const lease = await acquireDriver(config.kind)
+  try { return await lease.provider.test(config, config.ephemeralSecret) }
+  finally { lease.release() }
 }
 
 function mwOpen(
@@ -88,19 +95,22 @@ function mwOpen(
   if (stopped) throw new Error('middleware service is closing')
   if (opening.has(sessionKey)) throw new Error('middleware connection is already opening')
   if (sessions.size + opening.size >= 32) throw new Error('middleware connection limit reached')
-  const driver = runtime.getDriver(config.kind)
   const previous = sessions.get(sessionKey)
   if (previous && previous.pluginId !== pluginId) throw new Error('session does not belong to this plugin')
   const controller = new AbortController()
   const token = randomUUID()
   const promise = (async () => {
     let retained = false
+    let driverLease: Awaited<ReturnType<typeof acquireDriver>> | undefined
     try {
       await runtime.acquire(token, `mw:connection:${sessionKey}`)
       if (stopped) throw new Error('middleware service is closing')
       controller.signal.throwIfAborted()
       if (previous) await closeSession(previous)
       controller.signal.throwIfAborted()
+      driverLease = await acquireDriver(config.kind)
+      controller.signal.throwIfAborted()
+      const driver = driverLease.provider
       const ctx: MwDriverContext = {
         emit: (event, payload) => { if (!controller.signal.aborted && !sessions.get(sessionKey)?.closing) postEvent(pluginId, event === 'data' ? 'mw.data' : 'mw.error', { ...payload, sessionKey }) },
         signal: controller.signal
@@ -112,12 +122,17 @@ function mwOpen(
         throw new Error('middleware connection closed during open')
       }
       handle.readOnly = config.readOnly === true
-      const session: MwSession = { sessionKey, pluginId, driver, handle, controller, token, connectedAt: Date.now(), tails: new Map(), startingTails: new Map() }
+      const session: MwSession = { sessionKey, pluginId, driver, handle, controller, token, releaseDriver: driverLease.release, connectedAt: Date.now(), tails: new Map(), startingTails: new Map() }
       sessions.set(sessionKey, session)
       retained = true
       return toSessionInfo(session)
     } finally {
-      try { if (!retained) { controller.abort(new Error('middleware open ended')); if (!failedClosures.has(token)) await runtime.release(token) } }
+      try {
+        if (!retained) {
+          controller.abort(new Error('middleware open ended'))
+          if (!failedClosures.has(token)) { driverLease?.release(); await runtime.release(token) }
+        }
+      }
       finally { opening.delete(sessionKey) }
     }
   })()
@@ -130,15 +145,15 @@ async function closeSession(s: MwSession): Promise<void> {
   if (s.closing) return s.closing
   s.closing = (async () => {
     const starts = [...s.startingTails.values()]
+    s.controller.abort(new Error('middleware session closed'))
     await Promise.allSettled(starts)
     const tails = await Promise.allSettled([...s.tails.values()].map(stop => stop()))
-    const close = s.driver.close(s.handle)
-    s.controller.abort(new Error('middleware session closed'))
-    await close
+    await s.driver.close(s.handle)
     if (tails.some(result => result.status === 'rejected')) throw new Error('middleware tail cleanup failed')
     s.handle.closed = true
     s.tails.clear()
     await runtime.release(s.token)
+    s.releaseDriver()
     if (sessions.get(s.sessionKey) === s) sessions.delete(s.sessionKey)
   })()
   return s.closing

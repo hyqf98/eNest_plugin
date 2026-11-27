@@ -25,6 +25,7 @@ body {
   background: transparent;
   color: var(--text, #253044);
   font: 13px var(--ui);
+  overflow: hidden;
 }
 button,
 input {
@@ -133,6 +134,7 @@ footer {
 .workbench {
   display: grid;
   grid-template-columns: minmax(300px, 1.2fr) minmax(260px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
 .calculation {
@@ -209,24 +211,33 @@ footer {
 }
 .history {
   border-left: 1px solid var(--line);
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   min-height: 0;
 }
 .history-head {
-  flex-wrap: wrap;
+  flex: none;
   min-width: 0;
   padding: 14px 14px 10px;
 }
 .history-head h2 {
   margin-right: auto;
 }
-.history-head button {
+#history-count {
+  color: var(--muted);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+#history-count:empty { display: none; }
+.history-head button {
+  flex: none;
   min-height: 24px;
   padding: 2px 8px;
+  font-size: 11px;
 }
 .filters {
+  flex: none;
   padding: 0 14px 12px;
 }
 .filters input {
@@ -234,6 +245,8 @@ footer {
   font-size: 12px;
 }
 .history-list {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
 }
 .record {
@@ -252,6 +265,8 @@ footer {
   box-shadow: inset 2px 0 var(--accent);
 }
 .record .recall {
+  justify-content: space-between;
+  gap: 6px;
   text-align: left;
   border: 1px solid transparent;
   padding: 4px 8px;
@@ -274,18 +289,23 @@ footer {
   font-family: var(--mono);
 }
 .record .expression {
+  min-width: 0;
   font-size: 11px;
   color: var(--muted);
-  margin-bottom: 6px;
 }
 .record .value {
+  flex: none;
+  max-width: 60%;
   font-size: 17px;
 }
-.record .star {
-  color: var(--accent);
+.record .pk-row-actions button {
   min-height: 24px;
   padding: 2px 8px;
   font-size: 11px;
+}
+.record .star {
+  min-width: 50px;
+  color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
   background: transparent;
 }
@@ -293,25 +313,21 @@ footer {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .record button:active:not(:disabled) { transform: scale(0.97); }
-.empty {
-  padding: 30px 18px;
-  color: var(--muted);
-  line-height: 1.8;
-}
 footer {
   border-top: 1px solid var(--line);
   padding: 8px 16px;
   justify-content: space-between;
 }
 html[data-mode="quick"] header {
-  padding: 8px 14px;
+  padding: 6px 14px;
 }
 html[data-mode="quick"] .sub {
   display: none;
 }
-html[data-mode="quick"] .workbench {
+html[data-mode="quick"] .calculator .workbench {
   display: flex;
   flex-direction: column;
+  gap: 0;
   overflow: auto;
 }
 html[data-mode="quick"] .calculation {
@@ -348,20 +364,18 @@ html[data-mode="quick"] .history-head {
 html[data-mode="quick"] .record {
   padding: 9px 16px;
 }
-html[data-mode="quick"] .filters {
-  padding-bottom: 8px;
-}
 html[data-mode="shell"] #toggle-pad {
   display: none;
 }
 @media (max-width: 620px) {
   html[data-mode="shell"] .workbench {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(200px, 1fr);
     overflow: auto;
   }
   html[data-mode="shell"] .history {
-    min-height: 240px;
     border-left: 0;
+    border-top: 1px solid var(--line);
   }
   .calculation {
     padding: 18px;
@@ -376,12 +390,4 @@ html[data-mode="shell"] #toggle-pad {
       background 0.12s,
       color 0.12s;
   }
-}
-
-.filters button {
-  flex: none;
-  white-space: nowrap;
-  min-height: 24px;
-  padding: 2px 10px;
-  font-size: 11px;
 }

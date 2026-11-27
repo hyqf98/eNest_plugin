@@ -200,9 +200,9 @@ export function App() {
   const groupsView = useMemo(() => {
     const pick = matches[activeIndex >= 0 ? activeIndex : 0]
     const shown = pick ? (matches.indexOf(pick) >= 0 ? matches.indexOf(pick) : 0) : -1
-    if (shown < 0) return { which: '', html: '<p class="empty-note">有匹配结果后，此处展开捕获分组。</p>' }
+    if (shown < 0) return { which: '', html: '', hint: '匹配成功后显示捕获分组。' }
     const rows = groupRows(pick)
-    if (!rows.length) return { which: '', html: '<p class="empty-note">当前正则没有捕获分组，用 ( ) 包住子模式试试。</p>' }
+    if (!rows.length) return { which: '', html: '', hint: '用 ( ) 包住子模式可创建捕获分组。' }
     let html =
       '<table class="group-table"><thead><tr><th>引用</th><th class="num">组号</th><th>值</th></tr></thead><tbody>' +
       rows
@@ -420,11 +420,11 @@ export function App() {
           <div
             id="highlight-view"
             ref={highlightRef}
-            className="highlight-view mono"
+            className={highlightHtml ? 'highlight-view mono' : 'highlight-view'}
             tabIndex={0}
             aria-label="匹配高亮预览"
             onClick={onHighlightClick}
-            dangerouslySetInnerHTML={{ __html: highlightHtml }}
+            dangerouslySetInnerHTML={{ __html: highlightHtml || '<p class="pk-empty-state">暂无测试文本</p>' }}
           ></div>
 
           <div className="result-split">
@@ -434,12 +434,10 @@ export function App() {
               </h2>
               <ol id="match-list" className="match-list" ref={matchListRef}>
                 {!matches.length ? (
-                  <li
-                    className="empty-note"
-                    dangerouslySetInnerHTML={{
-                      __html: result.source ? '没有匹配。检查表达式或标志位。' : '在左侧输入正则，或从模板库选一条试试。',
-                    }}
-                  ></li>
+                  <li className="pk-empty-state">
+                    <p className="pk-empty-title">暂无匹配</p>
+                    <p className="pk-empty-hint">{result.source ? '检查表达式或标志位。' : '输入正则表达式，或从模板库选择。'}</p>
+                  </li>
                 ) : (
                   matches.map((m, i) => {
                     const empty = m.text === ''
@@ -465,7 +463,14 @@ export function App() {
               <h2>
                 捕获分组 <span id="group-which" className="badge">{groupsView.which}</span>
               </h2>
-              <div id="groups" className="groups" dangerouslySetInnerHTML={{ __html: groupsView.html }}></div>
+              <div id="groups" className="groups" dangerouslySetInnerHTML={groupsView.html ? { __html: groupsView.html } : undefined}>
+                {groupsView.hint && (
+                  <div className="pk-empty-state">
+                    <p className="pk-empty-title">暂无分组</p>
+                    <p className="pk-empty-hint">{groupsView.hint}</p>
+                  </div>
+                )}
+              </div>
             </section>
           </div>
         </section>

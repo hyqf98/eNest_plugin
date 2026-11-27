@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "target": "middleware", "id": "pulsar", "name": "Apache Pulsar", "version": "0.0.1", "apiVersion": 1, "entry": "backend/index.cjs",
+  "descriptor": {
+    "ui": { "color": "#795db1", "topicLabel": "Topic", "topicsModel": "topics", "groupsModel": "groups", "authLabel": "JWT" },
+    "completionRules": [{ "id": "pulsar-topic", "kind": "topic", "label": "持久 Topic", "value": "persistent://public/default/${input}" }]
+  }
+}

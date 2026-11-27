@@ -204,7 +204,7 @@ function ProviderSection({ providers, onChange, toast }) {
   }
 
   return (
-    <div>
+    <div className="ig-set-section">
       <div className="ig-prov-list">
         {providers.length === 0 && (
           <div className="ig-form-note">还没有渠道。填下面这张表加一个，添加时会自动测试连通性。</div>
@@ -331,7 +331,7 @@ function SaveDirSection({ saveDir, onChange, toast }) {
     onChange(null)
   }
   return (
-    <div>
+    <div className="ig-set-section">
       <div className="ig-save-dir-row">
         <span className="ig-save-dir-icon" aria-hidden="true"><FolderIcon size={16} /></span>
         <span className="ig-save-dir-name">{saveDir ? '自定义目录' : '插件资产库'}</span>
@@ -363,7 +363,7 @@ function TemplateSection({ templates, onChange }) {
     setDraft({ id: '', title: '', content: '' })
   }
   return (
-    <div>
+    <div className="ig-set-section">
       {templates.length > 0 && (
         <div className="ig-row-list">
           {templates.map(t => (
@@ -492,7 +492,7 @@ function OptimizerSection({ llm, imageModel, onChange, toast }) {
   }
 
   return (
-    <div>
+    <div className="ig-set-section">
       <div className="ig-form-section">
         <div className="ig-form-section-head">
           <div className="ig-form-section-title" style={{ margin: 0 }}>语言模型</div>
@@ -520,7 +520,9 @@ function OptimizerSection({ llm, imageModel, onChange, toast }) {
         </div>
         <div className="ig-form-acts">
           {error && <span className="ig-form-error" role="alert">{error}</span>}
-          <button type="button" className="ig-act-btn" disabled={testing || busy || !isLlmConfigured(draft)} onClick={() => void test()}>
+          {/* 次要按钮用共享 .pk-btn：与右侧「保存」同高（28px）。ig-act-btn 是 22px 的文字小按钮，
+              用在卡片悬浮条/详情底部合适，和主按钮并排会矮一截 */}
+          <button type="button" className="pk-btn" disabled={testing || busy || !isLlmConfigured(draft)} onClick={() => void test()}>
             {testing ? <span className="ig-spin" /> : '测试连接'}
           </button>
           <button type="button" className="pk-btn pk-btn-primary" disabled={busy} onClick={() => void save()}>保存</button>

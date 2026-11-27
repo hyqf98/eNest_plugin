@@ -179,7 +179,13 @@ export const host = {
   async webLogin(url: string, successUrlPrefix: string, title: string): Promise<WebLoginCookie[] | null> {
     const api = getApi()
     if (!api.shell?.login) throw new Error('当前 eNest 版本不支持应用内登录，请升级 eNest 后重试')
-    const result = await api.shell.login({ url, successUrlPrefix, title, width: 560, height: 760 })
+    // 天翼登录页的主容器写死 width:1440px / min-width:1280px，且没有小屏断点：
+    // 窗口比它窄时右侧会露出空白背景、出现横向滚动条。声明 contentWidth 让宿主等比缩小页面，
+    // 内容就能完整铺满窗口；窗口拖大到 1280 以上时宿主会自动恢复 1:1。
+    const result = await api.shell.login({
+      url, successUrlPrefix, title,
+      width: 1200, height: 900, contentWidth: 1280,
+    })
     return result.ok ? result.cookies : null
   },
   async removeKey(secretRef: string): Promise<void> {

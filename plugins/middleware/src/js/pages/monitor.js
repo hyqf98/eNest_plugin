@@ -1,5 +1,5 @@
 /** 监控页：30s 轮询 overview，指标卡从 metricsSpec 描述符渲染；采样存 api.session；quick 模式禁自动轮询 */
-import { fmt, chip, el, sparkline, escapeHtml, simpleGrid, fmtMetricValue } from '@mw/components.js'
+import { fmt, chip, el, emptyState, sparkline, escapeHtml, simpleGrid, fmtMetricValue } from '@mw/components.js'
 import { metricsSpecOf } from '@mw/kinds.js'
 
 const POLL_MS = 30_000
@@ -158,11 +158,7 @@ export default {
         ? specList.map(s => [s.key, metrics[s.key]]).filter(([, v]) => v !== undefined)
         : Object.entries(metrics)
       if (!entries.length && !Object.keys(series).length) {
-        body.appendChild(el('div', { class: 'empty-cap' }, [
-          el('div', { class: 'big' }, '📈'),
-          el('div', {}, '尚无监控采样，点击「立即刷新」开始'),
-          mode === 'quick' ? el('div', { style: 'font-size:calc(var(--font-size-base, 13px) * 0.884615);margin-top:6px' }, 'quick 模式仅手动采样') : ''
-        ]))
+        body.append(emptyState('暂无监控采样', { hint: '点击「立即刷新」采集监控数据。' }))
         return
       }
       if (entries.length) {

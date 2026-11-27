@@ -1,7 +1,6 @@
 /**
  * Codex 宠物市场 —— React 版（原 src/js/main.js 路由装配 + detail.js/installed.js 逻辑等价迁移）
- * DOM 结构 / 类名 / id 与原版完全一致；gallery.js 渲染函数、sprite.js 逐帧引擎、
- * api/netbin/installer/config/demo 资产与业务通道原样复用（未改动）。
+ * sprite.js 逐帧引擎与 api/netbin/installer/config/demo 业务通道原样复用。
  * hash 路由：#/ 宠物市场 · #/pets/<id> 详情 · #/installed 已安装，等价迁移。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -19,7 +18,6 @@ const escapeHtmlLocal = (value) =>
 export function App() {
   const bodyRef = useRef(null)
   const kitRef = useRef(null)
-  const [, force] = useState(0)
 
   if (!kitRef.current) kitRef.current = createKit({})
   const kit = kitRef.current
@@ -31,17 +29,17 @@ export function App() {
 
   /** 详情页渲染（原 detail.js renderDetail 逐行等价：容器换成 ref 目标） */
   const renderDetailInto = useCallback(async (body, petId) => {
-    body.innerHTML = '<div class="cp-empty">加载中…</div>'
+    body.innerHTML = '<div class="pk-empty-state" role="status">正在加载宠物详情…</div>'
     let pet
     try {
       pet = await getPet(petId)
     } catch (err) {
-      body.innerHTML = `<div class="cp-empty">加载失败：${escapeHtmlLocal(err.message)}<br/><button type="button" class="cp-btn" data-back>返回宠物市场</button></div>`
+      body.innerHTML = `<div class="pk-empty-state" role="alert"><strong class="pk-empty-title">无法加载宠物详情</strong><p class="pk-empty-hint">${escapeHtmlLocal(err.message)}</p><button type="button" class="cp-btn" data-back>返回宠物市场</button></div>`
       body.querySelector('[data-back]').addEventListener('click', () => { location.hash = '#/' })
       return
     }
     if (!pet) {
-      body.innerHTML = '<div class="cp-empty">宠物不存在（可能已被删除）<br/><button type="button" class="cp-btn" data-back>返回宠物市场</button></div>'
+      body.innerHTML = '<div class="pk-empty-state"><strong class="pk-empty-title">宠物不存在</strong><p class="pk-empty-hint">该宠物可能已从市场移除。</p><button type="button" class="cp-btn" data-back>返回宠物市场</button></div>'
       body.querySelector('[data-back]').addEventListener('click', () => { location.hash = '#/' })
       return
     }
@@ -205,21 +203,20 @@ export function App() {
 
   /** 已安装管理（原 installed.js renderInstalled 逐行等价） */
   const renderInstalledInto = useCallback(async (body) => {
-    body.innerHTML = '<div class="cp-empty">检测本机 Codex…</div>'
+    body.innerHTML = '<div class="pk-empty-state" role="status">正在检测本机 Codex…</div>'
 
     let detected
     try {
       detected = await detectCodex()
     } catch (err) {
-      body.innerHTML = `<div class="cp-empty">检测失败：${escapeHtmlLocal(err.message)}</div>`
+      body.innerHTML = `<div class="pk-empty-state" role="alert"><strong class="pk-empty-title">无法检测 Codex</strong><p class="pk-empty-hint">${escapeHtmlLocal(err.message)}</p></div>`
       return
     }
     if (!detected.installed) {
       body.innerHTML = `
-        <div class="cp-empty">
-          <p><strong>未检测到 Codex</strong></p>
-          <p class="cp-muted">未找到 ~/.codex/config.toml。请先安装并运行一次 Codex CLI，再回来管理宠物。</p>
-          <p class="cp-muted">（Windows 下为 %USERPROFILE%\\.codex；Linux/macOS 为 ~/.codex。WSL 内的 Codex 路径不被 Windows 侧识别，属 Codex 已知问题。）</p>
+        <div class="pk-empty-state">
+          <strong class="pk-empty-title">未检测到 Codex</strong>
+          <p class="pk-empty-hint">请先安装并运行一次 Codex CLI。Windows 端无法识别 WSL 内的 Codex。</p>
         </div>`
       return
     }
@@ -228,15 +225,15 @@ export function App() {
     try {
       items = await listInstalled()
     } catch (err) {
-      body.innerHTML = `<div class="cp-empty">扫描 ~/.codex/pets 失败：${escapeHtmlLocal(err.message)}</div>`
+      body.innerHTML = `<div class="pk-empty-state" role="alert"><strong class="pk-empty-title">无法读取已安装宠物</strong><p class="pk-empty-hint">${escapeHtmlLocal(err.message)}</p></div>`
       return
     }
 
     if (items.length === 0) {
       body.innerHTML = `
-        <div class="cp-empty">
-          <p><strong>还没有安装任何宠物</strong></p>
-          <p class="cp-muted">去宠物市场挑一只，点击「安装」即可写入 ~/.codex/pets/。</p>
+        <div class="pk-empty-state">
+          <strong class="pk-empty-title">暂无已安装宠物</strong>
+          <p class="pk-empty-hint">去宠物市场挑一只，再点击「安装」。</p>
           <button type="button" class="cp-btn primary" data-gallery>去宠物市场</button>
         </div>`
       body.querySelector('[data-gallery]').addEventListener('click', () => onNavigate('#/'))
@@ -244,6 +241,7 @@ export function App() {
     }
 
     const totalBytes = await sumBytes()
+    let remaining = items.length
     body.innerHTML = `
       <div class="cp-installed-head">
         <p>本机已安装 <strong>${items.length}</strong> 只宠物 · 占用约 ${formatSize(totalBytes)}</p>
@@ -312,6 +310,8 @@ export function App() {
           await deleteInstalled(item.id)
           kit.toast(`已删除 ~/.codex/pets/${item.id}`, 'success')
           card.remove()
+          remaining -= 1
+          if (remaining === 0 && grid.isConnected) onNavigate('#/installed')
         } catch (err) {
           btn.disabled = false
           kit.toast(`删除失败：${err.message}`, 'error')
@@ -342,10 +342,11 @@ export function App() {
       } else {
         statusEl.textContent = '宠物市场'
         await refreshInstalledMarks()
-        await renderGallery(body, kit, { onNavigate })
+        if ((location.hash || '#/') === hash) await renderGallery(body, kit, { onNavigate })
       }
     } catch (err) {
-      body.innerHTML = `<div class="cp-empty">页面渲染失败：${escapeHtmlLocal(err?.message ?? String(err))}</div>`
+      if ((location.hash || '#/') !== hash) return
+      body.innerHTML = `<div class="pk-empty-state" role="alert"><strong class="pk-empty-title">无法显示页面</strong><p class="pk-empty-hint">${escapeHtmlLocal(err?.message ?? String(err))}</p></div>`
     }
   }, [kit, onNavigate, renderDetailInto, renderInstalledInto])
   const routeRef = useRef(route)
@@ -377,9 +378,6 @@ export function App() {
   return (
     <>
       <main className="cp" id="app">
-        {/* 顶部条：左侧只留壳标题栏（插件名由壳显示），视图切换按钮靠右。
-            原来导航独占一整行压在内容之上，"宠物市场/已安装"离视线中心太远；
-            收到右上角后内容区顶部直接是搜索框。 */}
         <header className="cp-topbar">
           <nav className="cp-nav" id="nav" aria-label="页面">
             <button

@@ -1067,7 +1067,7 @@ function renderRightPanel() {
   const body = dom.rightPanel.querySelector('[data-el=rbody]')
   if (rightMode === 'changes') {
     if (!changes.length) {
-      body.innerHTML = `<div class="empty">暂无待提交变更</div>`
+      body.innerHTML = '<div class="pk-empty-state" role="status"><strong class="pk-empty-title">暂无待提交变更</strong></div>'
       return
     }
     body.innerHTML = `
@@ -1134,10 +1134,10 @@ function renderRightPanel() {
         ${lastItem.doc ? `<div class="doc-body">${esc(lastItem.doc)}</div>` : ''}
       </div>`
     } else {
-      body.innerHTML = `<div class="empty">—</div>`
+      body.innerHTML = '<div class="pk-empty-state" role="status"><strong class="pk-empty-title">暂无代码提示</strong><p class="pk-empty-hint">选择编辑器里的补全项后查看说明。</p></div>'
     }
   } else {
-    body.innerHTML = `<div class="empty"><pre class="ddl">${esc(rs?.ddl || '—')}</pre></div>`
+    body.innerHTML = rs?.ddl ? `<pre class="ddl">${esc(rs.ddl)}</pre>` : '<div class="pk-empty-state" role="status"><strong class="pk-empty-title">暂无 DDL</strong><p class="pk-empty-hint">读取对象结构后查看定义。</p></div>'
   }
 }
 

@@ -1,6 +1,6 @@
 /** 消费组·订阅·客户端页：列定义从驱动 pageColumns 描述符渲染 */
 import {
-  fmt, chip, el, gate, lagBar, escapeHtml, columnsFromSpec,
+  fmt, chip, el, emptyState, gate, lagBar, escapeHtml, columnsFromSpec,
   simpleGrid, confirmDanger, infoDialog, showContextMenu
 } from '@mw/components.js'
 import { pageColumnsOf } from '@mw/kinds.js'
@@ -50,8 +50,9 @@ export default {
     let keyword = ''
 
     const loading = el('div', { class: 'loading-bar' })
+    const searchLabel = isKafkaLike ? '筛选消费组' : isMqtt ? '筛选 clientId' : '筛选名称'
     const search = el('input', {
-      placeholder: isKafkaLike ? '搜索消费组…' : isMqtt ? '搜索 clientId…' : '搜索…',
+      type: 'search', placeholder: searchLabel, 'aria-label': searchLabel,
       oninput: (e) => { keyword = e.target.value.trim().toLowerCase(); applyFilter() }
     })
     const refreshBtn = el('button', { class: 'btn ghost', title: '刷新', onclick: () => load() }, '⟳')
@@ -69,14 +70,10 @@ export default {
     const clientsCap = gate(caps, 'clients')
     if (isMqtt && !clientsCap.enabled) {
       root.innerHTML = ''
-      root.appendChild(el('div', { class: 'empty-cap' }, [
-        el('div', { class: 'big' }, '◐'),
-        el('div', { style: 'max-width:420px;line-height:1.8;margin-bottom:6px' },
-          '该 MQTT 连接未启用 EMQX 管理适配，无法列出客户端与订阅关系。'),
-        el('div', { style: 'color:var(--text-3);font-size:calc(var(--font-size-base, 13px) * 0.884615);margin-bottom:14px' },
-          clientsCap.reason || '编辑连接并填写 EMQX 管理端点后可获得客户端管理能力'),
-        el('button', { class: 'btn', onclick: () => load() }, '⟳ 重试')
-      ]))
+      root.append(emptyState('无法读取 MQTT 客户端', {
+        hint: clientsCap.reason || '编辑连接并填写 EMQX 管理端点后可查看客户端与订阅。',
+        action: el('button', { class: 'btn', onclick: () => load() }, '重试')
+      }))
       this.__cleanup = () => { destroyed = true }
       return
     }
@@ -159,7 +156,7 @@ export default {
     function applyFilter() {
       const field = (r) => String(r.groupId ?? r.clientId ?? r.name ?? '').toLowerCase()
       const rows = keyword ? allRows.filter((r) => field(r).includes(keyword)) : allRows
-      grid?.update(rows)
+      grid?.update(rows, keyword && allRows.length ? '没有符合筛选条件的结果' : undefined)
       const unit = viewSegment === 'clients'
         ? (isRmq ? '个连接' : '个客户端')
         : (isKafkaLike ? '个消费组' : '个分组')

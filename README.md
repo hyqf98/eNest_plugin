@@ -194,7 +194,7 @@ npm run build                     # 自动发现并构建所有 plugins/*
 npm run validate:dist             # 路径边界、入口与离线资源引用
 npm run capture:market -- --check # 发行页面：生产 CSP、资源与尺寸检查
 npm run test:ui                   # 关键交互流程（隔离 fixture）
-npm run pack -- --no-build        # 打包已验证的 dist 内容
+npm run pack -- --no-build --platform-variants  # 通用包，以及声明了平台依赖的插件的分平台包
 npm run registry                  # 从最终归档生成市场索引
 ```
 
@@ -211,7 +211,7 @@ REPO=hyqf98/eNest_plugin TAG=plugins-local node scripts/prepare-release.mjs
 
 推送 `v*` / `plugins-*` 标签或手动触发已带标签的工作流才创建正式 Release。CI 要求源码校验、全部构建、发行检查、生产 CSP 检查、打包和索引生成全部通过；普通分支推送不触发发布工作流。
 
-`build-registry.mjs` 从最终 ZIP 提取 manifest 与市场资源生成 `dist/registry.json`。恢复发行后，宿主从 Release 市场索引发现版本，校验 SHA-256 后安装。通用包命名 `{id}@{version}.enestplugin`，平台包 `{id}@{version}-{平台}.enestplugin`。
+`build-registry.mjs` 从最终 ZIP 提取 manifest 与市场资源生成 `dist/registry.json`。发版时，有平台包才生成对应的 `registry-<os>-<arch>.json`；没有原生变体的插件在各索引里复用同一个归档。宿主优先下载本机平台包并校验 SHA-256，旧壳和手动离线安装仍可用通用包。通用包命名 `{id}@{version}.enestplugin`，平台包 `{id}@{version}-{平台}.enestplugin`。
 
 ## 🤝 参与贡献
 

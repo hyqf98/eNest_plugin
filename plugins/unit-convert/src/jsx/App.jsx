@@ -570,7 +570,7 @@ export function App() {
       <footer>
         <span id="foot-note">{footNote}</span>
         <span className="grow"></span>
-        <SettingsGear onClick={() => setSettingsOpen(true)} />
+        <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
       </footer>
       <SettingsDialog
         open={settingsOpen}

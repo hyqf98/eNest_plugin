@@ -217,7 +217,10 @@ export function App() {
         />
         <section className="detail" role="main">
           {!selected || !snapshot ? (
-            <div className="empty">左侧选择一个环境或包管理器查看详情</div>
+            <div className="pk-empty-state">
+              <strong className="pk-empty-title">尚未选择环境</strong>
+              <p className="pk-empty-hint">从左侧选择环境或包管理器查看详情。</p>
+            </div>
           ) : selected.kind === 'pm' ? (
             <PackageManagerPanel selected={selected} snapshot={snapshot} search={search} say={say} runTask={runTask} detail={detail} />
           ) : (

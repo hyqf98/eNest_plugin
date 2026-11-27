@@ -68,18 +68,18 @@ export function MinePage({ favorites, history, sources, onOpen, onRefreshFavorit
             ))}
           </div>
         ) : (
-          <div className="ch-onboard">
-            <div className="ch-onboard-icon" aria-hidden>藏</div>
-            <p className="pk-muted">还没有收藏；点卡片右下角 ♡ 或详情页「收藏」即可添加。</p>
+          <div className="pk-empty-state">
+            <strong className="pk-empty-title">暂无收藏</strong>
+            <p className="pk-empty-hint">点击漫画卡片或详情页的收藏按钮，即可添加。</p>
           </div>
         )
       ) : (
         history.length ? (
           <HistoryTimeline history={history} sourceNameOf={sourceNameOf} onOpen={onOpen} onRemove={removeHist} busy={busy} />
         ) : (
-          <div className="ch-onboard">
-            <div className="ch-onboard-icon" aria-hidden>史</div>
-            <p className="pk-muted">还没有阅读历史；打开任意漫画开始阅读后自动记录。</p>
+          <div className="pk-empty-state">
+            <strong className="pk-empty-title">暂无阅读历史</strong>
+            <p className="pk-empty-hint">阅读漫画后会自动保存进度。</p>
           </div>
         )
       )}

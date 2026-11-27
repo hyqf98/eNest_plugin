@@ -102,7 +102,7 @@ export function CloudPage() {
   }
 
   return (
-    <div>
+    <div className="tb-empty-page">
       <div className="tb-section-title" style={{ marginTop: 0 }}>
         网盘源
         <span className="tb-more">OpenList / AList 标准协议，添加后可在搜索中聚合网盘资源</span>
@@ -141,7 +141,7 @@ export function CloudPage() {
             }}>删除</button>
           </div>
         ))}
-        {!accounts.length && !error ? <Empty>还没有添加网盘源；添加 OpenList/AList 站点后，搜索会自动聚合网盘内容</Empty> : null}
+        {!accounts.length && !error ? <Empty title="暂无网盘源" hint="添加网盘后，可在搜索中查看网盘内容。" /> : null}
       </div>
 
       {/* 登录/授权弹窗：打开登录页 + 粘贴 token */}

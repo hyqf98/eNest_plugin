@@ -73,10 +73,11 @@ export function AccountPanel() {
             {auth.savedAccount ? <span className="gh-set-account-id">{auth.savedAccount}</span> : null}
           </div>
           <div className="gh-set-account-actions">
-            {/* savedAccount 是明文账号展示，记住的密码由 auth.forget 清理 */}
+            {/* 登录在天翼自己的页面完成，插件只拿到会话 cookie，从不接触密码；
+                savedAccount 是天翼返回的账号，这里只用于展示和清除已存记录。 */}
             {auth.savedAccount ? (
               <Button size="sm" variant="ghost" onClick={() => void forget()} disabled={busy !== ''}>
-                忘记已保存的密码
+                清除已保存的账号
               </Button>
             ) : null}
             <Button size="sm" variant="danger" onClick={() => setLogoutOpen(true)} disabled={busy !== ''}>
@@ -95,7 +96,7 @@ export function AccountPanel() {
 
       <p className="gh-set-note">
         <Glyph icon={SignIn} size={12} />
-        登录状态保存在系统密钥库，插件不会上传你的账号信息。
+        登录在天翼云盘自己的页面完成，会话保存在系统密钥库；插件不接触也不保存你的密码。
       </p>
 
       <ConfirmDialog

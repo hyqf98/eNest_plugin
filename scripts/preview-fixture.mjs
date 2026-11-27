@@ -80,6 +80,7 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
     'agent.backups': async () => [], 'agent.sessions.list': async () => [],
     'sys.processes': async () => [{ pid: 4201, name: 'eNest', command: 'eNest', user: 'demo', pcpu: 1.8, rss: 145600 }, { pid: 4210, name: 'Vite', command: 'vite', user: 'demo', pcpu: .6, rss: 68400 }],
     'sys.ports': async () => [{ pid: 4210, name: 'Vite', port: 5173, address: '127.0.0.1', protocol: 'TCP', state: 'LISTEN' }],
+    'sys.cpuUsage': async () => 12.4,
     'localFiles.pick': async () => ['batch-rename', 'lan-share'].includes(pluginId) ? [
       { id: 'demo-file-1', name: '项目说明.pdf', kind: 'file', size: 142600, displayPath: '演示文件' },
       { id: 'demo-file-2', name: '界面设计.png', kind: 'file', size: 286720, displayPath: '演示文件' }
@@ -166,7 +167,7 @@ export function installPreviewFixture({ pluginId, mode = 'shell' }) {
     clipboard: 'capabilities requestPermission readText writeText readImage writeImage writeFiles paste inspectFiles revealFile',
     screen: 'capture displays', net: 'fetch websocket socket onNetData onNetClose onChunk',
     'net.websocket': 'connect send close onMessage onClose', 'net.socket': 'connect send close list serveWs',
-    fs: 'rename renameBatch', sys: 'processes ports kill', shell: 'saveFile openExternal saveTextFile resolvePath',
+    fs: 'rename renameBatch', sys: 'processes ports cpuUsage kill', shell: 'saveFile openExternal saveTextFile resolvePath',
     vault: 'set has remove', localFiles: 'read pick pickSave fromDrop list reveal prepareDrag startDrag endDrag',
     runtime: 'acquireActivity releaseActivity', backend: 'call stop'
   }

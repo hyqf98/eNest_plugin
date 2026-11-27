@@ -204,7 +204,12 @@ export function createAgent(ui) {
               for (const part of stream.feed(chunk)) consumePart(part)
             } catch { /* 坏 chunk：解析器已尽力吐出部分，跳过 */ }
           }
-          result = await chat({ provider, messages: conversation, toolDefs: TOOL_DEFS, onDelta, signal })
+          // 思维链与正文分流：reasoning 只进思考行，不混进回答气泡。
+          const onReasoning = (chunk) => { ui.pushReasoning?.(chunk) }
+          result = await chat({
+            provider, messages: conversation, toolDefs: TOOL_DEFS, onDelta, onReasoning, signal,
+            reasoningEffort: state.ui.aiReasoningEffort
+          })
           if (stream) {
             try { for (const part of stream.close()) consumePart(part) } catch { /* 收尾坏块：丢弃 */ }
           }

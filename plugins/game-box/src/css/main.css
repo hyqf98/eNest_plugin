@@ -534,24 +534,7 @@ html, body, #root {
 
 /* ---------------- 空态 / 错误 / 加载 ---------------- */
 
-.gh-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 240px;
-  height: 100%;
-  padding: 24px;
-  text-align: center;
-  color: var(--text-2, #666c70);
-}
-
 .gh-empty i { font-size: 30px; color: var(--text-3, #82888b); }
-
-.gh-empty strong { color: var(--text, #292c2e); font-size: var(--fs-card-title); font-weight: var(--fw-semibold, 650); }
-
-.gh-empty p { margin: 0; max-width: 46ch; font-size: var(--fs-secondary); }
 
 /* 列表加载失败时，报错条是浏览视图里唯一的内容：用 auto 外边距吃掉上下剩余空间把它垂直居中。
    不要用 flex: 1 让它自己撑开——那样整块红色会铺满内容区 */
@@ -834,14 +817,10 @@ html, body, #root {
 
 .gh-resource-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
 
-/* ---------------- 状态区 / 进度面板 ---------------- */
+/* ---------------- 状态区 / 进度面板（状态区本体的布局见下方详情页「状态区」一段） ---------------- */
 
-.gh-state-panel { display: flex; flex-direction: column; gap: 10px; }
-.gh-state-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.gh-state-head strong { font-size: 14px; font-weight: 600; }
 .gh-state-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--fs-secondary); color: var(--text-3, #82888b); font-variant-numeric: tabular-nums; }
 .gh-state-error { padding: 8px 12px; border-radius: var(--gh-ctl-radius); background: var(--danger-soft, rgba(197, 79, 70, .12)); color: var(--danger, #c54f46); font-size: var(--fs-caption); overflow-wrap: anywhere; }
-.gh-state-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* ---------------- 轮播 ---------------- */
 
@@ -1110,11 +1089,34 @@ html, body, #root {
   pointer-events: none;
 }
 
-/* 状态区 */
+/* 状态区：封面卡片里的一个区块（上方一条分隔线），不是独立面板 */
 
-.gh-state { display: flex; flex-direction: column; gap: 10px; }
+.gh-state {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: var(--appearance-border-width, 1px) solid var(--border, rgba(41, 44, 46, .08));
+}
+
+/* 标题行：左边状态（标题 + 徽标），右边主操作；窄栏里放不下时主操作换到下一行并撑满 */
+.gh-state-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }
+
+.gh-state-label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 
 .gh-state-title { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-semibold, 650); }
+
+.gh-state-primary { display: flex; flex: 0 1 auto; min-width: 0; }
+
+.gh-state-primary > :only-child { flex: 1 1 auto; }
+
+/* 没有主操作时（手动下载源未安装）不占位 */
+.gh-state-primary:empty { display: none; }
+
+.gh-state-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* 空的次要操作行不占高度（未下载时没有删除/卸载） */
+.gh-state-actions:empty { display: none; }
 
 /* 介绍 */
 
@@ -1149,23 +1151,44 @@ html, body, #root {
 
 /* 侧栏 */
 
-/* 侧栏信息面板的垂直节奏：12px（面板内边距 18px 之下，8px 显得挤） */
-.gh-detail-info { display: flex; flex-direction: column; gap: 12px; }
-
 /*
- * 竖版封面（3:4）在侧栏里占满宽度时有 390 多像素高，矮窗口里首屏只露得出「资源包」的标题，
- * 想下载得先发现要往下滚。按视口高度限高：封面居中、宽度随比例收缩，首屏就能看到资源列表与下一步。
+ * 侧栏是一张封面卡片。上段是「封面在左、标题与基本信息在右」的两列：
+ * 竖版封面（3:4）单独占一行时有三百多像素高，和下面的状态区、资源列表加起来首屏放不下；
+ * 让标题、徽标、更新时间、大小、官网排在封面右侧，上段高度就等于封面高度。
+ * 下方用分隔线划出「状态」「资源」两个区块。卡片内的垂直节奏统一 12px。
  */
-.gh-detail-cover {
-  align-self: center;
-  width: auto;
-  max-height: clamp(180px, 30vh, 360px);
+.gh-detail-info {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  grid-auto-rows: min-content;
+  align-items: start;
+  column-gap: 14px;
+  row-gap: 8px;
+}
+
+/* 封面：宽度由第一列决定，保持 3:4 */
+.gh-detail-info > .gh-detail-cover {
+  grid-column: 1;
+  grid-row: 1 / span 5;
+  align-self: start;
+  width: 100%;
+  max-height: none;
   aspect-ratio: 3 / 4;
   border-radius: var(--gh-ctl-radius);
   overflow: hidden;
 }
 
-.gh-detail-title-row { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.gh-detail-info > :not(.gh-detail-cover):not(.gh-state):not(.gh-pkg):not(.gh-pkg-empty-state) { grid-column: 2; }
+
+/* 状态区与资源列表内容多，不塞进封面旁边的文字列：各占一整行，放在上段之下 */
+.gh-detail-info > .gh-state,
+.gh-detail-info > .gh-pkg,
+.gh-detail-info > .gh-pkg-empty-state { grid-column: 1 / -1; }
+
+.gh-detail-title-row { display: flex; align-items: flex-start; gap: 4px; min-width: 0; margin: -4px 0 0; }
+
+/* 收藏按钮占 28px 宽，文字列只有一百多像素：用负外边距抵掉它的宽度，让标题与下面的徽标左对齐 */
+.gh-detail-title-row > .gh-detail-title { margin-left: -4px; }
 
 .gh-detail-title {
   margin: 0;
@@ -1177,6 +1200,8 @@ html, body, #root {
   line-height: 1.35;
   color: var(--text, #292c2e);
   overflow-wrap: anywhere;
+  /* 两行时把字数分匀，避免第二行只剩一两个字 */
+  text-wrap: balance;
 }
 
 .gh-detail-fav {
@@ -1186,6 +1211,9 @@ html, body, #root {
   justify-content: center;
   width: 28px;
   height: 28px;
+  /* 负外边距只抵掉它在文字列里占的宽度，按钮本身保持 28px 的点击区 */
+  margin: -4px -8px 0 0;
+  padding: 0;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -1193,39 +1221,46 @@ html, body, #root {
   cursor: pointer;
 }
 
+.gh-detail-fav svg { display: block; }
+
 .gh-detail-fav:hover { background: var(--surface-2, #eeefed); color: var(--accent, #bd542b); }
 
 .gh-detail-fav[data-favorite="true"] { color: var(--accent, #bd542b); }
 
 .gh-detail-badges { display: flex; flex-wrap: wrap; gap: 4px; }
 
-.gh-detail-facts { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+/* 基本信息：标签在左、值在右各占一行（窄栏里上下堆叠会让「大小」折成三四行） */
+.gh-detail-facts { margin: 0; display: flex; flex-direction: column; gap: 4px; }
 
-.gh-detail-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gh-detail-fact { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--fs-caption); }
 
-.gh-detail-fact dt { font-size: var(--fs-badge); color: var(--text-3, #82888b); }
+.gh-detail-fact dt { flex: 0 0 auto; font-size: var(--fs-badge); color: var(--text-3, #82888b); }
 
 .gh-detail-fact dd {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
+  /* 值里的多段文本按内联流式排布、整体折行；用 flex 会把两段各撑成一块分别折行 */
   font-size: var(--fs-caption);
   color: var(--text, #292c2e);
   font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
-.gh-detail-fact dd i { display: inline-flex; color: var(--text-3, #82888b); flex: 0 0 auto; }
+.gh-detail-fact dd i { display: inline-flex; vertical-align: -1px; margin-right: 4px; color: var(--text-3, #82888b); }
+
+.gh-detail-fact-sub { color: var(--text-2, #666c70); }
 
 /* "官方网站"：链接色的轻量按钮。点击区按标准按钮给（28px 高），纯文字只有 18px 高、很难点中 */
 .gh-detail-link {
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
+  justify-self: start;
   gap: 6px;
   min-height: 28px;
-  margin: -4px 0 0 -8px;
   padding: 0 8px;
+  margin-left: -8px;
   border: 0;
   border-radius: var(--gh-ctl-radius);
   background: transparent;
@@ -1246,15 +1281,33 @@ html, body, #root {
 
 .gh-detail-config dd { margin: 0; font-size: var(--fs-caption); color: var(--text, #292c2e); line-height: 1.5; overflow-wrap: anywhere; }
 
+/* 配置要求对照表（站点给的是键值对时）：首列是字段名，窄；两个值列等宽 */
+.gh-config-table { table-layout: fixed; }
+
+.gh-config-table th:first-child { width: 76px; }
+
+.gh-config-table th[scope="row"] { color: var(--text, #292c2e); font-weight: 600; white-space: nowrap; }
+
+.gh-config-table td { overflow-wrap: anywhere; }
+
+.gh-config-table td:empty::after,
+.gh-config-table td[data-missing="true"] { color: var(--text-3, #82888b); }
+
+.gh-detail-block-title { margin: 0 0 10px; font-size: var(--fs-section, 14px); font-weight: var(--fw-semibold, 650); line-height: 1.5; color: var(--text, #292c2e); }
+
 .gh-detail-note { margin: 0 0 12px; font-size: var(--fs-caption); color: var(--text-2, #666c70); line-height: 1.6; }
 
-.gh-detail-page-btn { align-self: stretch; justify-content: center; }
+.gh-detail-page-btn { align-self: stretch; justify-content: center; width: 100%; }
 
-.gh-detail-next-btn { margin-top: 10px; align-self: stretch; justify-content: center; }
+/* 卡片内的空态：不撑满（它外面已经是卡片），只占内容高度 */
+.gh-pkg-empty-state { flex: 0 0 auto; min-height: 0; padding: 8px 0 2px; }
 
-/* ---------------- 资源包列表 ---------------- */
+/* ---------------- 资源列表（封面卡片内的区块） ---------------- */
 
 .gh-pkg { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+/* 顶部分隔线与状态区一致；进了子文件夹时标题行在分隔线下方 */
+.gh-detail-info > .gh-pkg { padding-top: 12px; border-top: var(--appearance-border-width, 1px) solid var(--border, rgba(41, 44, 46, .08)); }
 
 .gh-pkg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
@@ -1285,23 +1338,28 @@ html, body, #root {
 
 .gh-pkg-empty { margin: 0; font-size: var(--fs-caption); color: var(--text-2, #666c70); }
 
-.gh-pkg-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; min-width: 0; }
+/* 侧栏只有 340px，列表不再单独限高滚动：卡片跟正文一起滚，免得窄栏里出现第二根滚动条 */
+.gh-pkg-list { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 
-.gh-pkg-row { cursor: pointer; }
+/* 行不再整行可点（下载按钮才是入口），所以去掉手型 */
+.gh-pkg-row { cursor: default; }
 
-.gh-pkg-row[data-disabled="true"] { opacity: .6; cursor: default; }
+.gh-pkg-row[data-disabled="true"] { opacity: .6; }
 
 .gh-pkg-row:focus-visible { outline: 2px solid var(--accent, #bd542b); outline-offset: 1px; }
+
+/* 行内边距收紧：窄栏里要同时放下名字与下载按钮 */
+.gh-detail-info .gh-pkg-row { padding: 8px 10px; }
 
 .gh-pkg-meta-item { display: inline-flex; align-items: center; gap: 3px; }
 
 .gh-pkg-meta-item i { display: inline-flex; }
 
-.gh-pkg-row small { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.gh-pkg-row small { display: flex; flex-wrap: wrap; gap: 4px 10px; white-space: normal; }
 
 .gh-pkg-warn { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; font-size: var(--fs-badge); color: var(--gh-warn); }
 
-.gh-pkg-open { flex: 0 0 auto; font-size: var(--fs-caption); color: var(--text-2, #666c70); }
+.gh-pkg-action { flex: 0 0 auto; }
 
 /* ---------------- 下载对话框 ---------------- */
 
@@ -1326,22 +1384,6 @@ html, body, #root {
   /* 两栏并排会把主栏挤到三百多像素：窄窗改为上下排列，主栏通栏、侧栏跟在下面 */
   .gh-detail-body { grid-template-columns: minmax(0, 1fr); }
   .gh-detail-side { position: static; }
-  /* 侧栏通栏后封面若跟着撑满会有一屏多高：信息面板改为封面在左（限宽、保持 3:4）、文字在右 */
-  .gh-detail-info {
-    display: grid;
-    grid-template-columns: 168px minmax(0, 1fr);
-    grid-auto-rows: min-content;
-    align-items: start;
-    column-gap: var(--gh-gap);
-    row-gap: 6px;
-  }
-  .gh-detail-info > .gh-detail-cover {
-    grid-column: 1;
-    grid-row: 1 / span 5;
-    align-self: start;
-    /* 侧栏通栏后宽度由这一列决定，不再按视口高度限高 */
-    width: 100%;
-    max-height: none;
-  }
-  .gh-detail-info > :not(.gh-detail-cover) { grid-column: 2; }
+  /* 侧栏通栏后封面列放宽（封面在左、文字在右的两列布局见上方的基础规则） */
+  .gh-detail-info { grid-template-columns: 168px minmax(0, 1fr); }
 }

@@ -252,8 +252,8 @@ function renderItems(state) {
         emptyView = h('div', { class: 'skq-grid skq-skeletons', 'aria-hidden': 'true' })
         for (let index = 0; index < 6; index++) emptyView.appendChild(h('div', { class: 'skq-skeleton' }, h('i'), h('span')))
       } else {
-        emptyView = h('div', { class: 'skq-empty' }, icon('search', 27),
-          h('strong', null, state.error ? '搜索暂时不可用' : state.searching ? '没有找到匹配项' : '还没有可用的启动项'),
+        emptyView = h('div', { class: 'skq-empty', role: 'status' }, icon('search', 20),
+          h('strong', null, state.error ? '搜索暂时不可用' : state.searching ? '没有匹配的启动项' : '暂无启动项'),
           h('span', null, state.error ? '请稍后重试搜索。' : state.emptyMarket ? '试试其他关键词，或去插件市场找工具。' : state.searching ? '试试其他关键词或搜索类型。' : '可以先去插件市场安装常用工具。'))
       }
     }

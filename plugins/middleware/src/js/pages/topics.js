@@ -49,8 +49,9 @@ export default {
     let keyword = ''
 
     const loading = el('div', { class: 'loading-bar' })
+    const searchLabel = isRmq ? '筛选名称' : '筛选 Topic 名称'
     const search = el('input', {
-      placeholder: isRmq ? '搜索名称…' : '搜索 Topic 名称…',
+      type: 'search', placeholder: searchLabel, 'aria-label': searchLabel,
       oninput: (e) => { keyword = e.target.value.trim().toLowerCase(); applyFilter() }
     })
     const newBtn = el('button', {
@@ -61,9 +62,7 @@ export default {
     const refreshBtn = el('button', { class: 'btn ghost', title: '刷新', onclick: () => load() }, '⟳')
     const count = el('span', { class: 'count' })
     const gridHost = el('div', { style: 'flex:1;min-height:0;display:flex;flex-direction:column' })
-    const toolbar = el('div', { class: 'toolbar' }, [
-      el('div', { class: 'search' }, ['🔍', search])
-    ])
+    const toolbar = el('div', { class: 'toolbar' })
 
     let seg = null
     if (isRmq) {
@@ -188,7 +187,7 @@ export default {
         ? allRows.filter((r) => String(r.name ?? bindField(r, 'source') ?? '').toLowerCase().includes(keyword)
           || String(bindField(r, 'routingKey') ?? '').toLowerCase().includes(keyword))
         : allRows
-      grid?.update(rows)
+      grid?.update(rows, keyword && allRows.length ? '没有符合筛选条件的结果' : undefined)
       const unit = isMqtt ? '条订阅' : isRmq ? ({ queues: '个队列', exchanges: '个交换机', bindings: '条绑定' }[segment] ?? '项') : '个 Topic'
       count.innerHTML = `共 <b>${fmt.num(rows.length)}</b> ${unit}${isRmq || isMqtt ? '' : ' · 右键行查看操作'}`
     }

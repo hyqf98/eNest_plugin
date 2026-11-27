@@ -32,10 +32,9 @@ export function EntryDetail({ entry, categoryText, onEdit, onDelete, onCopy, toa
 
   if (!entry) {
     return (
-      <div className="detail-empty">
-        {Icon.shield(28)}
-        <p>选择左侧条目查看详情</p>
-        <p className="sub">密码加密存储于本机保险库，仅在明确操作时解密</p>
+      <div className="pk-empty-state">
+        <p className="pk-empty-title">尚未选择条目</p>
+        <p className="pk-empty-hint">从左侧选择条目查看详情。</p>
       </div>
     )
   }

@@ -67,12 +67,11 @@ export function Spinner({ label }: { label?: string }) {
   )
 }
 
-export function EmptyState({ title, body, action }: { title: string; body?: string; action?: ReactNode }) {
+export function EmptyState({ title, body, action, error = false }: { title: string; body?: string; action?: ReactNode; error?: boolean }) {
   return (
-    <div className="wh-empty">
-      <Icon name="image" size={28} />
-      <strong>{title}</strong>
-      {body ? <p>{body}</p> : null}
+    <div className="pk-empty-state" role={error ? 'alert' : action ? undefined : 'status'}>
+      <strong className="pk-empty-title">{title}</strong>
+      {body ? <p className="pk-empty-hint">{body}</p> : null}
       {action}
     </div>
   )

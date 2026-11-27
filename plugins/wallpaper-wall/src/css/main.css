@@ -75,7 +75,9 @@ code, pre { font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
 .wh-topbar-title { min-width: 0; flex: 1; }
 .wh-page-title { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.15px; }
 .wh-topbar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.wh-topbar-actions:empty { display: none; }
 .wh-source-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 0 20px; padding: 2px 18px 0; border-bottom: 1px solid var(--wh-line); }
+.wh-source-bar:empty { display: none; }
 .wh-source-chip {
   display: inline-flex; align-items: center; gap: 5px; border: 0; border-bottom: 2px solid transparent;
   border-radius: 0; background: transparent; color: var(--wh-text-2); padding: 9px 1px; cursor: pointer; white-space: nowrap;
@@ -91,7 +93,7 @@ code, pre { font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
 .wh-search:focus-within { border-color: var(--wh-accent); box-shadow: none; }
 .wh-search input:focus, .wh-search input:focus-visible { outline: none; box-shadow: none; }
 .wh-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--wh-text); outline: none; }
-.wh-search-clear { display: grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 6px; background: transparent; color: var(--wh-text-2); cursor: pointer; }
+.wh-search-clear { display: grid; flex: none; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 6px; background: transparent; color: var(--wh-text-2); cursor: pointer; }
 .wh-search-clear:hover { background: var(--wh-surface-2); color: var(--wh-text); }
 .wh-download-pill { display: flex; align-items: center; gap: 7px; max-width: 220px; padding: 4px 9px; border: 1px solid var(--wh-border); border-radius: 999px; background: var(--wh-surface); font-size: 11px; color: var(--wh-text-2); }
 .wh-download-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -129,6 +131,7 @@ code, pre { font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
 .wh-notices { display: flex; flex-direction: column; gap: 3px; margin: -4px 0 10px; }
 .wh-notices p { margin: 0; display: flex; align-items: center; gap: 5px; color: var(--wh-text-2); font-size: 11px; }
 .wh-grid-scroll { flex: 1; min-height: 0; overflow: auto; padding: 2px 2px 24px; scrollbar-width: thin; }
+.wh-grid-scroll:has(> .pk-empty-state) { display: flex; flex-direction: column; padding: 0; }
 .wh-grid-row { position: absolute; left: 0; top: 0; width: 100%; display: grid; }
 .wh-grid-tail { min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--wh-text-2); font-size: 11px; }
 .wh-grid-error { color: var(--wh-danger); }
@@ -166,9 +169,6 @@ code, pre { font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
 .wh-card-actions .pk-btn-primary { background: var(--wh-accent); color: var(--wh-accent-contrast); }
 .wh-skeleton-grid { display: grid; gap: 14px; }
 .wh-skeleton-card { aspect-ratio: 16 / 12; border-radius: var(--wh-radius); background: linear-gradient(100deg, var(--wh-surface-2) 20%, color-mix(in srgb, var(--wh-surface-2) 40%, var(--wh-border)) 40%, var(--wh-surface-2) 60%); background-size: 200% 100%; animation: wh-shimmer 1.3s linear infinite; }
-.wh-empty { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 44px 24px; color: var(--wh-text-2); text-align: center; }
-.wh-empty strong { color: var(--wh-text); font-size: 15px; }
-.wh-empty p { margin: 0; max-width: 460px; line-height: 1.6; }
 .wh-error { display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--wh-danger) 35%, var(--wh-border)); border-radius: 10px; background: color-mix(in srgb, var(--wh-danger) 7%, var(--wh-surface)); color: var(--wh-danger); }
 .wh-error span { flex: 1; min-width: 0; }
 .wh-spinner { display: inline-flex; align-items: center; gap: 7px; color: var(--wh-text-2); font-size: 11px; }
@@ -313,9 +313,14 @@ code, pre { font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
   .wh-rail-foot { margin-left: auto; padding: 0; border: 0; }
   .wh-rail-actions { gap: 2px; }
   .wh-rail-action { width: 28px; height: 28px; }
-  .wh-topbar { flex-wrap: wrap; padding: 8px 12px; }
-  .wh-topbar-actions { width: 100%; justify-content: flex-end; }
-  .wh-search { flex: 1; max-width: none; }
+  .wh-topbar { flex-wrap: wrap; gap: 8px; min-height: 42px; padding: 6px 12px; }
+  .wh-topbar-actions { flex-wrap: wrap; max-width: 100%; }
+  .wh-topbar:has(.wh-search) { flex-wrap: nowrap; }
+  .wh-topbar:has(.wh-search) .wh-topbar-title { flex: 0 1 auto; max-width: 42%; }
+  .wh-topbar:has(.wh-search) .wh-page-title { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+  .wh-topbar-actions:has(.wh-search) { flex: 1; flex-wrap: nowrap; min-width: 0; }
+  .wh-topbar-actions:has(.wh-search) .wh-download-pill { max-width: 38%; }
+  .wh-search { flex: 1; min-width: 0; max-width: none; }
   .wh-view { padding: 10px 12px 0; }
   .wh-detail-layout { grid-template-columns: 1fr; }
   .wh-detail-media { max-height: 42vh; }

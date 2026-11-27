@@ -79,6 +79,9 @@ export function App() {
   selectionRef.current = selection
   const [tool, setTool] = useState('pen')
   const toolRef = useRef(tool); toolRef.current = tool
+  // 选中只在选择工具下存在：切到任何绘制工具就清空，避免画着图还留着上一个选中框，
+  // 退格 / 方向键 / 右键菜单误作用到它。绘制工具本身不会产生选中。
+  useEffect(() => { if (tool !== 'select') setSelection([]) }, [tool])
   const [settings, setSettings] = useState(normalizeSettings(null))
   const settingsRef = useRef(settings); settingsRef.current = settings
   const [spaceDown, setSpaceDown] = useState(false)
@@ -134,12 +137,13 @@ export function App() {
     persistNow(next, id)
   }, [persistNow])
 
-  const addObject = useCallback((obj, { select = false } = {}) => {
+  // 加入对象不改变当前工具，也不替用户选中：绘制工具选上后一直用到手动切换，
+  // 选中只发生在选择工具下（粘贴等批量加入同理，避免画着画着跳到选择工具）
+  const addObject = useCallback((obj) => {
     const finalObj = { ...obj, id: obj.id || uid(), _born: performance.now() }
     commitObjects((objects) => { objects.push(finalObj) })
     syncDraftDoc()
-    setSelection(select ? [finalObj.id] : [])
-    if (select) setTool('select')
+    setSelection([])
     return finalObj
   }, [commitObjects, syncDraftDoc])
 
@@ -365,9 +369,10 @@ export function App() {
       if (selection.length === 1) items.push({ key: 'zorder', label: '层级', children: [{ key: 'top', label: '置于顶层' }, { key: 'bottom', label: '置于底层' }] })
       items.push({ sep: true }, { key: 'del', label: '删除', hint: 'Del', danger: true }, { sep: true })
     }
-    // 工具（分组挂子菜单；当前工具打勾）
-    items.push({ key: 'tools', label: '工具', icon: icon(MENU_ICONS.select), children: [
-      { key: 'select', label: '选择', hint: 'V', icon: icon(MENU_ICONS.select) },
+    // 选择是一级项：它是「调整已画内容」的入口，和绘制工具平级，不该藏在子菜单里
+    items.push({ key: 'select', label: '选择', hint: 'V', icon: icon(MENU_ICONS.select) })
+    // 叫「笔迹」而不是「画笔」：下面那个「画笔」子菜单是调粗细的，两个都叫画笔会分不清
+    items.push({ key: 'tools', label: '笔迹', icon: icon(MENU_ICONS.pen), children: [
       { key: 'pen', label: '钢笔', hint: 'P', icon: icon(MENU_ICONS.pen) },
       { key: 'highlighter', label: '荧光笔', hint: 'H', icon: icon(MENU_ICONS.highlighter) },
       { key: 'eraser', label: '橡皮', hint: 'E', icon: icon(MENU_ICONS.eraser) },

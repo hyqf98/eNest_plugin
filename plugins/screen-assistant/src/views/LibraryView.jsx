@@ -147,13 +147,12 @@ export function LibraryView({
       </div>
       <div className={`sa-lib-scroll${filtered.length ? '' : ' is-empty'}`}>
         {loading ? (
-          <div className="sa-empty"><span className="sa-spinner" /> 正在读取媒体库…</div>
+          <div className="pk-empty-state" role="status"><span className="sa-spinner" />正在读取媒体库…</div>
         ) : !filtered.length ? (
-          <div className="sa-lib-empty">
-            <Empty icon="library" text={query ? '没有匹配的记录' : filter === 'record' ? '还没有录屏' : filter === 'image' ? '还没有截图' : '媒体库还是空的'}>
-              {!query && filter !== 'record' ? <button type="button" className="pk-btn pk-btn-primary" onClick={onCapture}>区域截图</button> : null}
-            </Empty>
-          </div>
+          <Empty icon="library" text={query ? '没有匹配的记录' : filter === 'record' ? '暂无录屏' : filter === 'image' ? '暂无截图' : '媒体库暂无内容'}>
+            {query ? <Button variant="ghost" size="sm" onClick={onClearSearch}>清除关键词</Button>
+              : filter !== 'record' ? <button type="button" className="pk-btn pk-btn-primary" onClick={onCapture}>区域截图</button> : null}
+          </Empty>
         ) : (
           <div className="sa-grid">
             {groups.map(entry => entry.type === 'label' ? (

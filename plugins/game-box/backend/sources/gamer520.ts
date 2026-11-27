@@ -145,6 +145,7 @@ export function gamer520Source(): SourceAdapter {
         installedSizeText: '',
         minConfig: '',
         recommendConfig: '',
+        configSpec: { min: [], recommend: [] },
         officialUrl: text(raw.link),
         packages: [],
         trainerOptions: [],

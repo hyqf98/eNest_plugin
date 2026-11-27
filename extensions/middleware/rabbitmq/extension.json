@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "target": "middleware", "id": "rabbitmq", "name": "RabbitMQ", "version": "0.0.1", "apiVersion": 1, "entry": "backend/index.cjs",
+  "descriptor": {
+    "ui": { "color": "#e17731", "topicLabel": "队列", "topicsModel": "queues", "groupsModel": "connections", "publishModel": "queue-route", "authLabel": "Basic", "messageHint": "读取队头消息，读取后重新入队" },
+    "completionRules": [{ "id": "rabbitmq-dead-letter", "kind": "topic", "label": "死信队列", "value": "${input}.dlq" }, { "id": "rabbitmq-death-header", "kind": "header", "label": "死信历史", "value": "x-death" }]
+  }
+}

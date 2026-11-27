@@ -15,8 +15,9 @@ import {
 } from '../ui/icons.jsx'
 import { loadProviders, getDefaultProvider } from '../js/providers.mjs'
 import { loadLlm, optimizePrompt, isLlmConfigured } from '../js/promptOptimizer.mjs'
+import { renderPrompt, recipeFromRecord, loadMine, addMine, removeMine } from '../js/recipes.mjs'
 import { runGeneration, loadSessionIndex, loadSession, persistSession, deleteSession } from '../js/agent.mjs'
-import { loadRecords, removeRecord, deleteAsset, getAsset, assetPreviewUrl } from '../js/assets.mjs'
+import { loadRecords, removeRecord, removeRecordByAsset, deleteAsset, getAsset, assetPreviewUrl } from '../js/assets.mjs'
 import { saveAssetToDirectory } from '../js/backendBridge.mjs'
 
 /** 协议类型 → 徽标文字：替代原先三种颜色的圆点，避免与强调色打架 */
@@ -61,6 +62,8 @@ export function App() {
   /* 「优化提示词」用的语言模型（地址/模型/secretRef/target），存插件 KV，密钥只在保险库 */
   const [llm, setLlm] = useState(null)
   const [optimizing, setOptimizing] = useState(false)
+  /* 「我的配方」：预览库「存为配方」攒下来的，灵感页「我的」里列出 */
+  const [mine, setMine] = useState([])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState('providers')
@@ -76,6 +79,7 @@ export function App() {
   /* refs（回调与防抖读写最新值） */
   const messagesRef = useRef(messages); messagesRef.current = messages
   const activeIdRef = useRef(activeId); activeIdRef.current = activeId
+  const sessionsRef = useRef(sessions); sessionsRef.current = sessions
   const providersRef = useRef(providers); providersRef.current = providers
   const saveDirRef = useRef(saveDir); saveDirRef.current = saveDir
   const runningRef = useRef(running); runningRef.current = running
@@ -106,12 +110,13 @@ export function App() {
         await kit.ready
         if (!alive) return
         setPrefs({ ...kit.settings })
-        const [prov, tpl, dir, index, lm] = await Promise.all([loadProviders(), loadTemplates(), loadSaveDir(), loadSessionIndex(), loadLlm()])
+        const [prov, tpl, dir, index, lm, mn] = await Promise.all([loadProviders(), loadTemplates(), loadSaveDir(), loadSessionIndex(), loadLlm(), loadMine()])
         if (!alive) return
         setProviders(prov)
         setTemplates(tpl)
         setSaveDir(dir)
         setLlm(lm)
+        setMine(mn)
         setSize(kit.settings.defaultSize ?? 'auto')
         setNCount(Math.min(4, Math.max(1, Number(kit.settings.defaultN) || 1)))
         setSessions(index)
@@ -161,12 +166,16 @@ export function App() {
   }, [messages, ready, schedulePersist])
 
   /* —— 会话操作 —— */
-  const ensureSession = useCallback(() => {
+  /* 标题 = 首条提示词截 24 字，与 agent.mjs 的 persistSession 同一规则。
+     建会话那一刻就用上：persistSession 只写 KV 不通知界面，否则列表里会一直挂着「新会话」，
+     要等下次打开才变。 */
+  const ensureSession = useCallback((firstPrompt = '') => {
     if (activeIdRef.current) return activeIdRef.current
     const id = uid()
     setActiveId(id)
     activeIdRef.current = id
-    setSessions(prev => [{ id, title: '新会话', updatedAt: Date.now() }, ...prev])
+    const title = firstPrompt.replace(/\s+/g, ' ').trim().slice(0, 24) || '新会话'
+    setSessions(prev => [{ id, title, updatedAt: Date.now() }, ...prev])
     return id
   }, [])
 
@@ -193,30 +202,42 @@ export function App() {
   const removeSession = useCallback(async id => {
     clearTimeout(persistTimer.current)
     await deleteSession(id)
-    setSessions(prev => {
-      const next = prev.filter(s => s.id !== id)
-      if (id === activeIdRef.current) {
-        setActiveId(next[0]?.id ?? '')
-        activeIdRef.current = next[0]?.id ?? ''
-        setMessages([])
-      }
-      return next
-    })
+    const next = sessionsRef.current.filter(s => s.id !== id)
+    setSessions(next)
+    // 删的是当前会话：切到下一个并加载它的消息，与 selectSession 同一顺序
+    // （先切 id、再一次 setMessages 加载结果）。原先这里只 setMessages([]) 而不加载，
+    // 随后防抖持久化会用空数组覆盖下一个会话的分键——它的全部消息就没了。
+    if (id === activeIdRef.current) {
+      const target = next[0]?.id ?? ''
+      setActiveId(target)
+      activeIdRef.current = target
+      setMessages(target ? await loadSession(target) : [])
+    }
   }, [])
 
   const renameSession = useCallback((id, title) => {
     const name = String(title ?? '').trim().slice(0, 40)
     if (!name) return
-    setSessions(prev => prev.map(s => (s.id === id ? { ...s, title: name } : s)))
+    // renamed 标记：用户起的名字不再被「首条提示词」规则覆盖（界面推导与 persistSession 都认它）
+    setSessions(prev => prev.map(s => (s.id === id ? { ...s, title: name, renamed: true } : s)))
     void (async () => {
       // 重命名直接改索引标题（分键不动）
       try {
         const storage = (window.enest || window.zapi).storage
         const index = await loadSessionIndex()
-        await storage.set('image-gen.sessions.v1', index.map(s => (s.id === id ? { ...s, title: name } : s)))
+        await storage.set('image-gen.sessions.v1', index.map(s => (s.id === id ? { ...s, title: name, renamed: true } : s)))
       } catch { /* 下次写入会重新同步 */ }
     })()
   }, [])
+
+  /* 会话列表标题：没手动改过名的，以「当前消息的首条提示词」为准推导，而不是只信索引里存的那份。
+     索引标题由 persistSession 写进 KV，但它不通知界面；而「先新建会话、再发首条消息」这条路径上
+     ensureSession 看到已有 activeId 会直接返回、不更新标题——列表就会一直挂着「新会话」。 */
+  const sessionTitleOf = useCallback((session) => {
+    if (session.id !== activeId || session.renamed) return session.title
+    const first = messages.find(m => m.role === 'user' && m.prompt)?.prompt
+    return first ? first.replace(/\s+/g, ' ').trim().slice(0, 24) : session.title
+  }, [activeId, messages])
 
   /* —— 发送 / 停止 —— */
   const stopRun = useCallback(() => {
@@ -235,7 +256,7 @@ export function App() {
       toast('还没有可用渠道，先添加一个')
       return
     }
-    const sessionId = ensureSession()
+    const sessionId = ensureSession(prompt)
     const userMsg = { id: uid(), role: 'user', prompt, attachments: atts.map(a => ({ assetId: a.dataUrl, name: a.name })) }
     const assistantId = uid()
     const assistantMsg = { id: assistantId, role: 'assistant', status: 'running', receivedBytes: 0 }
@@ -348,6 +369,9 @@ export function App() {
   const deleteImageAsset = useCallback(async (assetId) => {
     try {
       await deleteAsset(assetId)
+      // 预览库记录也要落库删除：原先只 setRecords 过滤了内存状态，KV 里的记录还在，
+      // 下次打开预览库就是一张指向已删资产的破图
+      await removeRecordByAsset(assetId)
       setMessages(prev => prev.map(m => {
         if (m.role !== 'assistant' || !Array.isArray(m.images)) return m
         const images = m.images.filter(img => img.assetId !== assetId)
@@ -428,6 +452,17 @@ export function App() {
   const recordAction = useCallback((action, record) => {
     if (action === 'download') void downloadAsset(record.assetId)
     else if (action === 'continue') void continueWithImage(record.assetId)
+    else if (action === 'saveRecipe') {
+      void (async () => {
+        try {
+          await addMine(recipeFromRecord(record))
+          setMine(await loadMine())
+          toast('已存为配方，在「灵感 → 我的」里可以找到', 'success')
+        } catch (err) {
+          toast(err instanceof Error ? err.message : String(err), 'error')
+        }
+      })()
+    }
     else if (action === 'delete') {
       void (async () => {
         await deleteAsset(record.assetId)
@@ -445,10 +480,15 @@ export function App() {
         filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }] })
       const list = Array.isArray(handles) ? handles : (handles ? [handles] : [])
       const next = []
+      let unreadable = 0
       for (const handle of list.slice(0, 4)) {
         const dataUrl = await api.localFiles.read({ handleId: handle.id, encoding: 'dataUrl' })
+        // 读不到内容（空串/非 data:）的不能当附件加进去：否则缩略图是灰块，发送时才在解析阶段报错，
+        // 用户只看到「生成失败」却不知道是哪张图没读出来
+        if (typeof dataUrl !== 'string' || !/^data:image\//.test(dataUrl)) { unreadable += 1; continue }
         next.push({ id: uid(), dataUrl, name: handle.name })
       }
+      if (unreadable) toast(`${unreadable} 张图片读取失败，已跳过`, 'error')
       if (next.length) setAttachments(prev => {
         const room = 4 - prev.length
         if (next.length > room) toast(`最多 4 张附件，已忽略 ${next.length - room} 张`)
@@ -510,6 +550,17 @@ export function App() {
   const openSettingsAt = useCallback((section) => {
     setSettingsSection(section)
     setSettingsOpen(true)
+  }, [])
+
+  /* 配方带入：填完槽位的完整提示词进输入框，尺寸切到配方指定的值，然后回会话页。
+     配方没指定尺寸（或指定 auto）时不动当前选择。不动已有的附件：用户可能已经拖了参考图进来。 */
+  const useRecipe = useCallback((item, { values = {}, extra = '' } = {}) => {
+    const recipe = item?.recipe
+    if (!recipe) return
+    setInput(renderPrompt(recipe, values, extra))
+    if (recipe.params?.size) setSize(recipe.params.size)
+    setView('chat')
+    setFocusRequest({ token: Date.now() })
   }, [])
 
   /* —— 顶栏 ——
@@ -619,7 +670,7 @@ export function App() {
       {!quickMode && (
         <>
           <SessionRail
-            sessions={sessions} activeId={activeId}
+            sessions={sessions.map(s => (s.id === activeId ? { ...s, title: sessionTitleOf(s) } : s))} activeId={activeId}
             onSelect={id => { selectSession(id); collapseRailIfDrawer() }}
             onNew={() => { newSession(); collapseRailIfDrawer() }}
             onDelete={removeSession}
@@ -647,9 +698,22 @@ export function App() {
         <InspirationView
           topbar={topbar}
           toast={toast}
+          mine={mine}
           onCopyPrompt={copyPrompt}
           /* 带入后回到会话页，用户才能看到输入框里填好的提示词并继续编辑 */
           onUsePrompt={(text, select) => { setInput(text); setView('chat'); setFocusRequest({ token: Date.now(), select }) }}
+          onUseRecipe={useRecipe}
+          onDeleteMine={item => {
+            void (async () => {
+              try {
+                await removeMine(item.recipe.id)
+                setMine(await loadMine())
+                toast('已删除配方', 'success')
+              } catch (err) {
+                toast(err instanceof Error ? err.message : String(err), 'error')
+              }
+            })()
+          }}
         />
       ) : (
         <LibraryView

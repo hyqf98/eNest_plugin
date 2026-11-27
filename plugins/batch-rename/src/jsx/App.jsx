@@ -527,7 +527,10 @@ export function App() {
             </div>
             <ol id="rule-list" className="rule-list">
               {!rules.length ? (
-                <li className="rule-empty">还没有规则——添加一条开始预览</li>
+                <li className="pk-empty-state">
+                  <p className="pk-empty-title">暂无规则</p>
+                  <p className="pk-empty-hint">添加规则后可预览改名结果。</p>
+                </li>
               ) : (
                 rules.map((rule, idx) => (
                   <li key={idx} className="rule-item" draggable
@@ -553,12 +556,15 @@ export function App() {
           <div className="panel-head">
             <h2>预览 <span id="preview-meta" className="pk-muted">{previewMeta}</span></h2>
           </div>
-          <div className="preview-head">
+          <div className="preview-head" hidden={!hasFiles}>
             <span>原名</span><span></span><span>新名</span><span className="preview-head-note">状态</span>
           </div>
-          <div id="preview-table" className="preview-table" role="list">
+          <div id="preview-table" className="preview-table" role={hasFiles ? 'list' : undefined}>
             {!hasFiles ? (
-              <p className="rule-empty">加入文件后这里显示 原名 → 新名 预览</p>
+              <div className="pk-empty-state">
+                <p className="pk-empty-title">暂无预览</p>
+                <p className="pk-empty-hint">添加文件后即可对照原名和新名。</p>
+              </div>
             ) : (
               rows.map((row, i) => (
                 <div key={i} className={'pv-row' + (row.error ? ' blocked' : '')} role="listitem">

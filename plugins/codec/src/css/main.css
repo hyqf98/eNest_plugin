@@ -248,11 +248,6 @@ h1 {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.history-empty {
-  padding: 16px 12px;
-  text-align: center;
-  white-space: normal;
-}
 
 /* ── 双栏工作区 ── */
 .panes {

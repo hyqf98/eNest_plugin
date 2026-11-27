@@ -28,19 +28,18 @@ export function LoadingMore() {
 
 /** 错误态：说明 + 重试 */
 export function ErrorState({ message, onRetry }) {
-  return createElement('div', { className: 'mm-state' },
-    createElement('div', { className: 'mm-state-icon' }, '⚠️'),
-    createElement('div', { className: 'mm-state-text' }, message || '加载失败'),
+  return createElement('div', { className: 'pk-empty-state', role: 'alert' },
+    createElement('strong', { className: 'pk-empty-title' }, '加载失败'),
+    message && createElement('p', { className: 'pk-empty-hint' }, message),
     onRetry && createElement('button', { type: 'button', className: 'mm-retry', onClick: onRetry }, '重试'),
   )
 }
 
 /** 空态 */
 export function EmptyState({ text, hint }) {
-  return createElement('div', { className: 'mm-state' },
-    createElement('div', { className: 'mm-state-icon' }, '🔍'),
-    createElement('div', { className: 'mm-state-text' }, text || '没有找到表情包'),
-    hint && createElement('div', { className: 'mm-state-hint' }, hint),
+  return createElement('div', { className: 'pk-empty-state' },
+    createElement('strong', { className: 'pk-empty-title' }, text || '没有找到表情包'),
+    hint && createElement('p', { className: 'pk-empty-hint' }, hint),
   )
 }
 

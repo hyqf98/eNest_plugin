@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { generateKeyPairSync, privateDecrypt, constants } from 'node:crypto'
 import { aesDecrypt, aesEncrypt, caesar3, fucnmSign, generateNonce, md5Hex, rsaEncodeGowsp, rsaEncodeTickstep } from '../../backend/crypto.ts'
-import { CookieJar, FORM_HEADERS, formEncode, jarRequest } from '../../backend/cloud189/http.ts'
+import { CookieJar, FORM_HEADERS, formEncode, jarRequest, seedJarFromCredential } from '../../backend/cloud189/http.ts'
 import { accessTokenFromUrl, downloadSignature, parseSessionResponse } from '../../backend/cloud189/sign.ts'
 import { parseShareCode } from '../../backend/cloud189/share.ts'
 import { createMockAdapter } from '../../backend/adapters/mock.ts'
@@ -181,9 +181,47 @@ test('CookieJar 收集每一跳 cookie 并组装请求头', () => {
   const header = jar.header()
   assert.ok(header.includes('LT=s1'))
   assert.ok(header.includes('SSON=v1'))
-  // 覆盖同名
+  // 不同子域的同名 cookie 各自保留：天翼在 cloud 与 open.e 会下发同名不同值的 cookie，
+  // 服务端靠 domain 区分。按名字覆盖会让后写的 SSO cookie 顶掉真正的会话 cookie。
   jar.store('LT=s2; Path=/', 'https://open.e.189.cn/x')
-  assert.equal(jar.get('LT'), 's2')
+  assert.equal(jar.all().filter(entry => entry.name === 'LT').length, 2)
+  assert.match(jar.headerFor('https://cloud.189.cn/a'), /LT=s1/)
+  assert.match(jar.headerFor('https://open.e.189.cn/a'), /LT=s2/)
+})
+
+test('CookieJar 把 Max-Age=0 / 过去的 Expires 当作删除，不留空值盖掉真会话', () => {
+  // 天翼未登录时对 getUserBriefInfo 下发 `COOKIE_LOGIN_USER=; Max-Age=0`。
+  // 若把空值当普通 cookie 存进 jar，之后每次请求都会用空值盖掉凭据里的真会话，
+  // 表现为「刚登录成功，刷新一次状态就变成已过期」。
+  const jar = new CookieJar()
+  jar.storeEntry({ name: 'COOKIE_LOGIN_USER', value: 'REAL', domain: 'cloud.189.cn', path: '/' })
+  jar.store('COOKIE_LOGIN_USER=; Max-Age=0; Domain=cloud.189.cn; Path=/', 'https://cloud.189.cn/x')
+  assert.equal(jar.headerFor('https://cloud.189.cn/x').includes('COOKIE_LOGIN_USER'), false)
+  // 另一个域下的同名 cookie 不受影响
+  const jar2 = new CookieJar()
+  jar2.storeEntry({ name: 'COOKIE_LOGIN_USER', value: 'REAL', domain: 'cloud.189.cn', path: '/' })
+  jar2.store('COOKIE_LOGIN_USER=; Max-Age=0; Domain=open.e.189.cn; Path=/', 'https://cloud.189.cn/x')
+  assert.match(jar2.headerFor('https://cloud.189.cn/x'), /COOKIE_LOGIN_USER=REAL/)
+})
+
+test('seedJarFromCredential 优先用逐条带域名的 cookies，并兼容旧的拍平 cookie 字符串', () => {
+  const structured = JSON.stringify({
+    cookies: [
+      { name: 'COOKIE_LOGIN_USER', value: 'REAL', domain: '.cloud.189.cn', path: '/' },
+      { name: 'COOKIE_LOGIN_USER', value: 'SSO', domain: '.open.e.189.cn', path: '/' },
+    ],
+    cookie: 'COOKIE_LOGIN_USER=REAL; COOKIE_LOGIN_USER=SSO',
+  })
+  const jar = new CookieJar()
+  seedJarFromCredential(jar, structured)
+  assert.equal(jar.all().length, 2, '同名不同域的 cookie 都要保留')
+  assert.match(jar.headerFor('https://cloud.189.cn/x'), /COOKIE_LOGIN_USER=REAL/)
+  assert.match(jar.headerFor('https://open.e.189.cn/x'), /COOKIE_LOGIN_USER=SSO/)
+
+  // 旧凭据只有拍平字符串：仍能灌进 jar（按 cloud.189.cn 逐条写入）
+  const legacy = new CookieJar()
+  seedJarFromCredential(legacy, JSON.stringify({ cookie: 'SESSION=abc; cookiesdl=xyz' }))
+  assert.equal(legacy.headerFor('https://cloud.189.cn/x'), 'SESSION=abc; cookiesdl=xyz')
 })
 
 test('jarRequest 逐跳收集 cookie 且跨 origin 不清 cookie', async () => {

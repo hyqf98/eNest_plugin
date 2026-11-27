@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>中国日历 · 浏览器预览</title>
+    <script type="module" src="./tests/preview-fixture.js"></script>
+    <script type="module" src="./src/entry.js"></script>
+    <style>
+      /* 预览窗口的兜底 token（夹具 applyDom 会写入同一组值）；浅色底，便于看透明背景下的真实观感 */
+      html, body { margin: 0; height: 100%; }
+      body { background: #dfe3e8; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

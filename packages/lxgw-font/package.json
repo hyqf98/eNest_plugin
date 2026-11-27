@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./lxgw.css",
+    ".": "./assets/lxgw.css",
+    "./local.css": "./local.css",
     "./lxgw.css": "./assets/lxgw.css",
     "./vite": "./vite.js"
   },
   "files": [
+    "local.css",
     "assets/lxgw.css",
     "assets/*.woff2",
     "assets/OFL.txt",

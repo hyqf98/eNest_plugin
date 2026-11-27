@@ -174,19 +174,6 @@ export function App() {
     kitRef.current?.setPref('preset', value).catch(() => {})
   }, [])
 
-  // —— 空状态插画（纯 SVG，等价原 emptyState）——
-  const emptyArt = (
-    <div className="empty">
-      <svg viewBox="0 0 96 96" aria-hidden="true">
-        <circle cx="48" cy="54" r="30" fill="none" stroke="var(--line)" strokeWidth="2.5" />
-        <circle cx="48" cy="54" r="21" fill="none" stroke="var(--focus)" strokeWidth="2" strokeDasharray="4 6" strokeLinecap="round" opacity=".7" />
-        <path d="M48 24c-3-6-9-8-13-7 2 5 6 8 10 9m3-2c0-5 2-9 6-11 1 5-1 9-4 12" fill="none" stroke="var(--focus)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M33 45c2-6 7-10 12-11" fill="none" stroke="var(--focus)" strokeWidth="2" strokeLinecap="round" opacity=".45" />
-      </svg>
-      第一段专注，从现在开始。<br />完成后会在这里留下记录。
-    </div>
-  )
-
   // —— 宿主适配器 + 启动（latest-ref 桥接，等价原初始化段）——
   useEffect(() => {
     const kit = PluginKit.create({
@@ -335,12 +322,9 @@ export function App() {
     // 等价原 render() 的 if (!snapshot) return：快照未就绪时呈现静态初始 DOM
     return (
       <div className="app">
-        <header>
-          <SettingsGear onClick={() => setSettingsOpen(true)} />
-        </header>
         <main className="workspace">
           <section className="focus-panel">
-            <input id="task" className="task-input" maxLength={500} placeholder="这一次，想专注完成什么？"
+            <input id="task" className="task-input shell-only" maxLength={500} placeholder="这一次，想专注完成什么？"
               aria-label="专注任务" value={task} onChange={(e) => setTask(e.target.value)} />
             <div className="segmented" role="tablist" aria-label="阶段">
               {[['focus', '专注'], ['break', '短休息'], ['longBreak', '长休息']].map(([key, label]) => (
@@ -412,14 +396,11 @@ export function App() {
 
   return (
     <div className="app">
-      <header>
-        <SettingsGear onClick={() => setSettingsOpen(true)} />
-      </header>
       <main className="workspace">
         <section className="focus-panel">
           <input
             id="task"
-            className="task-input"
+            className="task-input shell-only"
             maxLength={500}
             placeholder="这一次，想专注完成什么？"
             aria-label="专注任务"
@@ -448,6 +429,7 @@ export function App() {
             <button id="stop" title="停止本次计时" disabled={busy || !s || s.status === 'idle'} onClick={() => void call('stop')}>停止</button>
             <button id="toggle" className="primary" disabled={busy || !ready} onClick={() => void toggle()}>{toggleText}</button>
             <button id="skip" title="跳过阶段，不计入完成" disabled={busy || !s || s.status === 'idle'} onClick={() => void call('skip')}>跳过</button>
+            <SettingsGear className="pk-set-inline" onClick={() => setSettingsOpen(true)} />
           </div>
           <div className="presets" role="group" aria-label="时长预设">
             {[['25,5', '25 / 5 经典'], ['50,10', '50 / 10 深度'], ['15,3', '15 / 3 短冲刺']].map(([value, label]) => (
@@ -481,7 +463,7 @@ export function App() {
             <span><kbd>Space</kbd> 开始 / 暂停</span>
           </div>
           <div className="hint" id="hint">{hint}</div>
-          <div className="quick-today quick-only" id="quick-today">{quickToday}</div>
+          <div className="quick-today quick-only" id="quick-today">{s && s.status !== 'idle' && opts.task ? `${opts.task} · ` : ''}{quickToday}</div>
         </section>
         <aside className="journal shell-only">
           <div className="journal-head">
@@ -520,7 +502,10 @@ export function App() {
                 </div>
               ))
             ) : (
-              emptyArt
+              <div className="pk-empty-state">
+                <strong className="pk-empty-title">暂无专注记录</strong>
+                <p className="pk-empty-hint">完成一次专注后，记录会出现在这里。</p>
+              </div>
             )}
           </div>
         </aside>

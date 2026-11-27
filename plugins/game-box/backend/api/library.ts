@@ -67,7 +67,7 @@ export async function libraryDetail(rawId: unknown): Promise<DetailData> {
   if (folderPath !== undefined) {
     // 资源包里的子文件夹：只返回文件清单，其余字段留空
     const packages: ResourcePackage[] = await adapter.fileList(itemId, folderPath)
-    return { item: { id, kind: 'game', section, source: kind, sourceId: itemId, title: '', subtitle: '', cover: '', coverToken: '', category: '', sizeText: '', meta: [], favorite: false, installed: false }, media: [], description: '', datetime: '', sizeText: '', installedSizeText: '', minConfig: '', recommendConfig: '', officialUrl: '', packages, trainerOptions: [], trainerGuides: [] }
+    return { item: { id, kind: 'game', section, source: kind, sourceId: itemId, title: '', subtitle: '', cover: '', coverToken: '', category: '', sizeText: '', meta: [], favorite: false, installed: false }, media: [], description: '', datetime: '', sizeText: '', installedSizeText: '', minConfig: '', recommendConfig: '', configSpec: { min: [], recommend: [] }, officialUrl: '', packages, trainerOptions: [], trainerGuides: [] }
   }
 
   const detail = await adapter.detail(itemId)

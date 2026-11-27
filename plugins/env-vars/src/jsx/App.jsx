@@ -340,9 +340,9 @@ export function App() {
                 </button>
               )}
               <div className="table-body" role="rowgroup">
-                {loading && <div className="empty">正在读取环境变量…</div>}
+                {loading && !filteredVars.length && <div className="pk-empty-state" role="status">正在读取环境变量…</div>}
                 {!loading && !filteredVars.length && (
-                  <div className="empty">{debouncedQuery ? '没有匹配的变量' : '该范围暂无变量'}</div>
+                  <div className="pk-empty-state">{debouncedQuery ? '没有匹配的变量' : '该范围暂无变量'}</div>
                 )}
                 {filteredVars.map((item, index) => (
                   <div

@@ -4,6 +4,7 @@
  */
 let tipEl = null
 let hideTimer = null
+const tooltipExcluded = '.monaco-editor, .sql-editor, [data-dialog-close]'
 
 function ensureTipEl() {
   if (tipEl && document.body.contains(tipEl)) return tipEl
@@ -21,7 +22,11 @@ function ensureTipEl() {
     'font-size:11px',
     'font-weight:500',
     'line-height:1.3',
-    'white-space:nowrap',
+    // 单行 nowrap 会把长说明拉成一条溢出屏幕的长线；改成按 max-width 折行，
+    // 短提示本来也放得下，不会被折。text-align 左对齐避免多行居中难读。
+    'white-space:normal',
+    'text-align:left',
+    'word-break:break-word',
     'pointer-events:none',
     'opacity:0',
     'transform:translateY(2px)',
@@ -81,11 +86,14 @@ function hideTip() {
   tipEl.style.transform = 'translateY(2px)'
 }
 
+function dismissTip() {
+  clearTimeout(hideTimer)
+  hideTip()
+}
+
 function applyTip(el) {
   if (!el || el.nodeType !== 1) return
-  // Editors own caret suggestions and native row titles. Accessibility labels
-  // describe their input; they must not become a second floating tooltip.
-  if (el.closest('.monaco-editor, .sql-editor')) { el.removeAttribute('data-tip'); return }
+  if (el.closest(tooltipExcluded)) { el.removeAttribute('data-tip'); return }
   const text = tipText(el)
   if (text) el.setAttribute('data-tip', text)
 }
@@ -100,13 +108,15 @@ function scanTips(root) {
 }
 
 function onOver(ev) {
-  if (ev.target?.closest?.('.monaco-editor, .sql-editor')) { clearTimeout(hideTimer); hideTip(); return }
+  if (ev.target?.closest?.(tooltipExcluded)) { dismissTip(); return }
   const el = ev.target?.closest?.('[data-tip], button[title], [role="button"][title]')
   if (!el || !document.contains(el)) return
   const text = tipText(el)
   if (!text) return
   clearTimeout(hideTimer)
-  hideTimer = setTimeout(() => placeTip(el, text), 40)
+  hideTimer = setTimeout(() => {
+    if (el.isConnected && (!document.querySelector('dialog:modal') || el.closest('dialog:modal'))) placeTip(el, text)
+  }, 40)
   // 避免原生 title 气泡叠在一起
   if (el.hasAttribute('title') && el.getAttribute('title') === text) {
     el.setAttribute('data-orig-title', text)
@@ -133,23 +143,20 @@ export function bindIconTips() {
     if (el && el.matches?.('[data-tip], button[title]')) onOver({ target: el })
   })
   document.addEventListener('focusout', onOut, true)
-  document.addEventListener('scroll', hideTip, true)
-  window.addEventListener('resize', hideTip)
+  document.addEventListener('scroll', dismissTip, true)
+  window.addEventListener('resize', dismissTip)
   const obs = new MutationObserver((muts) => {
     for (const m of muts) {
       if (m.type === 'attributes' && m.target instanceof Element) {
-        if (['title', 'aria-label', 'data-tip'].includes(m.attributeName || '')) {
+        if (m.attributeName === 'open') {
+          if (m.target.matches('dialog')) dismissTip()
+        } else {
           applyTip(m.target)
         }
       } else if (m.type === 'childList') {
         m.addedNodes.forEach((n) => {
           if (n.nodeType !== 1) return
-          // 弹窗打开（modal-mask 覆盖视口）时光标往往尚未移动、不会触发 mouseout，
-          // 残留的浮动 tip 会以高 z-index 叠在弹窗之上 —— 注入瞬间立即隐藏
-          if (n.matches?.('.modal-mask') || n.querySelector?.('.modal-mask')) {
-            clearTimeout(hideTimer)
-            hideTip()
-          }
+          if (n.matches?.('dialog[open], .modal-mask') || n.querySelector?.('dialog[open], .modal-mask')) dismissTip()
           scanTips(n)
         })
       }
@@ -159,12 +166,15 @@ export function bindIconTips() {
     subtree: true,
     childList: true,
     attributes: true,
-    attributeFilter: ['title', 'aria-label']
+    attributeFilter: ['title', 'aria-label', 'open']
   })
   return () => {
     obs.disconnect()
     document.removeEventListener('mouseover', onOver, true)
     document.removeEventListener('mouseout', onOut, true)
+    document.removeEventListener('scroll', dismissTip, true)
+    window.removeEventListener('resize', dismissTip)
+    dismissTip()
   }
 }
 

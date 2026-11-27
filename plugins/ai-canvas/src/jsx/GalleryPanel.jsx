@@ -126,10 +126,14 @@ export function GalleryPanel({ onOpenImage, onClose, onChanged, askText }) {
         <button type="button" className="ac-insp-close" onClick={onClose}>收起</button>
       </header>
       <div className="ac-gallerypanel-body">
-        {loading && <div className="ac-gallery-empty">加载中…</div>}
-        {!loading && items.length === 0 && (
-          <div className="ac-gallery-empty"><span className="ac-gallery-empty-glyph">▦</span>还没有生成图片</div>
-        )}
+        {items.length === 0 && (loading ? (
+          <div className="pk-empty-state" role="status">正在读取图片素材…</div>
+        ) : (
+          <div className="pk-empty-state">
+            <strong className="pk-empty-title">暂无生成图片</strong>
+            <p className="pk-empty-hint">运行图片生成节点后，结果会出现在这里。</p>
+          </div>
+        ))}
         {groups.map(([day, list]) => (
           <section key={day} className="ac-gallery-day">
             <div className="ac-gallery-day-title">{day}<span>{list.length}</span></div>
@@ -144,9 +148,9 @@ export function GalleryPanel({ onOpenImage, onClose, onChanged, askText }) {
           </section>
         ))}
       </div>
-      <footer className="ac-gallerypanel-foot">
+      {items.length > 0 && <footer className="ac-gallerypanel-foot">
         <span>拖到画布节点即可引入 · 双击名称重命名</span>
-      </footer>
+      </footer>}
     </aside>
   )
 }

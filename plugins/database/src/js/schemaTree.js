@@ -31,7 +31,6 @@ const ICON = {
   compare: '<rect x="2" y="4" width="6" height="12" rx="1.5"/><rect x="12" y="4" width="6" height="12" rx="1.5"/>',
   settings: '<path d="M3 5h14M3 10h14M3 15h14"/><circle cx="7" cy="5" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="8" cy="15" r="2"/>',
   plus: '<path d="M10 4v12M4 10h12"/>',
-  search: '<circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/>',
   chevron: '<path d="m7 4 6 6-6 6"/>',
   edit: '<path d="m12 4 4 4M4 12l9-9 4 4-9 9-5 1z"/>',
   more: '<circle cx="4" cy="10" r=".8"/><circle cx="10" cy="10" r=".8"/><circle cx="16" cy="10" r=".8"/>'
@@ -75,11 +74,10 @@ export class SidePanel {
 
   _build() {
     this.root.innerHTML = `<div class="nav-shell">
-      <nav class="nav-toolrail" aria-label="工作台工具">${[['console', '查询控制台'], ['history', '查询历史'], ['settings', '设置']].map(([id, label]) => `<button type="button" class="nav-toolrail-button" data-nav="${id}" aria-label="${label}">${svg(id)}</button>`).join('')}</nav>
+      <nav class="nav-toolrail" aria-label="工作台工具">${[['console', '查询控制台'], ['history', '查询中心'], ['settings', '设置']].map(([id, label]) => `<button type="button" class="nav-toolrail-button" data-nav="${id}" aria-label="${label}">${svg(id)}</button>`).join('')}<button type="button" class="nav-toolrail-button" data-nav-more aria-haspopup="menu" aria-label="连接面板操作">${svg('more')}</button></nav>
       <div class="nav-browser">
-      <div class="nav-heading"><span class="nav-title">连接</span><span class="nav-count" data-el="count"></span><span class="spacer"></span><button type="button" class="nav-icon-button" data-new aria-label="新建连接" title="新建连接">${svg('plus')}</button><button type="button" class="nav-icon-button" data-nav-more aria-label="连接面板操作" title="连接面板操作">${svg('more')}</button></div>
-      <div class="nav-search-wrap">${svg('search')}<input class="nav-search" data-el="search" type="search" placeholder="搜索连接或对象" aria-label="搜索连接或已加载对象" autocomplete="off"></div>
-      <div class="nav-connections" data-el="list" role="tree" aria-label="数据库连接与对象"></div>
+        <div class="nav-toolbar"><input class="nav-search" data-el="search" type="search" placeholder="搜索连接或对象" aria-label="搜索连接或已加载对象" autocomplete="off"><button type="button" class="nav-icon-button" data-new aria-label="新建连接">${svg('plus')}<span>新建连接</span></button></div>
+        <div class="nav-connections" data-el="list" role="tree" aria-label="数据库连接与对象"></div>
       </div>
       <div class="nav-settings" data-el="settingsPanel" hidden>
         <div class="nav-heading"><span class="nav-title">设置</span></div>
@@ -92,13 +90,14 @@ export class SidePanel {
         ].map(([id, title, desc]) => `<button type="button" data-settings-jump="${id}"><strong>${title}</strong><span>${desc}</span></button>`).join('')}</div>
       </div>
     </div>`
-    this.el = { list: this.root.querySelector('[data-el=list]'), search: this.root.querySelector('[data-el=search]'), count: this.root.querySelector('[data-el=count]'), settingsPanel: this.root.querySelector('[data-el=settingsPanel]') }
+    this.el = { list: this.root.querySelector('[data-el=list]'), search: this.root.querySelector('[data-el=search]'), settingsPanel: this.root.querySelector('[data-el=settingsPanel]') }
   }
   /** 设置页时连接面板换为设置目录（CSS 由 .app[data-page] 驱动，这里同步 aria） */
   setPage(page) {
     const settings = page === 'settings'
     this.el.settingsPanel.hidden = !settings
     this.root.querySelector('.nav-browser').hidden = settings
+    if (this.lastSurface !== this.surface) this.render()
   }
 
   _bind() {
@@ -136,7 +135,12 @@ export class SidePanel {
     if (!button || button.disabled) return
     const data = button.dataset
     if ('new' in data) return this.h.onSideAction?.('connections')
-    if ('navMore' in data) return openCtxMenu(event, [['new', '新建连接'], ['export', '导出全部连接配置']], (action) => action === 'new' ? this.h.onSideAction?.('connections') : this.h.onExportConnections?.(state.connections))
+    if ('navMore' in data) {
+      const { right, top } = button.getBoundingClientRect()
+      const items = [['new', '新建连接']]
+      if (state.connections.length) items.push(['export', '导出全部连接配置'])
+      return openCtxMenu({ target: button, clientX: right + 4, clientY: top }, items, (action) => action === 'new' ? this.h.onSideAction?.('connections') : this.h.onExportConnections?.(state.connections))
+    }
     if (data.nav) return this.navigate(data.nav)
     if (data.settingsJump) { document.getElementById(data.settingsJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
     if (data.expandConnection) return this.toggleNode(rootKey(data.expandConnection), getConnection(data.expandConnection))
@@ -220,7 +224,7 @@ export class SidePanel {
     this._syncPreferences()
     const focus = this.el.list.contains(document.activeElement) ? document.activeElement?.dataset.focusKey : null
     const scrollTop = this.el.list.scrollTop || (!this.restoredScroll ? Number(state.ui.treeScroll) || 0 : 0)
-    const query = this.el.search.value.trim().toLocaleLowerCase()
+    const query = this.surface === 'quick' ? '' : this.el.search.value.trim().toLocaleLowerCase()
     const groups = new Map()
     for (const conn of [...state.connections].sort((a, b) => Number(b.favorite) - Number(a.favorite) || (a.name || '').localeCompare(b.name || ''))) {
       const matches = `${conn.name} ${conn.host || ''} ${conn.database || ''} ${conn.driver} ${conn.fileLabel || ''}`.toLocaleLowerCase().includes(query)
@@ -229,9 +233,7 @@ export class SidePanel {
       if (!groups.has(group)) groups.set(group, [])
       groups.get(group).push({ conn, matches })
     }
-    this.el.count.textContent = String(state.connections.length)
-    // 空态只留标题与按钮；搜索无结果时多一句说明（那是有用的信息，不是填充）。
-    this.el.list.innerHTML = groups.size ? [...groups].map(([group, conns]) => `<section class="nav-group" role="group" aria-label="${esc(group === 'favorite' ? '收藏' : ENV_LABEL[group] || group)}"><div class="nav-group-label">${group === 'favorite' ? '收藏' : esc(ENV_LABEL[group] || group)}</div>${conns.map(({ conn, matches }) => this._renderConnection(conn, matches ? '' : query)).join('')}</section>`).join('') : `<div class="nav-empty"><strong>${query ? '没有匹配的连接或对象' : '还没有连接'}</strong>${query ? '<p>搜索仅包含已加载的对象。</p>' : '<button type="button" class="btn" data-new>新建连接</button>'}</div>`
+    this.el.list.innerHTML = groups.size ? [...groups].map(([group, conns]) => `<section class="nav-group" role="group" aria-label="${esc(group === 'favorite' ? '收藏' : ENV_LABEL[group] || group)}"><div class="nav-group-label">${group === 'favorite' ? '收藏' : esc(ENV_LABEL[group] || group)}</div>${conns.map(({ conn, matches }) => this._renderConnection(conn, matches ? '' : query)).join('')}</section>`).join('') : `<div class="pk-empty-state" role="status"><strong class="pk-empty-title">${state.connections.length ? '没有匹配的连接或对象' : '暂无连接'}</strong>${state.connections.length ? '<p class="pk-empty-hint">搜索仅包含已加载的对象。</p>' : ''}</div>`
     const items = [...this.el.list.querySelectorAll('[role=treeitem]')]
     const current = items.find((item) => item.dataset.focusKey === focus) || items.find((item) => item.getAttribute('aria-selected') === 'true') || items[0]
     for (const item of items) item.tabIndex = item === current ? 0 : -1

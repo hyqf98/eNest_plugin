@@ -12,7 +12,7 @@
   "category": "媒体",
   "icon": "assets/market/icon.svg",
   "engines": { "enest": ">=0.0.1" },
-  "permissions": ["backend.node"],
+  "permissions": ["backend.node", "pin.create"],
   "window": { "width": 1200, "height": 760, "minWidth": 480, "minHeight": 320 },
   "features": [
     {

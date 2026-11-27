@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createHash } from 'node:crypto'
 import { unzipSync, strFromU8 } from 'fflate'
 import { repositoryRoot as root, pluginIds, readManifest, assertMediaPaths, validPath, validBackendPath, pluginHtmlEntries, MAX_README_BYTES } from './plugin-contract.mjs'
 import { loadManifestValidator, validateManifest } from './validate-manifests.mjs'
+import { markdownImagePaths } from './market-assets.mjs'
 import { BACKEND_INVENTORY_FILE, DISTRIBUTION_TARGET_FILE, normalizeTarget, platformPackagePlan, resolveDistributionTarget } from './distribution-target.mjs'
 
 /** 市场门面的单一事实源：插件仓库 main 分支下的 public 媒体。 */
@@ -18,7 +19,8 @@ export function archiveMetadata(archive, expected, { target = 'universal' } = {}
   let hasRuntime = false
   const backendPaths = new Set()
   const homeCandidates = []
-  const entries = unzipSync(new Uint8Array(archive), { filter: file => {
+  const bytes = ArrayBuffer.isView(archive) ? new Uint8Array(archive.buffer, archive.byteOffset, archive.byteLength) : new Uint8Array(archive)
+  const entries = unzipSync(bytes, { filter: file => {
     const path = file.name.replace(/\/$/, '')
     if (names.has(file.name)) throw new Error(`Duplicate archive entry: ${file.name}`)
     names.add(file.name)
@@ -69,7 +71,7 @@ export function archiveMetadata(archive, expected, { target = 'universal' } = {}
   return { manifest, entries, target: archiveTarget }
 }
 
-export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryRoot, 'dist'), baseUrl = SOURCE_BASE, target = 'universal' } = {}) {
+export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryRoot, 'dist'), baseUrl = SOURCE_BASE, packageBaseUrl = baseUrl, target = 'universal', universalPlugins } = {}) {
   normalizeTarget(target)
   mkdirSync(outDir, { recursive: true })
   const plugins = pluginIds(repositoryRoot).map(id => {
@@ -77,6 +79,7 @@ export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryR
     if (target !== 'universal') platformPackagePlan(source, { root: repositoryRoot, target })
     const variant = `${id}@${expected.version}-${target}.enestplugin`
     const selectedTarget = target !== 'universal' && existsSync(join(outDir, variant)) ? target : 'universal'
+    if (target !== 'universal' && selectedTarget === 'universal' && universalPlugins?.has(expected.id)) return universalPlugins.get(expected.id)
     const name = selectedTarget === 'universal' ? `${id}@${expected.version}.enestplugin` : variant
     const archive = readFileSync(join(outDir, name)), { manifest: m, entries } = archiveMetadata(archive, expected, { target: selectedTarget })
     const publish = path => {
@@ -86,13 +89,18 @@ export function buildRegistry(repositoryRoot = root, { outDir = join(repositoryR
       mkdirSync(join(target, '..'), { recursive: true }); writeFileSync(target, entries[path])
       return baseUrl + relative.split('/').map(encodeURIComponent).join('/')
     }
-    // All images referenced by the packaged README keep their relative layout.
-    for (const path of Object.keys(entries)) if (path.startsWith('assets/market/')) publish(path)
+    const media = new Map(Object.keys(entries).filter(path => path.startsWith('assets/market/')).map(path => [path, publish(path)]))
+    const readmeImages = Object.create(null)
+    for (const relative of markdownImagePaths(strFromU8(entries[m.market.readme]))) {
+      const path = posix.normalize(posix.join(posix.dirname(m.market.readme), relative))
+      if (!media.has(path) || !/\.(png|webp|jpe?g)$/i.test(path)) throw new Error(`Invalid README image: ${relative}`)
+      readmeImages[relative] = media.get(path)
+    }
     return {
       id: m.id, name: m.name, version: m.version, description: m.description, author: m.author ?? '', category: m.category ?? '其它',
-      icon: publish(m.icon), readmeUrl: publish(m.market.readme), screenshots: m.market.screenshots.map(publish), tags: m.market.tags ?? [],
+      icon: media.get(m.icon), readmeUrl: media.get(m.market.readme), screenshots: m.market.screenshots.map(path => media.get(path)), readmeImages, tags: m.market.tags ?? [],
       permissions: m.permissions ?? [], engines: m.engines ?? {}, featured: m.market.featured ?? false, ui: m.ui ?? {},
-      asset: { name, url: baseUrl + encodeURIComponent(name), size: archive.length, sha256: createHash('sha256').update(archive).digest('hex') }
+      asset: { name, url: packageBaseUrl + encodeURIComponent(name), size: archive.length, sha256: createHash('sha256').update(archive).digest('hex') }
     }
   })
   return { schemaVersion: 1, generatedAt: new Date().toISOString(), channel: process.env.CHANNEL || 'stable', categories: ['效率', '开发', '设计', '媒体', '其它'], plugins }

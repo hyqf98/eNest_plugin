@@ -10,6 +10,12 @@
  *
  * 变换约定：世界坐标原点在画布中心（初始视口 0,0 对准窗口中心），
  * 平移缩放只改 viewport，不改对象坐标；对象拖动/缩放直接改世界坐标。
+ *
+ * 图形的可变换特性（都是可选字段，旧文档不带这些字段时按默认值处理）：
+ *  - rect   roundness：圆角半径（世界单位），0 = 直角
+ *  - line / arrow  points：世界坐标点列。直线上只有起点和终点两个点；
+ *    拖动中点会往里插入中间点，由 curved=true 走平滑曲线。
+ *    x,y / x2,y2 始终等于点列的首尾，旧代码按两端读写的逻辑不用改。
  */
 
 let uidCounter = 0
@@ -39,6 +45,8 @@ export function objectBBox(obj) {
     case 'erase':
       return inkBBox(obj.points, obj.size)
     case 'shape': {
+      // 弯曲的线/箭头：曲线会鼓出控制点围成的矩形，按采样后的实际走向取包围盒
+      if (isLinear(obj) && obj.curved) return linearBBox({ ...obj, points: linearCurveSamples(obj) })
       const x2 = obj.x2 ?? obj.x + obj.w
       const y2 = obj.y2 ?? obj.y + obj.h
       return { x: Math.min(obj.x, x2), y: Math.min(obj.y, y2), w: Math.abs(x2 - obj.x), h: Math.abs(y2 - obj.y) }
@@ -72,6 +80,90 @@ export function contentBBox(objects, padding = 16) {
   const b = selectionBBox(objects)
   if (!b) return null
   return { x: b.x - padding, y: b.y - padding, w: b.w + padding * 2, h: b.h + padding * 2 }
+}
+
+/* ---------- 线 / 箭头的点列 ---------- */
+
+/** 矩形圆角半径上限：短边的一半（再大就是胶囊形，超过没有视觉意义） */
+export const RECT_ROUND_MAX = (obj) => Math.max(0, Math.min(Math.abs(obj.w), Math.abs(obj.h)) / 2)
+/** 矩形圆角半径的像素上限，和 Excalidraw 的固定半径一致：大矩形不会变成巨大的胶囊 */
+export const RECT_ROUND_LIMIT = 32
+
+export function rectRoundness(obj) {
+  const limit = Math.min(RECT_ROUND_LIMIT, RECT_ROUND_MAX(obj))
+  const value = Number(obj.roundness)
+  return Number.isFinite(value) ? Math.max(0, Math.min(limit, value)) : 0
+}
+
+/** 是否线/箭头（点列类型的图形） */
+export const isLinear = (obj) => obj.kind === 'shape' && (obj.type === 'line' || obj.type === 'arrow')
+
+/**
+ * 线/箭头的点列（世界坐标）。带 points 的用 points；旧数据只有两端，按两点直线返回。
+ * 首尾始终与 x,y / x2,y2 同步，所以任何读写点列的地方都不用再区分新旧数据。
+ */
+export function linearPoints(obj) {
+  if (Array.isArray(obj.points) && obj.points.length >= 2) {
+    // 以 x,y / x2,y2 为准重建首尾：无论 points 是否与两端共享引用，读到的永远一致
+    const middle = obj.points.slice(1, -1).map((p) => ({ x: p.x, y: p.y }))
+    return [{ x: obj.x, y: obj.y }, ...middle, { x: obj.x2 ?? obj.x + obj.w, y: obj.y2 ?? obj.y + obj.h }]
+  }
+  return [{ x: obj.x, y: obj.y }, { x: obj.x2 ?? obj.x + obj.w, y: obj.y2 ?? obj.y + obj.h }]
+}
+
+/** 写入点列并同步两端（唯一入口：改了点列就调它，保证首尾与 x,y / x2,y2 永远一致） */
+export function setLinearPoints(obj, points) {
+  const first = points[0], last = points[points.length - 1]
+  obj.x = first.x; obj.y = first.y
+  obj.x2 = last.x; obj.y2 = last.y
+  obj.points = points.map((p) => ({ x: p.x, y: p.y }))
+  obj.curved = points.length > 2
+}
+
+/** 线/箭头的控制柄位置：每两个相邻点之间的中点（屏幕/世界坐标取决于传入点列的坐标系） */
+export function linearMidpoints(points) {
+  const out = []
+  for (let i = 1; i < points.length; i++) {
+    out.push({ index: i, x: (points[i - 1].x + points[i].x) / 2, y: (points[i - 1].y + points[i].y) / 2 })
+  }
+  return out
+}
+
+/* ---------- 包围盒：点列 ---------- */
+
+function linearBBox(obj) {
+  const pts = linearPoints(obj)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.x > maxX) maxX = p.x
+    if (p.y > maxY) maxY = p.y
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+}
+
+/**
+ * 采样曲线得到更紧的包围盒：弯曲的线，其曲线可能超出控制点围成的矩形。
+ * 采样数固定，保证同一对象的包围盒稳定。
+ */
+export function linearCurveSamples(obj, steps = 16) {
+  const pts = linearPoints(obj)
+  if (!obj.curved || pts.length < 3) return pts
+  const out = [pts[0]]
+  // Catmull-Rom 样条过所有控制点，与绘制层 rough.curve 的走向一致（端点处用重复端点补足）
+  const P = [pts[0], ...pts, pts[pts.length - 1]]
+  for (let i = 1; i < P.length - 2; i++) {
+    const p0 = P[i - 1], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2]
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps, t2 = t * t, t3 = t2 * t
+      out.push({
+        x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+      })
+    }
+  }
+  return out
 }
 
 /* ---------- 箭头几何（绘制与命中共用，Excalidraw 风：箭头翼随杆长成比例） ---------- */
@@ -144,12 +236,18 @@ function hitEllipseBorder(obj, wx, wy, tolerance) {
   return false
 }
 
-export function hitShape(obj, wx, wy, tolerance = 6) {
-  if (obj.type === 'line' || obj.type === 'arrow') {
-    const x2 = obj.x2 ?? obj.x + obj.w
-    const y2 = obj.y2 ?? obj.y + obj.h
-    return distToSegment(wx, wy, obj.x, obj.y, x2, y2) <= Math.max(obj.stroke / 2, 2) + tolerance
+/** 线/箭头命中：沿实际走向（曲线则沿采样折线）逐段算距离 */
+function hitLinear(obj, wx, wy, tolerance) {
+  const t = Math.max(obj.stroke / 2, 2) + tolerance
+  const pts = linearCurveSamples(obj)
+  for (let i = 1; i < pts.length; i++) {
+    if (distToSegment(wx, wy, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y) <= t) return true
   }
+  return false
+}
+
+export function hitShape(obj, wx, wy, tolerance = 6) {
+  if (isLinear(obj)) return hitLinear(obj, wx, wy, tolerance)
   if (obj.fill && obj.fill !== 'none') return hitShapeInterior(obj, wx, wy, tolerance)
   if (obj.type === 'rect') return hitRectBorder(obj, wx, wy, tolerance)
   if (obj.type === 'ellipse') return hitEllipseBorder(obj, wx, wy, tolerance)
@@ -216,6 +314,8 @@ export function translateObject(obj, dx, dy) {
     obj.x += dx; obj.y += dy
     if (obj.x2 != null) obj.x2 += dx
     if (obj.y2 != null) obj.y2 += dy
+    // 点列整体平移（linearPoints 读的时候会以 x,y / x2,y2 重建首尾，这里全量移动即可）
+    if (Array.isArray(obj.points)) for (const p of obj.points) { p.x += dx; p.y += dy }
   } else {
     obj.x += dx; obj.y += dy
   }
@@ -238,6 +338,11 @@ export function scaleObject(obj, sx, sy, anchor) {
     // 矩形/椭圆以 w/h 存形：不缩放宽高就只剩一条线
     if (obj.w != null) obj.w *= sx
     if (obj.h != null) obj.h *= sy
+    // 中间点与圆角跟着形状一起缩放（等比时圆角保持视觉大小，非等比时取两向均值）
+    if (Array.isArray(obj.points)) for (let i = 1; i < obj.points.length - 1; i++) {
+      obj.points[i] = { x: map(obj.points[i].x, anchor.x, sx), y: map(obj.points[i].y, anchor.y, sy) }
+    }
+    if (obj.roundness != null) obj.roundness *= (sx + sy) / 2
     obj.stroke *= (sx + sy) / 2
   } else if (obj.kind === 'text') {
     obj.x = map(obj.x, anchor.x, sx)

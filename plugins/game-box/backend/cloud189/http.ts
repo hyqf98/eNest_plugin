@@ -12,10 +12,29 @@ export interface CookieEntry {
   name: string
   value: string
   domain: string
+  path: string
 }
 
+/**
+ * cookie jar：按 (domain, path, name) 三元组保存，按请求地址过滤后组装。
+ *
+ * 不能按名字去重：天翼在 cloud.189.cn 与 open.e.189.cn 会下发**同名但值不同**的 cookie，
+ * 服务端靠 domain 区分。按名字存会让后写的 SSO cookie 顶掉真正的会话 cookie，
+ * 表现为「刚登录成功就显示已过期」。
+ */
 export class CookieJar {
   private readonly entries = new Map<string, CookieEntry>()
+
+  private static key(domain: string, path: string, name: string): string {
+    return `${domain}\u0000${path}\u0000${name}`
+  }
+
+  /** 直接存入一条已知域名的 cookie */
+  storeEntry(entry: CookieEntry): void {
+    const domain = entry.domain.replace(/^\./, '').toLowerCase()
+    if (!entry.name) return
+    this.entries.set(CookieJar.key(domain, entry.path || '/', entry.name), { ...entry, domain, path: entry.path || '/' })
+  }
 
   /** 解析一条 Set-Cookie（name=value; Domain=…; Path=…），domain 缺省用当前 URL 的主机名 */
   store(setCookie: string, url: string): void {
@@ -28,36 +47,104 @@ export class CookieJar {
     const value = pair.slice(index + 1).trim()
     if (!name) return
     let domain = hostOf(url)
+    let path = '/'
+    let expired = false
     for (const attribute of parts.slice(1)) {
       const eq = attribute.indexOf('=')
       const key = (eq >= 0 ? attribute.slice(0, eq) : attribute).trim().toLowerCase()
-      if (key === 'domain' && eq >= 0) {
-        const raw = attribute.slice(eq + 1).trim().replace(/^\./, '')
-        if (raw) domain = raw
+      const raw = eq >= 0 ? attribute.slice(eq + 1).trim() : ''
+      if (key === 'domain' && raw) {
+        const cleaned = raw.replace(/^\./, '')
+        if (cleaned) domain = cleaned
+      } else if (key === 'path' && raw) {
+        path = raw.startsWith('/') ? raw : '/'
+      } else if (key === 'max-age' && raw) {
+        const seconds = Number(raw)
+        if (Number.isFinite(seconds) && seconds <= 0) expired = true
+      } else if (key === 'expires' && raw) {
+        const at = Date.parse(raw)
+        if (Number.isFinite(at) && at <= Date.now()) expired = true
       }
     }
-    this.entries.set(name, { name, value, domain })
+    if (expired) {
+      // 删除指令（Max-Age=0 / 过去的 Expires）：不存空值。
+      // 天翼未登录时会对 getUserBriefInfo 下发 `COOKIE_LOGIN_USER=; Max-Age=0`，
+      // 把空值当 cookie 存下会盖掉凭据里的真会话，之后所有请求都变成未登录。
+      this.remove(name, domain)
+      return
+    }
+    this.storeEntry({ name, value, domain, path })
   }
 
   storeAll(setCookies: readonly string[], url: string): void {
     for (const cookie of setCookies) this.store(cookie, url)
   }
 
-  /** 组装当前 cookie 头（全部域的 cookie 都带上——天翼云登录就是跨子域共享） */
+  private remove(name: string, domain: string): void {
+    const prefix = `${domain}\u0000`
+    for (const key of [...this.entries.keys()]) {
+      if (key.startsWith(prefix) && key.endsWith(`\u0000${name}`)) this.entries.delete(key)
+    }
+  }
+
+  /** 组装 cookie 头（全部域的 cookie 都带上——天翼云登录就是跨子域共享） */
   header(): string {
+    return this.all().map(entry => `${entry.name}=${entry.value}`).join('; ')
+  }
+
+  /**
+   * 组装请求头。天翼的登录链路跨 cloud.189.cn → open.e.189.cn，cookie 必须能带过去
+   * （服务端在跳转时靠它续上流程），所以这里不做严格的作用域过滤。
+   *
+   * 但同名 cookie 要按**最匹配的域名**取值，不能谁后写谁赢：
+   * 天翼在 cloud 与 open.e 下会下发同名不同值的 cookie，服务端靠 domain 区分。
+   * 发往 cloud 的请求拿到 open.e 那条 SSO cookie，就会把真正的会话 cookie 顶掉，
+   * 表现为「刚登录就显示已过期」。
+   */
+  headerFor(url: string): string {
+    let host = ''
+    try {
+      host = new URL(url).hostname.toLowerCase()
+    } catch {
+      return this.header()
+    }
+    /** 域名匹配得分：完全一致最高，其次后缀匹配，越具体越高；不匹配为 -1 */
+    const score = (domain: string): number => {
+      const value = domain.toLowerCase()
+      if (!value) return 0
+      if (host === value) return value.length + 1000
+      if (host.endsWith(`.${value}`)) return value.length
+      return -1
+    }
+    const best = new Map<string, { entry: CookieEntry; score: number }>()
+    const unmatched: CookieEntry[] = []
+    for (const entry of this.entries.values()) {
+      const value = score(entry.domain)
+      if (value < 0) {
+        // 不属于这个主机，但同族站点间仍要带上（见上面的跨子域说明）
+        if (!unmatched.some(item => item.name === entry.name)) unmatched.push(entry)
+        continue
+      }
+      const current = best.get(entry.name)
+      if (!current || value > current.score) best.set(entry.name, { entry, score: value })
+    }
     const parts: string[] = []
-    for (const entry of this.entries.values()) parts.push(`${entry.name}=${entry.value}`)
+    for (const { entry } of best.values()) parts.push(`${entry.name}=${entry.value}`)
+    for (const entry of unmatched) if (!best.has(entry.name)) parts.push(`${entry.name}=${entry.value}`)
     return parts.join('; ')
   }
 
+  all(): CookieEntry[] {
+    return [...this.entries.values()]
+  }
+
   get(name: string): string {
-    return this.entries.get(name)?.value ?? ''
+    for (const entry of this.entries.values()) if (entry.name === name) return entry.value
+    return ''
   }
 
   set(name: string, value: string): void {
-    const existing = this.entries.get(name)
-    if (existing) existing.value = value
-    else this.entries.set(name, { name, value, domain: '.189.cn' })
+    this.storeEntry({ name, value, domain: '189.cn', path: '/' })
   }
 
   clear(): void {
@@ -68,6 +155,41 @@ export class CookieJar {
     const copy = new CookieJar()
     for (const [key, entry] of this.entries) copy.entries.set(key, { ...entry })
     return copy
+  }
+}
+
+/**
+ * 把会话凭据里的 cookie 灌进 jar。
+ *
+ * 优先用逐条带 domain/path 的 `cookies` 形态（正确形态）；只有旧的拍平 `cookie` 字符串时
+ * 才退回按 cloud.189.cn 逐条写入，这种凭据无法区分同名 cookie，属于历史数据。
+ */
+export function seedJarFromCredential(jar: CookieJar, credential: string): void {
+  let parsed: unknown
+  try { parsed = JSON.parse(credential) } catch { return }
+  const record = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null
+  if (!record) return
+  const list = Array.isArray(record.cookies) ? record.cookies : []
+  let seeded = 0
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue
+    const cookie = item as Record<string, unknown>
+    const name = typeof cookie.name === 'string' ? cookie.name : ''
+    const value = typeof cookie.value === 'string' ? cookie.value : ''
+    if (!name) continue
+    jar.storeEntry({
+      name,
+      value,
+      domain: typeof cookie.domain === 'string' && cookie.domain ? cookie.domain : 'cloud.189.cn',
+      path: typeof cookie.path === 'string' && cookie.path ? cookie.path : '/',
+    })
+    seeded++
+  }
+  if (seeded) return
+  if (typeof record.cookie === 'string') {
+    for (const pair of record.cookie.split('; ')) {
+      if (pair.includes('=')) jar.store(`${pair}; Path=/`, 'https://cloud.189.cn/')
+    }
   }
 }
 
@@ -98,7 +220,8 @@ export async function jarRequest(
   let method = options.method ?? 'GET'
   let body = options.body
   for (let hop = 0; hop <= maxHops; hop++) {
-    const cookie = jar.header()
+    // 按这一跳的地址组装 cookie：域名/路径匹配，同名 cookie 靠各自的域区分。
+    const cookie = jar.headerFor(currentUrl)
     const stepHeaders: Record<string, string> = { ...headers }
     if (cookie) {
       // 请求显式带的 cookie 头优先；否则用 jar。

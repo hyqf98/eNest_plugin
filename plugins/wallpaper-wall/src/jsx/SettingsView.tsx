@@ -13,7 +13,7 @@ import type {
 import { DEFAULT_ENGINE_SETTINGS, FPS_LIMITS, VIDEO_QUALITIES } from '../shared/contracts'
 import type { I18nKey } from '../i18n'
 import { Button, Input, Select, Switch } from '../ui'
-import { Icon, StatusDot, fitOptions, formatDate } from './common'
+import { EmptyState, Icon, StatusDot, fitOptions, formatDate } from './common'
 
 interface SettingsViewProps {
   settings: AppSettings | null
@@ -232,7 +232,7 @@ export function SettingsView({
               <Switch checked={script.enabled} onCheckedChange={value => onToggleScript(script.id, value)} disabled={busy} aria-label={script.name} />
               <Button size="sm" variant="ghost" onClick={() => onRemoveScript(script.id)} disabled={busy}><Icon name="trash" /></Button>
             </div>
-          )) : <p className="wh-muted">{t('state.empty')}</p>}
+          )) : <EmptyState title={t('settings.noScripts')} />}
         </div>
       </section>
 

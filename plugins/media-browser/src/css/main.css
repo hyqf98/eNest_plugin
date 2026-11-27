@@ -72,6 +72,8 @@ html, body, #root {
 }
 
 .mb-side-body {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
@@ -242,20 +244,7 @@ html, body, #root {
 
 /* ---------------- 空态 / 加载 / 缺失目录 ---------------- */
 
-.mb-empty {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 24px;
-  text-align: center;
-}
-
-.mb-empty-side { justify-content: flex-start; padding-top: 28px; }
-.mb-empty-title, .mb-empty p { margin: 0; font-weight: 600; }
-.mb-empty-hint { max-width: 420px; font-weight: 400 !important; font-size: var(--fs-caption); color: var(--text-2, #747c88); line-height: 1.6; }
+.mb-main > .pk-empty-state { overflow: auto; }
 
 .mb-loading { position: absolute; right: 16px; bottom: 14px; padding: 4px 10px; border-radius: 999px; background: var(--surface, #fff); border: 1px solid var(--mb-line); color: var(--text-2, #747c88); font-size: var(--fs-caption); }
 

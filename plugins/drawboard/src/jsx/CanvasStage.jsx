@@ -4,7 +4,7 @@
  * 通过 props 与 App 交换文档对象与视口。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { hitChain, hitShape, marqueeSelect, objectBBox, selectionBBox, translateObject, scaleObject, hitImage } from '../js/objects.mjs'
+import { hitChain, hitShape, marqueeSelect, objectBBox, selectionBBox, translateObject, scaleObject, hitImage, isLinear, linearPoints, linearMidpoints, setLinearPoints, rectRoundness, RECT_ROUND_LIMIT } from '../js/objects.mjs'
 import { applyWheel, screenToWorld, worldToScreen } from '../js/viewport.mjs'
 import { renderFrame, anyFading } from '../js/render.mjs'
 import { toolCursor, grabCursor } from '../js/cursors.mjs'
@@ -138,15 +138,51 @@ export function CanvasStage(props) {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top }
   }
 
-  const hitHandle = (pos) => {
+  /**
+   * 当前选中对象的全部控制柄（屏幕坐标）。渲染与命中共用这一份，两边不会对不上。
+   *  - resize：缩放柄（四角 + 四边中点）
+   *  - corner：矩形的圆角柄，在左上角内侧；拖动同时改四个角
+   *  - circle：椭圆的正圆柄，在选框上方外侧；点一下以短边为准变成正圆
+   *  - point：线/箭头的端点（起点、终点）
+   *  - mid：线/箭头每一段的中点；拖动会在这一段里插入中间点，直线随之变弯
+   *
+   * 线/箭头不显示缩放柄：包围盒在垂直于线的方向上厚度为 0，拉边柄改不了任何东西，
+   * 角柄又与端点柄重合。它的长度与方向靠端点，弯曲靠中点，整体移动靠拖线身。
+   */
+  const controlHandles = () => {
     if (selection.length !== 1) return null
     const obj = objectsRef.current.find((o) => o.id === selection[0])
     if (!obj) return null
     const b = objectBBox(obj)
-    for (const h of HANDLES) {
-      const hx = (b.x + b.w * h.fx) * vp.zoom + vp.x
-      const hy = (b.y + b.h * h.fy) * vp.zoom + vp.y
-      if (Math.abs(pos.x - hx) <= 7 && Math.abs(pos.y - hy) <= 7) return { handle: h.id, obj }
+    const toScreen = (x, y) => ({ x: x * vp.zoom + vp.x, y: y * vp.zoom + vp.y })
+    const list = []
+    if (!isLinear(obj)) {
+      for (const h of HANDLES) list.push({ id: `resize:${h.id}`, kind: 'resize', handle: h.id, ...toScreen(b.x + b.w * h.fx, b.y + b.h * h.fy) })
+    }
+    if (obj.kind === 'shape' && obj.type === 'rect') {
+      const inset = Math.min(rectRoundness(obj) + 10 / vp.zoom, Math.min(b.w, b.h) / 2)
+      list.push({ id: 'corner', kind: 'corner', ...toScreen(b.x + inset, b.y + inset) })
+    }
+    if (obj.kind === 'shape' && obj.type === 'ellipse') {
+      list.push({ id: 'circle', kind: 'circle', ...toScreen(b.x + b.w / 2, b.y - 14 / vp.zoom) })
+    }
+    if (isLinear(obj)) {
+      const pts = linearPoints(obj)
+      pts.forEach((p, index) => {
+        if (index === 0 || index === pts.length - 1) list.push({ id: `point:${index}`, kind: 'point', index, ...toScreen(p.x, p.y) })
+      })
+      linearMidpoints(pts).forEach((m) => list.push({ id: `mid:${m.index}`, kind: 'mid', index: m.index, ...toScreen(m.x, m.y) }))
+    }
+    return { obj, list }
+  }
+
+  const hitHandle = (pos) => {
+    const handles = controlHandles()
+    if (!handles) return null
+    // 后加的柄（圆角 / 正圆 / 端点 / 中点）优先：它们可能与缩放柄重合，专用的那个应该先被点到
+    for (let i = handles.list.length - 1; i >= 0; i--) {
+      const h = handles.list[i]
+      if (Math.abs(pos.x - h.x) <= 7 && Math.abs(pos.y - h.y) <= 7) return { ...h, obj: handles.obj }
     }
     return null
   }
@@ -169,19 +205,30 @@ export function CanvasStage(props) {
     if (tool === 'select') {
       const hh = hitHandle(pos)
       if (hh) {
-        onCommitObjects((objects) => {
-          const obj = objects.find((o) => o.id === hh.obj.id)
-          if (!obj) return
-          const b = objectBBox(obj)
-          dragRef.current = {
-            mode: 'resize', handle: hh.handle, id: obj.id, startBBox: b, startWorld: world, moved: false,
-            before: JSON.parse(JSON.stringify(objects)),
-          }
-        })
-        // resize 会话在下一行建立；上面闭包仅取 bbox
         const obj = objectsRef.current.find((o) => o.id === hh.obj.id)
         if (obj) {
-          dragRef.current = { mode: 'resize', handle: hh.handle, id: obj.id, startBBox: objectBBox(obj), startWorld: world, moved: false }
+          const common = { id: obj.id, startWorld: world, moved: false }
+          if (hh.kind === 'resize') {
+            // 椭圆按住 Shift 拖边柄：保持宽高比（等比缩放）
+            const keepRatio = obj.kind === 'shape' && obj.type === 'ellipse' && e.shiftKey
+            dragRef.current = { ...common, mode: 'resize', handle: hh.handle, startBBox: objectBBox(obj), keepRatio }
+          } else if (hh.kind === 'corner') {
+            dragRef.current = { ...common, mode: 'roundness', startRadius: rectRoundness(obj) }
+          } else if (hh.kind === 'circle') {
+            // 一次性动作，不需要拖动：以短边为准变成正圆，中心不动
+            const side = Math.min(obj.w, obj.h)
+            const cx = obj.x + obj.w / 2, cy = obj.y + obj.h / 2
+            onCommitObjects((objects) => {
+              const target = objects.find((o) => o.id === obj.id)
+              if (target) { target.w = side; target.h = side; target.x = cx - side / 2; target.y = cy - side / 2 }
+            })
+            return
+          } else if (hh.kind === 'point') {
+            dragRef.current = { ...common, mode: 'endpoint', index: hh.index, before: linearPoints(obj) }
+          } else if (hh.kind === 'mid') {
+            // 从这一段的中点拖出一个中间点：直线变成过三点的平滑曲线
+            dragRef.current = { ...common, mode: 'midpoint', index: hh.index, before: linearPoints(obj) }
+          }
           return
         }
       }
@@ -352,6 +399,46 @@ export function CanvasStage(props) {
       return
     }
 
+    if (drag.mode === 'roundness') {
+      // 往选框中心拖 = 变圆，往左上角拖 = 变直；按对角线方向的投影算增量（世界单位）
+      const obj = objectsRef.current.find((o) => o.id === drag.id)
+      if (!obj) return
+      const b = objectBBox(obj)
+      const diag = Math.hypot(b.w, b.h) || 1
+      const ux = b.w / diag, uy = b.h / diag
+      const delta = (world.x - drag.startWorld.x) * ux + (world.y - drag.startWorld.y) * uy
+      const next = Math.max(0, Math.min(Math.min(RECT_ROUND_LIMIT, Math.min(obj.w, obj.h) / 2), drag.startRadius + delta))
+      if (next === rectRoundness(obj)) return
+      onCommitObjects((objects) => { const t = objects.find((o) => o.id === obj.id); if (t) t.roundness = next }, { snapshot: !drag.didSnapshot })
+      drag.didSnapshot = true
+      return
+    }
+
+    if (drag.mode === 'endpoint') {
+      // 拖动起点 / 终点：其余点不动
+      const obj = objectsRef.current.find((o) => o.id === drag.id)
+      if (!obj) return
+      const pts = drag.before.map((p) => ({ ...p }))
+      pts[drag.index] = { x: world.x, y: world.y }
+      if (!drag.didSnapshot && Math.hypot(world.x - drag.startWorld.x, world.y - drag.startWorld.y) * vp.zoom < 3) return
+      onCommitObjects((objects) => { const t = objects.find((o) => o.id === obj.id); if (t) setLinearPoints(t, pts) }, { snapshot: !drag.didSnapshot })
+      drag.didSnapshot = true
+      return
+    }
+
+    if (drag.mode === 'midpoint') {
+      const obj = objectsRef.current.find((o) => o.id === drag.id)
+      if (!obj) return
+      // 在第 index-1 与 index 之间插入一个新点并跟随指针
+      const pts = drag.before.slice(0, drag.index).map((p) => ({ ...p }))
+      pts.push({ x: world.x, y: world.y })
+      for (let i = drag.index; i < drag.before.length; i++) pts.push({ ...drag.before[i] })
+      if (!drag.didSnapshot && Math.hypot(world.x - drag.startWorld.x, world.y - drag.startWorld.y) * vp.zoom < 3) return
+      onCommitObjects((objects) => { const t = objects.find((o) => o.id === obj.id); if (t) setLinearPoints(t, pts) }, { snapshot: !drag.didSnapshot })
+      drag.didSnapshot = true
+      return
+    }
+
     if (drag.mode === 'marquee') {
       setMarquee({ x: Math.min(drag.start.x, pos.x), y: Math.min(drag.start.y, pos.y), w: Math.abs(pos.x - drag.start.x), h: Math.abs(pos.y - drag.start.y) })
       return
@@ -395,6 +482,13 @@ export function CanvasStage(props) {
         // 依据锚点重算目标尺寸由 scaleObject 的 map 完成，这里只需比例
         nw = Math.max(8, b0.w * (h === 'e' || h === 'w' ? sx : sx))
         nh = Math.max(8, b0.h * (h === 'n' || h === 's' ? sy : sy))
+      } else if (drag.keepRatio) {
+        // 椭圆按住 Shift：角柄按对角线、边柄按主轴，两向取同一比例 → 始终是正圆 / 正椭圆
+        const diag = Math.hypot(maxX - anchor.x, maxY - anchor.y) / Math.max(Math.hypot(b0.w, b0.h), 1)
+        const ratio = h.length === 2 ? diag : (h === 'e' || h === 'w' ? sx : sy)
+        // 比例夹在 8px 与原尺寸之间：拖到锚点另一侧不会翻成负的
+        const safe = Math.max(8 / Math.max(b0.w, b0.h, 1), Math.abs(ratio))
+        sx = safe; sy = safe
       }
       onCommitObjects((objects) => {
         const target = objects.find((o) => o.id === drag.id)
@@ -429,13 +523,14 @@ export function CanvasStage(props) {
       const ds = draftShapeRef.current
       const w = Math.abs(ds.x2 - ds.x), h = Math.abs(ds.y2 - ds.y)
       if (w > 4 || h > 4) {
-        // 草稿临时 id 必须剥离：否则所有图形共享 'draft-shape'，选中其一等于全选
-        if (ds.type === 'line' || ds.type === 'arrow') onAddObject({ ...ds, id: undefined }, { select: true })
+        // 草稿临时 id 必须剥离：否则所有图形共享 'draft-shape'，选中其一等于全选。
+        // 画完不自动选中：当前工具保持不变，可以接着画下一个；要调整刚画的图形先切到选择工具（V）
+        if (ds.type === 'line' || ds.type === 'arrow') onAddObject({ ...ds, id: undefined })
         else {
           const box = { ...ds, id: undefined, x: Math.min(ds.x, ds.x2), y: Math.min(ds.y, ds.y2), w, h }
           delete box.x2
           delete box.y2
-          onAddObject(box, { select: true })
+          onAddObject(box)
         }
       }
       draftShapeRef.current = null
@@ -505,13 +600,19 @@ export function CanvasStage(props) {
         onContextMenu={(e) => props.onContextMenu(e)}
       />
       {marquee && <div className="db-marquee" style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }} />}
-      {selBox && !draftInkRef.current && !draftShapeRef.current && (
-        <div className="db-selbox" style={{ left: selBox.x, top: selBox.y, width: selBox.w, height: selBox.h }}>
-          {selBox.single && HANDLES.map((h) => (
-            <span key={h.id} className={`db-handle db-handle-${h.id}`} style={{ left: `${h.fx * 100}%`, top: `${h.fy * 100}%` }} />
-          ))}
-        </div>
-      )}
+      {selBox && !draftInkRef.current && !draftShapeRef.current && (() => {
+        const handles = controlHandles()
+        if (!handles) return null
+        return (
+          <div className="db-selbox" style={{ left: selBox.x, top: selBox.y, width: selBox.w, height: selBox.h }}>
+            {handles.list.map((h) => (
+              <span key={h.id} className={`db-handle db-handle-${h.kind}${h.kind === 'resize' ? ` db-handle-${h.handle}` : ''}`}
+                style={{ left: h.x - selBox.x, top: h.y - selBox.y }}
+                data-handle={h.id} />
+            ))}
+          </div>
+        )
+      })()}
       {!transparent && tool !== 'select' && !spaceDown && (
         <div className="db-toolhint">
           {tool === 'pen' && '钢笔 · 右键快速切换工具 · 滚轮缩放 · 空格平移'}

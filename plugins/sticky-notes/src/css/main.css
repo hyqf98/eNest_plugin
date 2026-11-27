@@ -46,6 +46,7 @@ select:focus-visible { border-color: var(--warm); box-shadow: 0 0 0 3px color-mi
   height: 100%;
   display: grid;
   grid-template-columns: 310px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .library {
@@ -58,11 +59,13 @@ select:focus-visible { border-color: var(--warm); box-shadow: 0 0 0 3px color-mi
   backdrop-filter: var(--chrome-blur);
   -webkit-backdrop-filter: var(--chrome-blur);
 }
-.library header {
-  padding: 14px 14px 10px;
+.library .library-head {
+  padding: 10px 12px 8px 50px;
   display: flex;
-  gap: 12px;
+  flex: none;
+  gap: 6px;
   align-items: center;
+  justify-content: flex-end;
 }
 h1 {
   font-size: 20px;
@@ -70,8 +73,6 @@ h1 {
   letter-spacing: -0.02em;
   margin: 0;
 }
-.library header > span { flex: 1; }
-.small { font-size: 11px; color: var(--muted); }
 
 /* 主行动：新建 */
 .pk-btn.new {
@@ -111,7 +112,8 @@ h1 {
 }
 .tabs button {
   display: inline-flex;
-  align-items: baseline;
+  flex: none;
+  align-items: center;
   gap: 5px;
   min-height: 26px;
   padding: 3px 9px;
@@ -212,10 +214,14 @@ h1 {
 #notes {
   overflow: auto;
   flex: 1;
-  /* 底部留出悬浮新建钮（.pk-fab，84px）的高度，滚到底时最后一行不被它压住。 */
-  padding: 4px 10px 96px;
+  min-height: 0;
+  padding: 4px 10px 8px;
 }
 .note-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
   padding: 12px;
   margin: 3px 0;
   border-radius: 7px;
@@ -240,6 +246,7 @@ h1 {
   border-radius: 3px;
   background: var(--note-color, var(--warm));
 }
+.note-summary { min-width: 0; }
 .note-title {
   font-size: 14px;
   font-weight: 600;
@@ -280,31 +287,7 @@ h1 {
   flex: none;
   white-space: nowrap;
 }
-/* 行内次级操作：悬停/聚焦浮现（.pk-row-actions 提供显隐） */
-.note-actions {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: calc(var(--pk-radius, 8px) - 2px);
-  padding: 1px;
-  box-shadow: var(--shadow-1);
-  pointer-events: none;
-}
-.note-row:hover .note-actions,
-.note-row:focus-within .note-actions { pointer-events: auto; }
-:root[data-anim='low'] .note-actions { pointer-events: auto; }
-@media (hover: none) { .note-actions { pointer-events: auto; } }
-
-.library footer {
-  padding: 8px 14px;
-  border-top: 1px solid var(--line);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.footer-more { color: var(--muted); }
+.note-actions .pk-btn { padding-inline: 7px; }
 
 /* —— 编辑区 —— */
 .editor {
@@ -313,6 +296,7 @@ h1 {
   display: flex;
   flex-direction: column;
   background: var(--paper);
+  overflow: auto;
 }
 .editor-top {
   padding: 8px 14px;
@@ -427,10 +411,10 @@ h1 {
 
 .editor-foot {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 10px;
-  /* 右侧让出悬浮主钮宽度，保存按钮不会被圆钮压住。 */
-  padding: 8px 68px 8px 14px;
+  padding: 6px 14px;
   color: var(--muted);
   font-size: 11px;
   border-top: 1px solid var(--line);
@@ -438,31 +422,6 @@ h1 {
 }
 .editor-foot .stat { font-variant-numeric: tabular-nums; }
 #save-state { margin-left: auto; }
-
-/* —— 空态 —— */
-.empty {
-  padding: 60px 22px;
-  text-align: center;
-  color: var(--muted);
-  line-height: 1.8;
-}
-.empty svg,
-.editor-empty svg {
-  width: 88px;
-  height: 88px;
-  display: block;
-  margin: 0 auto 10px;
-  opacity: 0.85;
-}
-.editor-empty {
-  height: 100%;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  text-align: center;
-  line-height: 1.9;
-  padding: 20px;
-}
 
 /* —— 卡片视图 —— */
 #notes.grid {
@@ -482,12 +441,16 @@ h1 {
 .grid .note-excerpt { -webkit-line-clamp: 4; }
 
 /* —— 快速记录 —— */
+.library-command { min-width: 0; flex: none; }
 .quick-composer {
-  padding: 10px 12px;
+  min-width: 0;
+  padding: 7px 10px;
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
 }
-.quick-composer input { flex: 1; }
+.quick-composer .pk-input { flex: 1 1 0; }
+.quick-composer .pk-btn { flex: none; }
 
 @media (prefers-reduced-transparency: reduce) {
   .library,
@@ -501,8 +464,9 @@ h1 {
 /* —— quick 模式 —— */
 [data-mode='quick'] .app { grid-template-columns: 1fr; }
 [data-mode='quick'] .library { border: 0; }
-[data-mode='quick'] .library header { padding: 10px 14px; }
-[data-mode='quick'] h1 { font-size: 14px; }
+[data-mode='quick'] .library-command { border-bottom: 1px solid var(--line); }
+[data-mode='quick'] .tabs { padding: 0 10px 6px; border-bottom: 0; }
+[data-mode='quick'] .tabs button { min-height: 28px; padding-inline: 7px; }
 [data-mode='quick'] .editor {
   position: absolute;
   inset: 0;
@@ -511,16 +475,27 @@ h1 {
 [data-mode='quick'] .editor:not(.open) { display: none; }
 [data-mode='quick'] .document { padding: 14px 18px; }
 [data-mode='quick'] #title { font-size: 19px; }
-[data-mode='quick'] #body { font-size: 14px; }
+[data-mode='quick'] #body { min-height: 0; font-size: 14px; }
 [data-mode='quick'] .editor-top { padding: 8px 12px; }
-[data-mode='quick'] .note-row { padding: 9px 12px; }
-[data-mode='quick'] .note-title { padding-right: 0; }
+[data-mode='quick'] .note-row { padding: 7px 10px; }
+[data-mode='quick'] .note-row .note-actions { opacity: 1; pointer-events: auto; }
 [data-mode='quick'] .note-excerpt {
   -webkit-line-clamp: 1;
   margin: 3px 0;
 }
 [data-mode='quick'] .color-filter,
 [data-mode='quick'] .library-tools { display: none; }
+@media (min-width: 640px) {
+  [data-mode='quick'] .library-command {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+  }
+  [data-mode='quick'] .library-command .quick-composer,
+  [data-mode='quick'] .library-command .tabs { padding: 0; }
+}
 
 @media (max-width: 750px) {
   [data-mode='shell'] .app { grid-template-columns: 260px 1fr; }
@@ -542,13 +517,14 @@ h1 {
 .app.sidebar-collapsed .library { display: none; }
 .library-toggle {
   position: absolute;
-  top: 8px;
+  top: 10px;
   left: 10px;
+  min-height: 28px;
   z-index: 9;
 }
-.library header { padding-left: 50px; }
-.app.sidebar-collapsed .editor-top,
-.app[data-compact='true'] .editor-top { padding-left: 50px; }
+:root:not([data-mode='quick']) .app:is(.sidebar-collapsed, [data-compact='true']) .editor-top {
+  padding-left: 50px;
+}
 .app.sidebar-collapsed .library[data-peek='true'],
 .app[data-compact='true'][data-library-pinned='true'] .library {
   display: flex;

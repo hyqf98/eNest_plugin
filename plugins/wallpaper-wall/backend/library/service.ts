@@ -1,5 +1,7 @@
-import { access, copyFile, mkdir, readFile, rename, rm, stat, unlink } from 'node:fs/promises'
-import { constants as fsConstants } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { access, mkdir, mkdtemp, rename, rm, stat, unlink } from 'node:fs/promises'
+import { constants as fsConstants, createReadStream, createWriteStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
 import { join, resolve } from 'node:path'
 import type {
   DownloadJobStart,
@@ -13,13 +15,13 @@ import type {
   ThumbResult,
   WallpaperItem,
 } from '@backend/contracts'
-import { resolveFileHandle, postEvent, acquireActivity } from '@backend/runtime'
+import { resolveFileHandle, postEvent, acquireActivity, onShutdown } from '@backend/runtime'
 import { downloadToFile } from '@backend/net'
 import { pluginPaths, suggestedLibraryPath } from '@backend/paths'
 import { libraryStore, loadSettings, updateSettings } from '@backend/store'
 import { resolveAsset } from '@backend/sources/registry'
 import { staticWallpaperService } from '@backend/wallpaper'
-import { createLocalThumbnail, getLibraryPreview, getLibraryThumbnail, getPreview, getThumbnail } from '@backend/thumbs'
+import { getLibraryPreview, getLibraryThumbnail, getPreview, getThumbnail } from '@backend/thumbs'
 import { selectVideoVariant } from '@backend/contracts'
 import {
   errorMessage,
@@ -28,7 +30,6 @@ import {
   isHttpUrl,
   newId,
   safeFileName,
-  sha256Hex,
   shortHash,
 } from '@backend/util'
 
@@ -81,7 +82,14 @@ export function cancelDownload(jobId: string): boolean {
   return true
 }
 
-export async function importLocalWallpaper(request: ImportLocalRequest): Promise<LibraryItem> {
+export function importLocalWallpaper(request: ImportLocalRequest): Promise<LibraryItem> {
+  const controller = new AbortController()
+  const task = importLocalFile(request, controller.signal)
+  const unregister = onShutdown(async () => { controller.abort(); await task.catch(() => {}) })
+  return task.finally(unregister)
+}
+
+async function importLocalFile(request: ImportLocalRequest, signal: AbortSignal): Promise<LibraryItem> {
   const settings = await loadSettings()
   if (!settings.libraryPath) fail('LIBRARY_NOT_CONFIGURED', '请先在设置中选择壁纸库目录')
   const sourcePath = await resolveFileHandle(request.handleId, 'read')
@@ -91,14 +99,28 @@ export async function importLocalWallpaper(request: ImportLocalRequest): Promise
   const mediaType = request.mediaType || inferLocalMediaType(sourcePath)
   if (mediaType === 'web') fail('INVALID_ARGUMENT', 'Web 壁纸请使用 URL 导入')
   const root = await ensureLibraryRoot(settings.libraryPath)
-  const buffer = await readFile(sourcePath)
-  const hash = sha256Hex(buffer)
-  const existing = libraryStore.list().find(item => item.sha256 === hash)
-  if (existing) return existing
-  const extension = sourcePath.includes('.') ? sourcePath.slice(sourcePath.lastIndexOf('.')).toLowerCase() : mediaType === 'video' ? '.mp4' : '.jpg'
-  const fileName = uniqueFileName(root, `local-${shortHash(hash)}${safeExtension(extension)}`)
-  const target = join(root, fileName)
-  await copyFile(sourcePath, target)
+  signal.throwIfAborted()
+  const digest = createHash('sha256')
+  const stage = await mkdtemp(join(root, '.enest-import-')), stagedFile = join(stage, 'content')
+  let bytes = 0, hash: string, fileName: string, target: string
+  try {
+    await pipeline(createReadStream(sourcePath), async function* (chunks) {
+      for await (const chunk of chunks) {
+        bytes += chunk.length
+        if (bytes > MAX_DOWNLOAD_BYTES) fail('INVALID_ARGUMENT', '文件超过 256MB')
+        digest.update(chunk)
+        yield chunk
+      }
+    }, createWriteStream(stagedFile, { flags: 'wx' }), { signal })
+    signal.throwIfAborted()
+    hash = digest.digest('hex')
+    const existing = libraryStore.list().find(item => item.sha256 === hash)
+    if (existing) return existing
+    const extension = sourcePath.includes('.') ? sourcePath.slice(sourcePath.lastIndexOf('.')).toLowerCase() : mediaType === 'video' ? '.mp4' : '.jpg'
+    fileName = uniqueFileName(root, `local-${shortHash(hash)}${safeExtension(extension)}`)
+    target = join(root, fileName)
+    await rename(stagedFile, target)
+  } finally { await rm(stage, { recursive: true, force: true }) }
   const item: WallpaperItem = {
     sourceId: 'local',
     remoteId: hash,
@@ -115,12 +137,11 @@ export async function importLocalWallpaper(request: ImportLocalRequest): Promise
     exportAllowed: true,
     meta: { originalName: safeFileName(sourcePath) },
   }
-  await createLocalThumbnail(target)
   const libraryItem: LibraryItem = {
     id: newId('lib'),
     item,
     fileName,
-    bytes: buffer.length,
+    bytes,
     sha256: hash,
     createdAt: Date.now(),
     favorite: false,
@@ -162,7 +183,6 @@ export async function importUrlWallpaper(request: ImportUrlRequest): Promise<Lib
       exportAllowed: true,
       mime: result.contentType || undefined,
     }
-    await createLocalThumbnail(target)
     return libraryStore.add({
       id: newId('lib'),
       item,

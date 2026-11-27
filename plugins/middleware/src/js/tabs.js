@@ -1,7 +1,7 @@
 /** Unified connection-bound work tabs. Hidden panels retain drafts, selection and results. */
 import { PAGES } from '@mw/pages/index.js'
 import { kindLabel, kindDot } from './kinds.js'
-import { el, escapeHtml } from './components.js'
+import { el, emptyState, escapeHtml } from './components.js'
 import api from './api.js'
 import store from './store.js'
 import { bindTaskApi } from './workspace.js'
@@ -152,11 +152,10 @@ async function mountTask(task, connection) {
   document.getElementById('page-host').append(node)
   if (!activatedConnections.has(connection.id)) {
     record.placeholder = true
-    node.append(el('div', { class: 'workspace-empty' }, [
-      el('h1', {}, '尚未重新读取'),
-      el('p', {}, '标签与布局已恢复。连接后再读取当前页面的数据。'),
-      el('button', { class: 'btn primary', 'data-resume-task': task.id, onclick: () => { activatedConnections.add(connection.id); disposePanel(task.id); renderAll() } }, '连接并读取')
-    ]))
+    node.append(emptyState('尚未重新读取', {
+      hint: '标签与布局已恢复。连接后再读取当前页面的数据。',
+      action: el('button', { class: 'btn primary', 'data-resume-task': task.id, onclick: () => { activatedConnections.add(connection.id); disposePanel(task.id); renderAll() } }, '连接并读取')
+    }))
     return
   }
   node.innerHTML = '<div class="empty-cap" role="status">正在连接并读取工作区…</div>'
@@ -199,14 +198,12 @@ export function renderAll() {
   } else if (task && connection) {
     void mountTask(task, connection)
   } else {
-    const empty = el('div', { id: 'workspace-empty', class: 'workspace-empty' }, [
-      el('div', { class: 'workspace-empty-symbol', 'aria-hidden': 'true' }, '▤'),
-      el('h1', {}, '开始一个中间件任务'),
-      el('p', {}, '从左侧选择连接，浏览 Topic、查看消息或编辑发送内容。'),
-      el('div', { class: 'empty-actions' }, [
-        el('button', { class: 'btn primary', onclick: () => import('./connections.js').then(module => module.openConnectionDrawer()) }, '新建连接')
-      ])
-    ])
+    const hasConnections = store.connections.length > 0
+    const empty = emptyState(hasConnections ? '未打开连接' : '暂无连接', {
+      id: 'workspace-empty',
+      hint: hasConnections ? '打开连接导航，选择要查看的连接。' : '新建连接后即可查看消息和监控数据。',
+      action: el('button', { class: 'btn primary', onclick: () => import('./connections.js').then(module => module.openConnectionDrawer()) }, '新建连接')
+    })
     document.getElementById('page-host').append(empty)
   }
   notifyNavigation()

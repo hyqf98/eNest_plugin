@@ -238,7 +238,7 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
   function openCollection(tab) {
     const open = $('drawer').classList.contains('open') && store.state.ui.rightTab === tab
     store.setUi({ rightTab: tab }); renderRight(); setDrawerOpen(!open)
-    if (!open) $('right-search')?.focus()
+    if (!open) (isQuickSurface() ? document.querySelector('.drawer-tabs .active') : $('right-search'))?.focus()
   }
 
   function toggleDrawer() {
@@ -1105,7 +1105,7 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
   function mountActiveTerminal() {
     const panel = $('panel-term'), active = activeSession()
     if (!panel) return
-    const compact = document.documentElement.dataset.launchMode === 'quick'
+    const compact = isQuickSurface()
     let ids = terminalLayout !== 'single' && !compact ? splitTabs.filter(id => sessions.has(id)) : []
     if (active && !ids.includes(active.tabId)) {
       if (ids.length >= 4) ids[ids.length - 1] = active.tabId
@@ -1114,8 +1114,8 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     if (!ids.length && active) ids = [active.tabId]
     if (!compact && terminalLayout !== 'single' && JSON.stringify(ids) !== JSON.stringify(splitTabs)) { splitTabs = ids; persistWorkspace() }
     if (!active) {
-      panel.innerHTML = '<div class="term-wrap" id="term-wrap"><div class="term-empty"><div class="empty-copy">选择左侧连接，或新建服务器连接</div><button class="btn sm primary" data-new>新建连接</button></div></div>'
-      panel.querySelector('[data-new]').onclick = () => openProfileForm(null)
+      panel.dataset.layout = 'single'
+      panel.innerHTML = '<div class="term-wrap" id="term-wrap"><div class="term-empty pk-empty-state"><strong class="pk-empty-title">暂无终端会话</strong><p class="pk-empty-hint">从连接面板选择服务器后开始。</p></div></div>'
       ensureCompletionLayer($('term-wrap')); return
     }
     panel.dataset.layout = ids.length > 1 ? terminalLayout : 'single'
@@ -2443,31 +2443,31 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
   }
 
   /* ========== left tree ========== */
+  function isQuickSurface() { return document.documentElement.dataset.launchMode === 'quick' }
+  function sidebarSearch() { return isQuickSurface() ? '' : (store.state.ui.search || '').trim() }
+  function matchesSidebarFilters(profile) { return store.matchesFilters(profile, { search: sidebarSearch() }) }
+
   function renderLeft() {
     const tree = $('tree')
     if (!tree) return
     const ui = store.state.ui
-
-    // 搜索框下方原来有一排筛选按钮（全部 / 生产 / 预发 / 开发 / 最近 / 收藏），已按需求移除：
-    // 搜索保留，按环境筛选不再提供，「最近连接」仍可在侧栏 ⋯ 菜单里切换。
-    // #filter-row 容器留着（骨架里有这个节点），不再写入内容。
 
     const searchInput = $('search-input')
     if (searchInput && document.activeElement !== searchInput) searchInput.value = ui.search || ''
 
     renderSelBar()
 
-    if (!store.state.profiles.length) {
-      tree.innerHTML =
-        '<div class="empty">暂无连接<div class="empty-act"><button class="btn sm primary" data-act="empty-new-profile">新建连接</button></div></div>'
+    const visible = store.state.profiles.filter(matchesSidebarFilters)
+    if (!visible.length) {
+      const label = !store.state.profiles.length ? '暂无连接' : sidebarSearch() ? '没有匹配的连接' : '暂无最近连接'
+      tree.innerHTML = `<div class="pk-empty-state" role="status"><strong class="pk-empty-title">${label}</strong></div>`
     } else {
-      const visible = store.state.profiles.filter(store.matchesFilters)
       const ungrouped = visible.filter((p) => !(p.groupId && store.findGroup(p.groupId)))
       const html = []
       html.push(renderGroupNode('', '未分组', ungrouped, 0, null))
       const roots = store.childrenOf('')
       for (const g of roots) html.push(renderGroupNode(g.id, g.name, null, 0, g))
-      tree.innerHTML = html.join('') || '<div class="empty">无匹配</div>'
+      tree.innerHTML = html.join('')
     }
 
     tree.onclick = onTreeClick
@@ -2496,13 +2496,13 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     const color = group?.color || ''
     const childGroups = group ? store.childrenOf(group.id) : store.childrenOf('')
     // 与 store.matchesFilters 保持一致：只剩搜索词与「最近连接」会过滤列表
-    const searching = !!((ui.search || '').trim() || ui.filterRecent)
+    const searching = !!(sidebarSearch() || ui.filterRecent)
     const isOpen = searching || !collapsed
     const profiles =
       directProfiles ||
-      store.profilesInGroup(id).filter((p) => store.matchesFilters(p))
+      store.profilesInGroup(id).filter(matchesSidebarFilters)
     const childCount = group
-      ? childGroups.length + store.profilesInGroup(id).filter(store.matchesFilters).length
+      ? childGroups.length + profiles.length
       : profiles.length
 
     let html =
@@ -2527,9 +2527,8 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
       '</div>'
 
     if (isOpen) {
-      const list = (directProfiles || store.profilesInGroup(id)).filter(store.matchesFilters)
-      for (const p of list.slice().sort(store.sortProfiles)) {
-        html += profileCardHtml(p, depth + 1)
+      for (const profile of profiles.slice().sort(store.sortProfiles)) {
+        html += profileCardHtml(profile, depth + 1)
       }
       if (group) {
         for (const cg of childGroups) {
@@ -2575,11 +2574,6 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     const card = t.closest('[data-profile]')
     const act = actEl?.dataset?.act
     const id = actEl?.dataset?.id
-
-    if (t.dataset?.act === 'empty-new-profile' || t.dataset?.act === 'empty-new') {
-      openProfileForm(null)
-      return
-    }
 
     if (act === 'toggle-group') {
       ev.stopPropagation()
@@ -3466,14 +3460,14 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
     }
 
     if (tab === 'snippets') {
-      const q = ($('right-search')?.value || '').trim().toLowerCase()
+      const query = isQuickSurface() ? '' : ($('right-search')?.value || '').trim().toLowerCase()
       const list = store.state.snippets
         .filter(
           (s) =>
-            !q ||
+            !query ||
             ((s.title || '') + ' ' + (s.command || '') + ' ' + (s.tags || []).join(''))
               .toLowerCase()
-              .includes(q)
+              .includes(query)
         )
         .sort(
           (a, b) =>
@@ -3493,15 +3487,16 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
               (s.tags || []).map((t) => '<span>#' + escapeHtml(t) + '</span>').join('') +
               '</div></div>'
           )
-          .join('') || '<div class="empty">暂无常用</div>'
+          .join('') || `<div class="pk-empty-state" role="status"><strong class="pk-empty-title">${store.state.snippets.length && query ? '没有匹配的常用命令' : '暂无常用命令'}</strong></div>`
     } else {
       const scope = store.state.ui.historyScope || 'current'
-      const q = ($('right-search')?.value || store.state.ui.historyQuery || '').trim()
+      const query = isQuickSurface() ? '' : ($('right-search')?.value || store.state.ui.historyQuery || '').trim()
       let list = store.state.history
       const pid = activeSession()?.profileId
       if (scope === 'current' && pid) list = list.filter((h) => h.profileId === pid)
-      if (q) {
-        const lower = q.toLowerCase()
+      const hasHistory = list.length > 0
+      if (query) {
+        const lower = query.toLowerCase()
         list = list.filter((h) => (h.command || '').toLowerCase().includes(lower))
       }
       body.innerHTML =
@@ -3517,7 +3512,7 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
               fmtRelTime(h.ts) +
               '</span></div></div>'
           )
-          .join('') || '<div class="empty">暂无历史</div>'
+          .join('') || `<div class="pk-empty-state" role="status"><strong class="pk-empty-title">${hasHistory && query ? '没有匹配的历史记录' : '暂无历史记录'}</strong></div>`
     }
   }
 
@@ -4022,7 +4017,7 @@ import { sshIndexedView, sshLaunchIndex, savedProfileId } from './launch-index.j
       }
       await actions.connectProfileById(id)
     })
-        window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, runHint, navigateHistory: (direction, target) => { getCompletion().hide(); return commandActions.history(direction, target) }, completionVisible: () => getCompletion().isOpen(), completionMove: delta => getCompletion().move(delta), completionAccept: () => getCompletion().accept(), openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, showMoreMenu: (el) => showMenuFromEl(el, sideMoreItems()), toggleDrawer, openCollection, setDrawerOpen, setSidebarCollapsed, api, store, get followShellTheme() { return followShellTheme }, setFollowShellThemePref: (next) => persistFollowShellTheme(next) }
+        window.SshWorkbenchBridge = { sessions, activeSession, setActiveTab, connectProfile, closeTab, openProfileForm, renderLeft, renderRight, renderSessionTabs, setTerminalLayout, mountActiveTerminal, termFocus, runCompletion, fillHint, runHint, navigateHistory: (direction, target) => { getCompletion().hide(); return commandActions.history(direction, target) }, completionVisible: () => getCompletion().isOpen(), completionMove: delta => getCompletion().move(delta), completionAccept: () => getCompletion().accept(), openTermSearch, startMetrics, stopMetrics, promptDialog, confirmDialog, showContextMenu, showMoreMenu: (el) => showMenuFromEl(el, sideMoreItems()), toggleDrawer, openCollection, setDrawerOpen, setSidebarCollapsed, api, store, get followShellTheme() { return followShellTheme }, setFollowShellThemePref: (next) => persistFollowShellTheme(next) }
     window.dispatchEvent(new Event('ssh-workbench-ready'))
     setInterval(renderTopStatus, 30000)
   }

@@ -1,10 +1,11 @@
 /**
  * 详情页状态区：按任务状态渲染主操作（安装/下载/暂停/继续/重试/启动/卸载…）。
+ * 它是封面卡片里的一个区块（不是独立面板）：标题行左「状态」右「主按钮」，下载中在下方接进度条。
  * 状态来自 useApp().tasks 里该条目的任务，按钮全部带 busy/disabled 防连点。
- * 未下载时显示「安装游戏 / 下载」按钮，点击后经 onDownload 打开下载确认对话框。
+ * 未下载时主按钮触发 onDownload（打开下载确认）。
  */
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { DownloadSimple, FolderOpen, Pause, Play, Trash, X } from '@phosphor-icons/react'
 import type { DetailData, Task } from '../../shared/contracts'
 import { STATE_LABELS } from '../../shared/contracts'
@@ -17,7 +18,13 @@ import { formatBytes, formatEta, formatSpeed, percent } from '../../js/format'
 
 type ConfirmKind = null | 'task' | 'uninstall'
 
-export function StatePanel({ detail, task, onDownload }: { detail: DetailData; task: Task | null; onDownload: () => void }) {
+export function StatePanel({ detail, task, onDownload, manual }: {
+  detail: DetailData
+  task: Task | null
+  onDownload: () => void
+  /** 手动下载源（gamer520 这类不给文件列表的站点）：未下载时没有可建的下载任务，主按钮由卡片的下载资源区块承担 */
+  manual?: boolean
+}) {
   const app = useApp()
   const item = detail.item
   const [busy, setBusy] = useState('')
@@ -76,13 +83,19 @@ export function StatePanel({ detail, task, onDownload }: { detail: DetailData; t
   const canLaunch = item.installed || (task?.installed ?? false)
   // 下载完成但没安装（只下载、或解压后没找到可执行文件）
   const downloadedOnly = state === 'complete' && !task?.installed
+  const title = downloadedOnly ? '下载完成' : !state ? (canLaunch ? '已安装' : '尚未下载') : stateTitle(state, isSoftware)
 
   return (
-    <section className="gh-panel gh-state">
+    <section className="gh-state" aria-label="下载状态">
       <div className="gh-state-head">
-        <h3 className="gh-state-title">{downloadedOnly ? '下载完成' : !state ? (canLaunch ? '已安装' : '尚未下载') : stateTitle(state, isSoftware)}</h3>
-        {state ? <StatusBadge tone={stateTone(state)}>{STATE_LABELS[state]}</StatusBadge> : null}
-        {task?.stalled ? <StatusBadge tone="warn">进展缓慢</StatusBadge> : null}
+        <div className="gh-state-label">
+          <h4 className="gh-state-title">{title}</h4>
+          {state ? <StatusBadge tone={stateTone(state)}>{STATE_LABELS[state]}</StatusBadge> : null}
+          {task?.stalled ? <StatusBadge tone="warn">进展缓慢</StatusBadge> : null}
+        </div>
+        <div className="gh-state-primary">
+          {primaryAction(state)}
+        </div>
       </div>
 
       {state === 'downloading' ? (
@@ -116,84 +129,7 @@ export function StatePanel({ detail, task, onDownload }: { detail: DetailData; t
       ) : null}
 
       <div className="gh-state-actions">
-        {!state ? (
-          <button type="button" className="pk-btn pk-btn-primary" onClick={onDownload}>
-            <Glyph icon={DownloadSimple} size={14} />
-            <span>{canLaunch ? (isSoftware ? '打开' : '启动游戏') : (isSoftware || item.kind === 'trainer' || item.kind === 'mod' ? '下载' : '安装游戏')}</span>
-          </button>
-        ) : null}
-
-        {state === 'downloading' ? (
-          <>
-            <button type="button" className="pk-btn" disabled={busy !== ''} onClick={pause}><Glyph icon={Pause} size={14} /><span>暂停</span></button>
-            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('task')}><Glyph icon={Trash} size={14} /><span>删除</span></button>
-          </>
-        ) : null}
-
-        {state === 'paused' ? (
-          <>
-            <button type="button" className="pk-btn pk-btn-primary" disabled={busy !== ''} onClick={resume}><Glyph icon={Play} size={14} /><span>继续</span></button>
-            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('task')}><Glyph icon={Trash} size={14} /><span>删除</span></button>
-          </>
-        ) : null}
-
-        {state === 'queued' || state === 'resolving' ? (
-          <>
-            <button type="button" className="pk-btn" disabled aria-busy="true"><span>{state === 'queued' ? '排队中…' : '启动中…'}</span></button>
-            {/* 暂停：任务与已选目录都保留，想下的时候再继续。排队中的任务暂停后不会自动开跑 */}
-            <button type="button" className="pk-btn" disabled={busy !== ''} onClick={pause}><Glyph icon={Pause} size={14} /><span>暂停</span></button>
-            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('task')}><Glyph icon={Trash} size={14} /><span>删除</span></button>
-          </>
-        ) : null}
-
-        {state === 'installing' ? (
-          <>
-            {/* 暂停会中止解压，安装包保留；继续时只重新解压，不会重新下载 */}
-            <button type="button" className="pk-btn" disabled={busy !== ''} onClick={pause}><Glyph icon={Pause} size={14} /><span>暂停</span></button>
-            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('task')}><Glyph icon={Trash} size={14} /><span>删除</span></button>
-          </>
-        ) : null}
-
-        {state === 'install_failed' ? (
-          <>
-            <button type="button" className="pk-btn pk-btn-primary" disabled={busy !== ''} onClick={retryInstall}><span>{busy === 'retry' ? '重试中…' : '重试安装'}</span></button>
-            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('task')}><Glyph icon={Trash} size={14} /><span>删除</span></button>
-          </>
-        ) : null}
-
-        {state === 'failed' ? (
-          <>
-            <button type="button" className="pk-btn pk-btn-primary" disabled={busy !== ''} onClick={resume}><span>{busy === 'resume' ? '重试中…' : '重试'}</span></button>
-            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('task')}><Glyph icon={Trash} size={14} /><span>删除</span></button>
-          </>
-        ) : null}
-
-        {state === 'login_expired' ? (
-          <>
-            <button type="button" className="pk-btn pk-btn-primary" onClick={() => app.setNav('settings')}>重新登录</button>
-            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('task')}><Glyph icon={Trash} size={14} /><span>删除</span></button>
-          </>
-        ) : null}
-
-        {state === 'complete' ? (
-          // 只下载没安装（或没解出可执行文件）：没有可启动的东西，只给"打开目录"
-          !task?.installed ? (
-            <button type="button" className="pk-btn" disabled={busy !== ''} onClick={reveal}><Glyph icon={FolderOpen} size={14} /><span>打开目录</span></button>
-          ) : (
-          <>
-            {running ? (
-              <button type="button" className="pk-btn" onClick={close} disabled={busy !== ''}><Glyph icon={X} size={14} /><span>关闭游戏</span></button>
-            ) : (
-              <button type="button" className="pk-btn pk-btn-primary" onClick={launch} disabled={launching || busy !== ''} aria-busy={launching || undefined}>
-                <Glyph icon={Play} size={14} />
-                <span>{launching || busy === 'launch' ? '启动中…' : '运行中'}</span>
-              </button>
-            )}
-            <button type="button" className="pk-btn" disabled={busy !== ''} onClick={reveal}><Glyph icon={FolderOpen} size={14} /><span>打开目录</span></button>
-            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('uninstall')}><Glyph icon={Trash} size={14} /><span>卸载</span></button>
-          </>
-          )
-        ) : null}
+        {secondaryActions(state)}
       </div>
 
       <ConfirmDialog
@@ -208,6 +144,81 @@ export function StatePanel({ detail, task, onDownload }: { detail: DetailData; t
       />
     </section>
   )
+
+  /** 标题行右侧的主操作：每个状态只有一个 */
+  function primaryAction(current: Task['state'] | null): ReactNode {
+    switch (current) {
+      case null:
+        // 手动下载源且还没装：没有可建的下载任务，「打开下载页」由卡片的下载资源区块承担（带说明文字）
+        if (manual && !canLaunch) return null
+        return (
+          <button type="button" className="pk-btn pk-btn-primary" onClick={onDownload}>
+            <Glyph icon={DownloadSimple} size={14} />
+            <span>{canLaunch ? (isSoftware ? '打开' : '启动游戏') : (isSoftware || item.kind === 'trainer' || item.kind === 'mod' ? '下载' : '安装游戏')}</span>
+          </button>
+        )
+      case 'downloading':
+        return <button type="button" className="pk-btn pk-btn-primary" disabled={busy !== ''} onClick={pause}><Glyph icon={Pause} size={14} /><span>暂停</span></button>
+      case 'paused':
+        return <button type="button" className="pk-btn pk-btn-primary" disabled={busy !== ''} onClick={resume}><Glyph icon={Play} size={14} /><span>继续</span></button>
+      case 'queued':
+      case 'resolving':
+        return <button type="button" className="pk-btn" disabled aria-busy="true"><span>{current === 'queued' ? '排队中…' : '启动中…'}</span></button>
+      case 'installing':
+        return (
+          <button type="button" className="pk-btn" disabled={busy !== ''} onClick={pause}><Glyph icon={Pause} size={14} /><span>暂停</span></button>
+        )
+      case 'install_failed':
+        return <button type="button" className="pk-btn pk-btn-primary" disabled={busy !== ''} onClick={retryInstall}><span>{busy === 'retry' ? '重试中…' : '重试安装'}</span></button>
+      case 'failed':
+        return <button type="button" className="pk-btn pk-btn-primary" disabled={busy !== ''} onClick={resume}><span>{busy === 'resume' ? '重试中…' : '重试'}</span></button>
+      case 'login_expired':
+        return <button type="button" className="pk-btn pk-btn-primary" onClick={() => app.setNav('settings')}>重新登录</button>
+      case 'complete':
+        // 只下载没安装（或没解出可执行文件）：没有可启动的东西，只给"打开目录"
+        return !task?.installed
+          ? <button type="button" className="pk-btn" disabled={busy !== ''} onClick={reveal}><Glyph icon={FolderOpen} size={14} /><span>打开目录</span></button>
+          : running
+            ? <button type="button" className="pk-btn" onClick={close} disabled={busy !== ''}><Glyph icon={X} size={14} /><span>关闭游戏</span></button>
+            : (
+              <button type="button" className="pk-btn pk-btn-primary" onClick={launch} disabled={launching || busy !== ''} aria-busy={launching || undefined}>
+                <Glyph icon={Play} size={14} />
+                <span>{launching || busy === 'launch' ? '启动中…' : '运行中'}</span>
+              </button>
+            )
+      default:
+        return null
+    }
+  }
+
+  /** 标题行下方的次要操作（删除 / 卸载 / 打开目录） */
+  function secondaryActions(current: Task['state'] | null): ReactNode {
+    const remove = (
+      <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('task')}><Glyph icon={Trash} size={14} /><span>删除</span></button>
+    )
+    switch (current) {
+      case null:
+        return null
+      case 'complete':
+        return task?.installed ? (
+          <>
+            <button type="button" className="pk-btn" disabled={busy !== ''} onClick={reveal}><Glyph icon={FolderOpen} size={14} /><span>打开目录</span></button>
+            <button type="button" className="pk-btn pk-btn-danger" disabled={busy !== ''} onClick={() => setConfirm('uninstall')}><Glyph icon={Trash} size={14} /><span>卸载</span></button>
+          </>
+        ) : null
+      case 'queued':
+      case 'resolving':
+        // 暂停：任务与已选目录都保留，想下的时候再继续。排队中的任务暂停后不会自动开跑
+        return (
+          <>
+            <button type="button" className="pk-btn" disabled={busy !== ''} onClick={pause}><Glyph icon={Pause} size={14} /><span>暂停</span></button>
+            {remove}
+          </>
+        )
+      default:
+        return remove
+    }
+  }
 }
 
 function stateTitle(state: Task['state'], isSoftware: boolean): string {
