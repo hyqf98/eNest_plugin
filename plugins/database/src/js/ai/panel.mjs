@@ -120,6 +120,7 @@ function createAiPanel() {
 
   let session = null
   let agent = null
+  let modelMenu = null
 
   /* A2UI host（线报真源）+ React 视图 + live 状态 */
   const host = createA2uiHost({
@@ -133,7 +134,7 @@ function createAiPanel() {
       }
     }
   })
-  const live = { phase: 'idle', text: '', turnEntries: null, surfaces: [], revision: 0 }
+  const live = { phase: 'idle', text: '', reasoning: '', turnEntries: null, surfaces: [], revision: 0 }
   let bodyView = null
 
   function bump() { live.revision += 1 }
@@ -601,7 +602,6 @@ function createAiPanel() {
   function bindEvents() {
     collapseBtn.onclick = collapse
     sessionsBtn.onclick = () => dropdown ? closeDropdown() : openDropdown(sessionsBtn, renderSessionsDropdown())
-    modelBtn.onclick = () => dropdown ? closeDropdown() : openDropdown(modelBtn, renderModelDropdown())
     connBtn.onclick = () => {
       bindWorkbenchConnection()
       syncConnection()
@@ -669,6 +669,8 @@ watchThemeChanges(() => {
         onSuggest: (text) => void submit(text),
         onOpenInEditor: openInEditor
       }))
+      // 模型座：composer 工具行里的两级下拉（模型 / 思考程度）
+      modelMenu = mountModelMenu(modelSeat, { onChange: () => { syncBody() } })
       agent = createAgent(agentUi)
       applyFabLayout()
       bindFabDrag()
