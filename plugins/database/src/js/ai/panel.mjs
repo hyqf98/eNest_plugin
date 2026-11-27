@@ -365,6 +365,7 @@ function createAiPanel() {
     beginTurn() {
       live.phase = 'streaming'
       live.text = ''
+      live.reasoning = ''
       live.turnEntries = null
       live.surfaces = []
       bump()
@@ -372,6 +373,11 @@ function createAiPanel() {
     },
     pushText(delta) {
       live.text += delta
+      syncBody()
+    },
+    /** 思维链增量：与正文分开累积，PanelBody 用独立的「思考」行呈现。 */
+    pushReasoning(delta) {
+      live.reasoning += delta
       syncBody()
     },
     endStream() {
